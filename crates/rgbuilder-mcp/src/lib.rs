@@ -463,3 +463,361 @@ fn rpc_err(id: Option<Value>, code: i64, message: String) -> Value {
 pub fn advertised_tool_names() -> &'static [&'static str] {
     TOOL_NAMES
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    struct Harness {
+        _tmp: tempfile::TempDir,
+        session: Session,
+    }
+
+    fn empty_repo() -> Harness {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let session = Session::new(tmp.path());
+        Harness { _tmp: tmp, session }
+    }
+
+    fn rpc(session: &mut Session, id: i64, method: &str, params: Value) -> Value {
+        handle_message(
+            session,
+            &json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": method,
+                "params": params
+            }),
+        )
+        .unwrap_or_else(|| panic!("expected response for {method}"))
+    }
+
+    fn call_tool(session: &mut Session, id: i64, name: &str, arguments: Value) -> Value {
+        rpc(
+            session,
+            id,
+            "tools/call",
+            json!({ "name": name, "arguments": arguments }),
+        )
+    }
+
+    fn structured(resp: &Value) -> Value {
+        if let Some(value) = resp.pointer("/result/structuredContent") {
+            return value.clone();
+        }
+        panic!("missing structuredContent: {resp}");
+    }
+
+    fn assert_tool_envelope(resp: &Value, id: i64) {
+        assert_eq!(resp["jsonrpc"], "2.0");
+        assert_eq!(resp["id"], id);
+        assert!(resp.get("error").is_none(), "unexpected error: {resp}");
+        let result = resp.get("result").expect("result");
+        assert_eq!(result["content"][0]["type"], "text");
+        let text = result["content"][0]["text"].as_str().expect("text");
+        let parsed: Value = serde_json::from_str(text).expect("content text is JSON");
+        assert_eq!(
+            &parsed,
+            result.get("structuredContent").expect("structuredContent"),
+            "content text must match structuredContent"
+        );
+    }
+
+    fn assert_invalid_params(resp: &Value, id: i64, needle: &str) {
+        assert_eq!(resp["id"], id);
+        assert_eq!(resp["error"]["code"], -32602, "{resp}");
+        let message = resp["error"]["message"].as_str().unwrap_or("");
+        assert!(
+            message.to_ascii_lowercase().contains(&needle.to_ascii_lowercase()),
+            "expected '{needle}' in '{message}' ({resp})"
+        );
+    }
+
+    #[test]
+    fn initialize_advertises_tools_and_resources() {
+        let mut h = empty_repo();
+        let resp = rpc(
+            &mut h.session,
+            1,
+            "initialize",
+            json!({
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": { "name": "test", "version": "0" }
+            }),
+        );
+        assert_eq!(resp["result"]["serverInfo"]["name"], "rgbuilder");
+        assert!(resp["result"]["capabilities"]["tools"].is_object());
+        assert!(resp["result"]["capabilities"]["resources"].is_object());
+    }
+
+    #[test]
+    fn tools_list_matches_catalog_and_schemas() {
+        let mut h = empty_repo();
+        let resp = rpc(&mut h.session, 1, "tools/list", json!({}));
+        let tools = resp["result"]["tools"].as_array().expect("tools");
+        let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+        assert_eq!(names, advertised_tool_names());
+        for tool in tools {
+            assert!(tool["inputSchema"].is_object(), "{tool}");
+            assert!(tool["description"].as_str().is_some_and(|d| !d.is_empty()));
+        }
+    }
+
+    #[test]
+    fn ping_and_unknown_method() {
+        let mut h = empty_repo();
+        let ping = rpc(&mut h.session, 1, "ping", json!({}));
+        assert!(ping.get("result").is_some(), "{ping}");
+        let unknown = rpc(&mut h.session, 2, "tools/invoke", json!({}));
+        assert_eq!(unknown["error"]["code"], -32601);
+    }
+
+    #[test]
+    fn initialized_notification_has_no_response() {
+        let mut h = empty_repo();
+        let none = handle_message(
+            &mut h.session,
+            &json!({
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            }),
+        );
+        assert!(none.is_none());
+    }
+
+    #[test]
+    fn status_tool_returns_pipeline_status_envelope() {
+        let mut h = empty_repo();
+        let resp = call_tool(&mut h.session, 1, "rgbuilder_status", json!({}));
+        assert_tool_envelope(&resp, 1);
+        let doc = structured(&resp);
+        assert_eq!(doc["schema_version"], 1);
+        assert_eq!(doc["command"], "pipeline_status");
+        assert_eq!(doc["semantic_ready"], false);
+        assert_eq!(doc["cfg_ready"], false);
+    }
+
+    #[test]
+    fn query_rejects_both_and_neither() {
+        let mut h = empty_repo();
+        let both = call_tool(
+            &mut h.session,
+            1,
+            "rgbuilder_query",
+            json!({
+                "query": "MATCH (n:Function) RETURN n",
+                "macro": "all_functions"
+            }),
+        );
+        assert_invalid_params(&both, 1, "not both");
+
+        let neither = call_tool(&mut h.session, 2, "rgbuilder_query", json!({}));
+        assert_invalid_params(&neither, 2, "query");
+    }
+
+    #[test]
+    fn query_without_graph_is_status_not_rpc_error() {
+        let mut h = empty_repo();
+        let resp = call_tool(
+            &mut h.session,
+            1,
+            "rgbuilder_query",
+            json!({ "query": "MATCH (n:Function) RETURN n" }),
+        );
+        assert_tool_envelope(&resp, 1);
+        assert_eq!(structured(&resp)["command"], "pipeline_status");
+    }
+
+    #[test]
+    fn parse_query_defaults_limit_to_twenty() {
+        let args = parse_query(&json!({ "macro": "all_functions" })).expect("parse");
+        assert_eq!(args.limit, Some(DEFAULT_LIMIT));
+        let capped = parse_query(&json!({ "query": "MATCH (n) RETURN n", "limit": 5 })).expect("parse");
+        assert_eq!(capped.limit, Some(5));
+        assert!(!capped.explain);
+    }
+
+    #[test]
+    fn search_empty_text_is_invalid_params() {
+        let mut h = empty_repo();
+        let resp = call_tool(&mut h.session, 1, "rgbuilder_search", json!({ "text": "  " }));
+        assert_invalid_params(&resp, 1, "text");
+    }
+
+    #[test]
+    fn search_unknown_scope_is_invalid_params() {
+        let mut h = empty_repo();
+        let resp = call_tool(
+            &mut h.session,
+            1,
+            "rgbuilder_search",
+            json!({ "text": "checkout", "scope": "packages" }),
+        );
+        assert_invalid_params(&resp, 1, "scope");
+    }
+
+    #[test]
+    fn search_without_index_returns_status() {
+        let mut h = empty_repo();
+        let resp = call_tool(
+            &mut h.session,
+            1,
+            "rgbuilder_search",
+            json!({ "text": "checkout", "scope": "function" }),
+        );
+        assert_tool_envelope(&resp, 1);
+        let doc = structured(&resp);
+        assert_eq!(doc["command"], "pipeline_status");
+        assert_eq!(doc["semantic_ready"], false);
+    }
+
+    #[test]
+    fn parse_search_scopes() {
+        let parsed = parse_search(&json!({ "text": "x", "scope": "docs" })).expect("docs");
+        assert_eq!(parsed.scope, SearchScope::Docs);
+        assert_eq!(parsed.limit, Some(DEFAULT_LIMIT));
+        assert!(parse_search(&json!({ "text": "x", "scope": "nope" })).is_err());
+    }
+
+    #[test]
+    fn impact_requires_symbol_even_without_graph() {
+        let mut h = empty_repo();
+        let missing = call_tool(&mut h.session, 1, "rgbuilder_impact", json!({}));
+        assert_invalid_params(&missing, 1, "symbol");
+        let unreadiness = call_tool(
+            &mut h.session,
+            2,
+            "rgbuilder_impact",
+            json!({ "symbol": "OrderService::process" }),
+        );
+        assert_tool_envelope(&unreadiness, 2);
+        assert_eq!(structured(&unreadiness)["command"], "pipeline_status");
+    }
+
+    #[test]
+    fn metrics_requires_a_flag_then_unreadiness() {
+        let mut h = empty_repo();
+        let none = call_tool(&mut h.session, 1, "rgbuilder_metrics", json!({}));
+        assert_invalid_params(&none, 1, "pagerank");
+        let unreadiness = call_tool(
+            &mut h.session,
+            2,
+            "rgbuilder_metrics",
+            json!({ "pagerank": true }),
+        );
+        assert_tool_envelope(&unreadiness, 2);
+        assert_eq!(structured(&unreadiness)["command"], "pipeline_status");
+    }
+
+    #[test]
+    fn cpg_status_works_without_graph() {
+        let mut h = empty_repo();
+        let resp = call_tool(
+            &mut h.session,
+            1,
+            "rgbuilder_cpg",
+            json!({ "op": "status" }),
+        );
+        assert_tool_envelope(&resp, 1);
+        let doc = structured(&resp);
+        assert_eq!(doc["schema_version"], 1);
+        assert_eq!(doc["archive_present"], false);
+        assert_ne!(doc["command"], "pipeline_status");
+    }
+
+    #[test]
+    fn cpg_slice_without_cfg_is_status() {
+        let mut h = empty_repo();
+        let resp = call_tool(&mut h.session, 1, "rgbuilder_cpg", json!({ "op": "slice" }));
+        assert_tool_envelope(&resp, 1);
+        let doc = structured(&resp);
+        assert_eq!(doc["command"], "pipeline_status");
+        assert_eq!(doc["cfg_ready"], false);
+    }
+
+    #[test]
+    fn cpg_export_is_unknown_op() {
+        let mut h = empty_repo();
+        let resp = call_tool(&mut h.session, 1, "rgbuilder_cpg", json!({ "op": "export" }));
+        assert_invalid_params(&resp, 1, "unknown op");
+        let message = resp["error"]["message"].as_str().unwrap_or("");
+        assert!(message.contains("unknown op"), "{message}");
+        let allowed = message.split("allowed:").nth(1).unwrap_or("");
+        assert!(allowed.contains("slice"), "{message}");
+        assert!(
+            !allowed.contains("export"),
+            "allowed ops must not include export: {message}"
+        );
+    }
+
+    #[test]
+    fn check_requires_policy_file() {
+        let mut h = empty_repo();
+        let resp = call_tool(&mut h.session, 1, "rgbuilder_check", json!({}));
+        assert_invalid_params(&resp, 1, "policy_file");
+    }
+
+    #[test]
+    fn unknown_tool_is_invalid_params() {
+        let mut h = empty_repo();
+        let resp = call_tool(&mut h.session, 1, "rgbuilder_discover", json!({}));
+        assert_invalid_params(&resp, 1, "unknown tool");
+        let export = call_tool(&mut h.session, 2, "rgbuilder_export", json!({}));
+        assert_invalid_params(&export, 2, "unknown tool");
+    }
+
+    #[test]
+    fn resources_list_and_read() {
+        let mut h = empty_repo();
+        let listed = rpc(&mut h.session, 1, "resources/list", json!({}));
+        let uris: Vec<&str> = listed["result"]["resources"]
+            .as_array()
+            .expect("resources")
+            .iter()
+            .filter_map(|r| r["uri"].as_str())
+            .collect();
+        assert_eq!(
+            uris,
+            [
+                "rgbuilder://status",
+                "rgbuilder://manifest",
+                "rgbuilder://migration-plan"
+            ]
+        );
+
+        let status = rpc(
+            &mut h.session,
+            2,
+            "resources/read",
+            json!({ "uri": "rgbuilder://status" }),
+        );
+        let text = status["result"]["contents"][0]["text"]
+            .as_str()
+            .expect("text");
+        let doc: Value = serde_json::from_str(text).expect("status json");
+        assert_eq!(doc["command"], "pipeline_status");
+        assert_eq!(doc["schema_version"], 1);
+
+        let plan = rpc(
+            &mut h.session,
+            3,
+            "resources/read",
+            json!({ "uri": "rgbuilder://migration-plan" }),
+        );
+        let plan_text = plan["result"]["contents"][0]["text"]
+            .as_str()
+            .expect("plan text");
+        let plan_doc: Value = serde_json::from_str(plan_text).expect("plan json");
+        assert_eq!(plan_doc["available"], false);
+
+        let unknown = rpc(
+            &mut h.session,
+            4,
+            "resources/read",
+            json!({ "uri": "rgbuilder://nope" }),
+        );
+        assert_eq!(unknown["error"]["code"], -32602);
+    }
+}
