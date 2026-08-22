@@ -7,6 +7,6 @@
 ## Added
 
 - `rg-build discover PATH --full` — staged pipeline: basic discover → CFG/dashboard/harmonic → semantic index. Plan printed up front; snapshot is queryable after stage 1. JSON includes `full` and `plan`.
-- `rg-build serve --mode standard|mcp` (default `standard`). MCP mode is stdio JSON-RPC with tool `rgbuilder_status` (no HTTP bind). Remaining MCP tools: [issue #60](https://github.com/sshaaf/rgBuilder/issues/60).
+- `rg-build serve --mode standard|mcp` (default `standard`). MCP mode is stdio JSON-RPC (no HTTP bind) with tools `rgbuilder_status`, `rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`. Shared command service in `rgbuilder-service`; MCP crate `rgbuilder-mcp` does not depend on package `rgbuilder`.
 - CoolStore MCP walkthrough: [MCP Server](../guides/mcp-server.md).
 - `GET /api/status` and `.rgbuilder/pipeline_status.json` (`schema_version` 1).

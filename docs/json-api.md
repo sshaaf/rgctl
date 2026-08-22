@@ -4,7 +4,7 @@ Programmatic reference for parsing rgBuilder output. Every structured CLI comman
 
 **Canonical JSON reference** (includes field catalogs formerly in `cli-output-schemas.md`).
 
-**Source of truth (Rust types):** `src/cli/*_output.rs`
+**Source of truth (Rust types):** `crates/rgbuilder-service` JSON modules (CLI `src/cli/*_output.rs` re-exports). MCP tools return the same `schema_version` payloads via `structuredContent`.
 
 ---
 
@@ -56,6 +56,16 @@ rg-build -r "$REPO" -f json blast-radius ShoppingCartService -o /tmp/blast.json
 | Default text | Human-readable tables | Progress / info logs |
 
 **Rule:** parse **stdout only** for JSON. Do not scrape stderr.
+
+### MCP (`serve --mode mcp`)
+
+Stdio JSON-RPC; no HTTP. Tools: `rgbuilder_status`, `rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`. Successful `tools/call` results use the same documents as CLI `-f json` (pretty text plus `structuredContent`).
+
+`rgbuilder_query` and `rgbuilder_search` apply **`limit` 20** when the client omits `limit`. CLI `-f json gql` / `semantic query` do **not** add that default.
+
+If the graph, CFG archive, or semantic index is missing, those tools return pipeline status (`command`: `pipeline_status`, `schema_version` 1) as the **tool result**, not a JSON-RPC error. `cpg export` is CLI-only (`rgbuilder_cpg` `op` `export` is unknown).
+
+Resources: `rgbuilder://status`, `rgbuilder://manifest`, `rgbuilder://migration-plan`. Walkthrough: [MCP Server](guides/mcp-server.md).
 
 ### Prerequisites
 
@@ -173,6 +183,8 @@ rg-build -f json discover . | jq '.metrics | {nodes: .nodes_generated, ms: .dura
 ```bash
 rg-build -f json gql "<QUERY>" [--macro-name NAME] [--explain]
 ```
+
+CLI JSON does not default-limit rows. MCP `rgbuilder_query` applies `limit` 20 when omitted.
 
 ### TypeScript shape
 

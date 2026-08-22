@@ -368,6 +368,31 @@ fn emit_output(ctx: &CliContext, response: &BlastRadiusResponse) -> Result<()> {
 }
 
 pub fn run(ctx: &CliContext, args: BlastRadiusArgs) -> Result<()> {
+    if ctx.format == OutputFormat::Json && args.policy_file.is_none() && !args.with_slices {
+        let mut session = rgbuilder_service::Session::new(&ctx.repo);
+        if !session.graph_ready() {
+            anyhow::bail!("Graph not found (run `rg-build discover` first)");
+        }
+        let value = rgbuilder_service::execute(
+            &mut session,
+            rgbuilder_service::Command::Impact(rgbuilder_service::ImpactArgs {
+                symbol: args.symbol.clone(),
+                depth: args.depth,
+                class: args.class.clone(),
+                file: args.file.clone(),
+            }),
+        )?;
+        ctx.emit_json_value(&value)?;
+        if value
+            .pointer("/gatekeeping/policy_status")
+            .and_then(|v| v.as_str())
+            == Some("VIOLATED")
+        {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
     let parsed = parsed_from_args(&args);
     let needs_full_graph = args.with_slices || args.policy_file.is_some();
 

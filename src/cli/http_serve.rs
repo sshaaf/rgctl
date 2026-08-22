@@ -2,7 +2,6 @@
 
 use super::context::CliContext;
 use super::discover::resolve_session_root;
-use super::gql_output::gql_result_to_json;
 use super::pipeline_session::spawn_full_pipeline;
 use super::pipeline_status::{self, PIPELINE_STATUS_SCHEMA_VERSION};
 use super::semantic::SemanticQueryArgs;
@@ -19,11 +18,11 @@ use axum::{
 };
 use rgbuilder_analysis::{CommunityQueryContext, SemanticIndex};
 use rgbuilder_dashboard::default_dashboard_path;
-use rgbuilder_gql::{
-    QueryMacroRegistry, execute_explain_with_community, execute_macro_with_community,
-    execute_with_community,
-};
+use rgbuilder_gql::QueryMacroRegistry;
 use rgbuilder_graph::CodeGraph;
+use rgbuilder_service::command::{QueryArgs, SearchArgs, SearchScope};
+use rgbuilder_service::query::run_query;
+use rgbuilder_service::search::run_search;
 use serde::Deserialize;
 use serde_json::Value;
 use std::net::SocketAddr;
@@ -50,6 +49,7 @@ struct AppState {
     repo: PathBuf,
     dashboard_dir: PathBuf,
     graph: RwLock<Option<CodeGraph>>,
+    #[allow(dead_code)]
     registry: QueryMacroRegistry,
     semantic: RwLock<Option<Arc<SemanticIndex>>>,
     community: RwLock<Option<CommunityQueryContext>>,
@@ -63,6 +63,8 @@ struct QueryRequest {
     explain: bool,
     #[serde(default)]
     r#macro: Option<String>,
+    #[serde(default)]
+    limit: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -365,31 +367,21 @@ async fn api_query(
         ));
     };
     let community = state.community.read().ok();
-    let community_ref = community.as_ref().and_then(|c| c.as_ref());
-    let backend = graph.backend();
+    let _community_ref = community.as_ref().and_then(|c| c.as_ref());
 
-    let result = if let Some(name) = body.r#macro {
-        execute_macro_with_community(backend, &state.registry, &name, community_ref)
-    } else if let Some(query) = body.query.as_deref() {
-        if body.explain {
-            execute_explain_with_community(backend, query, community_ref)
-        } else {
-            execute_with_community(backend, query, community_ref)
-        }
-    } else {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "request must include `query` or `macro`"})),
-        ));
-    }
-    .map_err(|err| {
-        (
+    let args = QueryArgs {
+        query: body.query.clone(),
+        macro_name: body.r#macro.clone(),
+        explain: body.explain,
+        limit: body.limit,
+    };
+    match run_query(graph, &state.repo, &args) {
+        Ok(value) => Ok(Json(value)),
+        Err(err) => Err((
             StatusCode::BAD_REQUEST,
             Json(serde_json::json!({"error": err.to_string()})),
-        )
-    })?;
-
-    Ok(Json(gql_result_to_json(&result, body.explain)))
+        )),
+    }
 }
 
 async fn api_semantic_status(
@@ -442,7 +434,6 @@ async fn api_semantic_query(
         }
     };
 
-    let index = Arc::clone(&index);
     let graph = {
         let guard = state.graph.read().map_err(|_| {
             (
@@ -455,6 +446,35 @@ async fn api_semantic_query(
             .ok_or_else(|| (StatusCode::SERVICE_UNAVAILABLE, "graph not ready".into()))?
     };
     let repo = state.repo.clone();
+
+    if expand.is_none() {
+        let _ = index;
+        let search_scope = match scope {
+            super::semantic::CliSemanticScope::Function => SearchScope::Function,
+            super::semantic::CliSemanticScope::Community => SearchScope::Community,
+            super::semantic::CliSemanticScope::Docs => SearchScope::Docs,
+            super::semantic::CliSemanticScope::All => SearchScope::All,
+        };
+        let text = query.to_string();
+        let limit = body.limit.clamp(1, 100);
+        let value = tokio::task::spawn_blocking(move || {
+            run_search(
+                &graph,
+                &repo,
+                &SearchArgs {
+                    text,
+                    scope: search_scope,
+                    limit: Some(limit),
+                },
+            )
+        })
+        .await
+        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, format!("{err}")))?
+        .map_err(|err| (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()))?;
+        return Ok(Json(value));
+    }
+
+    let index = Arc::clone(&index);
     let args = SemanticQueryArgs {
         query: query.to_string(),
         limit: body.limit.clamp(1, 100),

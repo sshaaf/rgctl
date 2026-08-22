@@ -15,6 +15,8 @@ Answer **structural** questions from a pre-built code knowledge graph instead of
 
 Typical user turns are natural language (“Where is the checkout flow?”), not CLI strings. Map intent → command → summarize.
 
+If the host already connected **`rg-build serve --mode mcp`**, prefer MCP tools (`rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`, `rgbuilder_status`) instead of spawning `rg-build -f json` for those intents. Still spawn CLI for `discover`, `semantic index`, `cpg export`, `communities label --write`, and one-shot CI. MCP query/search default `limit` 20. Unready graph/CFG/semantic returns pipeline status JSON as the tool result.
+
 ## Agent loop
 
 ```text

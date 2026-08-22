@@ -22,6 +22,8 @@ members = [
     "crates/rgbuilder-semantic",
     "crates/rgbuilder-rules",
     "crates/rgbuilder-core",
+    "crates/rgbuilder-service",
+    "crates/rgbuilder-mcp",
     "crates/rgbuilder-lang-go",
     "crates/rgbuilder-lang-java",
     "crates/rgbuilder-lang-javascript",
@@ -61,6 +63,8 @@ rgbuilder-incremental = { path = "crates/rgbuilder-incremental", version = "0.4.
 rgbuilder-semantic = { path = "crates/rgbuilder-semantic", version = "0.4.6" }
 rgbuilder-rules = { path = "crates/rgbuilder-rules", version = "0.4.6" }
 rgbuilder-core = { path = "crates/rgbuilder-core", version = "0.4.6" }
+rgbuilder-service = { path = "crates/rgbuilder-service", version = "0.4.6" }
+rgbuilder-mcp = { path = "crates/rgbuilder-mcp", version = "0.4.6" }
 tempfile = "3"
 zstd = "0.13"
 rayon = "1.7"
@@ -119,6 +123,8 @@ categories = ["development-tools", "command-line-utilities"]
 [dependencies]
 # Workspace crates
 rgbuilder-core = { workspace = true }
+rgbuilder-service = { workspace = true }
+rgbuilder-mcp = { workspace = true }
 rgbuilder-plugin-api = { workspace = true }
 rgbuilder-plugin-helpers = { workspace = true }
 rgbuilder-config-formats = { workspace = true }

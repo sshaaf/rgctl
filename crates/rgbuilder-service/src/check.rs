@@ -1,53 +1,41 @@
-//! `rg-build check` — CI policy gateway.
+//! Policy check command.
 
-use super::args::OutputFormat;
-use super::check_output::{build_check_response, violations_from_json_values};
-use super::context::CliContext;
-use super::policy_file::PolicyFile;
-use crate::analysis::{BlastRadiusEngine, CentralityAnalyzer, PetGraphView, PolicyViolation};
-use anyhow::Result;
+use crate::check_json::{build_check_response, check_response_to_json, violations_from_json_values};
+use crate::command::CheckArgs;
+use crate::error::{Result, ServiceError};
+use crate::policy::PolicyFile;
+use rgbuilder_analysis::{BlastRadiusEngine, CentralityAnalyzer, PetGraphView, PolicyViolation};
+use rgbuilder_graph::CodeGraph;
 use rgbuilder_graph::schema::NodeType;
-use serde_json::json;
+use serde_json::{Value, json};
 use std::path::Path;
 use std::process::Command;
 
-pub struct CheckArgs {
-    pub policy_file: String,
-}
-
-pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
-    if ctx.format == OutputFormat::Json {
-        let mut session = rgbuilder_service::Session::new(&ctx.repo);
-        if !session.graph_ready() {
-            anyhow::bail!("Graph not found (run `rg-build discover` first)");
-        }
-        let value = rgbuilder_service::execute(
-            &mut session,
-            rgbuilder_service::Command::Check(rgbuilder_service::CheckArgs {
-                policy_file: args.policy_file.clone(),
-            }),
-        )?;
-        ctx.emit_json_value(&value)?;
-        if value.get("passed").and_then(|v| v.as_bool()) == Some(false) {
-            std::process::exit(1);
-        }
-        return Ok(());
+/// Run CI policy check. Missing policy file is invalid-params.
+pub fn run_check(graph: &CodeGraph, repo: &Path, args: &CheckArgs) -> Result<Value> {
+    let path = Path::new(&args.policy_file);
+    if !path.is_file() {
+        return Err(ServiceError::InvalidParams(format!(
+            "policy file not found: {}",
+            args.policy_file
+        )));
     }
-
-    let registry = PolicyFile::load(Path::new(&args.policy_file))?.into_registry();
+    let registry = PolicyFile::load(path)
+        .map_err(|e| ServiceError::InvalidParams(e.to_string()))?
+        .into_registry();
     let centrality_threshold = registry.centrality_alert_threshold;
-    let graph = ctx.load_graph()?;
     let backend = graph.backend();
-    let view = PetGraphView::from_backend(backend)?;
-    let centrality = CentralityAnalyzer::new().analyze_with_view(&view)?.scores;
-    let engine = BlastRadiusEngine::build(backend)?;
-
-    let symbols = changed_function_symbols(&ctx.repo, backend)?;
-    let symbol_count = symbols.len();
+    let view = PetGraphView::from_backend(backend).map_err(ServiceError::from)?;
+    let centrality = CentralityAnalyzer::new()
+        .analyze_with_view(&view)
+        .map_err(ServiceError::from)?
+        .scores;
+    let engine = BlastRadiusEngine::build(backend).map_err(ServiceError::from)?;
+    let symbols = changed_function_symbols(repo, backend)?;
     let mut violation_rows = Vec::new();
 
     for symbol in symbols {
-        let Ok((id, _)) = crate::analysis::resolve_unique_symbol(backend, &symbol) else {
+        let Ok((id, _)) = rgbuilder_analysis::resolve_unique_symbol(backend, &symbol) else {
             continue;
         };
         if let Err(err) =
@@ -81,22 +69,7 @@ pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
         &args.policy_file,
         violations_from_json_values(&violation_rows),
     );
-
-    if ctx.format == OutputFormat::Json {
-        ctx.emit_json_value(&serde_json::to_value(&response)?)?;
-    } else if response.passed {
-        println!("Policy check passed ({} symbols)", symbol_count);
-    } else {
-        println!("Policy violations: {}", response.violations.len());
-        for v in &response.violations {
-            println!("  {v:?}");
-        }
-    }
-
-    if !response.passed {
-        std::process::exit(1);
-    }
-    Ok(())
+    Ok(check_response_to_json(&response))
 }
 
 fn changed_function_symbols(
@@ -118,7 +91,7 @@ fn changed_function_symbols(
                 .collect();
             if !paths.is_empty() {
                 let mut symbols = Vec::new();
-                for node in backend.all_nodes()? {
+                for node in backend.all_nodes().map_err(ServiceError::from)? {
                     if node.node_type != NodeType::Function {
                         continue;
                     }
@@ -139,7 +112,8 @@ fn changed_function_symbols(
     }
 
     Ok(backend
-        .collect_nodes_by_type(NodeType::Function)?
+        .collect_nodes_by_type(NodeType::Function)
+        .map_err(ServiceError::from)?
         .into_iter()
         .map(|n| n.name.to_string())
         .collect())

@@ -2,15 +2,9 @@
 
 use super::args::OutputFormat;
 use super::context::CliContext;
-use super::metrics_output::{
-    MetricsCommunitiesSection, MetricsPagerankSection, build_metrics_response,
-    metrics_response_to_json,
-};
-use crate::analysis::{
-    BetweennessCentrality, CommunityDetector, FastPageRank, PetGraphView,
-    community_edge_types_for_backend, default_behavioral_edges,
-};
 use anyhow::Result;
+use rgbuilder_service::command::{Command, MetricsArgs as SvcMetrics};
+use rgbuilder_service::{Session, execute};
 use serde_json::json;
 
 pub struct MetricsArgs {
@@ -22,6 +16,31 @@ pub struct MetricsArgs {
 
 pub fn run(ctx: &CliContext, args: MetricsArgs) -> Result<()> {
     let run_all = !args.pagerank && !args.betweenness && !args.communities;
+    if ctx.format == OutputFormat::Json {
+        let mut session = Session::new(&ctx.repo);
+        if !session.graph_ready() {
+            anyhow::bail!("Graph not found (run `rg-build discover` first)");
+        }
+        let value = execute(
+            &mut session,
+            Command::Metrics(SvcMetrics {
+                pagerank: args.pagerank || run_all,
+                betweenness: args.betweenness || run_all,
+                communities: args.communities || run_all,
+            }),
+        )?;
+        let _ = args.iterations;
+        return ctx.emit_json_value(&value);
+    }
+
+    use super::metrics_output::{
+        MetricsCommunitiesSection, MetricsPagerankSection, build_metrics_response,
+    };
+    use crate::analysis::{
+        BetweennessCentrality, CommunityDetector, FastPageRank, PetGraphView,
+        community_edge_types_for_backend, default_behavioral_edges,
+    };
+
     let graph = ctx.load_graph()?;
     let view = PetGraphView::from_backend(graph.backend())?;
     let iterations = args.iterations.unwrap_or(20);
@@ -80,19 +99,14 @@ pub fn run(ctx: &CliContext, args: MetricsArgs) -> Result<()> {
     }
 
     let response = build_metrics_response(pagerank, betweenness, communities);
-
-    if ctx.format == OutputFormat::Json {
-        ctx.emit_json_value(&metrics_response_to_json(&response))?;
-    } else {
-        if let Some(pr) = &response.pagerank {
-            println!("PageRank: {:?}", pr);
-        }
-        if let Some(bc) = &response.betweenness {
-            println!("Betweenness top: {:?}", bc);
-        }
-        if let Some(cm) = &response.communities {
-            println!("Communities: {:?}", cm);
-        }
+    if let Some(pr) = &response.pagerank {
+        println!("PageRank: {:?}", pr);
+    }
+    if let Some(bc) = &response.betweenness {
+        println!("Betweenness top: {:?}", bc);
+    }
+    if let Some(cm) = &response.communities {
+        println!("Communities: {:?}", cm);
     }
     Ok(())
 }

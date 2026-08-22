@@ -7,7 +7,7 @@ rgBuilder is designed so agents answer **structural questions** from a pre-built
 **Human walkthrough:** [docs/user-guide.md](docs/user-guide.md)  
 **Docs hub:** [docs/README.md](docs/README.md) · [site docs](https://sshaaf.github.io/rgBuilder/docs/)
 
-Do **not** open the browser dashboard unless the user asks for a visual UI — default to CLI `-f json`.
+Do **not** open the browser dashboard unless the user asks for a visual UI. In an IDE with `serve --mode mcp` already connected, prefer the MCP catalog. Otherwise default to CLI `-f json`.
 
 Install the project skill once (Claude Code + Cursor dirs under the repo):
 
@@ -40,7 +40,7 @@ rg-build -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 20'
 |--------|---------|
 | Full session (graph + CFG + dashboard + semantic) | `rg-build discover PATH --full` (queryable after stage 1; status in `.rgbuilder/pipeline_status.json`) |
 | HTTP session (auto-pipeline) | `rg-build serve` — `GET /api/status`; `--no-pipeline` restores fail-fast |
-| MCP session (stdio, status-only) | `rg-build serve --mode mcp` — tool `rgbuilder_status`; remaining tools [issue #60](https://github.com/sshaaf/rgBuilder/issues/60). Guide: [docs/guides/mcp-server.md](docs/guides/mcp-server.md) |
+| MCP session (stdio) | `rg-build serve --mode mcp` — tools `rgbuilder_status`, `rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`. Default query/search `limit` 20. Unready tools return pipeline status JSON. Guide: [docs/guides/mcp-server.md](docs/guides/mcp-server.md) |
 | Inventory functions | `rg-build -f json gql --macro-name all_functions unused` |
 | List communities | `rg-build -f json gql --macro-name all_communities unused` |
 | Find symbol by pattern | `rg-build -f json gql "MATCH (n:Function) WHERE n.name LIKE '*Service*' RETURN n LIMIT 20"` |
@@ -76,7 +76,7 @@ rg-build -r "$REPO" serve --open
 
 See [docs/http-api.md](docs/http-api.md).
 
-**Option B — MCP stdio:** `rg-build serve --mode mcp` (no HTTP). Status via `rgbuilder_status`; GQL still CLI or HTTP until [issue #60](https://github.com/sshaaf/rgBuilder/issues/60). See [docs/guides/mcp-server.md](docs/guides/mcp-server.md).
+**Option B — MCP stdio (prefer in IDE):** `rg-build serve --mode mcp` (no HTTP). Use the seven tools for query / search / impact / metrics / CPG / check / status. Keep CLI for `discover`, `semantic index`, `cpg export`, and CI scripts. See [docs/guides/mcp-server.md](docs/guides/mcp-server.md).
 
 **Option C — Legacy socket daemon:**
 

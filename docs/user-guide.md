@@ -1084,7 +1084,7 @@ The fixture also ships a shared policy at [`rgbuilder-tests/rgbuilder-policy.jso
 
 ## 15. HTTP server (`serve`) — optional
 
-`serve` binds HTTP immediately and, unless `--no-pipeline`, starts the same staged full pipeline as `discover --full`. The dashboard at `/` shows a preparing page until the bundle exists. Prefer CLI `-f json` for agents; use [`serve --mode mcp`](guides/mcp-server.md) for stdio MCP (`rgbuilder_status` only — see issue #60).
+`serve` binds HTTP immediately and, unless `--no-pipeline`, starts the same staged full pipeline as `discover --full`. The dashboard at `/` shows a preparing page until the bundle exists. Prefer CLI `-f json` for agents and CI; use [`serve --mode mcp`](guides/mcp-server.md) in the IDE for the seven workflow tools.
 
 ```bash
 # Starts indexing if needed; preparing page until dashboard exists
@@ -1113,7 +1113,7 @@ Full reference: [http-api.md](http-api.md). CoolStore walkthrough: [HTTP Server 
 
 ### MCP stdio (`--mode mcp`)
 
-No HTTP bind. The host (Cursor, Claude Code) speaks JSON-RPC on stdin/stdout. The only tool today is `rgbuilder_status` (same document as `GET /api/status`). Remaining tools: [issue #60](https://github.com/sshaaf/rgBuilder/issues/60).
+No HTTP bind. The host (Cursor, Claude Code) speaks JSON-RPC on stdin/stdout. Tools: `rgbuilder_status`, `rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`. Query/search default `limit` 20. Unready artifacts return pipeline status JSON as the tool result.
 
 ```bash
 rg-build -r "$REPO" serve --mode mcp

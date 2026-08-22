@@ -4,7 +4,7 @@
 
 **CLI reference:** [User Guide §15](user-guide.md#15-http-server-serve)
 
-Default `rg-build serve` **starts the full discover pipeline** (unless `--no-pipeline`) and binds HTTP even if the dashboard bundle is not ready yet. `GET /` returns a preparing page until `index.html` exists. `GET /api/status` is the pipeline document (`schema_version` 1). `--mode mcp` speaks MCP on stdio and does **not** bind HTTP (tool: `rgbuilder_status`). Walkthrough: [MCP Server](guides/mcp-server.md). `--daemon` does not auto-discover.
+Default `rg-build serve` **starts the full discover pipeline** (unless `--no-pipeline`) and binds HTTP even if the dashboard bundle is not ready yet. `GET /` returns a preparing page until `index.html` exists. `GET /api/status` is the pipeline document (`schema_version` 1). `--mode mcp` speaks MCP on stdio and does **not** bind HTTP (seven workflow tools). Walkthrough: [MCP Server](guides/mcp-server.md). `--daemon` does not auto-discover.
 
 ---
 

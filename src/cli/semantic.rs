@@ -302,7 +302,26 @@ pub fn run_query(ctx: &CliContext, args: SemanticQueryArgs) -> Result<()> {
         .with_context(|| format!("load semantic index {}", path.display()))?;
 
     let graph = ctx.load_graph()?;
-    let response = super::semantic_api::execute_semantic_query(&ctx.repo, &graph, &index, &args)?;
+    let response = if ctx.format == OutputFormat::Json && args.expand.is_none() {
+        let mut session = rgbuilder_service::Session::new(&ctx.repo);
+        let value = rgbuilder_service::execute(
+            &mut session,
+            rgbuilder_service::Command::Search(rgbuilder_service::SearchArgs {
+                text: args.query.clone(),
+                scope: match args.scope {
+                    CliSemanticScope::Function => rgbuilder_service::SearchScope::Function,
+                    CliSemanticScope::Docs => rgbuilder_service::SearchScope::Docs,
+                    CliSemanticScope::Community => rgbuilder_service::SearchScope::Community,
+                    CliSemanticScope::All => rgbuilder_service::SearchScope::All,
+                },
+                limit: Some(args.limit),
+            }),
+        )?;
+        ctx.emit_json_value(&value)?;
+        return Ok(());
+    } else {
+        super::semantic_api::execute_semantic_query(&ctx.repo, &graph, &index, &args)?
+    };
 
     if ctx.format == OutputFormat::Json {
         ctx.emit_json_value(&query_response_to_json(&response))?;
