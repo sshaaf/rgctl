@@ -17,5 +17,6 @@ mod gql;
 mod inspect;
 mod install;
 mod metrics;
+mod pipeline_status;
 mod slice;
 mod uuid_resolution;

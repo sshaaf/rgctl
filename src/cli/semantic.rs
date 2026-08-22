@@ -98,6 +98,14 @@ pub struct SemanticQueryArgs {
 }
 
 pub fn run_index(ctx: &CliContext, args: SemanticIndexArgs) -> Result<()> {
+    run_index_with_emit(ctx, args, true)
+}
+
+pub(crate) fn run_index_with_emit(
+    ctx: &CliContext,
+    args: SemanticIndexArgs,
+    emit_cli: bool,
+) -> Result<()> {
     if args.dimensions == 0 || !args.dimensions.is_multiple_of(8) {
         bail!("--dimensions must be a positive multiple of 8");
     }
@@ -172,28 +180,30 @@ pub fn run_index(ctx: &CliContext, args: SemanticIndexArgs) -> Result<()> {
         Some(stats),
     );
 
-    if ctx.format == OutputFormat::Json {
-        ctx.emit_json_value(&index_response_to_json(&response))?;
-    } else {
-        let scope_label = match args.scope {
-            CliSemanticScope::Function => "functions",
-            CliSemanticScope::Docs => "doc sections",
-            CliSemanticScope::All => "entries",
-            CliSemanticScope::Community => "functions",
-        };
-        println!(
-            "Indexed {} {} ({}, {} dims) → {}",
-            response.functions_indexed,
-            scope_label,
-            response.model_id,
-            response.dimensions,
-            response.path
-        );
-        if let Some(build_stats) = &response.build_stats {
+    if emit_cli {
+        if ctx.format == OutputFormat::Json {
+            ctx.emit_json_value(&index_response_to_json(&response))?;
+        } else {
+            let scope_label = match args.scope {
+                CliSemanticScope::Function => "functions",
+                CliSemanticScope::Docs => "doc sections",
+                CliSemanticScope::All => "entries",
+                CliSemanticScope::Community => "functions",
+            };
             println!(
-                "  incremental: {} reused, {} embedded, {} removed",
-                build_stats.reused, build_stats.embedded, build_stats.removed
+                "Indexed {} {} ({}, {} dims) → {}",
+                response.functions_indexed,
+                scope_label,
+                response.model_id,
+                response.dimensions,
+                response.path
             );
+            if let Some(build_stats) = &response.build_stats {
+                println!(
+                    "  incremental: {} reused, {} embedded, {} removed",
+                    build_stats.reused, build_stats.embedded, build_stats.removed
+                );
+            }
         }
     }
 

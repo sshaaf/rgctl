@@ -214,6 +214,16 @@ All commands below assume `REPO` points at `ecommerce-java`, or that you run fro
 
 Built-in registry includes **markdown** (`rgbuilder-lang-markdown`): `.md` and `.mdx` are indexed by default (headings, links, code blocks, frontmatter). See [markdown-context.md](markdown-context.md). Use `-l markdown` or `-l markdown,java` to limit languages.
 
+### Full pipeline (`--full`)
+
+`rg-build discover PATH --full` prints an execution plan, runs a **basic** discover (queryable snapshot), reports that the initial discover is complete, then continues in the same process with `--with-cfg --with-dashboard --with-harmonic`, then `semantic index`. Other terminals can `gql` after stage 1. Does **not** imply taint or secret scanning.
+
+```bash
+rg-build discover . --full
+```
+
+Status is written to `.rgbuilder/pipeline_status.json`. A second `--full` on unchanged sources skips fresh stages.
+
 ### Fast index (default)
 
 ```bash
@@ -1074,21 +1084,21 @@ The fixture also ships a shared policy at [`rgbuilder-tests/rgbuilder-policy.jso
 
 ## 15. HTTP server (`serve`) — optional
 
-`serve` exposes an HTTP **query API** (and a **dashboard UI** only if you previously ran `discover --with-dashboard`). Agents should prefer CLI `-f json`; use `serve` when you want HTTP or a browser UI.
+`serve` binds HTTP immediately and, unless `--no-pipeline`, starts the same staged full pipeline as `discover --full`. The dashboard at `/` shows a preparing page until the bundle exists. Prefer CLI `-f json` for agents; use [`serve --mode mcp`](guides/mcp-server.md) for stdio MCP (`rgbuilder_status` only — see issue #60).
 
 ```bash
-# API-only is fine without dashboard assets
+# Starts indexing if needed; preparing page until dashboard exists
 rg-build -r "$REPO" serve --port 8080
 
-# Optional UI
-rg-build -r "$REPO" discover . -l java -e target --with-dashboard
-rg-build -r "$REPO" serve --open
+# Old fail-fast (require existing artifacts)
+rg-build -r "$REPO" serve --no-pipeline --query-only
 ```
 
 | Endpoint | Purpose |
 |----------|---------|
-| `/` | Dashboard UI |
-| `POST /api/query` | GQL / macros (JSON body) |
+| `/` | Dashboard UI or preparing page |
+| `GET /api/status` | Full-pipeline status JSON |
+| `POST /api/query` | GQL / macros (JSON body; 503 until graph ready) |
 | `GET /api/semantic/status` | Semantic index availability |
 | `POST /api/semantic/query` | Semantic search (JSON body) |
 | `/api/health` | Health check |
@@ -1099,7 +1109,17 @@ curl -sS -X POST http://127.0.0.1:8080/api/query \
   -d '{"macro":"all_functions"}' | jq '.count'
 ```
 
-Full reference: [http-api.md](http-api.md).
+Full reference: [http-api.md](http-api.md). CoolStore walkthrough: [HTTP Server and Dashboard](guides/http-server-and-dashboard.md).
+
+### MCP stdio (`--mode mcp`)
+
+No HTTP bind. The host (Cursor, Claude Code) speaks JSON-RPC on stdin/stdout. The only tool today is `rgbuilder_status` (same document as `GET /api/status`). Remaining tools: [issue #60](https://github.com/sshaaf/rgBuilder/issues/60).
+
+```bash
+rg-build -r "$REPO" serve --mode mcp
+```
+
+Walkthrough (Cursor / Claude Code config): [MCP Server](guides/mcp-server.md).
 
 ### Legacy socket daemon
 
@@ -1167,7 +1187,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgbuilder/migrati
 
 | Command | Purpose |
 |---------|---------|
-| `discover` | Index repo, build `.rgbuilder/` artifacts |
+| `discover` | Index repo, build `.rgbuilder/` artifacts (`--full` = staged CFG/dashboard/harmonic + semantic) |
 | `gql` | Graph query language (incl. virtual `:Community`) |
 | `communities` | List / refresh heuristic community labels |
 | `blast-radius` | Upstream call-graph impact for a symbol |
@@ -1179,7 +1199,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgbuilder/migrati
 | `check` | CI policy gateway |
 | `install` | Copy the bundled agent skill into `.claude/skills/` and `.cursor/skills/` |
 | `semantic` | Opt-in semantic index + query (`--scope community`, `docs`, `all`) |
-| `serve` | HTTP dashboard + `/api/query` + `/api/semantic/*` (default); `serve --daemon` for blast socket |
+| `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--mode mcp` stdio; `--no-pipeline` fail-fast; `--daemon` blast socket |
 
 ### `discover` flags
 
@@ -1195,6 +1215,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgbuilder/migrati
 | `--with-ast-skeleton` | Build AST skeleton archive for `cpg ast` |
 | `--with-harmonic` | Harmonic centrality (default off; needed for migration ranking) |
 | `--with-dashboard` | Static dashboard bundle (default off) |
+| `--full` | Staged pipeline: basic discover, then CFG+dashboard+harmonic, then semantic index |
 | `--export-migration-hints` | Migration roadmap JSON (alias `--export-migration-plan`) |
 | `--migration-preset` | Preset for migration hints (`hybrid`, `foundational`, …) |
 | `--migration-order` | `scheduled` (topological) or `priority` |

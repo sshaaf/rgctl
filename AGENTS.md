@@ -20,7 +20,7 @@ rg-build -r "$REPO" install --skill
 ## Agent workflow
 
 ```text
-1. rg-build discover .              # once per repo (or after large changes)
+1. rg-build discover . --full       # or plain discover; --full adds CFG/dashboard/semantic
 2. rg-build -f json <command>      # compact facts on stdout
 3. Parse schema_version + payload   # never scrape stderr for JSON
 ```
@@ -38,6 +38,9 @@ rg-build -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 20'
 
 | Intent | Command |
 |--------|---------|
+| Full session (graph + CFG + dashboard + semantic) | `rg-build discover PATH --full` (queryable after stage 1; status in `.rgbuilder/pipeline_status.json`) |
+| HTTP session (auto-pipeline) | `rg-build serve` — `GET /api/status`; `--no-pipeline` restores fail-fast |
+| MCP session (stdio, status-only) | `rg-build serve --mode mcp` — tool `rgbuilder_status`; remaining tools [issue #60](https://github.com/sshaaf/rgBuilder/issues/60). Guide: [docs/guides/mcp-server.md](docs/guides/mcp-server.md) |
 | Inventory functions | `rg-build -f json gql --macro-name all_functions unused` |
 | List communities | `rg-build -f json gql --macro-name all_communities unused` |
 | Find symbol by pattern | `rg-build -f json gql "MATCH (n:Function) WHERE n.name LIKE '*Service*' RETURN n LIMIT 20"` |
@@ -73,7 +76,9 @@ rg-build -r "$REPO" serve --open
 
 See [docs/http-api.md](docs/http-api.md).
 
-**Option B — Legacy socket daemon:**
+**Option B — MCP stdio:** `rg-build serve --mode mcp` (no HTTP). Status via `rgbuilder_status`; GQL still CLI or HTTP until [issue #60](https://github.com/sshaaf/rgBuilder/issues/60). See [docs/guides/mcp-server.md](docs/guides/mcp-server.md).
+
+**Option C — Legacy socket daemon:**
 
 ```bash
 rg-build -r "$REPO" serve --daemon

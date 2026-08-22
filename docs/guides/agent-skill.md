@@ -516,6 +516,7 @@ The skill file (`SKILL.md`) is **compiled into the `rg-build` binary** at build 
 ## Related Guides
 
 - [Discovering and Indexing a Codebase](discovering-and-indexing.md) -- the `discover` step that all agent queries depend on
+- [MCP Server](mcp-server.md) -- `serve --mode mcp` so the editor holds a warm session
 - [Blast Radius Analysis](blast-radius-analysis.md) -- the most common agent query for refactoring safety
 - [Hybrid CPG](hybrid-cpg.md) -- mutations, flows, and call neighborhoods used in porting and testing
 - [Program Slicing](program-slicing.md) -- statement-level analysis for data-flow tracing

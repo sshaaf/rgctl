@@ -27,6 +27,14 @@ The simplest invocation indexes the repository at the current directory:
 rg-build -r example/coolstore discover .
 ```
 
+### Full pipeline
+
+```bash
+rg-build -r example/coolstore discover . --full
+```
+
+This prints a plan, finishes a basic (queryable) index, then runs CFG + dashboard + harmonic centrality and a vocab semantic index. `--full` does not enable taint or secret scanning.
+
 **Output:**
 
 ```
@@ -154,3 +162,4 @@ After discovery, the `.rgbuilder/` directory contains all generated artifacts:
 - [Graph Metrics](graph-metrics.md) -- run PageRank, betweenness, and community detection
 - [Migration Planning](migration-planning.md) -- use the `--export-migration-hints` output
 - [HTTP Server and Dashboard](http-server-and-dashboard.md) -- serve the `--with-dashboard` output in a browser
+- [MCP Server](mcp-server.md) -- `serve --mode mcp` auto-runs the full pipeline in an IDE

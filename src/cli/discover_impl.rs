@@ -46,13 +46,28 @@ pub(crate) struct AnalysisOptions<'a> {
     pub migration_preset: &'a str,
     pub migration_order: &'a str,
     pub db_path: &'a Path,
+    /// Index field members even when CFG is off (full pipeline stage 1).
+    pub force_materialize_fields: bool,
+    /// Do not reuse an existing snapshot (re-extract).
+    pub force_reindex: bool,
+    /// Emit discover JSON / "next steps" footer (disable when nested in `--full`).
+    pub emit_cli_summary: bool,
+}
+
+/// Result of one `run_full_analysis` pass.
+#[derive(Debug, Clone)]
+pub(crate) struct DiscoverRunOutcome {
+    pub response: super::discover_output::DiscoverJsonResponse,
+    #[allow(dead_code)]
+    pub reused_snapshot: bool,
+    pub graph_digest: String,
 }
 
 pub(crate) fn run_full_analysis(
     ctx: &CliContext,
     path: &str,
     opts: AnalysisOptions<'_>,
-) -> Result<()> {
+) -> Result<DiscoverRunOutcome> {
     let AnalysisOptions {
         languages,
         exclude,
@@ -68,6 +83,9 @@ pub(crate) fn run_full_analysis(
         migration_preset,
         migration_order,
         db_path,
+        force_materialize_fields,
+        force_reindex,
+        emit_cli_summary,
     } = opts;
 
     let verbose = ctx.verbose;
@@ -77,6 +95,7 @@ pub(crate) fn run_full_analysis(
     let mut profile = DiscoverStageReport::default();
     // Taint / DFG loops / AST skeleton need CFG/PDG.
     let run_cfg_pass = with_cfg || with_taint || with_dfg_loops || with_ast_skeleton;
+    let materialize_fields = run_cfg_pass || force_materialize_fields;
     profile.cfg_enabled = run_cfg_pass;
     profile.security_enabled = with_security;
 
@@ -128,7 +147,7 @@ pub(crate) fn run_full_analysis(
         PipelineConfig {
             discovery,
             show_progress: human_output,
-            materialize_fields: run_cfg_pass,
+            materialize_fields,
             ..PipelineConfig::default()
         },
     );
@@ -144,7 +163,7 @@ pub(crate) fn run_full_analysis(
     // Index the repository (or reuse snapshot when sources are unchanged).
     // Lever 1: write columnar from GraphBuilder Vecs — never build MemoryBackend for discover.
     let index_start = Instant::now();
-    let graph_from_snapshot = file_changes.is_empty() && snapshot_path.is_file();
+    let graph_from_snapshot = !force_reindex && file_changes.is_empty() && snapshot_path.is_file();
     let mut cold_reused: Option<crate::analysis::ColdMetadataDb> = None;
     let (index_stats, graph_digest) = if graph_from_snapshot {
         let load_start = Instant::now();
@@ -188,6 +207,14 @@ pub(crate) fn run_full_analysis(
     profile.nodes = index_stats.nodes_created;
     // Snapshot write is folded into index_graph_build (Lever 1: no separate backend rewrite).
     profile.save_snapshot.secs = 0.0;
+
+    if materialize_fields {
+        let _ = super::pipeline_status::write_digest_marker(
+            root,
+            super::pipeline_status::MATERIALIZED_FIELDS_DIGEST_FILE,
+            &graph_digest,
+        );
+    }
 
     if human_output {
         if graph_from_snapshot {
@@ -323,6 +350,13 @@ pub(crate) fn run_full_analysis(
         .with_harmonic(with_harmonic)
         .analyze_columnar(&petgraph_view, &mut analysis_results)?;
     profile.centrality.secs = secs(centrality_start.elapsed());
+    if with_harmonic {
+        let _ = super::pipeline_status::write_digest_marker(
+            root,
+            super::pipeline_status::HARMONIC_DIGEST_FILE,
+            &graph_digest,
+        );
+    }
     if verbose && !with_harmonic {
         debug!("Harmonic centrality skipped (pass --with-harmonic to enable)");
     }
@@ -634,7 +668,12 @@ pub(crate) fn run_full_analysis(
         Err(err) => {
             error!(error = %err, "[x] Blast radius engine build failed");
             info!("[✓] Analysis complete");
-            return Ok(());
+            return Ok(discover_outcome(
+                &index_stats,
+                run_start.elapsed().as_millis() as u64,
+                graph_from_snapshot,
+                graph_digest.clone(),
+            ));
         }
     };
     // Topology view is fully consumed into the SCC engine — free DiGraph + UUID maps now.
@@ -968,9 +1007,14 @@ pub(crate) fn run_full_analysis(
             rgbuilder_analysis::MigrationOrderMode::parse(migration_order),
         ) {
             Ok(plan) => {
-                if json_output && ctx.output.is_none() {
+                if json_output && ctx.output.is_none() && emit_cli_summary {
                     ctx.emit_json_value(&serde_json::to_value(&plan)?)?;
-                    return Ok(());
+                    return Ok(discover_outcome(
+                        &index_stats,
+                        run_start.elapsed().as_millis() as u64,
+                        graph_from_snapshot,
+                        graph_digest.clone(),
+                    ));
                 }
                 if human_output {
                     info!(
@@ -984,12 +1028,17 @@ pub(crate) fn run_full_analysis(
             Err(e) => {
                 if human_output {
                     warn!("[!] Migration plan export skipped: {e}");
-                } else if json_output && ctx.output.is_none() {
+                } else if json_output && ctx.output.is_none() && emit_cli_summary {
                     ctx.emit_json_value(&serde_json::json!({
                         "error": e,
                         "migration_plan": null
                     }))?;
-                    return Ok(());
+                    return Ok(discover_outcome(
+                        &index_stats,
+                        run_start.elapsed().as_millis() as u64,
+                        graph_from_snapshot,
+                        graph_digest.clone(),
+                    ));
                 }
             }
         }
@@ -1006,11 +1055,11 @@ pub(crate) fn run_full_analysis(
         profile.record();
     }
 
-    if json_output {
+    if json_output && emit_cli_summary {
         let response =
             build_discover_response(&index_stats, run_start.elapsed().as_millis() as u64);
         ctx.emit_json_value(&serde_json::to_value(&response)?)?;
-    } else {
+    } else if !json_output && emit_cli_summary {
         info!("[✓] Saved to .rgbuilder/ ({:.1} MB total)", analysis_size);
 
         info!(
@@ -1041,7 +1090,25 @@ pub(crate) fn run_full_analysis(
         }
     }
 
-    Ok(())
+    Ok(discover_outcome(
+        &index_stats,
+        run_start.elapsed().as_millis() as u64,
+        graph_from_snapshot,
+        graph_digest,
+    ))
+}
+
+fn discover_outcome(
+    stats: &PipelineStats,
+    duration_ms: u64,
+    reused_snapshot: bool,
+    graph_digest: String,
+) -> DiscoverRunOutcome {
+    DiscoverRunOutcome {
+        response: build_discover_response(stats, duration_ms),
+        reused_snapshot,
+        graph_digest,
+    }
 }
 
 fn normalized_path_cached(cache: &mut HashMap<String, String>, path: &str) -> String {

@@ -2,6 +2,7 @@
 
 use super::context::CliContext;
 use super::discover_impl::{AnalysisOptions, run_full_analysis};
+use super::pipeline_session::{FullPipelineArgs, run_full_pipeline};
 use anyhow::Result;
 
 pub struct DiscoverArgs {
@@ -26,26 +27,35 @@ pub struct DiscoverArgs {
     pub export_migration_hints: bool,
     /// Compute harmonic centrality (HyperBall on large graphs). Default off.
     pub with_harmonic: bool,
+    /// Staged full pipeline (`--full`).
+    pub full: bool,
     /// Preset strategy for `--export-migration-hints` (default: hybrid_default).
     pub migration_preset: String,
     /// Roadmap row order: `scheduled` (deps) or `priority` (score rank).
     pub migration_order: String,
 }
 
-pub fn run(ctx: &CliContext, args: DiscoverArgs) -> Result<()> {
-    let path = args
-        .path
-        .as_deref()
-        .map(|p| {
-            if std::path::Path::new(p).is_absolute() {
-                p.to_string()
-            } else {
-                ctx.repo.join(p).to_string_lossy().into_owned()
-            }
-        })
-        .unwrap_or_else(|| ctx.repo.to_string_lossy().into_owned());
+/// Resolve discover root: absolute PATH, PATH joined to `--repo`, or `--repo`/cwd.
+pub fn resolve_session_root(ctx: &CliContext, path: Option<&str>) -> String {
+    path.map(|p| {
+        if std::path::Path::new(p).is_absolute() {
+            p.to_string()
+        } else {
+            ctx.repo.join(p).to_string_lossy().into_owned()
+        }
+    })
+    .unwrap_or_else(|| ctx.repo.to_string_lossy().into_owned())
+}
 
-    run_full_analysis(
+pub fn run(ctx: &CliContext, args: DiscoverArgs) -> Result<()> {
+    let path = resolve_session_root(ctx, args.path.as_deref());
+
+    if args.full {
+        run_full_pipeline(ctx, &path, FullPipelineArgs::from_discover(&args))?;
+        return Ok(());
+    }
+
+    let _ = run_full_analysis(
         ctx,
         &path,
         AnalysisOptions {
@@ -63,6 +73,10 @@ pub fn run(ctx: &CliContext, args: DiscoverArgs) -> Result<()> {
             migration_preset: &args.migration_preset,
             migration_order: &args.migration_order,
             db_path: &ctx.db,
+            force_materialize_fields: false,
+            force_reindex: false,
+            emit_cli_summary: true,
         },
-    )
+    )?;
+    Ok(())
 }

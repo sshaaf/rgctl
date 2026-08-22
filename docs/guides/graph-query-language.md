@@ -257,3 +257,4 @@ rg-build -r example/coolstore -f json gql --explain \
 - [Blast Radius Analysis](blast-radius-analysis.md) -- higher-level impact analysis built on the same graph
 - [Community Detection](community-detection.md) -- understand the communities that GQL can query
 - [HTTP Server and Dashboard](http-server-and-dashboard.md) -- run GQL queries via HTTP API
+- [MCP Server](mcp-server.md) -- IDE session; GQL is still CLI/HTTP until issue #60

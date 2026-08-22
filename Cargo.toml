@@ -176,6 +176,7 @@ ignore = "0.4"
 include_dir = "0.7"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["fs"] }
+tower = { version = "0.5", features = ["util"] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -238,6 +239,10 @@ path = "tests/install_skill.rs"
 [[test]]
 name = "http_serve"
 path = "tests/http_serve.rs"
+
+[[test]]
+name = "discover_full_serve"
+path = "tests/discover_full_serve.rs"
 
 [[test]]
 name = "dashboard_bundle"

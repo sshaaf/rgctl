@@ -4,13 +4,15 @@
 
 **CLI reference:** [User Guide §15](user-guide.md#15-http-server-serve)
 
+Default `rg-build serve` **starts the full discover pipeline** (unless `--no-pipeline`) and binds HTTP even if the dashboard bundle is not ready yet. `GET /` returns a preparing page until `index.html` exists. `GET /api/status` is the pipeline document (`schema_version` 1). `--mode mcp` speaks MCP on stdio and does **not** bind HTTP (tool: `rgbuilder_status`). Walkthrough: [MCP Server](guides/mcp-server.md). `--daemon` does not auto-discover.
+
 ---
 
 ## Default behavior
 
 ```bash
-rg-build -r "$REPO" discover .
 rg-build -r "$REPO" serve
+# or: rg-build discover . --full && rg-build serve --no-pipeline
 ```
 
 | URL | Purpose |
@@ -19,6 +21,7 @@ rg-build -r "$REPO" serve
 | `http://127.0.0.1:8080/api/query` | GQL / macro queries (POST JSON) |
 | `http://127.0.0.1:8080/graphql` | Alias for `/api/query` |
 | `http://127.0.0.1:8080/api/health` | Health check (GET) |
+| `http://127.0.0.1:8080/api/status` | Full-pipeline status (GET) |
 | `http://127.0.0.1:8080/api/semantic/status` | Semantic index status (GET) |
 | `http://127.0.0.1:8080/api/semantic/query` | Semantic search (POST JSON) |
 
@@ -36,7 +39,9 @@ rg-build -r "$REPO" serve --open
 | `--dashboard-dir DIR` | Override `.rgbuilder/dashboard` |
 | `--query-only` | API only, no static files |
 | `--dashboard-only` | Dashboard only, no query API |
-| `--daemon` | **Legacy** Unix-socket blast daemon (no HTTP) |
+| `--mode standard\|mcp` | HTTP (default) or MCP stdio |
+| `--no-pipeline` | Do not auto-discover; fail if dashboard/graph missing |
+| `--daemon` | **Legacy** Unix-socket blast daemon (no HTTP, no pipeline) |
 
 ---
 
@@ -172,4 +177,5 @@ These CLI surfaces are **not** available as HTTP routes today (use `-f json` on 
 ## See also
 
 - [AGENTS.md](../AGENTS.md) — agent integration patterns
+- [MCP Server](guides/mcp-server.md) — `serve --mode mcp` (stdio, no HTTP)
 - [Dashboard user guide](dashboard-user-guide.md) — browser UI

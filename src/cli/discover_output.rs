@@ -24,6 +24,12 @@ pub struct DiscoverJsonResponse {
     pub schema_version: u32,
     pub command: String,
     pub metrics: DiscoverMetrics,
+    /// Present when `discover --full` ran the staged pipeline.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub full: Option<bool>,
+    /// Stage plan when `full` is true.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan: Option<Vec<super::pipeline_status::PipelineStagePlan>>,
 }
 
 /// Build the discover telemetry block from pipeline stats and wall-clock duration.
@@ -31,6 +37,8 @@ pub fn build_discover_response(stats: &PipelineStats, duration_ms: u64) -> Disco
     DiscoverJsonResponse {
         schema_version: DISCOVER_SCHEMA_VERSION,
         command: "discover".into(),
+        full: None,
+        plan: None,
         metrics: DiscoverMetrics {
             files_discovered: stats.files_discovered,
             files_indexed: stats.files_processed,

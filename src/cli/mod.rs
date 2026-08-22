@@ -21,8 +21,11 @@ pub mod inspect_output;
 mod install;
 pub mod install_output;
 mod markup;
+mod mcp_serve;
 mod metrics;
 pub mod metrics_output;
+mod pipeline_session;
+pub mod pipeline_status;
 mod policy_file;
 mod query_daemon;
 mod semantic;
@@ -36,7 +39,9 @@ pub use args::OutputFormat;
 
 use crate::BUILD_INFO;
 use crate::analysis::{DEFAULT_CANDIDATE_POOL, DEFAULT_EMBEDDING_DIMENSIONS};
-use args::{ExportFormat, InspectLayer, PdgEdgeLayer, SkillHost, SliceDirection, SliceView};
+use args::{
+    ExportFormat, InspectLayer, PdgEdgeLayer, ServeMode, SkillHost, SliceDirection, SliceView,
+};
 use clap::{Parser, Subcommand};
 use context::CliContext;
 use std::time::{Duration, Instant};
@@ -124,6 +129,11 @@ pub enum Commands {
         /// migration ranking; adds ~30s and multi‑GB peak RSS on kernel-scale graphs.
         #[arg(long = "with-harmonic")]
         with_harmonic: bool,
+
+        /// Staged full pipeline: basic discover (queryable snapshot), then CFG + dashboard +
+        /// harmonic, then semantic index. Prints a plan first; does not imply taint/security.
+        #[arg(long = "full")]
+        full: bool,
 
         /// Strategy preset for migration plan export.
         #[arg(
@@ -269,8 +279,21 @@ pub enum Commands {
     /// Serve the analysis dashboard and GQL query API over HTTP.
     ///
     /// Default: dashboard at `/` and query API at `/api/query` (alias `/graphql`).
-    /// Use `--daemon` for the legacy blast-radius query socket instead.
+    /// Starts the full discover pipeline unless `--no-pipeline` or `--daemon`.
+    /// Use `--mode mcp` for MCP stdio (no HTTP). `--daemon` is the legacy blast socket.
     Serve {
+        /// Repository path to index (defaults to `--repo` or cwd)
+        #[arg(value_name = "PATH")]
+        path: Option<String>,
+
+        /// `standard` (HTTP, default) or `mcp` (stdio MCP, no HTTP bind)
+        #[arg(long, value_enum, default_value_t = ServeMode::Standard)]
+        mode: ServeMode,
+
+        /// Do not auto-run discover; fail fast if artifacts are missing (pre-0.4.7 serve)
+        #[arg(long = "no-pipeline")]
+        no_pipeline: bool,
+
         /// Bind host [default: 127.0.0.1]
         #[arg(long, default_value = "127.0.0.1")]
         host: String,
@@ -600,6 +623,7 @@ impl Cli {
                 with_dashboard,
                 export_migration_hints,
                 with_harmonic,
+                full,
                 migration_preset,
                 migration_order,
             } => discover::run(
@@ -617,6 +641,7 @@ impl Cli {
                     with_dashboard,
                     export_migration_hints,
                     with_harmonic,
+                    full,
                     migration_preset,
                     migration_order,
                 },
@@ -870,6 +895,9 @@ impl Cli {
                 install::run(&ctx, install::InstallArgs { skill, host, force })
             }
             Commands::Serve {
+                path,
+                mode,
+                no_pipeline,
                 host,
                 port,
                 dashboard_dir,
@@ -881,9 +909,14 @@ impl Cli {
                 idle_secs,
             } => {
                 if daemon {
+                    if mode == ServeMode::Mcp {
+                        anyhow::bail!("--daemon cannot be used with --mode mcp");
+                    }
                     let socket =
                         socket.unwrap_or_else(|| query_daemon::default_socket_path(&ctx.repo));
                     query_daemon::serve(&ctx, socket, idle_secs)
+                } else if mode == ServeMode::Mcp {
+                    mcp_serve::serve(&ctx, mcp_serve::McpServeArgs { path, no_pipeline })
                 } else {
                     http_serve::serve(
                         &ctx,
@@ -894,6 +927,8 @@ impl Cli {
                             open,
                             query_only,
                             dashboard_only,
+                            no_pipeline,
+                            path,
                         },
                     )
                 }

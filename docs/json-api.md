@@ -119,7 +119,7 @@ if (doc.schema_version !== 2) {
 ## 4. `discover`
 
 ```bash
-rg-build -f json discover PATH [-l LANGS] [-e PATTERNS] [--with-cfg] [--with-taint]
+rg-build -f json discover PATH [-l LANGS] [-e PATTERNS] [--with-cfg] [--with-taint] [--full]
 ```
 
 ### TypeScript shape
@@ -136,8 +136,12 @@ interface DiscoverResponse {
     edges_generated: number;
     duration_ms: number;
   };
+  full?: true;
+  plan?: { id: "basic_discover" | "deep_pass" | "semantic_index"; status: string }[];
 }
 ```
+
+With `--full`, stdout is still **one** JSON object (`full: true` + `plan`). Live stage updates go to `.rgbuilder/pipeline_status.json` (`schema_version` 1, `command: "pipeline_status"`). `GET /api/status` on HTTP `serve` and MCP `rgbuilder_status` (`structuredContent`) return the same document. See [MCP Server](guides/mcp-server.md).
 
 ### Example
 
