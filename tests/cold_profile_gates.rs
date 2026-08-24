@@ -1,12 +1,12 @@
 //! Cold discover profile gates for linux, metasfresh, kafka, and markdown (k8s-website).
 //!
 //! ```text
-//! cargo build --release --bin rg-build
+//! cargo build --release --bin rg_ctl
 //! cargo test --release --test cold_profile_gates -- --ignored --nocapture
 //! ```
 //!
 //! Cold profile policy: run a fresh release build immediately before profiling and
-//! use that `target/release/rg-build` binary only (no debug/stale binaries).
+//! use that `target/release/rg_ctl` binary only (no debug/stale binaries).
 //!
 //! Markdown corpus: `./scripts/fetch-profile-repos.sh` then
 //! `k8s_website_markdown_cold_discover_within_baseline` or
@@ -154,7 +154,7 @@ fn resolve_profile_summary(stdout: &str, stderr: &str, elapsed: Duration) -> Pro
         .collect();
     panic!(
         "profile summary missing (expected [profile] discover summary or JSON metrics)\n\
-         rg-build: {}\n\
+         rg_ctl: {}\n\
          stdout_bytes={} stderr_bytes={}\n\
          stdout_tail:\n{stdout_tail}\n\
          stderr:\n{stderr}",
@@ -184,13 +184,14 @@ pub fn run_cold_discover_timed(repo: &Path, extra_args: &[&str]) -> (Output, Dur
     let bin = rgbuilder_bin();
     assert!(
         bin.is_file(),
-        "rg-build binary not found at {} — run cargo build --release --bin rg-build",
+        "rg_ctl binary not found at {} — run cargo build --release --bin rg_ctl",
         bin.display()
     );
     let start = Instant::now();
     let output = Command::new(&bin)
         .env("RUST_LOG", "info,profile=info")
         .args([
+            "--no-daemon",
             "-r",
             repo.to_str().unwrap(),
             "-f",
@@ -201,7 +202,7 @@ pub fn run_cold_discover_timed(repo: &Path, extra_args: &[&str]) -> (Output, Dur
         ])
         .args(extra_args)
         .output()
-        .expect("spawn rg-build discover");
+        .expect("spawn rg_ctl discover");
     (output, start.elapsed())
 }
 
@@ -522,4 +523,162 @@ fn k8s_website_obsidian_export_to_vault() {
         "expected at least {K8S_WEBSITE_MIN_HEADING_MODULES} heading modules, got {heading_count}"
     );
     assert_within_baseline("k8s-website obsidian export", elapsed, baseline);
+}
+
+
+#[test]
+fn profile_parser_reads_daemon_stage_names() {
+    let snippet = r#"
+INFO profile: [profile] stage stage="daemon_spawn" secs=0.120
+INFO profile: [profile] stage stage="daemon_bind_http" secs=0.040
+INFO profile: [profile] stage stage="daemon_connect" secs=0.010
+INFO profile: [profile] stage stage="daemon_session_open" secs=0.015
+INFO profile: [profile] stage stage="daemon_execute" secs=0.030
+INFO profile: [profile] discover summary wall_secs=1.25 peak_rss_mb=80.0 functions=3 nodes=40 cfg=false security=false
+"#;
+    let parsed = parse_profile_summary(snippet).expect("parse");
+    assert!((parsed.wall_secs - 1.25).abs() < 0.01);
+    assert_eq!(parsed.nodes, 40);
+    for name in [
+        "daemon_spawn",
+        "daemon_bind_http",
+        "daemon_connect",
+        "daemon_session_open",
+        "daemon_execute",
+    ] {
+        assert!(
+            snippet.contains(name),
+            "snippet should include stage {name}"
+        );
+    }
+}
+
+#[test]
+#[ignore]
+fn daemon_start_within_baseline() {
+    let home = tempfile::tempdir().expect("tmp home");
+    let bin = rgbuilder_bin();
+    let start = Instant::now();
+    let output = Command::new(&bin)
+        .env("RUST_LOG", "info,profile=info")
+        .args([
+            "--daemon-home",
+            home.path().to_str().unwrap(),
+            "daemon",
+            "start",
+            "--host",
+            "127.0.0.1",
+        ])
+        .output()
+        .expect("daemon start");
+    let elapsed = start.elapsed();
+    let _ = Command::new(&bin)
+        .args(["--daemon-home", home.path().to_str().unwrap(), "daemon", "stop"])
+        .output();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("daemon start wall={:.3}s stderr={stderr}", elapsed.as_secs_f64());
+    assert!(output.status.success(), "{stderr}");
+    let baseline = std::env::var("RGBUILDER_DAEMON_START_BASELINE_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(2.0);
+    assert_within_baseline("daemon start", elapsed, baseline);
+}
+
+#[test]
+#[ignore]
+fn daemon_cold_discover_tiny_polyglot() {
+    let home = tempfile::tempdir().expect("tmp home");
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo");
+    let cache = home.path().join(".rgbuilder/cache");
+    if cache.exists() {
+        std::fs::remove_dir_all(&cache).ok();
+    }
+    let bin = rgbuilder_bin();
+    let _ = Command::new(&bin)
+        .args([
+            "--daemon-home",
+            home.path().to_str().unwrap(),
+            "daemon",
+            "start",
+            "--host",
+            "127.0.0.1",
+        ])
+        .output();
+    let start = Instant::now();
+    let output = Command::new(&bin)
+        .env("RUST_LOG", "info,profile=info")
+        .current_dir(&repo)
+        .args([
+            "--daemon-home",
+            home.path().to_str().unwrap(),
+            "-f",
+            "json",
+            "discover",
+            ".",
+            "-v",
+        ])
+        .output()
+        .expect("daemon discover");
+    let elapsed = start.elapsed();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!(
+        "daemon tiny discover wall={:.3}s success={} stderr_tail={}",
+        elapsed.as_secs_f64(),
+        output.status.success(),
+        stderr.chars().rev().take(800).collect::<String>().chars().rev().collect::<String>()
+    );
+    let _ = Command::new(&bin)
+        .args(["--daemon-home", home.path().to_str().unwrap(), "daemon", "stop"])
+        .output();
+    assert!(output.status.success(), "{stderr}");
+}
+
+#[test]
+#[ignore]
+fn daemon_warm_gql_and_http_query() {
+    let home = tempfile::tempdir().expect("tmp home");
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo");
+    let bin = rgbuilder_bin();
+    let _ = Command::new(&bin)
+        .args([
+            "--daemon-home",
+            home.path().to_str().unwrap(),
+            "daemon",
+            "start",
+            "--host",
+            "127.0.0.1",
+        ])
+        .output();
+    let _ = Command::new(&bin)
+        .current_dir(&repo)
+        .args([
+            "--daemon-home",
+            home.path().to_str().unwrap(),
+            "discover",
+            ".",
+        ])
+        .output();
+    let gql = Command::new(&bin)
+        .env("RUST_LOG", "info,profile=info")
+        .current_dir(&repo)
+        .args([
+            "--daemon-home",
+            home.path().to_str().unwrap(),
+            "-f",
+            "json",
+            "gql",
+            "MATCH (n:Function) RETURN n LIMIT 3",
+        ])
+        .output()
+        .expect("gql");
+    eprintln!(
+        "warm gql status={} stderr={}",
+        gql.status,
+        String::from_utf8_lossy(&gql.stderr)
+    );
+    assert!(gql.status.success());
+    let _ = Command::new(&bin)
+        .args(["--daemon-home", home.path().to_str().unwrap(), "daemon", "stop"])
+        .output();
 }

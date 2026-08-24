@@ -13,10 +13,10 @@ use std::str;
 const SNAPSHOT_REL: &str = ".rgbuilder/graph.snapshot.bin";
 
 fn rgbuilder_bin() -> PathBuf {
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg-build") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
         return PathBuf::from(bin);
     }
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_build") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
         return PathBuf::from(bin);
     }
     if let Some(target) = std::env::var_os("CARGO_TARGET_DIR") {
@@ -29,14 +29,14 @@ fn rgbuilder_bin() -> PathBuf {
             return candidate;
         }
     }
-    let release_default = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg-build");
+    let release_default = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg_ctl");
     if release_default.is_file() {
         return release_default;
     }
-    if let Some(bin) = option_env!("CARGO_BIN_EXE_rg_build") {
+    if let Some(bin) = option_env!("CARGO_BIN_EXE_rg_ctl") {
         return PathBuf::from(bin);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg-build")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg_ctl")
 }
 
 fn fixture_root() -> PathBuf {

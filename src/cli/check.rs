@@ -17,6 +17,10 @@ pub struct CheckArgs {
 
 pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
     if ctx.format == OutputFormat::Json {
+        if super::daemon::route_check(ctx, &args.policy_file)? {
+            return Ok(());
+        }
+
         let mut session = rgbuilder_service::Session::new(&ctx.repo);
         if !session.graph_ready() {
             anyhow::bail!("Graph not found (run `rg-build discover` first)");

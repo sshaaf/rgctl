@@ -1,6 +1,6 @@
 //! CLI subprocess golden-path tests — Layer 2 (narrow end-to-end regressions).
 //!
-//! Spawns `CARGO_BIN_EXE_rg_build` against a temp copy of
+//! Spawns `CARGO_BIN_EXE_rg_ctl` against a temp copy of
 //! `tests/fixtures/tiny_polyglot_repo`. Uses default graph storage under
 //! `{repo}/.rgbuilder/` (unlike `all_commands_sanity.rs`, which forces `-d sandbox_graph.db`).
 //!
@@ -22,10 +22,10 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 fn rgbuilder_bin() -> PathBuf {
-    option_env!("CARGO_BIN_EXE_rg_build")
+    option_env!("CARGO_BIN_EXE_rg_ctl")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg-build")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg_ctl")
         })
 }
 

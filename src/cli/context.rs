@@ -25,6 +25,9 @@ pub struct CliContext {
     pub format: OutputFormat,
     pub output: Option<PathBuf>,
     pub verbose: bool,
+    pub no_daemon: bool,
+    pub daemon_home: Option<PathBuf>,
+    pub fail_if_no_daemon: bool,
     snapshot_cache: RefCell<Option<SnapshotSession>>,
 }
 
@@ -46,6 +49,9 @@ impl CliContext {
             format,
             output,
             verbose,
+            no_daemon: false,
+            daemon_home: None,
+            fail_if_no_daemon: false,
             snapshot_cache: RefCell::new(None),
         }
     }

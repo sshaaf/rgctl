@@ -21,10 +21,10 @@ fn rgbuilder_tests_root() -> PathBuf {
 }
 
 fn rgbuilder_bin() -> PathBuf {
-    if let Ok(p) = std::env::var("CARGO_BIN_EXE_rg_build") {
+    if let Ok(p) = std::env::var("CARGO_BIN_EXE_rg_ctl") {
         return PathBuf::from(p);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg-build")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg_ctl")
 }
 
 const PROJECTS: &[ProjectSpec] = &[

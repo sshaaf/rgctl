@@ -52,6 +52,8 @@ pub(crate) struct AnalysisOptions<'a> {
     pub force_reindex: bool,
     /// Emit discover JSON / "next steps" footer (disable when nested in `--full`).
     pub emit_cli_summary: bool,
+    /// Persist snapshots under this root (defaults to the scanned `path`).
+    pub artifact_root: Option<&'a Path>,
 }
 
 /// Result of one `run_full_analysis` pass.
@@ -86,6 +88,7 @@ pub(crate) fn run_full_analysis(
         force_materialize_fields,
         force_reindex,
         emit_cli_summary,
+        artifact_root,
     } = opts;
 
     let verbose = ctx.verbose;
@@ -100,6 +103,7 @@ pub(crate) fn run_full_analysis(
     profile.security_enabled = with_security;
 
     let root = Path::new(path);
+    let store = artifact_root.unwrap_or(root);
     let mut discovery = DiscoveryConfig::default();
 
     if let Some(langs) = languages {
@@ -156,8 +160,8 @@ pub(crate) fn run_full_analysis(
     let discoverer = FileDiscoverer::with_config(Arc::clone(&registry), discovery_config.clone());
     let files = discoverer.discover(root)?;
 
-    let snapshot_path = rgbuilder_graph::snapshot::MmappedGraphSnapshot::default_path(root);
-    let mut file_tracker = FileTracker::load(root).unwrap_or_else(|_| FileTracker::new(root));
+    let snapshot_path = rgbuilder_graph::snapshot::MmappedGraphSnapshot::default_path(store);
+    let mut file_tracker = FileTracker::load(store).unwrap_or_else(|_| FileTracker::new(store));
     let file_changes = file_tracker.detect_changes(&files)?;
 
     // Index the repository (or reuse snapshot when sources are unchanged).
@@ -191,7 +195,7 @@ pub(crate) fn run_full_analysis(
         cold_reused = Some(cold);
         (stats, digest)
     } else {
-        std::fs::create_dir_all(rgbuilder_graph::paths::artifact_dir(root))?;
+        std::fs::create_dir_all(rgbuilder_graph::paths::artifact_dir(store))?;
         let (stats, digest) = pipeline.process_repository_to_snapshot(root, &snapshot_path)?;
         if verbose {
             debug!(
@@ -513,7 +517,7 @@ pub(crate) fn run_full_analysis(
             profile.cfg_taint.secs = sp.taint_secs;
         }
 
-        let archive_path = CfgPdgArchive::default_path(root);
+        let archive_path = CfgPdgArchive::default_path(store);
         let archive_start = Instant::now();
         if batch.archive_unchanged {
             if verbose {
@@ -611,7 +615,7 @@ pub(crate) fn run_full_analysis(
                     skel.records.push(rec);
                 }
             }
-            let skel_path = AstSkeletonArchive::default_path(root);
+            let skel_path = AstSkeletonArchive::default_path(store);
             match skel.write_to_path(&skel_path) {
                 Ok(()) => {
                     if human_output {
@@ -749,7 +753,7 @@ pub(crate) fn run_full_analysis(
     // Persist SCC engine snapshot for instant blast-radius cache misses
     let blast_snap_start = Instant::now();
     {
-        let blast_path = BlastEngineSnapshot::default_path(root);
+        let blast_path = BlastEngineSnapshot::default_path(store);
         if BlastEngineSnapshot::digest_matches(&blast_path, &graph_digest)? {
             if verbose {
                 debug!(
@@ -772,7 +776,7 @@ pub(crate) fn run_full_analysis(
     let macro_start = Instant::now();
     {
         let macro_path = rgbuilder_graph::paths::artifact_path(root, "macro_call_index.bin");
-        let lookup_db_path = MacroCallLookupDb::default_path(root);
+        let lookup_db_path = MacroCallLookupDb::default_path(store);
 
         if MacroCallIndex::caches_are_current_counts(
             &macro_path,
@@ -909,7 +913,7 @@ pub(crate) fn run_full_analysis(
     // Save analysis results (columnar format - separate from graph!)
     let save_analysis_start = Instant::now();
     let analysis_path = rgbuilder_graph::paths::artifact_path(root, "analysis_results.bin");
-    std::fs::create_dir_all(rgbuilder_graph::paths::artifact_dir(root))?;
+    std::fs::create_dir_all(rgbuilder_graph::paths::artifact_dir(store))?;
     analysis_results.save(&analysis_path)?;
     profile.save_analysis.secs = secs(save_analysis_start.elapsed());
 

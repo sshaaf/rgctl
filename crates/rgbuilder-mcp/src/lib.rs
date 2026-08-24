@@ -100,6 +100,30 @@ const TOOL_NAMES: &[&str] = &[
     "rgbuilder_check",
 ];
 
+/// Handle a single JSON-RPC message (stdio or HTTP).
+pub fn handle_rpc(session: &mut Session, msg: &Value) -> Option<Value> {
+    handle_message(session, msg)
+}
+
+/// Stdio MCP loop that forwards each message to `handler`.
+pub fn serve_proxy<F>(mut handler: F) -> Result<()>
+where
+    F: FnMut(&Value) -> Option<Value>,
+{
+    let stdin = std::io::stdin();
+    let mut reader = BufReader::new(stdin.lock());
+    let mut stdout = std::io::stdout().lock();
+    loop {
+        let Some(msg) = read_rpc_message(&mut reader)? else {
+            break;
+        };
+        if let Some(response) = handler(&msg) {
+            write_rpc_message(&mut stdout, &response)?;
+        }
+    }
+    Ok(())
+}
+
 fn handle_message(session: &mut Session, msg: &Value) -> Option<Value> {
     let method = msg.get("method")?.as_str()?;
     let id = msg.get("id").cloned();
@@ -164,7 +188,7 @@ fn tool_descriptors() -> Vec<Value> {
         json!({
             "name": "rgbuilder_status",
             "description": "Pipeline and artifact status (dashboard, CFG, semantic).",
-            "inputSchema": { "type": "object", "properties": {} }
+            "inputSchema": { "type": "object", "properties": { "repo": { "type": "string" } } }
         }),
         json!({
             "name": "rgbuilder_query",
@@ -175,7 +199,8 @@ fn tool_descriptors() -> Vec<Value> {
                     "query": { "type": "string" },
                     "macro": { "type": "string" },
                     "explain": { "type": "boolean" },
-                    "limit": { "type": "integer" }
+                    "limit": { "type": "integer" },
+                    "repo": { "type": "string" }
                 }
             }
         }),
@@ -187,7 +212,8 @@ fn tool_descriptors() -> Vec<Value> {
                 "properties": {
                     "text": { "type": "string" },
                     "scope": { "type": "string" },
-                    "limit": { "type": "integer" }
+                    "limit": { "type": "integer" },
+                    "repo": { "type": "string" }
                 }
             }
         }),
@@ -200,7 +226,8 @@ fn tool_descriptors() -> Vec<Value> {
                     "symbol": { "type": "string" },
                     "depth": { "type": "integer" },
                     "class": { "type": "string" },
-                    "file": { "type": "string" }
+                    "file": { "type": "string" },
+                    "repo": { "type": "string" }
                 }
             }
         }),
@@ -212,7 +239,8 @@ fn tool_descriptors() -> Vec<Value> {
                 "properties": {
                     "pagerank": { "type": "boolean" },
                     "betweenness": { "type": "boolean" },
-                    "communities": { "type": "boolean" }
+                    "communities": { "type": "boolean" },
+                    "repo": { "type": "string" }
                 }
             }
         }),
@@ -233,7 +261,8 @@ fn tool_descriptors() -> Vec<Value> {
                     "member": { "type": "string" },
                     "include_unresolved": { "type": "boolean" },
                     "direction": { "type": "string" },
-                    "with_alias": { "type": "boolean" }
+                    "with_alias": { "type": "boolean" },
+                    "repo": { "type": "string" }
                 }
             }
         }),
@@ -243,7 +272,8 @@ fn tool_descriptors() -> Vec<Value> {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "policy_file": { "type": "string" }
+                    "policy_file": { "type": "string" },
+                    "repo": { "type": "string" }
                 }
             }
         }),

@@ -7,7 +7,6 @@ use super::blast_radius_output::{
 };
 use super::context::CliContext;
 use super::policy_file::PolicyFile;
-use super::query_daemon;
 use crate::analysis::{
     BlastRadiusEngine, BlastRadiusResult, MacroCallIndex, MacroCallLookupDb, MacroIndexEntry,
     PetGraphView, candidates_from_backend, candidates_from_snapshot, filter_impact_by_caller_depth,
@@ -369,6 +368,16 @@ fn emit_output(ctx: &CliContext, response: &BlastRadiusResponse) -> Result<()> {
 
 pub fn run(ctx: &CliContext, args: BlastRadiusArgs) -> Result<()> {
     if ctx.format == OutputFormat::Json && args.policy_file.is_none() && !args.with_slices {
+        if super::daemon::route_impact(
+            ctx,
+            &args.symbol,
+            args.depth,
+            args.class.clone(),
+            args.file.clone(),
+        )? {
+            return Ok(());
+        }
+
         let mut session = rgbuilder_service::Session::new(&ctx.repo);
         if !session.graph_ready() {
             anyhow::bail!("Graph not found (run `rg-build discover` first)");
@@ -402,12 +411,6 @@ pub fn run(ctx: &CliContext, args: BlastRadiusArgs) -> Result<()> {
         }
 
         if let Some(session) = ctx.snapshot_session()? {
-            if let Some(response) =
-                query_daemon::try_client_blast_radius(ctx, &args, &parsed, session.digest.as_ref())?
-            {
-                return emit_output(ctx, &response);
-            }
-
             if try_snapshot_lite_path(
                 ctx,
                 &args,

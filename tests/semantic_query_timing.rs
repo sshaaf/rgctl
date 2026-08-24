@@ -23,10 +23,10 @@ fn timing_queries_path() -> PathBuf {
 }
 
 fn rgbuilder_bin() -> PathBuf {
-    option_env!("CARGO_BIN_EXE_rg_build")
+    option_env!("CARGO_BIN_EXE_rg_ctl")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg-build")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg_ctl")
         })
 }
 

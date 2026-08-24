@@ -23,13 +23,13 @@ fn oracles_path() -> PathBuf {
 }
 
 fn rgbuilder_bin() -> PathBuf {
-    for key in ["CARGO_BIN_EXE_rg_build", "CARGO_BIN_EXE_rg-build"] {
+    for key in ["CARGO_BIN_EXE_rg_ctl", "CARGO_BIN_EXE_rg_ctl"] {
         if let Ok(p) = std::env::var(key) {
             return PathBuf::from(p);
         }
     }
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let debug = root.join("target/debug/rg-build");
+    let debug = root.join("target/debug/rg_ctl");
     if debug.is_file() {
         return debug;
     }

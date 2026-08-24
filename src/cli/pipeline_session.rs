@@ -32,6 +32,7 @@ pub struct FullPipelineArgs {
     pub export_migration_hints: bool,
     pub migration_preset: String,
     pub migration_order: String,
+    pub artifact_root: Option<PathBuf>,
 }
 
 impl FullPipelineArgs {
@@ -47,6 +48,7 @@ impl FullPipelineArgs {
             export_migration_hints: args.export_migration_hints,
             migration_preset: args.migration_preset.clone(),
             migration_order: args.migration_order.clone(),
+            artifact_root: args.artifact_root.clone(),
         }
     }
 
@@ -62,6 +64,7 @@ impl FullPipelineArgs {
             export_migration_hints: false,
             migration_preset: "hybrid_default".into(),
             migration_order: "scheduled".into(),
+            artifact_root: None,
         }
     }
 }
@@ -270,6 +273,7 @@ fn analysis_opts<'a>(
         force_materialize_fields: true,
         force_reindex,
         emit_cli_summary: false,
+        artifact_root: extras.artifact_root.as_deref(),
     }
 }
 

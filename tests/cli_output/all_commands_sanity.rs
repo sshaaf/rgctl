@@ -7,7 +7,7 @@
 //!
 //! - **`Sandbox`** — copies [`tests/fixtures/tiny_polyglot_repo`] into a temp dir;
 //!   passes `-r {repo}` and `-d {repo}/sandbox_graph.db` on every invocation.
-//! - **Binary** — `CARGO_BIN_EXE_rg_build` when set; otherwise `target/debug/rg-build`.
+//! - **Binary** — `CARGO_BIN_EXE_rg_ctl` when set; otherwise `target/debug/rg_ctl`.
 //! - **Helpers** — schema version, key presence/absence, nil-UUID scan, exit-code checks.
 //!
 //! # Coverage (see `docs/cli-io-sanity-qe.md` for the full matrix)
@@ -35,17 +35,17 @@ use std::str;
 const NIL_UUID: &str = "00000000-0000-0000-0000-000000000000";
 
 fn rgbuilder_bin() -> PathBuf {
-    for key in ["CARGO_BIN_EXE_rg_build", "CARGO_BIN_EXE_rg-build"] {
+    for key in ["CARGO_BIN_EXE_rg_ctl", "CARGO_BIN_EXE_rg_ctl"] {
         if let Ok(p) = std::env::var(key) {
             return PathBuf::from(p);
         }
     }
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let debug = root.join("target/debug/rg-build");
+    let debug = root.join("target/debug/rg_ctl");
     if debug.is_file() {
         return debug;
     }
-    root.join("target/release/rg-build")
+    root.join("target/release/rg_ctl")
 }
 
 fn fixture_root() -> PathBuf {

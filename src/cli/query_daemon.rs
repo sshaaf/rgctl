@@ -1,3 +1,6 @@
+//! QUARANTINED: the blast-radius Unix `query.sock` daemon is no longer started.
+//! `rg_ctl serve --daemon` is the background HTTP+MCP daemon. This module is kept
+//! only for its in-process protocol tests.
 //! Ephemeral query daemon — keeps mmap graph + blast engine warm across CLI invocations.
 //!
 //! Protocol: newline-delimited JSON-RPC-like messages over a local transport:

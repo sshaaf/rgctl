@@ -17,6 +17,15 @@ pub struct MetricsArgs {
 pub fn run(ctx: &CliContext, args: MetricsArgs) -> Result<()> {
     let run_all = !args.pagerank && !args.betweenness && !args.communities;
     if ctx.format == OutputFormat::Json {
+        if super::daemon::route_metrics(
+            ctx,
+            args.pagerank || run_all,
+            args.betweenness || run_all,
+            args.communities || run_all,
+        )? {
+            return Ok(());
+        }
+
         let mut session = Session::new(&ctx.repo);
         if !session.graph_ready() {
             anyhow::bail!("Graph not found (run `rg-build discover` first)");

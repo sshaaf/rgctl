@@ -7,13 +7,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 fn rgbuilder_bin() -> PathBuf {
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg-build") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
         return PathBuf::from(bin);
     }
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_build") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
         return PathBuf::from(bin);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg-build")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg_ctl")
 }
 
 fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {

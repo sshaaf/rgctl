@@ -13,10 +13,10 @@ fn pick_port() -> u16 {
 }
 
 fn rgbuilder_bin() -> std::path::PathBuf {
-    std::env::var_os("CARGO_BIN_EXE_rg_build")
+    std::env::var_os("CARGO_BIN_EXE_rg_ctl")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| {
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg-build")
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg_ctl")
         })
 }
 
