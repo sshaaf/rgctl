@@ -2,6 +2,8 @@
 
 rgctl indexes `.md` and `.mdx` through the **custom markup plugin** `rgctl-lang-markdown` (not Tier 1, not generic Tier 2). It uses official `tree-sitter-md` (block + inline grammars) to build a documentation context graph alongside code.
 
+**Step-by-step guide:** [guides/markdown-context-graph.md](guides/markdown-context-graph.md) — discover, GQL, Obsidian/OKF export, semantic search, and a full showcase of supported markdown constructs.
+
 ## Discover
 
 Markdown is registered in `default_registry()` — `discover` indexes `.md` / `.mdx` by default (same as other built-in languages). Filter with `-l markdown` when you only want docs:

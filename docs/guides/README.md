@@ -16,6 +16,7 @@ Practical, step-by-step guides for every major rgctl feature. Each guide uses th
 | [Hybrid CPG](hybrid-cpg.md) | `cpg` | Combined call-graph + per-function CFG/PDG analysis |
 | [Inspecting CFG, PDG, and Dominance](inspecting-cfg-pdg-dominance.md) | `inspect` | Examine low-level control flow, data dependence, and dominator trees |
 | [Exporting Graphs](exporting-graphs.md) | `export` | Serialize graph data to JSON, GraphML, Graphviz, Mermaid, or Obsidian |
+| [Markdown Context Graph](markdown-context-graph.md) | `discover -l markdown` · `export` | Index docs, Obsidian/OKF export, fixture feature tour (k8s-website scale example) |
 | [CI Policy Checks](ci-policy-checks.md) | `check` | Enforce architectural rules in your CI pipeline |
 | [HTTP Server and Dashboard](http-server-and-dashboard.md) | `serve` | Run an HTTP API and browser-based dashboard |
 | [MCP Server](mcp-server.md) | `serve --mode mcp` | stdio MCP for Cursor / Claude Code (seven tools + auto full pipeline) |

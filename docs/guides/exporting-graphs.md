@@ -108,6 +108,8 @@ rgctl -r example/coolstore export \
 
 This creates a directory of markdown files that you can open in Obsidian, with wikilinks between related nodes. Each function, class, and module becomes a note with backlinks to its callers and callees.
 
+For documentation-only repos, see [Markdown Context Graph](markdown-context-graph.md) — Obsidian export of heading sections, OKF JSON, and doc semantic index.
+
 ### 5. Export to Graphviz (DOT)
 
 Generate a DOT file for rendering with Graphviz:
