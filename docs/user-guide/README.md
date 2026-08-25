@@ -32,7 +32,7 @@ CI runs `scripts/user-guide-scenarios.py --check` against `rgbuilder-tests/ecomm
 ## Run
 
 ```bash
-# from repo root; prefers target/release/rg-build
+# from repo root; prefers target/release/rgctl
 python3 scripts/user-guide-scenarios.py
 python3 scripts/user-guide-scenarios.py --check          # CI: assert marker samples
 python3 scripts/user-guide-scenarios.py --sync           # rewrite marker samples

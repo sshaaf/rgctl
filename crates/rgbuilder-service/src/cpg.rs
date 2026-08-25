@@ -174,7 +174,7 @@ fn run_ast(repo: &Path, args: &CpgArgs) -> Result<Value> {
         .map_err(ServiceError::from)?
         .ok_or_else(|| {
             ServiceError::Failed(
-                "AST skeleton archive missing (run `rg-build discover --with-ast-skeleton`)"
+                "AST skeleton archive missing (run `rgctl discover --with-ast-skeleton`)"
                     .into(),
             )
         })?;

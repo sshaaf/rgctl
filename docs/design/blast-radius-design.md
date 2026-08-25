@@ -92,11 +92,11 @@ CLI JSON: [json-api.md](../json-api.md) (blast-radius + field catalogs).
 ## 6. CLI usage
 
 ```bash
-rg-build discover .
-rg-build -f json blast-radius ShoppingCartService
-rg-build -f json blast-radius process --class OrderService --depth 3
-rg-build -f json blast-radius Foo --policy-file policy.json   # exit 1 if VIOLATED
-rg-build serve --daemon   # optional blast socket warm path
+rgctl discover .
+rgctl -f json blast-radius ShoppingCartService
+rgctl -f json blast-radius process --class OrderService --depth 3
+rgctl -f json blast-radius Foo --policy-file policy.json   # exit 1 if VIOLATED
+rgctl serve --daemon   # optional blast socket warm path
 ```
 
 ---
@@ -113,7 +113,7 @@ rg-build serve --daemon   # optional blast socket warm path
 Regenerate screenshots:
 
 ```bash
-rg-build -r ~/git/java/gbuilder serve --port 8080
+rgctl -r ~/git/java/gbuilder serve --port 8080
 DASHBOARD_URL=http://127.0.0.1:8080/ node dashboard/scripts/capture-design-screenshots.mjs
 ```
 

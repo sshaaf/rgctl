@@ -28,7 +28,7 @@ const actions = [
   },
   {
     title: "Releases",
-    body: "Grab binaries and read release notes. Docs match the CLI — verify with rg-build --version.",
+    body: "Grab binaries and read release notes. Docs match the CLI — verify with rgctl --version.",
     href: GITHUB_RELEASES,
     cta: "Latest release",
   },

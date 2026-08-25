@@ -7,10 +7,10 @@ E-commerce reference app.
 See [summary report](../rgbuilder-reports/REPORT.md) · [language report](../rgbuilder-reports/languages/typescript.md) · [HTML](../rgbuilder-reports/languages/typescript.html) (2026-07-22).
 
 ```bash
-rg-build -f json discover . --cfg -e node_modules,dist
-rg-build -f json blast-radius 'src/services/orderService.ts::checkout'
-rg-build -f json metrics --communities --pagerank
-rg-build -f json check --policy-file ../rgbuilder-policy.json
+rgctl -f json discover . --cfg -e node_modules,dist
+rgctl -f json blast-radius 'src/services/orderService.ts::checkout'
+rgctl -f json metrics --communities --pagerank
+rgctl -f json check --policy-file ../rgbuilder-policy.json
 ```
 
 | Metric | Value |

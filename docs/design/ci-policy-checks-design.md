@@ -1,6 +1,6 @@
 # CI Policy Checks — Engineering Design
 
-**`rg-build check`** — fail CI when blast-radius policy rules are violated on symbols touched in the current git working tree. Complements interactive **`blast-radius --policy-file`** gatekeeping.
+**`rgctl check`** — fail CI when blast-radius policy rules are violated on symbols touched in the current git working tree. Complements interactive **`blast-radius --policy-file`** gatekeeping.
 
 ![Blast scores that feed policy thresholds (gbuilder)](../images/design/ci-policy-checks/policy-blast-scores.png)
 
@@ -29,7 +29,7 @@ flowchart TB
     G[graph + analysis_results]
   end
 
-  subgraph check["rg-build check"]
+  subgraph check["rgctl check"]
     RES[resolve_unique_symbol]
     ENG[BlastRadiusEngine.analyze]
     POLCHK[analyze_with_policy]
@@ -93,11 +93,11 @@ Policy is **CLI-first**. The dashboard helps **calibrate** thresholds:
 
 ```bash
 # One-off blast with policy gate
-rg-build -f json blast-radius ShoppingCartService --policy-file policy.json
+rgctl -f json blast-radius ShoppingCartService --policy-file policy.json
 
 # CI on PR — evaluate changed functions
-rg-build check --policy-file policy.json
-rg-build -f json check --policy-file policy.json | jq '.passed, .violations'
+rgctl check --policy-file policy.json
+rgctl -f json check --policy-file policy.json | jq '.passed, .violations'
 ```
 
 Typical GitHub Actions pattern: run `discover` in a setup job, then `check` on each PR with the same `.rgbuilder/` cache artifact.

@@ -1,4 +1,4 @@
-//! Project configuration (`rg-build.toml`).
+//! Project configuration (`rgctl.toml`).
 
 use rgbuilder_error::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -109,14 +109,14 @@ pub struct RgbuilderConfig {
 impl RgbuilderConfig {
     /// Path to the project config file.
     pub fn config_path(repo_root: &Path) -> PathBuf {
-        repo_root.join("rg-build.toml")
+        repo_root.join("rgctl.toml")
     }
 
     fn legacy_config_path(repo_root: &Path) -> PathBuf {
         repo_root.join("rbuilder.toml")
     }
 
-    /// Load `rg-build.toml` (or legacy `rbuilder.toml`) from the repository root, or return defaults.
+    /// Load `rgctl.toml` (or legacy `rbuilder.toml`) from the repository root, or return defaults.
     pub fn load(repo_root: &Path) -> Result<Self> {
         let path = Self::config_path(repo_root);
         let path = if path.exists() {
@@ -134,7 +134,7 @@ impl RgbuilderConfig {
         toml::from_str(&raw).map_err(|e| Error::Other(format!("Invalid {}: {e}", path.display())))
     }
 
-    /// Write configuration to `rg-build.toml`.
+    /// Write configuration to `rgctl.toml`.
     pub fn save(&self, repo_root: &Path) -> Result<PathBuf> {
         let path = Self::config_path(repo_root);
         let raw = toml::to_string_pretty(self)

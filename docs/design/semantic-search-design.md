@@ -75,8 +75,8 @@ Escape hatch for builds without ONNX:
 
 ```bash
 cargo build --release --no-default-features
-rg-build semantic index                    # vocab still works without ONNX
-# or: rg-build semantic index --embedder hash
+rgctl semantic index                    # vocab still works without ONNX
+# or: rgctl semantic index --embedder hash
 ```
 
 ---
@@ -119,24 +119,24 @@ No extra index pass required beyond normal `discover`.
 | HTTP client | `dashboard/src/semanticSearch.ts` |
 | Status + query API | `GET /api/semantic/status`, `POST /api/semantic/query` |
 
-Requires `rg-build serve` (not static `python -m http.server`) so the semantic API is available.
+Requires `rgctl serve` (not static `python -m http.server`) so the semantic API is available.
 
 ---
 
 ## 7. CLI usage
 
 ```bash
-rg-build discover .
-rg-build semantic index                    # default vocab, 256-d, no source re-read
-rg-build semantic distill --matrix crates/rgbuilder-analysis/assets/vocab_matrix.bin
-# teacher: code-daemon (our ONNX). Rebuild rg-build to compile v2 into the binary.
-rg-build semantic index --incremental      # reuse unchanged code_hash rows
-rg-build -f json semantic query "shopping cart checkout" --limit 10
-rg-build -f json semantic query "OrderService" --keyword-and
-rg-build -f json semantic query "auth login" --expand neighbors --expand-depth 2
+rgctl discover .
+rgctl semantic index                    # default vocab, 256-d, no source re-read
+rgctl semantic distill --matrix crates/rgbuilder-analysis/assets/vocab_matrix.bin
+# teacher: code-daemon (our ONNX). Rebuild rgctl to compile v2 into the binary.
+rgctl semantic index --incremental      # reuse unchanged code_hash rows
+rgctl -f json semantic query "shopping cart checkout" --limit 10
+rgctl -f json semantic query "OrderService" --keyword-and
+rgctl -f json semantic query "auth login" --expand neighbors --expand-depth 2
 # Fusion is on by default; use --no-fusion for pure Hamming
 
-rg-build serve --open   # dashboard Search tab + /api/semantic/*
+rgctl serve --open   # dashboard Search tab + /api/semantic/*
 ```
 
 Index-only flags: `--embedder`, `--dimensions`, `--model`, `--tokenizer`, `--embed-bodies`, `--incremental`,
@@ -146,9 +146,9 @@ Query flags: `--no-fusion` (fusion is on by default), `--keyword-and`, `--candid
 
 ```bash
 # Neural extra / hash CI
-rg-build semantic index --embedder code-daemon
-rg-build semantic index --embedder hash
-rg-build semantic index --embed-bodies          # append function-body identifier tokens
+rgctl semantic index --embedder code-daemon
+rgctl semantic index --embedder hash
+rgctl semantic index --embed-bodies          # append function-body identifier tokens
 ```
 
 ---
@@ -180,8 +180,8 @@ Time linux-scale Hamming with a **release** build — debug can be ~100× slower
 Regenerate screenshots:
 
 ```bash
-rg-build -r ~/git/java/gbuilder semantic index
-rg-build -r ~/git/java/gbuilder serve --port 8080
+rgctl -r ~/git/java/gbuilder semantic index
+rgctl -r ~/git/java/gbuilder serve --port 8080
 DASHBOARD_URL=http://127.0.0.1:8080/ node dashboard/scripts/capture-design-screenshots.mjs
 ```
 

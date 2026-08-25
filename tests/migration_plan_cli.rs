@@ -19,7 +19,7 @@ fn run_discover_migration(repo: &Path, extra_args: &[&str]) -> std::process::Out
         "java,rust",
     ]);
     cmd.args(extra_args);
-    cmd.output().expect("spawn rg-build discover")
+    cmd.output().expect("spawn rgctl discover")
 }
 
 #[test]

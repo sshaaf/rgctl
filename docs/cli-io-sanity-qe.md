@@ -21,7 +21,7 @@ flowchart TB
 
   subgraph L2["Layer 2 — Golden-path subprocess"]
     G["subprocess_golden_path.rs"]
-    G --> B["CARGO_BIN_EXE_rg_build"]
+    G --> B["CARGO_BIN_EXE_rgctl"]
   end
 
   subgraph L3["Layer 3 — Full-platform subprocess"]
@@ -67,7 +67,7 @@ cargo test --test all_commands_sanity     # comprehensive subprocess audit
 
 1. **Never touch a developer tree** — each test copies `tests/fixtures/tiny_polyglot_repo` into a `tempfile::TempDir`.
 2. **Explicit sandbox database** — graph writes go to `{temp}/sandbox_graph.db` via `-d`, not `{repo}/.rgbuilder/`.
-3. **Real binary** — uses `env!("CARGO_BIN_EXE_rg_build")` so `cargo test` always runs the binary built for the current profile.
+3. **Real binary** — uses `env!("CARGO_BIN_EXE_rgctl")` so `cargo test` always runs the binary built for the current profile.
 4. **Shared repo root** — `-r {temp_repo}` keeps paths stable for slice/inspect file arguments.
 
 ### `Sandbox` helper
@@ -77,7 +77,7 @@ cargo test --test all_commands_sanity     # comprehensive subprocess audit
 | `Sandbox::new()` | Copies fixture into temp dir; sets `db = {temp}/sandbox_graph.db` |
 | `sandbox.repo` | Root of the copied polyglot repo (Java + Rust) |
 | `sandbox.db` | Isolated legacy JSON graph path (`-d`; not SQLite) |
-| `sandbox.run(args)` | Spawns `rg-build -r {repo} -d {db} …args` and returns `Output` |
+| `sandbox.run(args)` | Spawns `rgctl -r {repo} -d {db} …args` and returns `Output` |
 | `parse_stdout_json(output)` | Parses stdout as JSON; panics with stdout/stderr on failure |
 
 ### Assertion helpers

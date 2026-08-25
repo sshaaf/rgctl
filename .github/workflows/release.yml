@@ -45,24 +45,24 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
-            bin: rg-build
+            bin: rgctl
             # Default features include semantic-onnx (code-daemon embedder).
             cargo_args: --features semantic-onnx
           - os: macos-latest
             target: aarch64-apple-darwin
             archive: tar.gz
-            bin: rg-build
+            bin: rgctl
             cargo_args: --features semantic-onnx
           - os: macos-latest
             target: x86_64-apple-darwin
             archive: tar.gz
-            bin: rg-build
+            bin: rgctl
             # ort 2.x has no prebuilt ONNX Runtime for Intel Mac; hash embedder only.
             cargo_args: --no-default-features
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             archive: zip
-            bin: rg-build.exe
+            bin: rgctl.exe
             cargo_args: --features semantic-onnx
 
     steps:
@@ -84,7 +84,7 @@ jobs:
           shared-key: release-${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --release ${{ matrix.cargo_args }} --target ${{ matrix.target }} --bin rg-build
+        run: cargo build --release ${{ matrix.cargo_args }} --target ${{ matrix.target }} --bin rgctl
 
       - name: Package archive (Unix)
         if: matrix.archive == 'tar.gz'
@@ -98,10 +98,10 @@ jobs:
           fi
           STAGING="package"
           mkdir -p "$STAGING"
-          cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "$STAGING/rg-build"
-          chmod +x "$STAGING/rg-build"
+          cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "$STAGING/rgctl"
+          chmod +x "$STAGING/rgctl"
           ARCHIVE="rgbuilder-${VERSION}-${{ matrix.target }}.tar.gz"
-          tar -czf "$ARCHIVE" -C "$STAGING" rg-build
+          tar -czf "$ARCHIVE" -C "$STAGING" rgctl
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Package archive (Windows)
@@ -114,9 +114,9 @@ jobs:
             $version = (Select-String -Path Cargo.toml -Pattern '^version' | Select-Object -First 1).Line -replace '.*"(.*)".*','$1'
           }
           New-Item -ItemType Directory -Force -Path package | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin }}" "package/rg-build.exe"
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin }}" "package/rgctl.exe"
           $archive = "rgbuilder-${version}-${{ matrix.target }}.zip"
-          Compress-Archive -Path package/rg-build.exe -DestinationPath $archive -Force
+          Compress-Archive -Path package/rgctl.exe -DestinationPath $archive -Force
           echo "ARCHIVE=$archive" >> $env:GITHUB_ENV
 
       - name: Upload build artifact

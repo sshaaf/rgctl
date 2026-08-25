@@ -24,13 +24,13 @@ This guide uses the **CoolStore** -- a Java EE e-commerce application. It lives 
 The simplest invocation indexes the repository at the current directory:
 
 ```bash
-rg-build -r example/coolstore discover .
+rgctl -r example/coolstore discover .
 ```
 
 ### Full pipeline
 
 ```bash
-rg-build -r example/coolstore discover . --full
+rgctl -r example/coolstore discover . --full
 ```
 
 This prints a plan, finishes a basic (queryable) index, then runs CFG + dashboard + harmonic centrality and a vocab semantic index. `--full` does not enable taint or secret scanning.
@@ -38,9 +38,9 @@ This prints a plan, finishes a basic (queryable) index, then runs CFG + dashboar
 **Output:**
 
 ```
-[>] rg-build discover
+[>] rgctl discover
 [!] Found 186 circular dependencies
-[✓] rg-build discover finished in 598ms
+[✓] rgctl discover finished in 598ms
 ```
 
 **What happened:**
@@ -56,13 +56,13 @@ This prints a plan, finishes a basic (queryable) index, then runs CFG + dashboar
 To enable control-flow graphs, PDGs, and dominance analysis for every function, add `--with-cfg`:
 
 ```bash
-rg-build -r example/coolstore discover . --with-cfg
+rgctl -r example/coolstore discover . --with-cfg
 ```
 
 **Output:**
 
 ```
-[>] rg-build discover
+[>] rgctl discover
 [!] Deep analysis enabled (--with-cfg / --with-taint).
    CFG/PDG on large codebases (>50K functions) may take several minutes.
 Skipped files due to errors failed=1
@@ -72,7 +72,7 @@ Skipped files due to errors failed=1
   Field writes indexed: 3299
   CFG/PDG/Dominance: 6585 functions analyzed
   Skipped: 941 functions (unsupported language or parse error)
-[✓] rg-build discover finished in 20.7s
+[✓] rgctl discover finished in 20.7s
 ```
 
 **What happened:**
@@ -87,7 +87,7 @@ Skipped files due to errors failed=1
 For the most complete analysis, combine all the deep-analysis flags:
 
 ```bash
-rg-build -r example/coolstore discover . \
+rgctl -r example/coolstore discover . \
   --with-cfg \
   --with-dashboard \
   --with-harmonic \
@@ -108,7 +108,7 @@ This enables:
 If you only want to index Java files, use the `--languages` flag:
 
 ```bash
-rg-build -r example/coolstore discover . --languages java
+rgctl -r example/coolstore discover . --languages java
 ```
 
 This skips all JavaScript, TypeScript, and other files, producing a smaller, faster index focused on the backend code.
@@ -118,7 +118,7 @@ This skips all JavaScript, TypeScript, and other files, producing a smaller, fas
 To skip vendor or generated code:
 
 ```bash
-rg-build -r example/coolstore discover . --exclude bower_components
+rgctl -r example/coolstore discover . --exclude bower_components
 ```
 
 ### 6. Inspecting Artifacts

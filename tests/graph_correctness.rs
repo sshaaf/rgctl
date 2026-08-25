@@ -21,10 +21,10 @@ fn rgbuilder_tests_root() -> PathBuf {
 }
 
 fn rgbuilder_bin() -> PathBuf {
-    if let Ok(p) = std::env::var("CARGO_BIN_EXE_rg_ctl") {
+    if let Ok(p) = std::env::var("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(p);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg_ctl")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
 }
 
 const PROJECTS: &[ProjectSpec] = &[
@@ -95,7 +95,7 @@ fn assert_project(spec: &ProjectSpec) {
     let bin = rgbuilder_bin();
     assert!(
         bin.is_file(),
-        "rg-build binary not found at {} (build the test binary first)",
+        "rgctl binary not found at {} (build the test binary first)",
         bin.display()
     );
 

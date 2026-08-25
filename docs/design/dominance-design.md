@@ -39,9 +39,9 @@ For each edge `A → B` in the CFG, if `B` does not strictly dominate `A`, add c
 ## 3. CLI output
 
 ```bash
-rg-build inspect Symbol dom
-rg-build inspect Symbol dom --frontiers
-rg-build -f json inspect Symbol dom -o dom.json
+rgctl inspect Symbol dom
+rgctl inspect Symbol dom --frontiers
+rgctl -f json inspect Symbol dom -o dom.json
 ```
 
 JSON includes `nodes[]` with `idom`, `frontier_size` when `--frontiers` is set.

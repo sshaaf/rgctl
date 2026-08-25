@@ -70,7 +70,7 @@ GET    /services/orders/{orderId}
 
 `ShoppingCartService.priceShoppingCart` mutates cart totals (promo/shipping) — useful for hybrid CPG `cpg mutations --type ShoppingCart`.
 
-Use these repos with `rg-build discover .` to compare graph structure across languages.
+Use these repos with `rgctl discover .` to compare graph structure across languages.
 
 ## Graph data correctness (expected-facts)
 
@@ -90,7 +90,7 @@ Regenerate analysis reports:
 
 ```bash
 ./scripts/run_rgbuilder_report.sh
-# or: RGBUILDER=/path/to/rg-build ./scripts/run_rgbuilder_report.py --update-readmes
+# or: RGBUILDER=/path/to/rgctl ./scripts/run_rgbuilder_report.py --update-readmes
 ```
 
 See [`scripts/README.md`](scripts/README.md) for options.

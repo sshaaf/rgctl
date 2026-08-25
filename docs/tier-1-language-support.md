@@ -343,8 +343,8 @@ Provide a **small fixture repo** under `rgbuilder-tests/` or document `RGBUILDER
 cargo build --release
 ./scripts/build-dashboard.sh && cargo build --release   # if dashboard dist changed
 
-rg-build discover --with-cfg --with-security --with-taint -r /path/to/fixture-repo -l {id} -v
-rg-build serve -r /path/to/fixture-repo --host 127.0.0.1 --port 8080
+rgctl discover --with-cfg --with-security --with-taint -r /path/to/fixture-repo -l {id} -v
+rgctl serve -r /path/to/fixture-repo --host 127.0.0.1 --port 8080
 # Open http://127.0.0.1:8080 — check Graph, CFG, Dataflow, Taint, Blast Radius tabs
 ```
 
@@ -376,7 +376,7 @@ Many languages exist as **generic tree-sitter** plugins (`TreeSitterLanguagePlug
 | Tier 1 without Layer F (fields / ctors / mutation golden) | `cpg mutations` is Java-only quality; **not** Tier 1 |
 | CFG enabled without tests | Dashboard shows blocks but regressions go unnoticed |
 | Duplicate grammar only in plugin crate | `rgbuilder-analysis` needs its own `tree-sitter-*` dep for CFG |
-| Skip `rgbuilder-languages` registration | Language won’t ship in default `rg-build` binary |
+| Skip `rgbuilder-languages` registration | Language won’t ship in default `rgctl` binary |
 | Full type checker inside the plugin | Out of scope — bound resolution only (decl / param / field) |
 
 ---

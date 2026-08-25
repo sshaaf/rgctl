@@ -27,8 +27,8 @@ rgBuilder indexes source through **language plugins**. Tier metadata: [`language
 | C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, … | |
 
 ```bash
-rg-build discover . -l java,go,rust
-rg-build discover . -e node_modules,target,.git
+rgctl discover . -l java,go,rust
+rgctl discover . -e node_modules,target,.git
 ```
 
 Config format plugins (JSON, YAML, TOML, properties, …) add structure nodes; they do not run CFG/PDG. See `crates/rgbuilder-config-formats`.

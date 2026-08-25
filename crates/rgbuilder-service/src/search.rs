@@ -40,7 +40,7 @@ pub fn run_search(graph: &CodeGraph, repo: &Path, args: &SearchArgs) -> Result<V
     if args.scope == SearchScope::Community {
         let analysis = analysis.ok_or_else(|| {
             ServiceError::Failed(
-                "community semantic search requires analysis_results.bin (run `rg-build discover`)"
+                "community semantic search requires analysis_results.bin (run `rgctl discover`)"
                     .into(),
             )
         })?;

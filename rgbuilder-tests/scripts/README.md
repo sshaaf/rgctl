@@ -23,11 +23,11 @@ Runs the full rgBuilder feature matrix against all Tier 1 `ecommerce-*` apps and
 ### Usage
 
 ```bash
-# from rgbuilder-tests/ (auto-detect: PATH, RGBUILDER, or ../../target/{release,debug}/rg-build when embedded)
+# from rgbuilder-tests/ (auto-detect: PATH, RGBUILDER, or ../../target/{release,debug}/rgctl when embedded)
 ./scripts/run_rgbuilder_report.sh
 
 # explicit binary + refresh README summary tables
-RGBUILDER=/path/to/rg-build ./scripts/run_rgbuilder_report.py --update-readmes
+RGBUILDER=/path/to/rgctl ./scripts/run_rgbuilder_report.py --update-readmes
 
 # subset of projects, keep existing .rgbuilder caches
 ./scripts/run_rgbuilder_report.py --projects rust java --no-clean
@@ -37,7 +37,7 @@ RGBUILDER=/path/to/rg-build ./scripts/run_rgbuilder_report.py --update-readmes
 
 | Flag | Description |
 |------|-------------|
-| `--rg-build PATH` | rg-build binary |
+| `--rgctl PATH` | rgctl binary |
 | `--output-dir PATH` | default: `rgbuilder-reports/` |
 | `--repo-root PATH` | default: parent of `scripts/` |
 | `--no-clean` | skip deleting `.rgbuilder/` before discover |
@@ -52,14 +52,14 @@ Exit code **0** if every project `discover` succeeds; **1** otherwise.
 
 Hand-labeled facts live in `ecommerce-*/correctness/expected-facts.json` (see [`correctness/SCHEMA.md`](../correctness/SCHEMA.md)). They are checked by `cargo test --test graph_correctness` in the rgBuilder repo (not this report script).
 
-### Install rg-build from GitHub Releases
+### Install rgctl from GitHub Releases
 
 [`install_rgbuilder_release.sh`](install_rgbuilder_release.sh) downloads the platform archive published by [rgBuilder releases](https://github.com/sshaaf/rgBuilder/releases):
 
 ```bash
 ./scripts/install_rgbuilder_release.sh
 RGBUILDER_TAG=v0.1.0 ./scripts/install_rgbuilder_release.sh
-RGBUILDER=/path/to/.rgbuilder-bin/rg-build ./scripts/run_rgbuilder_report.py
+RGBUILDER=/path/to/.rgbuilder-bin/rgctl ./scripts/run_rgbuilder_report.py
 ```
 
 Environment variables:
@@ -81,7 +81,7 @@ Environment variables:
 
 The workflow:
 
-1. Downloads the matching rg-build binary from GitHub Releases
+1. Downloads the matching rgctl binary from GitHub Releases
 2. Runs `./scripts/run_rgbuilder_report.py --no-clean`
 3. Packages `rgbuilder-reports/` as **`rgbuilder-reports-<tag>-<run_id>.tar.gz`** (+ SHA256 sidecar)
 4. Uploads the archive as a **workflow artifact** (90-day retention) — nothing is committed to git
@@ -111,5 +111,5 @@ open rgbuilder-reports/REPORT.html
 
 ### Requirements
 
-- `rg-build` built with language bundles (uses `discover . --cfg`)
+- `rgctl` built with language bundles (uses `discover . --cfg`)
 - [`rgbuilder-policy.json`](../rgbuilder-policy.json) at repo root (for `check`)

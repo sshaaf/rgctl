@@ -118,12 +118,12 @@ pub fn ecommerce_typescript_repo_path() -> PathBuf {
 
 pub fn rgbuilder_bin() -> PathBuf {
     if let Ok(p) =
-        std::env::var("CARGO_BIN_EXE_rg_ctl").or_else(|_| std::env::var("CARGO_BIN_EXE_rg_ctl"))
+        std::env::var("CARGO_BIN_EXE_rgctl")
     {
         return PathBuf::from(p);
     }
     panic!(
-        "CARGO_BIN_EXE_rg_ctl is not set for dashboard tests; run via `cargo test` so the test harness uses the current binary"
+        "CARGO_BIN_EXE_rgctl is not set for dashboard tests; run via `cargo test` so the test harness uses the current binary"
     );
 }
 
@@ -147,11 +147,11 @@ fn run_discover_with_flags(repo: &Path, languages: Option<&str>, deep: bool) -> 
     let bin = rgbuilder_bin();
     assert!(
         bin.is_file(),
-        "rg-build binary not found at {} — run cargo build --release",
+        "rgctl binary not found at {} — run cargo build --release",
         bin.display()
     );
     let mut cmd = Command::new(&bin);
-    cmd.env("RG_CTL_NO_DAEMON", "1");
+    cmd.env("RGCTL_NO_DAEMON", "1");
     // Dashboard tests always opt in (#31 — bare discover skips dashboard).
     cmd.args([
         "-r",
@@ -167,7 +167,7 @@ fn run_discover_with_flags(repo: &Path, languages: Option<&str>, deep: bool) -> 
     if let Some(langs) = languages {
         cmd.args(["--languages", langs]);
     }
-    cmd.output().expect("spawn rg-build discover")
+    cmd.output().expect("spawn rgctl discover")
 }
 
 /// Default metasfresh example checkout (override with env).

@@ -3,6 +3,8 @@
 mod config;
 mod protocol;
 mod worker;
+#[cfg(windows)]
+mod win_pipe;
 
 pub use config::DaemonHome;
 pub use protocol::{ControlRequest, ControlResponse, DiscoverRequest};
@@ -22,17 +24,17 @@ pub fn emit_stage(name: &str, secs: f64) {
     tracing::info!(target: "profile", stage = name, secs, "[profile] stage");
 }
 
-/// Resolve daemon home: `--daemon-home`, else `RG_CTL_HOME`, else cwd.
+/// Resolve daemon home: `--daemon-home`, else `RGCTL_HOME`, else `$HOME` (`~/.rgbuilder/`).
 pub fn resolve_home(explicit: Option<&Path>) -> Result<DaemonHome> {
     if let Some(p) = explicit {
         return DaemonHome::from_path(p);
     }
-    if let Ok(env) = std::env::var("RG_CTL_HOME") {
+    if let Ok(env) = std::env::var("RGCTL_HOME") {
         if !env.is_empty() {
             return DaemonHome::from_path(Path::new(&env));
         }
     }
-    DaemonHome::from_path(&std::env::current_dir().context("cwd for daemon home")?)
+    DaemonHome::from_path(&config::default_home_root()?)
 }
 
 pub fn is_running(home: &DaemonHome) -> bool {
@@ -104,12 +106,12 @@ pub fn start(home: &DaemonHome, host: Option<&str>, port: Option<u16>) -> Result
             "--port",
             &port.to_string(),
         ])
-        .env("RG_CTL_HOME", home.root())
+        .env("RGCTL_HOME", home.root())
         .stdin(Stdio::null())
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(err))
         .spawn()
-        .context("spawn rg_ctl serve --daemon-worker")?;
+        .context("spawn rgctl serve --daemon-worker")?;
     wait_ready(home, Duration::from_secs(20))?;
     emit_stage("daemon_spawn", t0.elapsed().as_secs_f64());
     Ok(std::fs::read_to_string(home.pid_file())?
@@ -266,14 +268,7 @@ fn call_inner(home: &DaemonHome, req: &ControlRequest) -> Result<ControlResponse
 
 #[cfg(windows)]
 fn call_inner(home: &DaemonHome, req: &ControlRequest) -> Result<ControlResponse> {
-    use std::net::TcpStream;
-    let port: u16 = std::fs::read_to_string(home.control_file())?
-        .trim()
-        .parse()
-        .context("control port file")?;
-    let mut stream = TcpStream::connect(("127.0.0.1", port))?;
-    stream.set_read_timeout(Some(Duration::from_secs(600)))?;
-    stream.set_write_timeout(Some(Duration::from_secs(30)))?;
+    let mut stream = win_pipe::connect(home)?;
     writeln!(stream, "{}", serde_json::to_string(req)?)?;
     let mut reader = BufReader::new(stream);
     let mut line = String::new();
@@ -287,16 +282,16 @@ pub fn route_discover(ctx: &CliContext, args: DiscoverArgs) -> Result<bool> {
     }
     let home = resolve_home(ctx.daemon_home.as_deref())?;
     if ctx.fail_if_no_daemon && !is_running(&home) {
-        eprintln!("rg_ctl: no daemon found");
+        eprintln!("rgctl: no daemon found");
         bail!("no daemon found");
     }
     if ctx.daemon_home.is_some() && !is_running(&home) {
-        eprintln!("rg_ctl: daemon not found at {}", home.root().display());
+        eprintln!("rgctl: daemon not found at {}", home.root().display());
         bail!("daemon not found at {}", home.root().display());
     }
     if !is_running(&home) {
         eprintln!(
-            "rg_ctl: no daemon found; starting (home {})",
+            "rgctl: no daemon found; starting (home {})",
             home.root().display()
         );
         let pid = start(&home, None, None)?;
@@ -304,7 +299,7 @@ pub fn route_discover(ctx: &CliContext, args: DiscoverArgs) -> Result<bool> {
             Ok(ControlResponse::Status { http, .. }) => http,
             _ => String::new(),
         };
-        eprintln!("rg_ctl: started daemon pid {pid}{extra}", extra = if http.is_empty() { String::new() } else { format!(" {http}") });
+        eprintln!("rgctl: started daemon pid {pid}{extra}", extra = if http.is_empty() { String::new() } else { format!(" {http}") });
     }
     let source = discover::resolve_session_root(ctx, args.path.as_deref());
     let req = ControlRequest::Discover(DiscoverRequest {
@@ -348,11 +343,11 @@ pub fn route_gql(ctx: &CliContext, args: &GqlArgs) -> Result<bool> {
     }
     let home = resolve_home(ctx.daemon_home.as_deref())?;
     if ctx.fail_if_no_daemon && !is_running(&home) {
-        eprintln!("rg_ctl: no daemon found");
+        eprintln!("rgctl: no daemon found");
         bail!("no daemon found");
     }
     if ctx.daemon_home.is_some() && !is_running(&home) {
-        eprintln!("rg_ctl: daemon not found at {}", home.root().display());
+        eprintln!("rgctl: daemon not found at {}", home.root().display());
         bail!("daemon not found at {}", home.root().display());
     }
     if !is_running(&home) {
@@ -384,11 +379,11 @@ fn route_service_json(ctx: &CliContext, req: ControlRequest) -> Result<bool> {
     }
     let home = resolve_home(ctx.daemon_home.as_deref())?;
     if ctx.fail_if_no_daemon && !is_running(&home) {
-        eprintln!("rg_ctl: no daemon found");
+        eprintln!("rgctl: no daemon found");
         bail!("no daemon found");
     }
     if ctx.daemon_home.is_some() && !is_running(&home) {
-        eprintln!("rg_ctl: daemon not found at {}", home.root().display());
+        eprintln!("rgctl: daemon not found at {}", home.root().display());
         bail!("daemon not found at {}", home.root().display());
     }
     if !is_running(&home) {
@@ -467,7 +462,7 @@ pub fn stdio_mcp_bridge(ctx: &CliContext) -> Result<()> {
         if ctx.daemon_home.is_some() {
             bail!("daemon not found at {}", home.root().display());
         }
-        eprintln!("rg_ctl: no daemon found; starting for MCP stdio");
+        eprintln!("rgctl: no daemon found; starting for MCP stdio");
         start(&home, None, None)?;
     }
     let cfg = config::DaemonConfig::load_or_init(&home)?;

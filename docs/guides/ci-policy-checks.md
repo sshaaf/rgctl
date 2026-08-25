@@ -19,7 +19,7 @@ Policy checks automate what would otherwise be manual code review: ensuring that
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rg-build -r example/coolstore discover .
+rgctl -r example/coolstore discover .
 ```
 
 ## Step-by-Step
@@ -42,7 +42,7 @@ This policy defines two rules:
 ### 2. Run the Policy Check
 
 ```bash
-rg-build -r example/coolstore -f json check \
+rgctl -r example/coolstore -f json check \
   --policy-file example/coolstore/policy.json
 ```
 
@@ -91,7 +91,7 @@ rg-build -r example/coolstore -f json check \
 The `check` command exits with code 1 on violations, making it suitable for CI:
 
 ```bash
-rg-build -r example/coolstore check \
+rgctl -r example/coolstore check \
   --policy-file example/coolstore/policy.json
 echo "Exit code: $?"
 ```
@@ -105,7 +105,7 @@ In a CI pipeline:
 ```yaml
 # GitHub Actions example
 - name: Architecture check
-  run: rg-build -r . check --policy-file policy.json
+  run: rgctl -r . check --policy-file policy.json
 ```
 
 If any violation is found, the step fails and the build is blocked.
@@ -115,7 +115,7 @@ If any violation is found, the step fails and the build is blocked.
 Use text format for readable output in pull request comments:
 
 ```bash
-rg-build -r example/coolstore check \
+rgctl -r example/coolstore check \
   --policy-file example/coolstore/policy.json
 ```
 
@@ -124,7 +124,7 @@ rg-build -r example/coolstore check \
 You can also apply a policy to a single function using `blast-radius --policy-file`:
 
 ```bash
-rg-build -r example/coolstore -f json blast-radius priceShoppingCart \
+rgctl -r example/coolstore -f json blast-radius priceShoppingCart \
   --policy-file example/coolstore/policy.json
 ```
 

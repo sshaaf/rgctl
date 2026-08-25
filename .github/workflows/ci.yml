@@ -73,7 +73,7 @@ jobs:
       - name: User-guide scenarios
         run: |
           cargo build --release -p rgbuilder --features "${{ env.FEATURES }}"
-          CARGO_BIN_EXE_rg_build="$PWD/target/release/rg-build" \
+          CARGO_BIN_EXE_rgctl="$PWD/target/release/rgctl" \
             python3 scripts/user-guide-scenarios.py --check
 
       - name: QE map collisions

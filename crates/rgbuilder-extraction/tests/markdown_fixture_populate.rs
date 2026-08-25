@@ -100,7 +100,7 @@ fn fixture_discover_snapshot_preserves_body_text_in_place() {
         },
     );
     pipeline
-        .process_repository_to_snapshot(&root, &snapshot_path)
+        .process_repository_to_snapshot(&root, &snapshot_path, None)
         .expect("discover snapshot");
 
     let graph = rgbuilder_graph::CodeGraph::open_snapshot(&snapshot_path).expect("open");

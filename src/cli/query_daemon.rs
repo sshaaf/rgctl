@@ -1,5 +1,5 @@
 //! QUARANTINED: the blast-radius Unix `query.sock` daemon is no longer started.
-//! `rg_ctl serve --daemon` is the background HTTP+MCP daemon. This module is kept
+//! `rgctl serve --daemon` is the background HTTP+MCP daemon. This module is kept
 //! only for its in-process protocol tests.
 //! Ephemeral query daemon — keeps mmap graph + blast engine warm across CLI invocations.
 //!
@@ -175,9 +175,9 @@ fn handle_connection<S: Read + Write>(state: &Arc<DaemonState>, mut stream: S) -
 fn load_daemon_state(ctx: &CliContext) -> Result<Arc<DaemonState>> {
     let session = ctx
         .snapshot_session()?
-        .context("graph snapshot not found (run `rg-build discover` first)")?;
+        .context("graph snapshot not found (run `rgctl discover` first)")?;
     let engine = try_load_engine(&ctx.repo, session.digest.as_ref())?.context(
-        "blast engine snapshot not found or digest mismatch (run `rg-build discover` first)",
+        "blast engine snapshot not found or digest mismatch (run `rgctl discover` first)",
     )?;
     Ok(Arc::new(DaemonState {
         repo: ctx.repo.clone(),
@@ -239,7 +239,7 @@ mod transport {
             }
         };
         eprintln!(
-            "rg-build query daemon listening on {} (idle exit {}s)",
+            "rgctl query daemon listening on {} (idle exit {}s)",
             socket_path.display(),
             idle_secs
         );
@@ -291,7 +291,7 @@ mod transport {
 
         loop {
             if last_activity.elapsed() >= idle_limit {
-                eprintln!("rg-build query daemon exiting after idle timeout");
+                eprintln!("rgctl query daemon exiting after idle timeout");
                 break;
             }
             match listener.accept() {
@@ -334,7 +334,7 @@ mod transport {
             .with_context(|| format!("write query port file {}", port_file.display()))?;
 
         eprintln!(
-            "rg-build query daemon listening on 127.0.0.1:{port} (port file {}, idle exit {}s)",
+            "rgctl query daemon listening on 127.0.0.1:{port} (port file {}, idle exit {}s)",
             port_file.display(),
             idle_secs
         );
@@ -389,7 +389,7 @@ mod transport {
 
         loop {
             if last_activity.elapsed() >= idle_limit {
-                eprintln!("rg-build query daemon exiting after idle timeout");
+                eprintln!("rgctl query daemon exiting after idle timeout");
                 break;
             }
             match listener.accept() {

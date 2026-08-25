@@ -29,7 +29,7 @@ Evidence:
 ## 2) Build and compile health
 
 - [ ] Build release binary:
-  - `cargo build --release --bin rg-build`
+  - `cargo build --release --bin rgctl`
 - [ ] Run crate tests for touched areas (examples):
   - `cargo test -p rgbuilder-analysis`
   - `cargo test -p rgbuilder-extraction`
@@ -99,8 +99,8 @@ Evidence:
 ## 7) Performance profiling (cold + A/B)
 
 - [ ] **Cold profile definition:** rebuild the release binary immediately before profiling:
-  - `cargo build --release --bin rg-build`
-  - Use the freshly built `target/release/rg-build` only; do not use debug/stale binaries.
+  - `cargo build --release --bin rgctl`
+  - Use the freshly built `target/release/rgctl` only; do not use debug/stale binaries.
 - [ ] Run cold profiles with clean `.rgbuilder` per run.
 - [ ] Use at least 3 runs and compare **median**.
 - [ ] Capture:
@@ -112,7 +112,7 @@ Evidence:
 
 Recommended command pattern:
 
-- `RUST_LOG=info,profile=info target/release/rg-build -r <repo> -f json discover . -v`
+- `RUST_LOG=info,profile=info target/release/rgctl -r <repo> -f json discover . -v`
 
 Evidence table:
 

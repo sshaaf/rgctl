@@ -1,6 +1,6 @@
 //! CLI integration for markdown context graph — discover → snapshot → GQL queries 1–6.
 //!
-//! Spawns `rg-build` against a temp copy of `tests/fixtures/markdown-context`.
+//! Spawns `rgctl` against a temp copy of `tests/fixtures/markdown-context`.
 //! Run: `cargo test --test markdown_context_cli`
 
 use rgbuilder_graph::schema::NodeType;
@@ -13,30 +13,30 @@ use std::str;
 const SNAPSHOT_REL: &str = ".rgbuilder/graph.snapshot.bin";
 
 fn rgbuilder_bin() -> PathBuf {
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
     if let Some(target) = std::env::var_os("CARGO_TARGET_DIR") {
-        let release_candidate = PathBuf::from(&target).join("release/rg-build");
+        let release_candidate = PathBuf::from(&target).join("release/rgctl");
         if release_candidate.is_file() {
             return release_candidate;
         }
-        let candidate = PathBuf::from(target).join("debug/rg-build");
+        let candidate = PathBuf::from(target).join("debug/rgctl");
         if candidate.is_file() {
             return candidate;
         }
     }
-    let release_default = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg_ctl");
+    let release_default = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rgctl");
     if release_default.is_file() {
         return release_default;
     }
-    if let Some(bin) = option_env!("CARGO_BIN_EXE_rg_ctl") {
+    if let Some(bin) = option_env!("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg_ctl")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
 }
 
 fn fixture_root() -> PathBuf {
@@ -80,7 +80,7 @@ impl FixtureRepo {
         let mut cmd = Command::new(rgbuilder_bin());
         cmd.arg("-r").arg(&self.path);
         cmd.args(args);
-        cmd.output().expect("spawn rg-build")
+        cmd.output().expect("spawn rgctl")
     }
 
     fn discover_json(&self, languages: &str) -> Value {

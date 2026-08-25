@@ -28,7 +28,7 @@ for (const title of EXPECTED_SECTIONS) {
   if (count > 0) found.push(title);
 }
 
-const prereq = await page.locator(".guide-view", { hasText: "rg-build discover ." }).count();
+const prereq = await page.locator(".guide-view", { hasText: "rgctl discover ." }).count();
 const blastDepth = await page.locator(".guide-view", { hasText: "--depth 5" }).count();
 
 console.log(JSON.stringify({ found: found.length, expected: EXPECTED_SECTIONS.length, prereq, blastDepth }, null, 2));

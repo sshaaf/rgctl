@@ -18,7 +18,7 @@ const steps = [
   {
     n: "2",
     title: "Tool call",
-    body: "Agent runs rg-build -f json … instead of dumping files into context.",
+    body: "Agent runs rgctl -f json … instead of dumping files into context.",
   },
   {
     n: "3",
@@ -65,9 +65,9 @@ export default function AgentsPage() {
         <TerminalBlock
           lines={[
             'export REPO=/path/to/repo',
-            "rg-build -r \"$REPO\" discover .",
-            "rg-build -r \"$REPO\" -f json gql --macro-name all_functions unused | jq '.count'",
-            'rg-build -r "$REPO" -f json blast-radius "ShoppingCartService" --depth 3 \\',
+            "rgctl -r \"$REPO\" discover .",
+            "rgctl -r \"$REPO\" -f json gql --macro-name all_functions unused | jq '.count'",
+            'rgctl -r "$REPO" -f json blast-radius "ShoppingCartService" --depth 3 \\',
             "  | jq '{score: .metrics.score, callers: .metrics.direct_callers_count}'",
           ]}
         />

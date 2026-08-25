@@ -7,10 +7,10 @@ E-commerce reference app.
 See [summary report](../rgbuilder-reports/REPORT.md) · [language report](../rgbuilder-reports/languages/python.md) · [HTML](../rgbuilder-reports/languages/python.html) (2026-07-22).
 
 ```bash
-rg-build -f json discover . --cfg -e .venv,__pycache__
-rg-build -f json blast-radius 'app/services/order.py::checkout'
-rg-build -f json metrics --communities --pagerank
-rg-build -f json check --policy-file ../rgbuilder-policy.json
+rgctl -f json discover . --cfg -e .venv,__pycache__
+rgctl -f json blast-radius 'app/services/order.py::checkout'
+rgctl -f json metrics --communities --pagerank
+rgctl -f json check --policy-file ../rgbuilder-policy.json
 ```
 
 | Metric | Value |

@@ -58,6 +58,6 @@ clone_sparse_k8s_website_if_missing "$EXAMPLE_DIR/k8s-website"
 
 echo
 echo "All requested example repos are available under: $EXAMPLE_DIR"
-echo "Build: cargo build --release --bin rg-build"
+echo "Build: cargo build --release --bin rgctl"
 echo "Cold profile gates:"
 echo "  cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-threads=1"

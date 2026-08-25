@@ -11,7 +11,7 @@ Outputs (default: rgbuilder-reports/):
 
 Usage:
   ./scripts/run_rgbuilder_report.py
-  RGBUILDER=/path/to/rg-build ./scripts/run_rgbuilder_report.py --update-readmes
+  RGBUILDER=/path/to/rgctl ./scripts/run_rgbuilder_report.py --update-readmes
 """
 
 from __future__ import annotations
@@ -172,7 +172,7 @@ def resolve_rgbuilder(explicit: str | None) -> Path:
     if explicit:
         path = Path(explicit).expanduser().resolve()
         if not path.is_file():
-            sys.exit(f"rg-build binary not found: {path}")
+            sys.exit(f"rgctl binary not found: {path}")
         return path
 
     env = os.environ.get("RGBUILDER")
@@ -181,36 +181,36 @@ def resolve_rgbuilder(explicit: str | None) -> Path:
         if path.is_file():
             return path
 
-    which = shutil.which("rg-build")
+    which = shutil.which("rgctl")
     if which:
         return Path(which).resolve()
 
-    # Embedded under rg-build/rgbuilder-tests/scripts → workspace root is parents[2]
+    # Embedded under rgctl/rgbuilder-tests/scripts → workspace root is parents[2]
     root = Path(__file__).resolve().parents[2]
     candidates = [
-        root / "target" / "release" / "rg-build",
-        root / "target" / "debug" / "rg-build",
-        root / "rgBuilder" / "target" / "release" / "rg-build",
-        root / "rgBuilder" / "target" / "debug" / "rg-build",
-        root / "rg-build" / "target" / "release" / "rg-build",
-        root / "rg-build" / "target" / "debug" / "rg-build",
+        root / "target" / "release" / "rgctl",
+        root / "target" / "debug" / "rgctl",
+        root / "rgBuilder" / "target" / "release" / "rgctl",
+        root / "rgBuilder" / "target" / "debug" / "rgctl",
+        root / "rgctl" / "target" / "release" / "rgctl",
+        root / "rgctl" / "target" / "debug" / "rgctl",
     ]
     for c in candidates:
         if c.is_file():
             return c.resolve()
 
     sys.exit(
-        "Could not find rg-build. Set RGBUILDER=/path/to/rg-build or pass --rg-build."
+        "Could not find rgctl. Set RGBUILDER=/path/to/rgctl or pass --rgctl."
     )
 
 
 def run_cmd(
-    rg-build: Path,
+    rgctl: Path,
     args: list[str],
     cwd: Path,
     timeout: int = 600,
 ) -> tuple[int, str, str]:
-    cmd = [str(rg-build), *args]
+    cmd = [str(rgctl), *args]
     try:
         proc = subprocess.run(
             cmd,
@@ -241,10 +241,10 @@ def parse_json_out(stdout: str) -> Any | None:
         return None
 
 
-def gql_count(rg-build: Path, cwd: Path, label: str) -> int | None:
-    code, out, _ = run_cmd(rg-build, ["-f", "json", "gql", f"MATCH (n:{label}) RETURN n"], cwd)
+def gql_count(rgctl: Path, cwd: Path, label: str) -> int | None:
+    code, out, _ = run_cmd(rgctl, ["-f", "json", "gql", f"MATCH (n:{label}) RETURN n"], cwd)
     if code != 0:
-        code, out, _ = run_cmd(rg-build, ["gql", f"MATCH (n:{label}) RETURN n"], cwd)
+        code, out, _ = run_cmd(rgctl, ["gql", f"MATCH (n:{label}) RETURN n"], cwd)
         if code != 0:
             return None
     data = parse_json_out(out)
@@ -258,9 +258,9 @@ def gql_count(rg-build: Path, cwd: Path, label: str) -> int | None:
     return len(lines) if lines else 0
 
 
-def gql_function_names(rg-build: Path, cwd: Path) -> list[str]:
+def gql_function_names(rgctl: Path, cwd: Path) -> list[str]:
     """Unique function symbol names from text-mode GQL (one name per line)."""
-    code, out, _ = run_cmd(rg-build, ["gql", "MATCH (n:Function) RETURN n"], cwd)
+    code, out, _ = run_cmd(rgctl, ["gql", "MATCH (n:Function) RETURN n"], cwd)
     if code != 0:
         return []
     names: list[str] = []
@@ -274,15 +274,15 @@ def gql_function_names(rg-build: Path, cwd: Path) -> list[str]:
 
 
 def scan_blast_top_scores(
-    rg-build: Path,
+    rgctl: Path,
     cwd: Path,
     top_n: int = 10,
 ) -> dict[str, Any]:
     """Run blast-radius on every indexed function name; return top scores > 0."""
-    names = gql_function_names(rg-build, cwd)
+    names = gql_function_names(rgctl, cwd)
     hits: list[dict[str, Any]] = []
     for name in names:
-        code, out, _ = run_cmd(rg-build, ["-f", "json", "blast-radius", name], cwd)
+        code, out, _ = run_cmd(rgctl, ["-f", "json", "blast-radius", name], cwd)
         if code != 0:
             continue
         data = parse_json_out(out)
@@ -335,7 +335,7 @@ def cache_size_mb(cache_dir: Path) -> float:
 
 
 def run_project(
-    rg-build: Path,
+    rgctl: Path,
     repo_root: Path,
     out_dir: Path,
     policy: Path,
@@ -367,7 +367,7 @@ def run_project(
 
     # discover
     code, out, err = run_cmd(
-        rg-build,
+        rgctl,
         ["-f", "json", "discover", ".", "--cfg", "-e", project.exclude],
         cwd,
     )
@@ -397,23 +397,23 @@ def run_project(
 
     # gql
     calls_code, calls_out, _ = run_cmd(
-        rg-build,
+        rgctl,
         ["gql", "MATCH (a:Function)-[:CALLS]->(b:Function) RETURN a,b LIMIT 500"],
         cwd,
     )
     calls_sample = len([ln for ln in calls_out.splitlines() if ln.strip() and "Error" not in ln])
     result["features"]["gql"] = {
         "status": "ok",
-        "functions": gql_count(rg-build, cwd, "Function"),
-        "classes": gql_count(rg-build, cwd, "Class"),
-        "files": gql_count(rg-build, cwd, "File"),
+        "functions": gql_count(rgctl, cwd, "Function"),
+        "classes": gql_count(rgctl, cwd, "Class"),
+        "files": gql_count(rgctl, cwd, "File"),
         "calls_edges_sampled": calls_sample if calls_code == 0 else None,
         "checkout_blast_symbol": project.blast_symbol,
     }
 
     # metrics
     code, out, err = run_cmd(
-        rg-build,
+        rgctl,
         ["-f", "json", "metrics", "--communities", "--pagerank"],
         cwd,
     )
@@ -432,7 +432,7 @@ def run_project(
 
     # blast-radius
     code, out, err = run_cmd(
-        rg-build,
+        rgctl,
         ["-f", "json", "blast-radius", project.blast_symbol],
         cwd,
     )
@@ -455,7 +455,7 @@ def run_project(
     # blast-radius: top scores across all indexed function names
     if blast_scan:
         print(f"  blast scan: {project.id} …", flush=True)
-        blast_top = scan_blast_top_scores(rg-build, cwd, top_n=blast_top_n)
+        blast_top = scan_blast_top_scores(rgctl, cwd, top_n=blast_top_n)
         result["blast_top_scores"] = blast_top
         (out_dir / f"{project.id}-blast-top.json").write_text(
             json.dumps(blast_top, indent=2)
@@ -474,7 +474,7 @@ def run_project(
     # export
     export_path = out_dir / f"{project.id}-export.json"
     code, out, err = run_cmd(
-        rg-build,
+        rgctl,
         [
             "export",
             "--export-format",
@@ -495,7 +495,7 @@ def run_project(
 
     # check
     code, out, err = run_cmd(
-        rg-build,
+        rgctl,
         ["-f", "json", "check", "--policy-file", str(policy)],
         cwd,
     )
@@ -528,7 +528,7 @@ def run_project(
             "--function",
             project.slice_function,
         ]
-        code, out, err = run_cmd(rg-build, slice_args, cwd)
+        code, out, err = run_cmd(rgctl, slice_args, cwd)
         st = classify_deep(err, code, out)
         if st == "unsupported" and project.language in {"Rust", "Python", "Java"}:
             st = "partial"
@@ -542,7 +542,7 @@ def run_project(
             "error": err.strip()[-250:] if st not in {"ok"} else None,
         }
 
-        code, out, err = run_cmd(rg-build, slice_args + ["--taint"], cwd)
+        code, out, err = run_cmd(rgctl, slice_args + ["--taint"], cwd)
         st = classify_deep(err, code, out)
         result["features"]["taint"] = {
             "status": st if st != "partial" else "ok",
@@ -555,9 +555,9 @@ def run_project(
 
     inspect_sym = project.blast_symbol.split("::")[-1]
     for mode, key in [("cfg", "inspect_cfg"), ("pdg", "inspect_pdg"), ("dom", "inspect_dom")]:
-        code, out, err = run_cmd(rg-build, ["inspect", inspect_sym, mode], cwd)
+        code, out, err = run_cmd(rgctl, ["inspect", inspect_sym, mode], cwd)
         if code != 0:
-            code, out, err = run_cmd(rg-build, ["inspect", project.blast_symbol, mode], cwd)
+            code, out, err = run_cmd(rgctl, ["inspect", project.blast_symbol, mode], cwd)
         st = classify_deep(err, code, out)
         preview = out.strip().splitlines()[0][:160] if out.strip() else None
         result["features"][key] = {
@@ -568,7 +568,7 @@ def run_project(
 
     result["features"]["serve"] = {
         "status": "not_run",
-        "note": "Use `rg-build serve` after discover for warm repeated queries (Unix socket).",
+        "note": "Use `rgctl serve` after discover for warm repeated queries (Unix socket).",
     }
 
     result["cache_mb"] = cache_size_mb(cache)
@@ -916,7 +916,7 @@ def render_language_markdown(
         "",
         "```bash",
         f"cd {project.dir_name}",
-        f"rg-build -f json discover . --cfg -e {project.exclude}",
+        f"rgctl -f json discover . --cfg -e {project.exclude}",
         "```",
         "",
         "## Graph query (`gql`)",
@@ -929,9 +929,9 @@ def render_language_markdown(
         f"| CALLS edges (sample) | {g.get('calls_edges_sampled', '—')} |",
         "",
         "```bash",
-        "rg-build gql 'MATCH (n:Function) RETURN n'",
-        "rg-build gql 'MATCH (n:Function) WHERE n.name LIKE \"*checkout*\" RETURN n'",
-        "rg-build gql 'MATCH (a:Function)-[:CALLS]->(b:Function) RETURN a,b LIMIT 20'",
+        "rgctl gql 'MATCH (n:Function) RETURN n'",
+        "rgctl gql 'MATCH (n:Function) WHERE n.name LIKE \"*checkout*\" RETURN n'",
+        "rgctl gql 'MATCH (a:Function)-[:CALLS]->(b:Function) RETURN a,b LIMIT 20'",
         "```",
         "",
         "## Blast radius — checkout target",
@@ -946,7 +946,7 @@ def render_language_markdown(
         f"| Target file | `{b.get('target_file') or '—'}` |",
         "",
         "```bash",
-        f"rg-build -f json blast-radius '{project.blast_symbol}'",
+        f"rgctl -f json blast-radius '{project.blast_symbol}'",
         "```",
     ]
     if b.get("error"):
@@ -966,7 +966,7 @@ def render_language_markdown(
         f"| PageRank iterations | {m.get('pagerank_iterations', '—')} |",
         "",
         "```bash",
-        "rg-build -f json metrics --communities --pagerank",
+        "rgctl -f json metrics --communities --pagerank",
         "```",
         "",
         "## Export (`export`)",
@@ -1051,10 +1051,10 @@ def render_language_markdown(
         "",
         "```bash",
         f"cd {project.dir_name}",
-        f"rg-build -f json discover . --cfg -e {project.exclude}",
-        f"rg-build -f json blast-radius '{project.blast_symbol}'",
-        "rg-build -f json metrics --communities --pagerank",
-        "rg-build -f json check --policy-file ../rgbuilder-policy.json",
+        f"rgctl -f json discover . --cfg -e {project.exclude}",
+        f"rgctl -f json blast-radius '{project.blast_symbol}'",
+        "rgctl -f json metrics --communities --pagerank",
+        "rgctl -f json check --policy-file ../rgbuilder-policy.json",
         "```",
         "",
     ]
@@ -1179,10 +1179,10 @@ def render_language_html(
         "<h2>Reproduce</h2>",
         "<pre>"
         f"cd {html_esc(project.dir_name)}\n"
-        f"rg-build -f json discover . --cfg -e {html_esc(project.exclude)}\n"
-        f"rg-build -f json blast-radius '{html_esc(project.blast_symbol)}'\n"
-        "rg-build -f json metrics --communities --pagerank\n"
-        "rg-build -f json check --policy-file ../rgbuilder-policy.json"
+        f"rgctl -f json discover . --cfg -e {html_esc(project.exclude)}\n"
+        f"rgctl -f json blast-radius '{html_esc(project.blast_symbol)}'\n"
+        "rgctl -f json metrics --communities --pagerank\n"
+        "rgctl -f json check --policy-file ../rgbuilder-policy.json"
         "</pre>",
         "</body></html>",
     ]
@@ -1337,7 +1337,7 @@ def render_summary_markdown(
         "",
         "```bash",
         "./scripts/run_rgbuilder_report.py",
-        "RGBUILDER=/path/to/rg-build ./scripts/run_rgbuilder_report.py --update-readmes",
+        "RGBUILDER=/path/to/rgctl ./scripts/run_rgbuilder_report.py --update-readmes",
         "```",
         "",
     ]
@@ -1441,7 +1441,7 @@ def render_summary_html(
         ),
         "<h2>Reproduce</h2>",
         "<pre>./scripts/run_rgbuilder_report.py\n"
-        "RGBUILDER=/path/to/rg-build ./scripts/run_rgbuilder_report.py --update-readmes</pre>",
+        "RGBUILDER=/path/to/rgctl ./scripts/run_rgbuilder_report.py --update-readmes</pre>",
         "</body></html>",
     ]
     return "\n".join(body_parts)
@@ -1610,10 +1610,10 @@ def update_project_readmes(repo_root: Path, results: dict[str, Any], run_at: str
 See [summary report](../rgbuilder-reports/REPORT.md) · [language report](../rgbuilder-reports/languages/{p.id}.md) · [HTML](../rgbuilder-reports/languages/{p.id}.html) ({run_at}).
 
 ```bash
-rg-build -f json discover . --cfg -e {p.exclude}
-rg-build -f json blast-radius '{p.blast_symbol}'
-rg-build -f json metrics --communities --pagerank
-rg-build -f json check --policy-file ../rgbuilder-policy.json
+rgctl -f json discover . --cfg -e {p.exclude}
+rgctl -f json blast-radius '{p.blast_symbol}'
+rgctl -f json metrics --communities --pagerank
+rgctl -f json check --policy-file ../rgbuilder-policy.json
 ```
 
 | Metric | Value |
@@ -1647,8 +1647,8 @@ Raw: [`../rgbuilder-reports/{p.id}-summary.json`](../rgbuilder-reports/{p.id}-su
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--rg-build",
-        help="Path to rg-build binary (default: RGBUILDER env, PATH, or ../rgBuilder/target/debug/rg-build)",
+        "--rgctl",
+        help="Path to rgctl binary (default: RGBUILDER env, PATH, or ../rgBuilder/target/debug/rgctl)",
     )
     parser.add_argument(
         "--output-dir",
@@ -1695,7 +1695,7 @@ def main() -> int:
     repo_root = (args.repo_root or Path(__file__).resolve().parents[1]).resolve()
     out_dir = (args.output_dir or repo_root / "rgbuilder-reports").resolve()
     policy = repo_root / "rgbuilder-policy.json"
-    rg-build = resolve_rgbuilder(args.rgbuilder)
+    rgctl = resolve_rgbuilder(args.rgbuilder)
 
     if not policy.is_file():
         sys.exit(f"Missing policy file: {policy}")
@@ -1709,13 +1709,13 @@ def main() -> int:
     meta = {
         "run_at": run_at,
         "run_date": run_date,
-        "rg-build": str(rg-build),
+        "rgctl": str(rgctl),
         "repo_root": str(repo_root),
         "projects": [p.id for p in projects],
     }
     (out_dir / "run-meta.json").write_text(json.dumps(meta, indent=2))
 
-    print(f"rg-build: {rg-build}")
+    print(f"rgctl: {rgctl}")
     print(f"output:   {out_dir}")
     print(f"projects: {', '.join(p.id for p in projects)}")
     print()
@@ -1725,7 +1725,7 @@ def main() -> int:
     for project in projects:
         print(f"=== {project.id} ({project.language}) ===", flush=True)
         result = run_project(
-            rg-build,
+            rgctl,
             repo_root,
             out_dir,
             policy,
@@ -1753,15 +1753,15 @@ def main() -> int:
     lang_dir.mkdir(parents=True, exist_ok=True)
     for project in projects:
         result = results[project.id]
-        lang_md = render_language_markdown(project, result, rg-build, run_date)
+        lang_md = render_language_markdown(project, result, rgctl, run_date)
         (lang_dir / f"{project.id}.md").write_text(lang_md)
-        lang_html = render_language_html(project, result, rg-build, run_at, run_date)
+        lang_html = render_language_html(project, result, rgctl, run_at, run_date)
         (lang_dir / f"{project.id}.html").write_text(lang_html)
 
-    md = render_summary_markdown(results, rg-build, run_date)
+    md = render_summary_markdown(results, rgctl, run_date)
     (out_dir / "REPORT.md").write_text(md)
 
-    html_doc = render_summary_html(results, rg-build, run_at, run_date)
+    html_doc = render_summary_html(results, rgctl, run_at, run_date)
     (out_dir / "REPORT.html").write_text(html_doc)
 
     (out_dir / "README.md").write_text(render_reports_index(run_date, results))

@@ -83,7 +83,7 @@ impl Session {
             return CodeGraph::import_json(&json).map_err(ServiceError::from);
         }
         Err(ServiceError::Failed(format!(
-            "Graph not found at {} (run `rg-build discover` first)",
+            "Graph not found at {} (run `rgctl discover` first)",
             db.display()
         )))
     }

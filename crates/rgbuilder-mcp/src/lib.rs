@@ -1,4 +1,4 @@
-//! MCP stdio server (`rg-build serve --mode mcp`).
+//! MCP stdio server (`rgctl serve --mode mcp`).
 //!
 //! JSON-RPC only on stdout. Depends on `rgbuilder-service`, not the root `rgbuilder` package.
 #![allow(missing_docs)]

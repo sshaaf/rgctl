@@ -43,8 +43,8 @@ Programmatic reference for parsing rgBuilder output. Every structured CLI comman
 
 ```bash
 export REPO=/path/to/coolstore
-rg-build -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 5' | jq .
-rg-build -r "$REPO" -f json blast-radius ShoppingCartService -o /tmp/blast.json
+rgctl -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 5' | jq .
+rgctl -r "$REPO" -f json blast-radius ShoppingCartService -o /tmp/blast.json
 ```
 
 ### Stdout vs stderr
@@ -129,7 +129,7 @@ if (doc.schema_version !== 2) {
 ## 4. `discover`
 
 ```bash
-rg-build -f json discover PATH [-l LANGS] [-e PATTERNS] [--with-cfg] [--with-taint] [--full]
+rgctl -f json discover PATH [-l LANGS] [-e PATTERNS] [--with-cfg] [--with-taint] [--full]
 ```
 
 ### TypeScript shape
@@ -173,7 +173,7 @@ With `--full`, stdout is still **one** JSON object (`full: true` + `plan`). Live
 ### jq
 
 ```bash
-rg-build -f json discover . | jq '.metrics | {nodes: .nodes_generated, ms: .duration_ms}'
+rgctl -f json discover . | jq '.metrics | {nodes: .nodes_generated, ms: .duration_ms}'
 ```
 
 ---
@@ -181,7 +181,7 @@ rg-build -f json discover . | jq '.metrics | {nodes: .nodes_generated, ms: .dura
 ## 5. `gql`
 
 ```bash
-rg-build -f json gql "<QUERY>" [--macro-name NAME] [--explain]
+rgctl -f json gql "<QUERY>" [--macro-name NAME] [--explain]
 ```
 
 CLI JSON does not default-limit rows. MCP `rgbuilder_query` applies `limit` 20 when omitted.
@@ -236,15 +236,15 @@ Virtual `:Community` nodes and `f.community_id` filters join `.rgbuilder/analysi
 
 ```bash
 # All function names
-rg-build -f json gql 'MATCH (n:Function) RETURN n' \
+rgctl -f json gql 'MATCH (n:Function) RETURN n' \
   | jq -r '.rows[][].node'
 
 # Multi-binding row (a,b) from a CALLS query
-rg-build -f json gql 'MATCH (a:Function)-[:CALLS]->(b:Function) RETURN a,b LIMIT 5' \
+rgctl -f json gql 'MATCH (a:Function)-[:CALLS]->(b:Function) RETURN a,b LIMIT 5' \
   | jq '.rows[] | map({binding, node, file})'
 
 # Named communities
-rg-build -f json gql --macro-name all_communities unused \
+rgctl -f json gql --macro-name all_communities unused \
   | jq '.rows[:5][][] | {id: .community_id, label, member_count}'
 ```
 
@@ -253,7 +253,7 @@ rg-build -f json gql --macro-name all_communities unused \
 When `--macro-name` is set, the positional query string is ignored:
 
 ```bash
-rg-build -f json gql --macro-name all_functions 'unused'
+rgctl -f json gql --macro-name all_functions 'unused'
 # Macros: all_functions | direct_calls | call_chain | all_communities
 ```
 
@@ -262,7 +262,7 @@ rg-build -f json gql --macro-name all_functions 'unused'
 ## 6. `blast-radius`
 
 ```bash
-rg-build -f json blast-radius SYMBOL [--depth N] [--policy-file PATH] [--with-slices]
+rgctl -f json blast-radius SYMBOL [--depth N] [--policy-file PATH] [--with-slices]
 ```
 
 ### TypeScript shape
@@ -325,15 +325,15 @@ Tagged union — discriminant field is **`kind`**:
 
 ```bash
 # Impact score and caller UUIDs
-rg-build -f json blast-radius ShoppingCartService \
+rgctl -f json blast-radius ShoppingCartService \
   | jq '{score: .metrics.score, callers: [.topology.direct_callers[].id]}'
 
 # Depth-capped impact zone
-rg-build -f json blast-radius CartEndpoint --depth 3 \
+rgctl -f json blast-radius CartEndpoint --depth 3 \
   | jq '.metrics.caller_depth_limit, .topology.impact_zone | length'
 
 # Policy gate
-rg-build -f json blast-radius OrderService --policy-file policy.json \
+rgctl -f json blast-radius OrderService --policy-file policy.json \
   | jq '.gatekeeping.policy_status, .gatekeeping.violations'
 ```
 
@@ -359,7 +359,7 @@ jq '.target.canonical_fqn'
 ## 7. `metrics`
 
 ```bash
-rg-build -f json metrics [--pagerank] [--betweenness] [--communities] [--iterations N]
+rgctl -f json metrics [--pagerank] [--betweenness] [--communities] [--iterations N]
 ```
 
 Default (no section flags) includes **all three** sections. Requesting a single flag omits the others entirely.
@@ -387,8 +387,8 @@ interface MetricsResponse {
 ### jq
 
 ```bash
-rg-build -f json metrics --pagerank | jq '.pagerank.top[:5]'
-rg-build -f json metrics | jq '.communities.modularity'
+rgctl -f json metrics --pagerank | jq '.pagerank.top[:5]'
+rgctl -f json metrics | jq '.communities.modularity'
 ```
 
 ---
@@ -396,7 +396,7 @@ rg-build -f json metrics | jq '.communities.modularity'
 ## 8. `check`
 
 ```bash
-rg-build -f json check --policy-file policy.json
+rgctl -f json check --policy-file policy.json
 ```
 
 Evaluates policy rules against **git-changed** functions (or all functions if git is unavailable).
@@ -419,7 +419,7 @@ interface CheckResponse {
 ### jq
 
 ```bash
-rg-build -f json check --policy-file policy.json | jq '{passed, count: (.violations | length)}'
+rgctl -f json check --policy-file policy.json | jq '{passed, count: (.violations | length)}'
 ```
 
 ---
@@ -427,7 +427,7 @@ rg-build -f json check --policy-file policy.json | jq '{passed, count: (.violati
 ## 9. `slice`
 
 ```bash
-rg-build -f json slice FILE --line N --variable VAR [--function NAME] \
+rgctl -f json slice FILE --line N --variable VAR [--function NAME] \
   [--view text|cfg|pdg] [--direction backward|forward] [--taint]
 ```
 
@@ -520,11 +520,11 @@ interface CfgEdgeNode {
 
 ```bash
 # Lines touched by backward slice
-rg-build -f json slice src/.../Foo.java --line 42 --variable x --function Foo \
+rgctl -f json slice src/.../Foo.java --line 42 --variable x --function Foo \
   | jq '.lines'
 
 # Taint counts only
-rg-build -f json slice src/.../Foo.java --line 10 --variable input --function Foo --taint \
+rgctl -f json slice src/.../Foo.java --line 10 --variable input --function Foo --taint \
   | jq '{flows, vulnerable}'
 ```
 
@@ -533,7 +533,7 @@ rg-build -f json slice src/.../Foo.java --line 10 --variable input --function Fo
 ## 10. `inspect`
 
 ```bash
-rg-build -f json inspect SYMBOL cfg|pdg|dom [layer options]
+rgctl -f json inspect SYMBOL cfg|pdg|dom [layer options]
 ```
 
 Requires `discover --with-cfg` for richest PDG/CFG data from the analysis archive.
@@ -583,7 +583,7 @@ Block references use integer **`block_index`** (sorted by `start_line`), not str
 ### jq
 
 ```bash
-rg-build -f json inspect ShoppingCartService pdg --edge-layer data \
+rgctl -f json inspect ShoppingCartService pdg --edge-layer data \
   | jq '{data: .data_deps, nodes: [.nodes[] | {line, label}]}'
 ```
 
@@ -596,8 +596,8 @@ rg-build -f json inspect ShoppingCartService pdg --edge-layer data \
 `export` writes to **`--export-output`**; stdout is a one-line summary (unless global `-o` redirects).
 
 ```bash
-rg-build export --export-format json --export-output graph.json --query all
-rg-build export --export-format mermaid --export-output clearCart.mmd --query 'name:clearCart'
+rgctl export --export-format json --export-output graph.json --query all
+rgctl export --export-format mermaid --export-output clearCart.mmd --query 'name:clearCart'
 ```
 
 | `--export-format` | File content |
@@ -718,7 +718,7 @@ Binary artifacts (`graph.snapshot.bin`, `graph_payload.bin`, `blast_engine.snaps
 **CI pattern:** capture stdout first, then check `$?`.
 
 ```bash
-out=$(rg-build -f json blast-radius Foo --policy-file policy.json) || ec=$?
+out=$(rgctl -f json blast-radius Foo --policy-file policy.json) || ec=$?
 echo "$out" | jq .
 exit "${ec:-0}"
 ```
@@ -733,7 +733,7 @@ exit "${ec:-0}"
 import json, subprocess
 
 def rgbuilder_json(repo: str, *args: str) -> dict:
-    cmd = ["rg-build", "-r", repo, "-f", "json", *args]
+    cmd = ["rgctl", "-r", repo, "-f", "json", *args]
     out = subprocess.check_output(cmd, text=True)
     return json.loads(out)
 
@@ -749,7 +749,7 @@ for caller in doc["topology"]["direct_callers"]:
 import { execFileSync } from "node:child_process";
 
 function rgbuilderJson(repo, ...args) {
-  const out = execFileSync("rg-build", ["-r", repo, "-f", "json", ...args], {
+  const out = execFileSync("rgctl", ["-r", repo, "-f", "json", ...args], {
     encoding: "utf8",
   });
   return JSON.parse(out);
@@ -762,7 +762,7 @@ const names = gql.rows.flat().map((b) => b.node);
 ### CI ingestion gate
 
 ```bash
-metrics=$(rg-build -f json discover .)
+metrics=$(rgctl -f json discover .)
 nodes=$(echo "$metrics" | jq '.metrics.nodes_generated')
 test "$nodes" -gt 100
 ```
@@ -770,8 +770,8 @@ test "$nodes" -gt 100
 ### Chaining discover → query
 
 ```bash
-rg-build -f json discover . | tee discover.json
-rg-build -f json gql --macro-name all_functions x | jq '.count'
+rgctl -f json discover . | tee discover.json
+rgctl -f json gql --macro-name all_functions x | jq '.count'
 ```
 
 ---
@@ -783,8 +783,8 @@ Opt-in embedding index + query. Types: `src/cli/semantic_output.rs`.
 ### `semantic index`
 
 ```bash
-rg-build -r "$REPO" -f json semantic index
-rg-build -r "$REPO" -f json semantic index --scope docs --embedder hash
+rgctl -r "$REPO" -f json semantic index
+rgctl -r "$REPO" -f json semantic index --scope docs --embedder hash
 # extras: --embedder code-daemon|hash   --embed-bodies
 ```
 
@@ -810,7 +810,7 @@ type SemanticIndexJsonResponse = {
 Text mode prints `Indexed N functions` — same count as `functions_indexed` (not always functions when `--scope docs`).
 
 ```bash
-rg-build -r "$REPO" -f json semantic index | jq '{model_id, dimensions, functions_indexed}'
+rgctl -r "$REPO" -f json semantic index | jq '{model_id, dimensions, functions_indexed}'
 ```
 
 ### `semantic distill`
@@ -818,8 +818,8 @@ rg-build -r "$REPO" -f json semantic index | jq '{model_id, dimensions, function
 Teacher-embed `vocab_tokens.txt` into an RBVK blob. Copy the file to `crates/rgbuilder-analysis/assets/vocab_matrix.bin` and rebuild to compile `vocab-accumulate-v2`. Teacher cannot be `vocab` (that would distill the table from itself). Default teacher is `code-daemon`; `--embedder hash` is for tests / offline CI.
 
 ```bash
-rg-build -r "$REPO" -f json semantic distill --matrix vocab_matrix.bin --embedder hash
-rg-build -r "$REPO" semantic distill --matrix crates/rgbuilder-analysis/assets/vocab_matrix.bin --embedder code-daemon
+rgctl -r "$REPO" -f json semantic distill --matrix vocab_matrix.bin --embedder hash
+rgctl -r "$REPO" semantic distill --matrix crates/rgbuilder-analysis/assets/vocab_matrix.bin --embedder code-daemon
 ```
 
 ```typescript
@@ -836,8 +836,8 @@ type SemanticDistillJsonResponse = {
 ### `semantic query`
 
 ```bash
-rg-build -r "$REPO" -f json semantic query "checkout flow" --limit 10
-rg-build -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 10
+rgctl -r "$REPO" -f json semantic query "checkout flow" --limit 10
+rgctl -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 10
 ```
 
 No `--embedder` on query — uses the model saved in `semantic_index.bin`. `--scope docs` on query does **not** filter hits (except `--scope community`); build the index with matching `--scope` first.
@@ -865,9 +865,9 @@ type SemanticQueryJsonResponse = {
 ```
 
 ```bash
-rg-build -r "$REPO" -f json semantic query "OrderService" --limit 5 \
+rgctl -r "$REPO" -f json semantic query "OrderService" --limit 5 \
   | jq '.hits[:5] | map({name, score, file_path})'
-rg-build -r "$REPO" -f json semantic query "cart" --scope community --limit 5 \
+rgctl -r "$REPO" -f json semantic query "cart" --scope community --limit 5 \
   | jq '.hits[].name'
 ```
 
@@ -878,8 +878,8 @@ rg-build -r "$REPO" -f json semantic query "cart" --scope community --limit 5 \
 List / refresh heuristic labels over label-propagation clusters. Types: `src/cli/communities.rs`.
 
 ```bash
-rg-build -r "$REPO" -f json communities list
-rg-build -r "$REPO" -f json communities label --write
+rgctl -r "$REPO" -f json communities list
+rgctl -r "$REPO" -f json communities label --write
 ```
 
 ```typescript
@@ -896,8 +896,8 @@ type CommunitiesJsonResponse = {
 ```
 
 ```bash
-rg-build -r "$REPO" -f json communities list | jq '.communities[:10]'
-rg-build -r "$REPO" -f json communities list | jq '{modularity, n: (.communities|length)}'
+rgctl -r "$REPO" -f json communities list | jq '.communities[:10]'
+rgctl -r "$REPO" -f json communities list | jq '{modularity, n: (.communities|length)}'
 ```
 
 GQL alternative: `--macro-name all_communities` (see User Guide §6).
@@ -911,7 +911,7 @@ Hybrid CPG façade (needs `discover --with-cfg`). Types: `crates/rgbuilder-analy
 ### `cpg status`
 
 ```bash
-rg-build -r "$REPO" -f json cpg status
+rgctl -r "$REPO" -f json cpg status
 ```
 
 ```typescript
@@ -931,7 +931,7 @@ type CpgStatus = {
 ### `cpg mutations`
 
 ```bash
-rg-build -r "$REPO" -f json cpg mutations --type ShoppingCart --exclude-ctors
+rgctl -r "$REPO" -f json cpg mutations --type ShoppingCart --exclude-ctors
 ```
 
 ```typescript
@@ -965,10 +965,10 @@ type CpgMutationsResult = {
 | `cpg export` | writes a **file** (`--format` / `--output`); not stdout JSON |
 
 ```bash
-rg-build -r "$REPO" -f json cpg status | jq '{archive_present, function_count, field_write_count}'
-rg-build -r "$REPO" -f json cpg mutations --type ShoppingCart --exclude-ctors \
+rgctl -r "$REPO" -f json cpg status | jq '{archive_present, function_count, field_write_count}'
+rgctl -r "$REPO" -f json cpg mutations --type ShoppingCart --exclude-ctors \
   | jq '.mutations | length'
-rg-build -r "$REPO" -f json cpg calls priceShoppingCart | jq '.edges[:10]'
+rgctl -r "$REPO" -f json cpg calls priceShoppingCart | jq '.edges[:10]'
 ```
 
 ---
@@ -978,7 +978,7 @@ rg-build -r "$REPO" -f json cpg calls priceShoppingCart | jq '.edges[:10]'
 Copy the bundled rgBuilder agent skill into project skill directories. Does **not** require a prior `discover`. Types: `src/cli/install_output.rs`. `schema_version` is **1**.
 
 ```bash
-rg-build -r "$REPO" -f json install --skill [--host all|claude|cursor] [--force]
+rgctl -r "$REPO" -f json install --skill [--host all|claude|cursor] [--force]
 ```
 
 ```typescript
@@ -1001,7 +1001,7 @@ type InstallResponse = {
 Without `--skill` the process exits 1 and does not emit this payload. If any write is `skipped_exists`, JSON is still printed and the process exits 1.
 
 ```bash
-rg-build -r "$REPO" -f json install --skill | jq '.writes[] | {host, status}'
+rgctl -r "$REPO" -f json install --skill | jq '.writes[] | {host, status}'
 ```
 
 ---
@@ -1022,7 +1022,7 @@ See [cli-io-sanity-qe.md](cli-io-sanity-qe.md) for the full coverage matrix.
 
 - [user-guide.md](user-guide.md) — install, ecommerce-java walkthrough (CoolStore dual API), CLI examples
 - Field catalogs — exhaustive tables later in this document (formerly `cli-output-schemas.md`)
-- [http-api.md](http-api.md) — `rg-build serve` and `/api/query`
+- [http-api.md](http-api.md) — `rgctl serve` and `/api/query`
 - [cli-io-sanity-qe.md](cli-io-sanity-qe.md) — subprocess JSON contract and release perf gates
 
 ---
@@ -1062,7 +1062,7 @@ cargo test --test cli_output --test subprocess_golden_path --test all_commands_s
 **Command:**
 
 ```bash
-rg-build -f json blast-radius <SYMBOL> [--depth N] [--policy-file PATH] [--with-slices] [--class CLASS] [--file PATH]
+rgctl -f json blast-radius <SYMBOL> [--depth N] [--policy-file PATH] [--with-slices] [--class CLASS] [--file PATH]
 ```
 
 **Flags:**
@@ -1074,7 +1074,7 @@ rg-build -f json blast-radius <SYMBOL> [--depth N] [--policy-file PATH] [--with-
 | `--with-slices` | Populate `gatekeeping.handoffs` (requires full graph path) |
 | `--class` / `--file` | Disambiguate overloads |
 
-**Optional warm path:** `rg-build serve` serves the dashboard and `POST /api/query` on port 8080. Legacy blast socket: `rg-build serve --daemon` (auto-connect to `.rgbuilder/query.sock` unless `RGBUILDER_NO_QUERY_DAEMON=1`). See [http-api.md](http-api.md).
+**Optional warm path:** foreground `rgctl serve` is `POST /api/query` on `127.0.0.1:8080`. Daemon HTTP uses `/{reponame}/api/query`. See [http-api.md](http-api.md).
 
 **Source:** `src/cli/blast_radius_output.rs`  
 **Cache enrichment:** `crates/rgbuilder-analysis/src/macro_call_index.rs`, `macro_call_lookup.rs`
@@ -1239,7 +1239,7 @@ rg-build -f json blast-radius <SYMBOL> [--depth N] [--policy-file PATH] [--with-
 **Default (HTTP):**
 
 ```bash
-rg-build serve -r REPO [--open]
+rgctl serve -r REPO [--open]
 ```
 
 Binds `http://127.0.0.1:8080/` — dashboard at `/`, GQL at `POST /api/query`. See [http-api.md](http-api.md).
@@ -1247,7 +1247,7 @@ Binds `http://127.0.0.1:8080/` — dashboard at `/`, GQL at `POST /api/query`. S
 **Legacy socket daemon (`--daemon`):**
 
 ```bash
-rg-build serve -r REPO --daemon [--socket PATH] [--idle-secs SECS]
+rgctl serve -r REPO --daemon [--socket PATH] [--idle-secs SECS]
 ```
 
 **Defaults:** socket `{repo}/.rgbuilder/query.sock`, idle exit 300s.
@@ -1265,7 +1265,7 @@ rg-build serve -r REPO --daemon [--socket PATH] [--idle-secs SECS]
 **Command:**
 
 ```bash
-rg-build -f json discover PATH [--languages LANGS] [--exclude PATTERNS] [--with-security] [--with-cfg] [--with-taint] [--write-json-graph]
+rgctl -f json discover PATH [--languages LANGS] [--exclude PATTERNS] [--with-security] [--with-cfg] [--with-taint] [--write-json-graph]
 ```
 
 **Source:** `src/cli/discover_output.rs`, `src/cli/discover_impl.rs`
@@ -1320,7 +1320,7 @@ Without `-f json`, discover remains human-readable text progress (unchanged).
 **Command:**
 
 ```bash
-rg-build -f json gql "<QUERY>" [--explain] [--macro NAME]
+rgctl -f json gql "<QUERY>" [--explain] [--macro NAME]
 ```
 
 **Source:** `src/cli/gql_output.rs`
@@ -1372,7 +1372,7 @@ rg-build -f json gql "<QUERY>" [--explain] [--macro NAME]
 **Command:**
 
 ```bash
-rg-build -f json metrics [--pagerank] [--betweenness] [--communities] [--iterations N]
+rgctl -f json metrics [--pagerank] [--betweenness] [--communities] [--iterations N]
 ```
 
 **Source:** `src/cli/metrics_output.rs`, `src/cli/metrics.rs`
@@ -1416,7 +1416,7 @@ Omitted keys: sections not requested are **absent** (not `null`, not `[]`). Seri
 **Command:**
 
 ```bash
-rg-build -f json check --policy-file PATH
+rgctl -f json check --policy-file PATH
 ```
 
 **Source:** `src/cli/check_output.rs`
@@ -1464,7 +1464,7 @@ rg-build -f json check --policy-file PATH
 **Command:**
 
 ```bash
-rg-build -f json slice FILE --line N --variable VAR [--view cfg|pdg|text] [--direction backward|forward] [--taint]
+rgctl -f json slice FILE --line N --variable VAR [--view cfg|pdg|text] [--direction backward|forward] [--taint]
 ```
 
 **Source:** `src/cli/slice_output.rs`
@@ -1550,7 +1550,7 @@ Includes line list **and** PDG subgraph topology for the slice:
 **Command:**
 
 ```bash
-rg-build -f json inspect SYMBOL --layer cfg|pdg|dom [layer options]
+rgctl -f json inspect SYMBOL --layer cfg|pdg|dom [layer options]
 ```
 
 **Source:** `src/cli/inspect_output.rs`
@@ -1610,7 +1610,7 @@ Block references use stable **`block_index`** integers (sorted by `start_line`),
 **Command:**
 
 ```bash
-rg-build export --export-format json --export-output graph.json [--query "…"]
+rgctl export --export-format json --export-output graph.json [--query "…"]
 ```
 
 Writes to `-o`; stdout is a one-line summary unless output is redirected via global `-o`.

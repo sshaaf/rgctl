@@ -1,4 +1,4 @@
-//! `rg-build gql` — graph query language execution.
+//! `rgctl gql` — graph query language execution.
 
 use super::args::OutputFormat;
 use super::context::CliContext;
@@ -20,7 +20,7 @@ pub fn run(ctx: &CliContext, args: GqlArgs) -> Result<()> {
         let mut session = Session::new(&ctx.repo);
         if !session.graph_ready() {
             anyhow::bail!(
-                "Graph not found (run `rg-build discover` first)"
+                "Graph not found (run `rgctl discover` first)"
             );
         }
         let value = execute(

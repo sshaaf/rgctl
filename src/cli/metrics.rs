@@ -1,4 +1,4 @@
-//! `rg-build metrics` — PageRank, betweenness, and community detection.
+//! `rgctl metrics` — PageRank, betweenness, and community detection.
 
 use super::args::OutputFormat;
 use super::context::CliContext;
@@ -28,7 +28,7 @@ pub fn run(ctx: &CliContext, args: MetricsArgs) -> Result<()> {
 
         let mut session = Session::new(&ctx.repo);
         if !session.graph_ready() {
-            anyhow::bail!("Graph not found (run `rg-build discover` first)");
+            anyhow::bail!("Graph not found (run `rgctl discover` first)");
         }
         let value = execute(
             &mut session,

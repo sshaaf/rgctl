@@ -269,8 +269,8 @@ fn emit_ambiguous_manifest(target_name: &str, filtered: &[&MacroIndexEntry]) {
         eprintln!("... and {} more matching records.", filtered.len() - 10);
     }
     eprintln!("\nRemediation: Refine your search query using a fully qualified namespace syntax:");
-    eprintln!("  rg-build blast-radius \"ClassName::{target_name}\"");
-    eprintln!("  rg-build blast-radius \"path/to/file.java::{target_name}\"");
+    eprintln!("  rgctl blast-radius \"ClassName::{target_name}\"");
+    eprintln!("  rgctl blast-radius \"path/to/file.java::{target_name}\"");
 }
 
 /// Build candidate entries from graph nodes (slow path when cache is stale).

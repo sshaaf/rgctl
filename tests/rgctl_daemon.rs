@@ -2,21 +2,38 @@
 
 use serde_json::Value;
 use std::fs;
+use std::io::Write;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-fn rg_ctl() -> PathBuf {
-    if let Some(p) = option_env!("CARGO_BIN_EXE_rg_ctl") {
+fn rgctl() -> PathBuf {
+    if let Some(p) = option_env!("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(p);
     }
-    for key in ["CARGO_BIN_EXE_rg_ctl", "CARGO_BIN_EXE_rg-ctl"] {
+    for key in ["CARGO_BIN_EXE_rgctl"] {
         if let Ok(p) = std::env::var(key) {
             return PathBuf::from(p);
         }
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg_ctl")
+    if let Ok(out) = Command::new("sh")
+        .args(["-c", "command -v rgctl"])
+        .output()
+    {
+        let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if out.status.success() && !p.is_empty() && Path::new(&p).is_file() {
+            return PathBuf::from(p);
+        }
+    }
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for rel in ["target/release/rgctl", "target/debug/rgctl"] {
+        let p = manifest.join(rel);
+        if p.is_file() {
+            return p;
+        }
+    }
+    manifest.join("target/debug/rgctl")
 }
 
 fn fixture_src() -> PathBuf {
@@ -68,7 +85,7 @@ struct DaemonGuard {
 
 impl Drop for DaemonGuard {
     fn drop(&mut self) {
-        let _ = Command::new(rg_ctl())
+        let _ = Command::new(rgctl())
             .args(["--daemon-home", self.home.to_str().unwrap(), "daemon", "stop"])
             .output();
         if let Some(mut c) = self.child_kill.take() {
@@ -83,16 +100,17 @@ fn toml_escape(path: &Path) -> String {
 }
 
 #[test]
-fn help_shows_rg_ctl_and_daemon_flags() {
-    let out = Command::new(rg_ctl()).arg("--help").output().expect("help");
+fn help_shows_rgctl_and_daemon_flags() {
+    let out = Command::new(rgctl()).arg("--help").output().expect("help");
     let text = String::from_utf8_lossy(&out.stdout);
-    assert!(text.contains("rg_ctl"), "{text}");
+    assert!(text.contains("rgctl"), "{text}");
     assert!(text.contains("--no-daemon"), "{text}");
     assert!(text.contains("--daemon-home"), "{text}");
     assert!(text.contains("--fail-if-no-daemon"), "{text}");
     assert!(!text.contains("rg-build"), "{text}");
+    assert!(!text.contains("rg_ctl"), "{text}");
 
-    let discover = Command::new(rg_ctl())
+    let discover = Command::new(rgctl())
         .args(["discover", "--help"])
         .output()
         .expect("discover help");
@@ -108,7 +126,7 @@ fn discover_path_then_full_and_dashdash_full() {
     ] {
         let tmp = tempfile::tempdir().unwrap();
         copy_tree(&fixture_src(), tmp.path());
-        let out = Command::new(rg_ctl())
+        let out = Command::new(rgctl())
             .current_dir(tmp.path())
             .args(&args)
             .output()
@@ -125,7 +143,7 @@ fn discover_path_then_full_and_dashdash_full() {
 fn no_daemon_discover_writes_source_tree_snapshot() {
     let tmp = tempfile::tempdir().unwrap();
     copy_tree(&fixture_src(), tmp.path());
-    let out = Command::new(rg_ctl())
+    let out = Command::new(rgctl())
         .current_dir(tmp.path())
         .args(["--no-daemon", "discover", "."])
         .output()
@@ -144,7 +162,7 @@ fn no_daemon_discover_writes_source_tree_snapshot() {
 #[test]
 fn fail_if_no_daemon_and_dead_daemon_home() {
     let tmp = tempfile::tempdir().unwrap();
-    let fail = Command::new(rg_ctl())
+    let fail = Command::new(rgctl())
         .current_dir(tmp.path())
         .args(["--fail-if-no-daemon", "discover", "."])
         .output()
@@ -157,7 +175,7 @@ fn fail_if_no_daemon_and_dead_daemon_home() {
     );
 
     let dead = tempfile::tempdir().unwrap();
-    let pin = Command::new(rg_ctl())
+    let pin = Command::new(rgctl())
         .current_dir(tmp.path())
         .args([
             "--daemon-home",
@@ -179,7 +197,7 @@ fn daemon_start_status_stop_idempotent_and_stale_pid() {
         child_kill: None,
     };
 
-    let start = Command::new(rg_ctl())
+    let start = Command::new(rgctl())
         .args([
             "--daemon-home",
             home_s,
@@ -195,7 +213,7 @@ fn daemon_start_status_stop_idempotent_and_stale_pid() {
         "{}",
         String::from_utf8_lossy(&start.stderr)
     );
-    let start2 = Command::new(rg_ctl())
+    let start2 = Command::new(rgctl())
         .args([
             "--daemon-home",
             home_s,
@@ -208,22 +226,22 @@ fn daemon_start_status_stop_idempotent_and_stale_pid() {
         .unwrap();
     assert!(start2.status.success());
 
-    let status = Command::new(rg_ctl())
+    let status = Command::new(rgctl())
         .args(["--daemon-home", home_s, "daemon", "status"])
         .output()
         .unwrap();
     let st = String::from_utf8_lossy(&status.stdout);
     assert!(st.contains("running"), "{st}");
 
-    let stop = Command::new(rg_ctl())
+    let stop = Command::new(rgctl())
         .args(["--daemon-home", home_s, "daemon", "stop"])
         .output()
         .unwrap();
     assert!(stop.status.success());
 
     fs::create_dir_all(home.path().join(".rgbuilder")).unwrap();
-    fs::write(home.path().join(".rgbuilder/rg_ctl.pid"), "999999").unwrap();
-    let status = Command::new(rg_ctl())
+    fs::write(home.path().join(".rgbuilder/rgctl.pid"), "999999").unwrap();
+    let status = Command::new(rgctl())
         .args(["--daemon-home", home_s, "daemon", "status"])
         .output()
         .unwrap();
@@ -240,9 +258,9 @@ fn auto_start_discover_writes_cache() {
         home: home.path().to_path_buf(),
         child_kill: None,
     };
-    let out = Command::new(rg_ctl())
+    let out = Command::new(rgctl())
         .current_dir(repo.path())
-        .env("RG_CTL_HOME", home.path())
+        .env("RGCTL_HOME", home.path())
         .args(["discover", "."])
         .output()
         .unwrap();
@@ -262,6 +280,30 @@ fn auto_start_discover_writes_cache() {
         "expected cache/{{reponame}} under {}",
         cache.display()
     );
+    assert!(
+        !repo.path().join(".rgbuilder").exists(),
+        "daemon discover must not write source-tree .rgbuilder"
+    );
+    let repo_cache = fs::read_dir(&cache)
+        .unwrap()
+        .flatten()
+        .find(|e| e.path().is_dir())
+        .map(|e| e.path())
+        .expect("cache entry");
+    assert!(
+        repo_cache
+            .join(".rgbuilder/graph.snapshot.bin")
+            .is_file(),
+        "expected snapshot under {}",
+        repo_cache.display()
+    );
+    assert!(
+        repo_cache
+            .join(".rgbuilder/analysis_results.bin")
+            .is_file(),
+        "expected analysis_results under {}",
+        repo_cache.display()
+    );
 }
 
 #[test]
@@ -276,7 +318,7 @@ fn daemon_http_catalog_query_and_unknown_404() {
         home: home.path().to_path_buf(),
         child_kill: None,
     };
-    let start = Command::new(rg_ctl())
+    let start = Command::new(rgctl())
         .args([
             "--daemon-home",
             home.path().to_str().unwrap(),
@@ -297,7 +339,7 @@ fn daemon_http_catalog_query_and_unknown_404() {
     let health = format!("http://127.0.0.1:{port}/health");
     assert!(wait_http(&health, Duration::from_secs(20)), "health");
 
-    let disc = Command::new(rg_ctl())
+    let disc = Command::new(rgctl())
         .current_dir(repo.path())
         .args([
             "--daemon-home",
@@ -351,7 +393,7 @@ fn daemon_http_catalog_query_and_unknown_404() {
         .unwrap();
     assert_eq!(missing.status().as_u16(), 404);
 
-    let list = Command::new(rg_ctl())
+    let list = Command::new(rgctl())
         .args([
             "--daemon-home",
             home.path().to_str().unwrap(),
@@ -363,10 +405,10 @@ fn daemon_http_catalog_query_and_unknown_404() {
     let listed = String::from_utf8_lossy(&list.stdout);
     assert!(listed.contains(&name), "{listed}");
 
-    let _ = Command::new(rg_ctl())
+    let _ = Command::new(rgctl())
         .args(["--daemon-home", home.path().to_str().unwrap(), "daemon", "stop"])
         .output();
-    let list_disk = Command::new(rg_ctl())
+    let list_disk = Command::new(rgctl())
         .args([
             "--daemon-home",
             home.path().to_str().unwrap(),
@@ -404,7 +446,7 @@ fn storage_override_places_cache_outside_home() {
         home: home.path().to_path_buf(),
         child_kill: None,
     };
-    let start = Command::new(rg_ctl())
+    let start = Command::new(rgctl())
         .args([
             "--daemon-home",
             home.path().to_str().unwrap(),
@@ -418,7 +460,7 @@ fn storage_override_places_cache_outside_home() {
         "{}",
         String::from_utf8_lossy(&start.stderr)
     );
-    let disc = Command::new(rg_ctl())
+    let disc = Command::new(rgctl())
         .current_dir(repo.path())
         .args([
             "--daemon-home",
@@ -449,7 +491,7 @@ fn mcp_initialize_and_tools_list() {
         home: home.path().to_path_buf(),
         child_kill: None,
     };
-    let start = Command::new(rg_ctl())
+    let start = Command::new(rgctl())
         .args([
             "--daemon-home",
             home.path().to_str().unwrap(),
@@ -514,7 +556,7 @@ fn mcp_initialize_and_tools_list() {
 fn foreground_serve_no_pipeline_query() {
     let tmp = tempfile::tempdir().unwrap();
     copy_tree(&fixture_src(), tmp.path());
-    let disc = Command::new(rg_ctl())
+    let disc = Command::new(rgctl())
         .current_dir(tmp.path())
         .args(["--no-daemon", "discover", "."])
         .output()
@@ -529,7 +571,7 @@ fn foreground_serve_no_pipeline_query() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     drop(listener);
-    let child = Command::new(rg_ctl())
+    let child = Command::new(rgctl())
         .current_dir(tmp.path())
         .args([
             "--no-daemon",
@@ -564,5 +606,172 @@ fn foreground_serve_no_pipeline_query() {
         resp.status().is_success() || resp.status().as_u16() == 503,
         "{}",
         resp.status()
+    );
+}
+
+#[test]
+fn mcp_disabled_is_not_an_mcp_session() {
+    let home = tempfile::tempdir().unwrap();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    fs::create_dir_all(home.path().join(".rgbuilder/.config")).unwrap();
+    fs::write(
+        home.path().join(".rgbuilder/.config/config.toml"),
+        format!("host = \"127.0.0.1\"\nport = {port}\n\n[mcp]\nenabled = false\npath = \"/mcp\"\n"),
+    )
+    .unwrap();
+    let _guard = DaemonGuard {
+        home: home.path().to_path_buf(),
+        child_kill: None,
+    };
+    let start = Command::new(rgctl())
+        .args([
+            "--daemon-home",
+            home.path().to_str().unwrap(),
+            "daemon",
+            "start",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            &port.to_string(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        start.status.success(),
+        "{}",
+        String::from_utf8_lossy(&start.stderr)
+    );
+    assert!(wait_http(
+        &format!("http://127.0.0.1:{port}/health"),
+        Duration::from_secs(20)
+    ));
+    let resp = reqwest::blocking::Client::new()
+        .post(format!("http://127.0.0.1:{port}/mcp"))
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {}
+        }))
+        .send()
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 404, "{}", resp.status());
+}
+
+#[test]
+fn mcp_two_repos_without_repo_is_invalid_params() {
+    let home = tempfile::tempdir().unwrap();
+    let a = tempfile::tempdir().unwrap();
+    let b = tempfile::tempdir().unwrap();
+    let repo_a = a.path().join("alpha");
+    let repo_b = b.path().join("beta");
+    copy_tree(&fixture_src(), &repo_a);
+    copy_tree(&fixture_src(), &repo_b);
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    let _guard = DaemonGuard {
+        home: home.path().to_path_buf(),
+        child_kill: None,
+    };
+    let start = Command::new(rgctl())
+        .args([
+            "--daemon-home",
+            home.path().to_str().unwrap(),
+            "daemon",
+            "start",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            &port.to_string(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        start.status.success(),
+        "{}",
+        String::from_utf8_lossy(&start.stderr)
+    );
+    for repo in [&repo_a, &repo_b] {
+        let out = Command::new(rgctl())
+            .current_dir(repo)
+            .args([
+                "--daemon-home",
+                home.path().to_str().unwrap(),
+                "discover",
+                ".",
+            ])
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+    let client = reqwest::blocking::Client::new();
+    let call: Value = client
+        .post(format!("http://127.0.0.1:{port}/mcp"))
+        .json(&serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "tools/call",
+            "params": {
+                "name": "rgbuilder_query",
+                "arguments": { "query": "MATCH (n:Function) RETURN n LIMIT 1" }
+            }
+        }))
+        .send()
+        .unwrap()
+        .json()
+        .unwrap();
+    assert_eq!(call["error"]["code"], -32602, "{call}");
+    let msg = call["error"]["message"].as_str().unwrap_or("");
+    assert!(
+        msg.contains("alpha") && msg.contains("beta") || msg.contains("repo"),
+        "{msg}"
+    );
+}
+
+#[test]
+fn stdio_mcp_does_not_index_home() {
+    let fake_home = tempfile::tempdir().unwrap();
+    let daemon_home = tempfile::tempdir().unwrap();
+    let mut child = Command::new(rgctl())
+        .env("HOME", fake_home.path())
+        .env("RGCTL_HOME", daemon_home.path())
+        .args(["serve", "--mode", "mcp"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        let body = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": { "name": "test", "version": "0" }
+            }
+        });
+        writeln!(stdin, "{body}").unwrap();
+    }
+    std::thread::sleep(Duration::from_millis(800));
+    let _ = child.kill();
+    let _ = child.wait();
+    let indexed = fake_home.path().join(".rgbuilder");
+    assert!(
+        !indexed.is_dir()
+            || fs::read_dir(&indexed)
+                .map(|rd| rd.flatten().count() == 0)
+                .unwrap_or(true),
+        "stdio MCP must not index $HOME ({})",
+        indexed.display()
     );
 }

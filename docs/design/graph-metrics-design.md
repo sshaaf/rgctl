@@ -35,7 +35,7 @@ flowchart TB
     PR[PageRank]
     BC[Betweenness]
     COM[Communities]
-    CLI[rg-build metrics]
+    CLI[rgctl metrics]
     PR --> CLI
     BC --> CLI
     COM --> CLI
@@ -78,9 +78,9 @@ Discover applies **adaptive centrality gating** and a **columnar write path** so
 | `metagraph.json` | Package-level aggregates only (`member_indices` omitted at scale) |
 | Dashboard export | In-memory `AnalysisResults` via `DashboardExportContext` (no reload per stage) |
 
-**Profiling:** `RUST_LOG=profile=info rg-build discover . -v` → `[profile] centrality sub-phase` lines.
+**Profiling:** `RUST_LOG=profile=info rgctl discover . -v` → `[profile] centrality sub-phase` lines.
 
-**CLI precision:** `rg-build metrics --pagerank --iterations N` still honors explicit iteration counts on demand.
+**CLI precision:** `rgctl metrics --pagerank --iterations N` still honors explicit iteration counts on demand.
 
 ---
 
@@ -127,11 +127,11 @@ Graph tab uses `communities.json` / metagraph community colors for package view 
 ## 6. CLI usage
 
 ```bash
-rg-build discover .
-rg-build metrics
-rg-build -f json metrics --pagerank --iterations 50
-rg-build -f json metrics --betweenness
-rg-build -f json metrics --communities
+rgctl discover .
+rgctl metrics
+rgctl -f json metrics --pagerank --iterations 50
+rgctl -f json metrics --betweenness
+rgctl -f json metrics --communities
 ```
 
 `discover` already computes core metrics; `metrics` re-emits them as JSON without re-indexing.

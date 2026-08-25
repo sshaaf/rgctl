@@ -108,8 +108,8 @@ Ship P0→P2 before investing in LLM naming.
 
 ### Acceptance
 ```bash
-rg-build -r "$REPO" -f json gql 'MATCH (c:Community) RETURN c'
-rg-build -r "$REPO" -f json gql "MATCH (f:Function) WHERE f.community_id = 12 RETURN f LIMIT 20"
+rgctl -r "$REPO" -f json gql 'MATCH (c:Community) RETURN c'
+rgctl -r "$REPO" -f json gql "MATCH (f:Function) WHERE f.community_id = 12 RETURN f LIMIT 20"
 ```
 Both work after normal `discover` (analysis present). Snapshot size / content digest unchanged when only community labels change.
 
@@ -142,7 +142,7 @@ Layer on P0 heuristics; keep labels in the community summary sidecar.
 |------|--------|------|
 | **3a Heuristic v2** | Package-majority vote, top PageRank symbol in cluster, strip infra hubs from naming | Default discover |
 | **3b Embedding-assisted** | Mean/pool member vectors from `semantic_index.bin`; pick representative token or nearest lexicon phrase | After `semantic index` |
-| **3c LLM / agent label** | Opt-in `rg-build communities label` (or discover flag) with member sample → short title | CI/offline; never required for core |
+| **3c LLM / agent label** | Opt-in `rgctl communities label` (or discover flag) with member sample → short title | CI/offline; never required for core |
 
 ### Steps (3a first)
 

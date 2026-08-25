@@ -23,17 +23,17 @@ fn oracles_path() -> PathBuf {
 }
 
 fn rgbuilder_bin() -> PathBuf {
-    for key in ["CARGO_BIN_EXE_rg_ctl", "CARGO_BIN_EXE_rg_ctl"] {
+    for key in ["CARGO_BIN_EXE_rgctl"] {
         if let Ok(p) = std::env::var(key) {
             return PathBuf::from(p);
         }
     }
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let debug = root.join("target/debug/rg_ctl");
+    let debug = root.join("target/debug/rgctl");
     if debug.is_file() {
         return debug;
     }
-    panic!("rg-build binary not found; run via `cargo test` or `cargo build`");
+    panic!("rgctl binary not found; run via `cargo test` or `cargo build`");
 }
 
 fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
@@ -103,7 +103,7 @@ impl Sandbox {
         let mut cmd = Command::new(rgbuilder_bin());
         cmd.arg("-r").arg(&self.repo);
         cmd.args(args);
-        cmd.output().expect("spawn rg-build")
+        cmd.output().expect("spawn rgctl")
     }
 
     fn parse_json(&self, output: &Output) -> Value {

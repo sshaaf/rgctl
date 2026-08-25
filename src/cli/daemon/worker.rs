@@ -21,7 +21,7 @@ use rgbuilder_service::command::{CheckArgs, Command, ImpactArgs, MetricsArgs, Qu
 use rgbuilder_service::{Session, execute};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -65,7 +65,7 @@ pub fn run_worker(home: DaemonHome, host: String, port: u16) -> Result<()> {
         .name("rg-ctl-http".into())
         .spawn(move || {
             if let Err(err) = run_http(http_state) {
-                eprintln!("rg_ctl daemon http: {err:#}");
+                eprintln!("rgctl daemon http: {err:#}");
             }
         })?;
 
@@ -222,7 +222,16 @@ fn handle_mcp_rpc(state: &WorkerState, msg: Value) -> Result<Value> {
         .and_then(Value::as_str)
         .or_else(|| msg.pointer("/params/repo").and_then(Value::as_str));
     let cache = if method == "tools/call" {
-        resolve_repo_cache(state, repo_arg)?
+        match resolve_repo_cache(state, repo_arg) {
+            Ok(cache) => cache,
+            Err(err) => {
+                return Ok(json!({
+                    "jsonrpc": "2.0",
+                    "id": msg.get("id").cloned().unwrap_or(Value::Null),
+                    "error": { "code": -32602, "message": err.to_string() }
+                }));
+            }
+        }
     } else {
         resolve_repo_cache(state, repo_arg).unwrap_or_else(|_| state.home.root().to_path_buf())
     };
@@ -265,7 +274,7 @@ fn run_control_loop(state: Arc<WorkerState>) -> Result<()> {
             match listener.accept() {
                 Ok((stream, _)) => {
                     if let Err(err) = handle_control_conn(&state, stream) {
-                        eprintln!("rg_ctl control: {err:#}");
+                        eprintln!("rgctl control: {err:#}");
                     }
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
@@ -278,22 +287,23 @@ fn run_control_loop(state: Arc<WorkerState>) -> Result<()> {
     }
     #[cfg(windows)]
     {
-        use std::net::TcpListener;
-        let listener = TcpListener::bind("127.0.0.1:0")?;
-        let port = listener.local_addr()?.port();
-        std::fs::write(state.home.control_file(), port.to_string())?;
-        listener.set_nonblocking(true)?;
+        let pipe = super::win_pipe::pipe_name(&state.home);
+        std::fs::write(state.home.control_file(), &pipe)?;
         while !state.stop.load(Ordering::Relaxed) {
-            match listener.accept() {
-                Ok((stream, _)) => {
+            match super::win_pipe::accept(&state.home) {
+                Ok(stream) => {
                     let _ = handle_control_conn(&state, stream);
                 }
-                Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                Err(e) => {
+                    if state.stop.load(Ordering::Relaxed) {
+                        break;
+                    }
+                    eprintln!("rgctl control pipe: {e:#}");
                     std::thread::sleep(std::time::Duration::from_millis(50));
                 }
-                Err(e) => return Err(e.into()),
             }
         }
+        let _ = std::fs::remove_file(state.home.control_file());
     }
     Ok(())
 }

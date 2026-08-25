@@ -92,8 +92,8 @@ Dashboard: filter **vulnerable only**; click a flow for path detail.
 ## 6. CLI usage
 
 ```bash
-rg-build discover . --with-cfg --with-security --with-taint
-rg-build slice src/Endpoint.java --line 20 --variable request --function handle --taint
+rgctl discover . --with-cfg --with-security --with-taint
+rgctl slice src/Endpoint.java --line 20 --variable request --function handle --taint
 # Inspect exported flows under .rgbuilder/analysis/ or dashboard taint/*.json
 ```
 

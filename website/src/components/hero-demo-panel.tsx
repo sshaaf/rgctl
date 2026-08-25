@@ -21,7 +21,7 @@ const DEMOS: Demo[] = [
     label: "blast-radius",
     caption: "ecommerce-java · impact at depth 2",
     copyText:
-      'rg-build discover .\nrg-build -f json blast-radius "priceShoppingCart" --depth 2',
+      'rgctl discover .\nrgctl -f json blast-radius "priceShoppingCart" --depth 2',
     lines: [
       { kind: "cmd", text: "discover ." },
       { kind: "out", text: "✓ graph built · reachability cached" },
@@ -49,7 +49,7 @@ const DEMOS: Demo[] = [
     label: "gql",
     caption: "exact inventory · typed edges",
     copyText:
-      "rg-build -f json gql --macro-name all_functions unused",
+      "rgctl -f json gql --macro-name all_functions unused",
     lines: [
       {
         kind: "cmd",
@@ -66,7 +66,7 @@ const DEMOS: Demo[] = [
     label: "semantic",
     caption: "intent search over the graph",
     copyText:
-      'rg-build -f json semantic query "checkout flow" --limit 5',
+      'rgctl -f json semantic query "checkout flow" --limit 5',
     lines: [
       {
         kind: "cmd",
@@ -85,7 +85,7 @@ const DEMOS: Demo[] = [
     label: "cpg",
     caption: "CALL + CFG/PDG façade",
     copyText:
-      "rg-build -f json cpg slice --function priceShoppingCart",
+      "rgctl -f json cpg slice --function priceShoppingCart",
     lines: [
       {
         kind: "cmd",
@@ -103,7 +103,7 @@ const DEMOS: Demo[] = [
     id: "metrics",
     label: "metrics",
     caption: "PageRank · harmonic · hotspots",
-    copyText: "rg-build -f json metrics --pagerank",
+    copyText: "rgctl -f json metrics --pagerank",
     lines: [
       { kind: "cmd", text: "metrics --pagerank" },
       { kind: "out", text: "{" },
@@ -118,7 +118,7 @@ const DEMOS: Demo[] = [
     id: "taint",
     label: "taint",
     caption: "source → sink · security paths",
-    copyText: "rg-build discover . --with-taint --with-security",
+    copyText: "rgctl discover . --with-taint --with-security",
     lines: [
       {
         kind: "cmd",
@@ -135,7 +135,7 @@ const DEMOS: Demo[] = [
     label: "communities",
     caption: "subsystem clusters",
     copyText:
-      "rg-build -f json gql --macro-name all_communities unused",
+      "rgctl -f json gql --macro-name all_communities unused",
     lines: [
       {
         kind: "cmd",
@@ -154,7 +154,7 @@ const DEMOS: Demo[] = [
     label: "migration",
     caption: "prioritized plan + CI check",
     copyText:
-      "rg-build discover . --export-migration-hints\nrg-build -f json check --policy-file policy.json",
+      "rgctl discover . --export-migration-hints\nrgctl -f json check --policy-file policy.json",
     lines: [
       { kind: "cmd", text: "discover . --export-migration-hints" },
       { kind: "out", text: "✓ wrote .rgbuilder/migration_plan.json" },
@@ -220,7 +220,7 @@ export function HeroDemoPanel({ className }: { className?: string }) {
                 return (
                   <div key={i}>
                     <span className="font-semibold text-[var(--primary)]">
-                      rg-build ›{" "}
+                      rgctl ›{" "}
                     </span>
                     <span className="font-semibold text-[var(--ink)]">
                       {line.text}

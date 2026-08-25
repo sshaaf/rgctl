@@ -169,7 +169,7 @@ impl IncrementalUpdater {
         let edges_removed = graph.edge_count();
 
         let (stats, _digest) =
-            pipeline.process_repository_to_snapshot(repo_root, &snapshot_path)?;
+            pipeline.process_repository_to_snapshot(repo_root, &snapshot_path, None)?;
         *graph = CodeGraph::open_snapshot(&snapshot_path)?;
 
         let mut tracker = FileTracker::new(repo_root);

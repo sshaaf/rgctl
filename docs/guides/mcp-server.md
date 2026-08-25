@@ -2,7 +2,7 @@
 
 ## Introduction
 
-`rg-build serve --mode mcp` starts an **MCP** (Model Context Protocol) server on **stdio**. Cursor, Claude Code, and other MCP hosts spawn it as a subprocess and talk JSON-RPC on stdin/stdout. The process **does not bind HTTP** -- that stays `rg-build serve` (standard mode).
+`rgctl serve --mode mcp` starts an **MCP** (Model Context Protocol) server on **stdio**. Cursor, Claude Code, and other MCP hosts spawn it as a subprocess and talk JSON-RPC on stdin/stdout. The process **does not bind HTTP** -- that stays `rgctl serve` (standard mode).
 
 On start it detects the session root (`-r` / `--repo`, an optional PATH, or the current working directory) and, unless you pass `--no-pipeline`, begins the same **full pipeline** as `discover --full`: basic graph, then CFG + dashboard + harmonic, then semantic index.
 
@@ -13,7 +13,7 @@ CLI `-f json gql` does **not** apply a default row cap. MCP `rgbuilder_query` an
 ## Use Cases
 
 - **IDE session.** Leave MCP connected in Cursor while you edit CoolStore; the graph warms in the background.
-- **Structural questions in the editor.** Query, semantic search, blast-radius, metrics, CPG, and policy check without spawning a new `rg-build` per turn.
+- **Structural questions in the editor.** Query, semantic search, blast-radius, metrics, CPG, and policy check without spawning a new `rgctl` per turn.
 - **Pipeline readiness.** `rgbuilder_status` (and unreadiness results from other tools) report dashboard, CFG archive, and semantic index flags.
 - **No stdout scraping.** Progress and logs go to **stderr**. stdout is JSON-RPC only, so the host never has to parse CLI banners.
 
@@ -22,7 +22,7 @@ CLI `-f json gql` does **not** apply a default row cap. MCP `rgbuilder_query` an
 This guide uses the **CoolStore** (`example/coolstore`). You can start MCP with an empty `.rgbuilder/` -- the server will index for you.
 
 ```bash
-rg-build -r example/coolstore serve --mode mcp
+rgctl -r example/coolstore serve --mode mcp
 ```
 
 The host should set the working directory to the repo (or pass `-r`). Do not run this in a terminal you want to type into: it waits on stdin.
@@ -33,9 +33,9 @@ The host should set the working directory to the repo (or pass `-r`). Do not run
 
 | Command | Transport | Dashboard | Auto full pipeline |
 |---------|-----------|-----------|--------------------|
-| `rg-build serve` | HTTP `127.0.0.1:8080` | Yes (preparing page until ready) | Yes (unless `--no-pipeline`) |
-| `rg-build serve --mode mcp` | stdio JSON-RPC | Bundle on disk only -- no HTTP | Yes (unless `--no-pipeline`) |
-| `rg-build serve --daemon` | Unix socket | No | No |
+| `rgctl serve` | HTTP `127.0.0.1:8080` | Yes (preparing page until ready) | Yes (unless `--no-pipeline`) |
+| `rgctl serve --mode mcp` | stdio JSON-RPC | Bundle on disk only -- no HTTP | Yes (unless `--no-pipeline`) |
+| `rgctl serve --daemon` | HTTP `0.0.0.0:8080` + `/mcp` | No | No |
 
 Use **MCP in the IDE** for the seven tools. Use **CLI** for CI, `discover`, `semantic index`, `cpg export`, and one-shot scripts.
 
@@ -47,7 +47,7 @@ Project `.cursor/mcp.json` (or your user MCP config). Use an **absolute** `-r` p
 {
   "mcpServers": {
     "rgbuilder": {
-      "command": "rg-build",
+      "command": "rgctl",
       "args": ["-r", "/absolute/path/to/rgBuilder/example/coolstore", "serve", "--mode", "mcp"]
     }
   }
@@ -60,25 +60,25 @@ If the host already starts the process in the CoolStore directory, you can omit 
 {
   "mcpServers": {
     "rgbuilder": {
-      "command": "rg-build",
+      "command": "rgctl",
       "args": ["serve", "--mode", "mcp"]
     }
   }
 }
 ```
 
-Restart MCP (or reload the window) so Cursor spawns the server. Confirm `rg-build` is on `PATH` for the GUI app (not only your shell).
+Restart MCP (or reload the window) so Cursor spawns the server. Confirm `rgctl` is on `PATH` for the GUI app (not only your shell).
 
 ### 3. Configure Claude Code
 
-Project `.mcp.json`:
+Project `.claude/settings.json` (or your user MCP config):
 
 ```json
 {
   "mcpServers": {
     "rgbuilder": {
-      "command": "rg-build",
-      "args": ["serve", "--mode", "mcp"]
+      "command": "rgctl",
+      "args": ["-r", "/absolute/path/to/rgBuilder/example/coolstore", "serve", "--mode", "mcp"]
     }
   }
 }
@@ -134,7 +134,7 @@ Example `structuredContent` while the dashboard is still building:
 When `dashboard_ready` is true, open the UI with a **separate** HTTP server if you want a browser:
 
 ```bash
-rg-build -r example/coolstore serve --no-pipeline --open
+rgctl -r example/coolstore serve --no-pipeline --open
 ```
 
 `--no-pipeline` here skips a second full pipeline if artifacts are already in place.
@@ -177,7 +177,7 @@ Cursor / Claude examples:
 From the CoolStore directory (another terminal can run `gql` after stage 1):
 
 ```bash
-rg-build -r example/coolstore serve --mode mcp
+rgctl -r example/coolstore serve --mode mcp
 ```
 
 In a second process you would normally let the IDE speak MCP. For a raw check, send newline-delimited JSON-RPC (the server also accepts `Content-Length` framing):
@@ -201,7 +201,7 @@ Responses are framed with `Content-Length`. A successful `tools/call` includes `
 If the graph is already built:
 
 ```bash
-rg-build -r example/coolstore serve --mode mcp --no-pipeline
+rgctl -r example/coolstore serve --mode mcp --no-pipeline
 ```
 
 Without a snapshot, discover will not run; tools that need the graph return pipeline status for whatever artifacts are on disk.
@@ -233,10 +233,10 @@ Two full pipelines on the same repo cannot run at once (`.rgbuilder/pipeline.loc
 Also install the agent skill so the host knows CLI recipes for those:
 
 ```bash
-rg-build -r example/coolstore install --skill
+rgctl -r example/coolstore install --skill
 ```
 
-When MCP is already connected in the IDE, prefer the seven tools over spawning `rg-build -f json` for the same intents.
+When MCP is already connected in the IDE, prefer the seven tools over spawning `rgctl -f json` for the same intents.
 
 ## Options
 
@@ -249,7 +249,7 @@ When MCP is already connected in the IDE, prefer the seven tools over spawning `
 
 ## Benefits
 
-- **One long-lived session** in the editor instead of a cold `rg-build` per question.
+- **One long-lived session** in the editor instead of a cold `rgctl` per question.
 - **Honest unreadiness** -- status JSON as a tool result when the graph, CFG, or semantic index is still building.
 - **Safe stdio** -- RPC on stdout, logs on stderr.
 - **Same pipeline as `--full`** -- CFG, dashboard bundle, harmonic, and semantic index without extra flags.

@@ -184,6 +184,13 @@ axum = "0.8"
 tower-http = { version = "0.6", features = ["fs"] }
 tower = { version = "0.5", features = ["util"] }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Pipes",
+] }
+
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1"
@@ -219,7 +226,7 @@ debug = false
 strip = false
 
 [[bin]]
-name = "rg-build"
+name = "rgctl"
 path = "src/main.rs"
 
 [[test]]

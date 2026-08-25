@@ -47,7 +47,7 @@ pub fn semantic_status(repo: &Path) -> SemanticStatusResponse {
             functions_indexed: None,
             graph_digest: None,
             message: Some(
-                "Semantic index not found — run `rg-build semantic index` then refresh.".into(),
+                "Semantic index not found — run `rgctl semantic index` then refresh.".into(),
             ),
         };
     }
@@ -106,7 +106,7 @@ pub fn execute_semantic_query(
     if args.scope == CliSemanticScope::Community {
         let analysis = analysis.ok_or_else(|| {
             anyhow::anyhow!(
-                "community semantic search requires analysis_results.bin (run `rg-build discover`)"
+                "community semantic search requires analysis_results.bin (run `rgctl discover`)"
             )
         })?;
         let backend = graph.backend();
@@ -161,7 +161,7 @@ pub fn execute_semantic_query(
     apply_scope_filter(&mut hits, args.scope);
     if hits.is_empty() && unfiltered_hit_count > 0 {
         bail!(
-            "semantic query scope {:?} produced no matching entries; rebuild index with `rg-build semantic index --scope {}`",
+            "semantic query scope {:?} produced no matching entries; rebuild index with `rgctl semantic index --scope {}`",
             args.scope,
             scope_flag(args.scope)
         );
@@ -278,11 +278,11 @@ fn validate_index_scope(index: &SemanticIndex, requested: CliSemanticScope) -> R
 
     match requested {
         CliSemanticScope::Function if !has_functions && has_docs => bail!(
-            "semantic query scope {:?} is incompatible with current index contents; rebuild index with `rg-build semantic index --scope function`",
+            "semantic query scope {:?} is incompatible with current index contents; rebuild index with `rgctl semantic index --scope function`",
             requested
         ),
         CliSemanticScope::Docs if !has_docs && has_functions => bail!(
-            "semantic query scope {:?} is incompatible with current index contents; rebuild index with `rg-build semantic index --scope docs`",
+            "semantic query scope {:?} is incompatible with current index contents; rebuild index with `rgctl semantic index --scope docs`",
             requested
         ),
         _ => Ok(()),

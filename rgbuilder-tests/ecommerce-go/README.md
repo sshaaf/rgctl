@@ -7,10 +7,10 @@ E-commerce reference app.
 See [summary report](../rgbuilder-reports/REPORT.md) · [language report](../rgbuilder-reports/languages/go.md) · [HTML](../rgbuilder-reports/languages/go.html) (2026-07-22).
 
 ```bash
-rg-build -f json discover . --cfg -e vendor
-rg-build -f json blast-radius 'internal/service/order.go::Checkout'
-rg-build -f json metrics --communities --pagerank
-rg-build -f json check --policy-file ../rgbuilder-policy.json
+rgctl -f json discover . --cfg -e vendor
+rgctl -f json blast-radius 'internal/service/order.go::Checkout'
+rgctl -f json metrics --communities --pagerank
+rgctl -f json check --policy-file ../rgbuilder-policy.json
 ```
 
 | Metric | Value |

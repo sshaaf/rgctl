@@ -1,12 +1,12 @@
 //! Cold discover profile gates for linux, metasfresh, kafka, and markdown (k8s-website).
 //!
 //! ```text
-//! cargo build --release --bin rg_ctl
+//! cargo build --release --bin rgctl
 //! cargo test --release --test cold_profile_gates -- --ignored --nocapture
 //! ```
 //!
 //! Cold profile policy: run a fresh release build immediately before profiling and
-//! use that `target/release/rg_ctl` binary only (no debug/stale binaries).
+//! use that `target/release/rgctl` binary only (no debug/stale binaries).
 //!
 //! Markdown corpus: `./scripts/fetch-profile-repos.sh` then
 //! `k8s_website_markdown_cold_discover_within_baseline` or
@@ -154,7 +154,7 @@ fn resolve_profile_summary(stdout: &str, stderr: &str, elapsed: Duration) -> Pro
         .collect();
     panic!(
         "profile summary missing (expected [profile] discover summary or JSON metrics)\n\
-         rg_ctl: {}\n\
+         rgctl: {}\n\
          stdout_bytes={} stderr_bytes={}\n\
          stdout_tail:\n{stdout_tail}\n\
          stderr:\n{stderr}",
@@ -184,7 +184,7 @@ pub fn run_cold_discover_timed(repo: &Path, extra_args: &[&str]) -> (Output, Dur
     let bin = rgbuilder_bin();
     assert!(
         bin.is_file(),
-        "rg_ctl binary not found at {} — run cargo build --release --bin rg_ctl",
+        "rgctl binary not found at {} — run cargo build --release --bin rgctl",
         bin.display()
     );
     let start = Instant::now();
@@ -202,7 +202,7 @@ pub fn run_cold_discover_timed(repo: &Path, extra_args: &[&str]) -> (Output, Dur
         ])
         .args(extra_args)
         .output()
-        .expect("spawn rg_ctl discover");
+        .expect("spawn rgctl discover");
     (output, start.elapsed())
 }
 
@@ -461,7 +461,7 @@ fn k8s_website_obsidian_export_to_vault() {
     }
     if !repo.join(".rgbuilder/graph.snapshot.bin").is_file() {
         eprintln!(
-            "skip: no graph at {} (run rg-build -r \"{}\" discover . -l markdown)",
+            "skip: no graph at {} (run rgctl -r \"{}\" discover . -l markdown)",
             repo.join(".rgbuilder").display(),
             repo.display()
         );

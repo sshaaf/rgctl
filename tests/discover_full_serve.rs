@@ -9,13 +9,13 @@ use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 fn rgbuilder_bin() -> PathBuf {
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg_ctl")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
 }
 
 fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
@@ -54,7 +54,7 @@ fn run_in(repo: &Path, args: &[&str]) -> Output {
         .args(args)
         .current_dir(repo)
         .output()
-        .expect("spawn rg-build")
+        .expect("spawn rgctl")
 }
 
 fn assert_ok(output: &Output, label: &str) {

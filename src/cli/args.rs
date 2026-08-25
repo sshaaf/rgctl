@@ -37,7 +37,7 @@ pub enum PdgEdgeLayer {
     Control,
 }
 
-/// HTTP vs MCP transport for `rg-build serve`.
+/// HTTP vs MCP transport for `rgctl serve`.
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ServeMode {
     /// Dashboard + query API (default).
@@ -47,7 +47,7 @@ pub enum ServeMode {
     Mcp,
 }
 
-/// Agent host directories for `rg-build install --skill`.
+/// Agent host directories for `rgctl install --skill`.
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SkillHost {
     /// Claude Code and Cursor project skill dirs.
@@ -59,7 +59,7 @@ pub enum SkillHost {
     Cursor,
 }
 
-/// File serialization format for `rg-build export` (not the global `-f` output format).
+/// File serialization format for `rgctl export` (not the global `-f` output format).
 #[derive(ValueEnum, Clone, Debug)]
 pub enum ExportFormat {
     Json,

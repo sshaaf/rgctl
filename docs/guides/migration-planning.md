@@ -25,7 +25,7 @@ This guide uses the **CoolStore** (`example/coolstore`) -- a Java EE e-commerce 
 Migration planning requires harmonic centrality and the migration hints export:
 
 ```bash
-rg-build -r example/coolstore discover . \
+rgctl -r example/coolstore discover . \
   --with-cfg \
   --with-harmonic \
   --export-migration-hints
@@ -34,7 +34,7 @@ rg-build -r example/coolstore discover . \
 **Output:**
 
 ```
-[>] rg-build discover
+[>] rgctl discover
 [!] Deep analysis enabled (--with-cfg / --with-taint).
    CFG/PDG on large codebases (>50K functions) may take several minutes.
 [!] Found 186 circular dependencies
@@ -42,7 +42,7 @@ rg-build -r example/coolstore discover . \
 ✓ Control flow analysis:
   Field writes indexed: 3299
   CFG/PDG/Dominance: 6585 functions analyzed
-[✓] rg-build discover finished in 20.7s
+[✓] rgctl discover finished in 20.7s
 ```
 
 **What happened:**
@@ -114,17 +114,17 @@ rgBuilder offers four migration strategy presets:
 
 ```bash
 # Foundational-first: extract shared libraries and utilities first
-rg-build -r example/coolstore discover . \
+rgctl -r example/coolstore discover . \
   --with-harmonic --export-migration-hints \
   --migration-preset foundational_first
 
 # Dense cluster: extract tightly-coupled clusters together
-rg-build -r example/coolstore discover . \
+rgctl -r example/coolstore discover . \
   --with-harmonic --export-migration-hints \
   --migration-preset dense_cluster
 
 # Risk mitigation: prioritize low-risk extractions
-rg-build -r example/coolstore discover . \
+rgctl -r example/coolstore discover . \
   --with-harmonic --export-migration-hints \
   --migration-preset risk_mitigation
 ```
@@ -142,12 +142,12 @@ Control how steps are sorted:
 
 ```bash
 # Scheduled: dependency-aware topological sort (default)
-rg-build -r example/coolstore discover . \
+rgctl -r example/coolstore discover . \
   --with-harmonic --export-migration-hints \
   --migration-order scheduled
 
 # Priority: sort by priority score regardless of dependencies
-rg-build -r example/coolstore discover . \
+rgctl -r example/coolstore discover . \
   --with-harmonic --export-migration-hints \
   --migration-order priority
 ```
@@ -179,14 +179,14 @@ After reviewing the plan, use other rgBuilder commands to dig deeper:
 
 ```bash
 # See what functions are in the community being extracted
-rg-build -r example/coolstore -f json gql \
+rgctl -r example/coolstore -f json gql \
   "MATCH (f:Function) WHERE f.community_id = '13' RETURN f LIMIT 20"
 
 # Check blast radius of a specific function before extracting
-rg-build -r example/coolstore blast-radius getShoppingCart --depth 3
+rgctl -r example/coolstore blast-radius getShoppingCart --depth 3
 
 # View mutations on the domain model being extracted
-rg-build -r example/coolstore -f json cpg mutations \
+rgctl -r example/coolstore -f json cpg mutations \
   --type ShoppingCart --exclude-ctors
 ```
 
@@ -195,7 +195,7 @@ rg-build -r example/coolstore -f json cpg mutations \
 If you enabled `--with-dashboard`, the migration plan is also available in the browser dashboard:
 
 ```bash
-rg-build -r example/coolstore serve --open
+rgctl -r example/coolstore serve --open
 ```
 
 Navigate to the **Migration** tab to see the roadmap as an interactive timeline.

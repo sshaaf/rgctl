@@ -2,7 +2,7 @@
 //!
 //! `vocab-accumulate-v1` is FNV rows from `build.rs`. `vocab-accumulate-v2` is a
 //! matrix distilled from rgBuilder's own token list through a teacher embedder
-//! (`rg-build semantic distill`, typically code-daemon).
+//! (`rgctl semantic distill`, typically code-daemon).
 
 use crate::semantic_embedder::SemanticEmbedder;
 use rgbuilder_error::{Error, Result};

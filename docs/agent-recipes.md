@@ -15,11 +15,11 @@ export REPO=/path/to/repo   # contains .rgbuilder/ after discover
 ## Recipe 1 — Orient in an unfamiliar repo
 
 ```bash
-rg-build -r "$REPO" discover .
-rg-build -r "$REPO" -f json discover . | jq '.metrics'
-rg-build -r "$REPO" -f json gql --macro-name all_functions unused | jq '.count'
-rg-build -r "$REPO" -f json gql --macro-name all_communities unused | jq '.rows[:5]'
-rg-build -r "$REPO" -f json metrics --pagerank | jq '.rows[:10]'
+rgctl -r "$REPO" discover .
+rgctl -r "$REPO" -f json discover . | jq '.metrics'
+rgctl -r "$REPO" -f json gql --macro-name all_functions unused | jq '.count'
+rgctl -r "$REPO" -f json gql --macro-name all_communities unused | jq '.rows[:5]'
+rgctl -r "$REPO" -f json metrics --pagerank | jq '.rows[:10]'
 ```
 
 **Use when:** first turn on a codebase; replaces reading directory trees.
@@ -29,12 +29,12 @@ rg-build -r "$REPO" -f json metrics --pagerank | jq '.rows[:10]'
 ## Recipe 1b — Named communities
 
 ```bash
-rg-build -r "$REPO" communities list
-rg-build -r "$REPO" -f json gql 'MATCH (c:Community) RETURN c' | jq '.rows[:10]'
+rgctl -r "$REPO" communities list
+rgctl -r "$REPO" -f json gql 'MATCH (c:Community) RETURN c' | jq '.rows[:10]'
 # members of community 12 (id from list / communities.json):
-rg-build -r "$REPO" -f json gql "MATCH (f:Function) WHERE f.community_id = '12' RETURN f LIMIT 20"
+rgctl -r "$REPO" -f json gql "MATCH (f:Function) WHERE f.community_id = '12' RETURN f LIMIT 20"
 # optional: refresh heuristic labels into analysis_results.bin
-rg-build -r "$REPO" communities label --write
+rgctl -r "$REPO" communities label --write
 ```
 
 **Use when:** mapping subsystems without reading `communities.json` by hand. Labels are heuristic (package / path / token); they are **not** written into the topology graph.
@@ -43,18 +43,18 @@ rg-build -r "$REPO" communities label --write
 
 ```bash
 SYMBOL=ShoppingCartService
-rg-build -r "$REPO" -f json blast-radius "$SYMBOL" | jq '{
+rgctl -r "$REPO" -f json blast-radius "$SYMBOL" | jq '{
   score: .metrics.score,
   direct_callers: .metrics.direct_callers_count,
   impact_zone: .metrics.impact_zone_size
 }'
-rg-build -r "$REPO" -f json blast-radius "$SYMBOL" --depth 3 | jq '.topology.direct_callers[:10]'
+rgctl -r "$REPO" -f json blast-radius "$SYMBOL" --depth 3 | jq '.topology.direct_callers[:10]'
 ```
 
 If the name is ambiguous, disambiguate:
 
 ```bash
-rg-build -r "$REPO" blast-radius process --class ShoppingCartService
+rgctl -r "$REPO" blast-radius process --class ShoppingCartService
 ```
 
 **Use when:** agent plans a refactor or bugfix; avoids missing upstream callers.
@@ -64,7 +64,7 @@ rg-build -r "$REPO" blast-radius process --class ShoppingCartService
 ## Recipe 3 — Find entrypoints / APIs
 
 ```bash
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (n:Function) WHERE n.name LIKE '*Endpoint' RETURN n LIMIT 20" \
   | jq '.rows[].n.name'
 ```
@@ -76,11 +76,11 @@ rg-build -r "$REPO" -f json gql \
 ## Recipe 3b — Natural-language function discovery
 
 ```bash
-rg-build -r "$REPO" semantic index
-rg-build -r "$REPO" -f json semantic query "shopping cart checkout" --limit 10 \
+rgctl -r "$REPO" semantic index
+rgctl -r "$REPO" -f json semantic query "shopping cart checkout" --limit 10 \
   | jq '.hits[] | {name, file_path, score: .fused_score}'
 # Fusion is on by default; add --keyword-and to require every query token to match
-rg-build -r "$REPO" -f json semantic query "OrderService validate" --keyword-and \
+rgctl -r "$REPO" -f json semantic query "OrderService validate" --keyword-and \
   | jq '.hits[:5]'
 ```
 
@@ -91,7 +91,7 @@ rg-build -r "$REPO" -f json semantic query "OrderService validate" --keyword-and
 ## Recipe 4 — Call chain neighborhood
 
 ```bash
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (a:Function)-[:CALLS*1..3]->(b:Function) RETURN a,b LIMIT 50"
 ```
 
@@ -102,8 +102,8 @@ rg-build -r "$REPO" -f json gql \
 ## Recipe 5 — Data-flow check at a line (needs `discover --with-cfg`)
 
 ```bash
-rg-build -r "$REPO" discover . --with-cfg
-rg-build -r "$REPO" -f json slice \
+rgctl -r "$REPO" discover . --with-cfg
+rgctl -r "$REPO" -f json slice \
   src/main/java/com/example/Service.java \
   --line 42 --variable request --function handleRequest \
   | jq '.lines'
@@ -118,8 +118,8 @@ Note: `--function` is the **method name**, not the class name.
 ## Recipe 6 — Taint sanity check
 
 ```bash
-rg-build -r "$REPO" discover . --with-cfg
-rg-build -r "$REPO" -f json slice src/.../Controller.java \
+rgctl -r "$REPO" discover . --with-cfg
+rgctl -r "$REPO" -f json slice src/.../Controller.java \
   --line 30 --variable param --function handle --taint | jq '.flows'
 ```
 
@@ -130,10 +130,10 @@ rg-build -r "$REPO" -f json slice src/.../Controller.java \
 ## Recipe 7 — Migration batch planning
 
 ```bash
-rg-build discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints
+rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints
 # Prefer root plan from --export-migration-hints; dashboard copy exists when --with-dashboard ran
 jq '.packages[:10]' "$REPO/.rgbuilder/migration_plan.json"
-rg-build serve --open   # Migration tab for interactive tuning
+rgctl serve --open   # Migration tab for interactive tuning
 ```
 
 **Use when:** monolith extraction ordering for humans or agents.
@@ -144,7 +144,7 @@ rg-build serve --open   # Migration tab for interactive tuning
 
 ```bash
 cp docs/examples/policy-strict.json policy.json
-rg-build -r "$REPO" -f json check --policy-file policy.json
+rgctl -r "$REPO" -f json check --policy-file policy.json
 # exit 1 → violations in .violations[]
 ```
 
@@ -155,7 +155,7 @@ rg-build -r "$REPO" -f json check --policy-file policy.json
 ## Recipe 9 — HTTP session (many queries)
 
 ```bash
-rg-build -r "$REPO" serve &
+rgctl -r "$REPO" serve &
 curl -sS -X POST http://127.0.0.1:8080/api/query \
   -H 'Content-Type: application/json' \
   -d '{"query":"MATCH (n:Function) RETURN n LIMIT 5"}' | jq '.count'
@@ -169,9 +169,9 @@ See [http-api.md](http-api.md).
 
 ```bash
 # Filter syntax (not GQL MATCH):
-rg-build -r "$REPO" export --export-format graphml \
+rgctl -r "$REPO" export --export-format graphml \
   --export-output service.graphml --query "name:ShoppingCartService"
-rg-build -r "$REPO" export --export-format mermaid \
+rgctl -r "$REPO" export --export-format mermaid \
   --export-output all-calls.mmd --query all
 ```
 
@@ -183,9 +183,9 @@ rg-build -r "$REPO" export --export-format mermaid \
 
 ```bash
 export REPO=/path/to/repo
-rg-build -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover . -l markdown
 
-rg-build -r "$REPO" export \
+rgctl -r "$REPO" export \
   --export-format obsidian \
   --export-output "$REPO/vault" \
   --query all
@@ -196,8 +196,8 @@ Open `$REPO/vault` in Obsidian. One note per heading section; wikilinks from doc
 Optional NL search on sections (build doc index first; query has no `--embedder`):
 
 ```bash
-rg-build -r "$REPO" semantic index --scope docs --embedder hash
-rg-build -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 10
+rgctl -r "$REPO" semantic index --scope docs --embedder hash
+rgctl -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 10
 ```
 
 **Use when:** browsing or editing docs in Obsidian while keeping rgBuilder as the structural index. Large corpora: `./scripts/fetch-profile-repos.sh` + `example/k8s-website` (~17k Obsidian notes). Doc semantic index includes heading + `code_block` modules; re-run index after doc changes. See [markdown-context.md](markdown-context.md#semantic-search-doc-sections).
@@ -207,25 +207,25 @@ rg-build -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 
 ## Recipe 11 — DTO / cart mutation safety (hybrid CPG)
 
 ```bash
-rg-build -r "$REPO" discover . --with-cfg
+rgctl -r "$REPO" discover . --with-cfg
 # Optional fidelity: --with-dfg-loops  --with-ast-skeleton
 
 # CoolStore ShoppingCart (ecommerce-* fixtures) — non-constructor field writes:
-rg-build -r "$REPO" -f json cpg mutations --type ShoppingCart --exclude-ctors
+rgctl -r "$REPO" -f json cpg mutations --type ShoppingCart --exclude-ctors
 
 # Same pattern for a DTO / record candidate (substitute your type name):
-# rg-build -r "$REPO" -f json cpg mutations --type OrderDTO --exclude-ctors
+# rgctl -r "$REPO" -f json cpg mutations --type OrderDTO --exclude-ctors
 
 # After picking a hit at file:line, forward flows on the receiver:
-rg-build -r "$REPO" -f json cpg flows \
+rgctl -r "$REPO" -f json cpg flows \
   src/main/java/com/example/ecommerce/coolstore/service/ShoppingCartService.java \
   --line 75 --variable sc --function priceShoppingCart --direction forward --with-alias
 
 # Optional: coarse syntax tree for the function
-rg-build -r "$REPO" -f json cpg ast priceShoppingCart
+rgctl -r "$REPO" -f json cpg ast priceShoppingCart
 
 # Optional: export L_repo (+ L_proc if archived) for Joern/Neo4j tooling
-rg-build -r "$REPO" cpg export --format graphson --output cart-cpg.json --path-contains coolstore/
+rgctl -r "$REPO" cpg export --format graphson --output cart-cpg.json --path-contains coolstore/
 ```
 
 **Use when:** proving immutability before converting a mutable cart/DTO to a `record`, or locating pricing side effects on `ShoppingCart`. Empty mutations ⇒ no typed non-ctor field writes found (unresolved receivers excluded unless `--include-unresolved`). On C fixtures use the struct typedef (`shopping_cart_t`). Requires `--with-cfg`. `--with-alias` expands may-alias names (copies + field bases). See [User Guide §10](user-guide.md#10-hybrid-cpg-cpg) and [hybrid-cpg-plan.md](design/hybrid-cpg-plan.md).

@@ -367,19 +367,19 @@ Top → bottom:
 
 ```bash
 # Full analysis + dashboard bundle (includes migration_graph.json + default plan)
-rg-build discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints
+rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints
 
 # Export plan to file (harmonic required for β term in ranking)
-rg-build discover . --with-harmonic --export-migration-hints \
+rgctl discover . --with-harmonic --export-migration-hints \
   --migration-preset risk_mitigation \
   --migration-order priority \
   -o migration_plan.json
 
 # JSON to stdout (with discover JSON envelope)
-rg-build discover . --with-harmonic --export-migration-hints -f json
+rgctl discover . --with-harmonic --export-migration-hints -f json
 
 # Serve dashboard (requires prior --with-dashboard discover)
-rg-build serve -r /path/to/repo --open
+rgctl serve -r /path/to/repo --open
 ```
 
 Flags:
@@ -424,7 +424,7 @@ After dashboard UI changes:
 ```bash
 cd dashboard && npm run build
 cargo build --release   # embeds dashboard/dist
-rg-build discover . --with-cfg --with-security --with-taint   # refresh .rgbuilder/dashboard static JSON
+rgctl discover . --with-cfg --with-security --with-taint   # refresh .rgbuilder/dashboard static JSON
 ```
 
 ---
@@ -504,9 +504,9 @@ tests/migration_plan_cli.rs
 
 ```bash
 cargo build --release
-rg-build -r ~/git/java/gbuilder discover . --with-cfg --with-security --with-taint
+rgctl -r ~/git/java/gbuilder discover . --with-cfg --with-security --with-taint
 # → migration_graph.json: ~30 packages, mode package_macro
-rg-build serve -r ~/git/java/gbuilder
+rgctl serve -r ~/git/java/gbuilder
 # Migration tab → tune presets → inspect package graph + paginated table
 ```
 

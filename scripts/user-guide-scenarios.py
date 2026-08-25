@@ -40,16 +40,19 @@ SCRUB_KEYS = {
 
 
 def find_bin() -> Path:
-    env = os.environ.get("CARGO_BIN_EXE_rg_build")
+    env = os.environ.get("CARGO_BIN_EXE_rgctl")
     if env:
         return Path(env)
+    which = shutil.which("rgctl")
+    if which:
+        return Path(which)
     for cand in (
-        ROOT / "target" / "release" / "rg-build",
-        ROOT / "target" / "debug" / "rg-build",
+        ROOT / "target" / "release" / "rgctl",
+        ROOT / "target" / "debug" / "rgctl",
     ):
         if cand.is_file():
             return cand
-    raise SystemExit("rg-build binary not found — cargo build --release -p rgbuilder")
+    raise SystemExit("rgctl binary not found — cargo build --release -p rgbuilder")
 
 
 def load_scenarios() -> list[dict]:

@@ -9,10 +9,10 @@ Layered ecommerce API (SQLite + service/repository pattern) mirroring ecommerce-
 See [summary report](../rgbuilder-reports/REPORT.md) · [language report](../rgbuilder-reports/languages/cpp.md) · [HTML](../rgbuilder-reports/languages/cpp.html) (2026-07-22).
 
 ```bash
-rg-build -f json discover . --cfg -e build,cmake-build-debug,.rgbuilder
-rg-build -f json blast-radius 'src/coolstore/services/shopping_cart_service.cpp::priceShoppingCart'
-rg-build -f json metrics --communities --pagerank
-rg-build -f json check --policy-file ../rgbuilder-policy.json
+rgctl -f json discover . --cfg -e build,cmake-build-debug,.rgbuilder
+rgctl -f json blast-radius 'src/coolstore/services/shopping_cart_service.cpp::priceShoppingCart'
+rgctl -f json metrics --communities --pagerank
+rgctl -f json check --policy-file ../rgbuilder-policy.json
 ```
 
 | Metric | Value |

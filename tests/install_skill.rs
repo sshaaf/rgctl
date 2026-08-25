@@ -1,4 +1,4 @@
-//! CLI integration for `rg-build install --skill`.
+//! CLI integration for `rgctl install --skill`.
 //!
 //! Run: `cargo test --test install_skill`
 
@@ -8,13 +8,13 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn rgbuilder_bin() -> PathBuf {
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_ctl") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg_ctl")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
 }
 
 fn bundled_skill_md() -> Vec<u8> {
@@ -31,7 +31,7 @@ fn run_in(cwd: &Path, args: &[&str]) -> Output {
         .args(args)
         .current_dir(cwd)
         .output()
-        .expect("spawn rg-build")
+        .expect("spawn rgctl")
 }
 
 fn stdout_json(output: &Output) -> Value {

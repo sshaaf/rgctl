@@ -6,7 +6,7 @@ When registered as a skill, the agent does not start with terminal commands—it
 
 **Accuracy notes (verified against CLI):**
 
-- Commands and flags below match `rg-build --help` / subcommand help (as of this repo).
+- Commands and flags below match `rgctl --help` / subcommand help (as of this repo).
 - Sample JSON is **illustrative but schema-aligned** (`schema_version`, real field names). It is not a live capture from one fixture run.
 - Prefer the in-tree **ecommerce-java** fixture for demos (`rgbuilder-tests/ecommerce-java`). Symbol names in scenarios are illustrative.
 - Dashboard / migration JSON are **opt-in** (`--with-dashboard`, `--export-migration-hints`).
@@ -23,7 +23,7 @@ When registered as a skill, the agent does not start with terminal commands—it
             │
             ▼
  ┌───────────────────────┐
- │ 2. AGENT TOOL CALL    │  tool_use: rg-build(command="-f json semantic query 'checkout flow'")
+ │ 2. AGENT TOOL CALL    │  tool_use: rgctl(command="-f json semantic query 'checkout flow'")
  └──────────┬────────────┘
             │
             ▼
@@ -38,7 +38,7 @@ When registered as a skill, the agent does not start with terminal commands—it
             │
             ▼
  ┌───────────────────────┐
- │ 5. CODE EDIT / ACTION │  Applies refactored code & verifies with rg-build(check)
+ │ 5. CODE EDIT / ACTION │  Applies refactored code & verifies with rgctl(check)
  └───────────────────────┘
 
 ```
@@ -58,7 +58,7 @@ When registered as a skill, the agent does not start with terminal commands—it
 * **User Prompt:** *"Generate a complete migration plan to help us modernize this repository."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints"
 }
 ```
@@ -88,7 +88,7 @@ tool_use: rg-build {
 * **User Prompt:** *"Which core functions are major system bottlenecks or central dependencies?"*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json metrics --pagerank"
 }
 ```
@@ -119,7 +119,7 @@ tool_use: rg-build {
 * **User Prompt:** *"Give me an inventory of functions in this repo so we can spot candidates to delete or shrink."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json gql --macro-name all_functions unused"
 }
 ```
@@ -154,7 +154,7 @@ tool_use: rg-build {
 * **User Prompt:** *"What architectural communities / packages does the graph see?"*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json gql --macro-name all_communities unused"
 }
 ```
@@ -190,7 +190,7 @@ tool_use: rg-build {
 * **User Prompt:** *"Export our graph structure to GraphSON so we can archive the baseline before refactoring."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "cpg export --format graphson --output cpg.json --path-contains src/"
 }
 ```
@@ -218,10 +218,10 @@ Wrote hybrid CPG export to cpg.json (graphson)
 * **User Prompt:** *"Where is the code that handles our checkout flow?"*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "semantic index"
 }
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json semantic query \"checkout flow\" --limit 10"
 }
 ```
@@ -266,7 +266,7 @@ tool_use: rg-build {
 * **User Prompt:** *"Which architectural subsystem owns the checkout capabilities?"*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json semantic query \"checkout\" --scope community --limit 10"
 }
 ```
@@ -301,7 +301,7 @@ tool_use: rg-build {
 * **User Prompt:** *"Find all Service classes in our codebase to check their naming consistency."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json gql \"MATCH (n:Function) WHERE n.name LIKE '*Service*' RETURN n LIMIT 20\""
 }
 ```
@@ -334,7 +334,7 @@ tool_use: rg-build {
 * **User Prompt:** *"List all the functions inside Community 12 so I can see what's in the checkout subsystem."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json gql \"MATCH (f:Function) WHERE f.community_id = '12' RETURN f LIMIT 20\""
 }
 ```
@@ -368,7 +368,7 @@ tool_use: rg-build {
 * **User Prompt:** *"What's the impact if I change the signature of `updateQuantity`?"*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json blast-radius \"updateQuantity\" --depth 2"
 }
 ```
@@ -407,7 +407,7 @@ tool_use: rg-build {
 * **User Prompt:** *"Show me the call stack surrounding `updateQuantity` up to 3 hops out."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json gql \"MATCH (a:Function)-[:CALLS*1..3]->(b:Function) WHERE a.name = 'updateQuantity' RETURN a,b LIMIT 50\""
 }
 ```
@@ -440,10 +440,10 @@ tool_use: rg-build {
 * **User Prompt:** *"Inspect the AST skeleton of `updateQuantity` to check its structure."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "discover . --with-ast-skeleton"
 }
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json cpg ast \"updateQuantity\""
 }
 ```
@@ -477,10 +477,10 @@ tool_use: rg-build {
 * **User Prompt:** *"Confirm the CFG archive is ready, then slice how `quantity` is used in `updateQuantity`."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json cpg status"
 }
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json cpg slice src/cart/CartService.ts --line 50 --variable quantity --function updateQuantity --view pdg"
 }
 ```
@@ -510,7 +510,7 @@ tool_use: rg-build {
 * **User Prompt:** *"Check where `ShoppingCart` object fields are mutated across the codebase."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json cpg mutations --type ShoppingCart --exclude-ctors"
 }
 ```
@@ -546,7 +546,7 @@ tool_use: rg-build {
 * **User Prompt:** *"Trace how the `quantity` variable flows from `CartService.ts` into database queries."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json cpg flows src/cart/CartService.ts --line 50 --variable quantity --function updateQuantity --direction forward"
 }
 ```
@@ -572,10 +572,10 @@ tool_use: rg-build {
 * **User Prompt:** *"Check if our batch item updates have loop-carried dependencies that prevent parallelization."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "discover . --with-cfg --with-dfg-loops"
 }
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json inspect BatchProcessor.process pdg --edge-layer data"
 }
 ```
@@ -614,7 +614,7 @@ tool_use: rg-build {
 * **User Prompt:** *"Validate our recent code changes against project policies before committing."*
 * **Agent Tool Call:**
 ```json
-tool_use: rg-build {
+tool_use: rgctl {
   "command": "-f json check --policy-file policy.json"
 }
 ```

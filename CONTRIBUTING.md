@@ -22,7 +22,7 @@ Optional: **Playwright** (dashboard browser tests) — installed via `dashboard/
 git clone https://github.com/sshaaf/rgBuilder.git
 cd rgBuilder
 cargo build --release
-./target/release/rg-build --version
+./target/release/rgctl --version
 ```
 
 ### Dashboard (when changing `dashboard/`)

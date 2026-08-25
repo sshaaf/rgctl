@@ -52,7 +52,7 @@ export function CommandBar() {
       <div className="flex items-center gap-3 px-2 py-3 font-[family-name:var(--font-mono)] text-[13px]">
         <span className="text-[var(--mute)]">$</span>
         <span className="flex-1 truncate text-[var(--ink)]">
-          rg-build {current.cmd}
+          rgctl {current.cmd}
         </span>
         <Link
           href={current.href}

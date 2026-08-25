@@ -18,10 +18,10 @@ Listens on `http://localhost:5000` (or ports in `launchSettings.json`).
 See [summary report](../rgbuilder-reports/REPORT.md) · [language report](../rgbuilder-reports/languages/csharp.md) · [HTML](../rgbuilder-reports/languages/csharp.html) (2026-07-22).
 
 ```bash
-rg-build -f json discover . --cfg -e bin,obj,data
-rg-build -f json blast-radius 'src/Ecommerce/Services/OrderService.cs::CheckoutAsync'
-rg-build -f json metrics --communities --pagerank
-rg-build -f json check --policy-file ../rgbuilder-policy.json
+rgctl -f json discover . --cfg -e bin,obj,data
+rgctl -f json blast-radius 'src/Ecommerce/Services/OrderService.cs::CheckoutAsync'
+rgctl -f json metrics --communities --pagerank
+rgctl -f json check --policy-file ../rgbuilder-policy.json
 ```
 
 | Metric | Value |

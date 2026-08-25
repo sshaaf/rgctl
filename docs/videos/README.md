@@ -33,7 +33,7 @@ cargo build --release
 | [`record-markdown-context-cli.sh`](record-markdown-context-cli.sh) | Record → `markdown-context-cli-no-captions.{gif,mp4}` |
 
 ```bash
-cargo build --bin rg-build
+cargo build --bin rgctl
 ./docs/videos/record-markdown-context-cli.sh
 ```
 
@@ -52,7 +52,7 @@ cargo build --bin rg-build
 cargo build --release
 ./docs/videos/record-feature-demo.sh
 # or step-by-step:
-#   rg-build -r rgbuilder-tests/ecommerce-java serve --port 8080
+#   rgctl -r rgbuilder-tests/ecommerce-java serve --port 8080
 #   DASHBOARD_URL=http://127.0.0.1:8080/ node dashboard/scripts/record-feature-demo.mjs
 #   ./docs/videos/burn-feature-demo-captions.sh
 ```

@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       rgbuilder_tag:
-        description: "rg-build release tag (e.g. v0.1.0). Empty = latest release."
+        description: "rgctl release tag (e.g. v0.1.0). Empty = latest release."
         required: false
         type: string
       skip_blast_scan:
@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - name: Resolve rg-build tag
+      - name: Resolve rgctl tag
         id: meta
         run: |
           set -euo pipefail
@@ -55,12 +55,12 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "safe_tag=${SAFE}" >> "$GITHUB_OUTPUT"
           echo "Triggered by: ${{ github.event_name }}"
-          echo "rg-build tag: ${TAG:-latest}"
+          echo "rgctl tag: ${TAG:-latest}"
 
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install rg-build from GitHub Release
+      - name: Install rgctl from GitHub Release
         env:
           RGBUILDER_TAG: ${{ steps.meta.outputs.tag }}
           GITHUB_TOKEN: ${{ secrets.RGBUILDER_DOWNLOAD_TOKEN || secrets.GITHUB_TOKEN }}
@@ -107,7 +107,7 @@ jobs:
             echo ""
             echo "| Field | Value |"
             echo "|-------|-------|"
-            echo "| rg-build | \`${RGBUILDER_VERSION:-latest}\` |"
+            echo "| rgctl | \`${RGBUILDER_VERSION:-latest}\` |"
             echo "| Archive | \`${{ steps.package.outputs.archive }}\` |"
             echo "| Run | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |"
             echo ""

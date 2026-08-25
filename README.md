@@ -62,7 +62,7 @@ Most codebase tools stop at **text search**, **file trees**, or a **shallow call
 | **Migration planner** | **Package-level roadmap** — PageRank + harmonic centrality − blast radius; dependency-aware schedule and priority rank | [migration-planner-design.md](docs/design/migration-planner-design.md) |
 | **CI policy checks** | **`check`** — fail builds when blast-radius rules are violated on touched symbols | [ci-policy-checks-design.md](docs/design/ci-policy-checks-design.md) |
 
-All of the above share one index: run [`discover`](docs/Introduction.md#indexing-the-repository-discover) once (use [`discover --with-cfg`](docs/Introduction.md#indexing-the-repository-discover) / `--with-taint` for CFG/PDG/taint archives; add `--export-migration-hints` when you need a migration plan JSON). **Semantic search** is opt-in: `rg-build semantic index` after discover. Explore in the **CLI** and pipe **JSON** to agents. An optional browser UI exists after `discover --with-dashboard` — see [dashboard user guide](docs/dashboard-user-guide.md) if you want it.
+All of the above share one index: run [`discover`](docs/Introduction.md#indexing-the-repository-discover) once (use [`discover --with-cfg`](docs/Introduction.md#indexing-the-repository-discover) / `--with-taint` for CFG/PDG/taint archives; add `--export-migration-hints` when you need a migration plan JSON). **Semantic search** is opt-in: `rgctl semantic index` after discover. Explore in the **CLI** and pipe **JSON** to agents. An optional browser UI exists after `discover --with-dashboard` — see [dashboard user guide](docs/dashboard-user-guide.md) if you want it.
 
 **Deep dive → [Introduction](docs/Introduction.md) · [User Guide](docs/user-guide.md) · [Feature designs](docs/design/README.md) (contributors)**
 
@@ -82,7 +82,7 @@ Index once → query many times. That is the agent workflow.
   Agent / script / human
            │
            ▼
-    rg-build gql | blast-radius | metrics | semantic | export -f json
+    rgctl gql | blast-radius | metrics | semantic | export -f json
            │
            ▼
   .rgbuilder/  ← graph snapshot + reachability engine + indexes
@@ -118,9 +118,9 @@ After deep discover + `--export-migration-hints`, read `.rgbuilder/migration_pla
 - **CLI export** — `--export-migration-hints` writes a preset-tuned plan (default `.rgbuilder/migration_plan.json`); `--with-dashboard` additionally copies UI assets under `.rgbuilder/dashboard/`
 
 ```bash
-rg-build discover . --with-cfg --with-security --with-taint --with-harmonic --export-migration-hints
-# optional UI: add --with-dashboard, then: rg-build serve --open
-rg-build serve   # http://127.0.0.1:8080/ → Migration tab
+rgctl discover . --with-cfg --with-security --with-taint --with-harmonic --export-migration-hints
+# optional UI: add --with-dashboard, then: rgctl serve --open
+rgctl serve   # http://127.0.0.1:8080/ → Migration tab
 ```
 
 Design → **[Migration planner design](docs/design/migration-planner-design.md)** · Workflow → **[Building a migration plan](docs/building-migration-plan.md)**  
@@ -140,7 +140,7 @@ Full detail → **[Graph metrics — community naming](docs/design/graph-metrics
 
 Walkthrough on the in-tree Spring Boot fixture → **[ecommerce-java example](docs/user-guide.md#3-example-project-ecommerce-java)** (User Guide).
 
-**Research map** — which papers rgBuilder implements, which inspire the roadmap, and where to propose changes → **[Further reading](docs/further-reading.md#research-foundations-in-rg-build)**.
+**Research map** — which papers rgBuilder implements, which inspire the roadmap, and where to propose changes → **[Further reading](docs/further-reading.md#research-foundations-in-rgbuilder)**.
 
 ---
 
@@ -160,25 +160,25 @@ cargo build --release
 ```bash
 git clone https://github.com/konveyor-ecosystem/coolstore.git
 cd coolstore
-rg-build discover .
+rgctl discover .
 # agent-friendly telemetry:
-rg-build -f json discover . | jq '.metrics'
+rgctl -f json discover . | jq '.metrics'
 ```
 
 **Query** (compact answers instead of file dumps):
 
 ```bash
 # Graph inventory for the agent
-rg-build -f json gql 'MATCH (n:Function) RETURN n LIMIT 10'
+rgctl -f json gql 'MATCH (n:Function) RETURN n LIMIT 10'
 
 # Impact — critical before the agent edits a symbol
-rg-build -f json blast-radius ShoppingCartService
+rgctl -f json blast-radius ShoppingCartService
 
 # Hotspots — where migration/refactor pain concentrates
-rg-build -f json metrics --pagerank --communities
+rgctl -f json metrics --pagerank --communities
 
 # Package migration roadmap (graph + plan JSON for agents)
-rg-build discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints
+rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints
 ```
 
 Concepts → **[Introduction](docs/Introduction.md)** · Commands → **[User Guide](docs/user-guide.md)**
@@ -186,11 +186,11 @@ Concepts → **[Introduction](docs/Introduction.md)** · Commands → **[User Gu
 Example deep-analysis commands (after `discover --with-cfg`):
 
 ```bash
-rg-build inspect checkout cfg              # CFG / PDG / dominance (function symbol)
-rg-build slice src/Foo.java --line 42 --variable x
-rg-build slice src/Foo.java --line 10 --variable req --taint
-rg-build semantic index                    # default vocab; optional: --embedder code-daemon|hash
-rg-build -f json semantic query "checkout flow" --limit 10
+rgctl inspect checkout cfg              # CFG / PDG / dominance (function symbol)
+rgctl slice src/Foo.java --line 42 --variable x
+rgctl slice src/Foo.java --line 10 --variable req --taint
+rgctl semantic index                    # default vocab; optional: --embedder code-daemon|hash
+rgctl -f json semantic query "checkout flow" --limit 10
 ```
 
 ---
@@ -241,11 +241,11 @@ Quick links into **[Introduction](docs/Introduction.md)** — see [Where most to
 | **[Documentation index](docs/README.md)** | Map of all docs by persona |
 | **[Introduction](docs/Introduction.md)** | Concepts — graph, reachability, capability map |
 | **[User Guide](docs/user-guide.md)** | Install, ecommerce-java fixture, every CLI command |
-| **[Agent skill](skills/rgbuilder/SKILL.md)** | **Canonical agent playbook** — NL routing + CLI samples. Install with `rg-build install --skill` |
+| **[Agent skill](skills/rgbuilder/SKILL.md)** | **Canonical agent playbook** — NL routing + CLI samples. Install with `rgctl install --skill` |
 | **[AGENTS.md](AGENTS.md)** | Minimal agent contract (points at skill) |
 | **[Agent recipes](docs/agent-recipes.md)** | Copy-paste automation workflows |
 | **[JSON API](docs/json-api.md)** | Parse `-f json` payloads + field catalogs |
-| **[HTTP API](docs/http-api.md)** | `rg-build serve` → `/api/query` and `/api/semantic/*` |
+| **[HTTP API](docs/http-api.md)** | `rgctl serve` → `/api/query` and `/api/semantic/*` |
 | **[Policy format](docs/policy-format.md)** | `check` / blast policy JSON |
 | **[Languages](docs/languages.md)** | Supported languages and tiers |
 | **[Markdown context](docs/markdown-context.md)** | Doc graph — headings, links, doc→code GQL |

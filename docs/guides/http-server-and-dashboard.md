@@ -14,11 +14,11 @@ The `serve` command launches an HTTP server that provides both a **browser-based
 
 ## Example Project
 
-This guide uses the **CoolStore** (`example/coolstore`). `rg-build serve` can start the full pipeline itself. To only serve existing artifacts:
+This guide uses the **CoolStore** (`example/coolstore`). `rgctl serve` can start the full pipeline itself. To only serve existing artifacts:
 
 ```bash
-rg-build -r example/coolstore discover . --with-cfg --with-dashboard
-rg-build -r example/coolstore serve --no-pipeline --open
+rgctl -r example/coolstore discover . --with-cfg --with-dashboard
+rgctl -r example/coolstore serve --no-pipeline --open
 ```
 
 The `--with-dashboard` flag exports the static dashboard bundle to `.rgbuilder/dashboard/`.
@@ -30,7 +30,7 @@ The `--with-dashboard` flag exports the static dashboard bundle to `.rgbuilder/d
 Launch the HTTP server with the dashboard:
 
 ```bash
-rg-build -r example/coolstore serve --open
+rgctl -r example/coolstore serve --open
 ```
 
 **What happens:**
@@ -44,7 +44,7 @@ rg-build -r example/coolstore serve --open
 Bind to a different address or port:
 
 ```bash
-rg-build -r example/coolstore serve --host 0.0.0.0 --port 3000
+rgctl -r example/coolstore serve --host 0.0.0.0 --port 3000
 ```
 
 This makes the server accessible on all network interfaces at port 3000, useful for team sharing.
@@ -54,7 +54,7 @@ This makes the server accessible on all network interfaces at port 3000, useful 
 If you only need the API (no dashboard UI):
 
 ```bash
-rg-build -r example/coolstore serve --query-only
+rgctl -r example/coolstore serve --query-only
 ```
 
 This starts a lighter server with only the `/api/query` and `/api/semantic/*` endpoints.
@@ -64,7 +64,7 @@ This starts a lighter server with only the `/api/query` and `/api/semantic/*` en
 If you only need the visual dashboard:
 
 ```bash
-rg-build -r example/coolstore serve --dashboard-only
+rgctl -r example/coolstore serve --dashboard-only
 ```
 
 ### 5. Querying the API with curl
@@ -112,17 +112,17 @@ curl -s http://127.0.0.1:8080/api/semantic/query \
 For backward compatibility, the legacy Unix socket daemon is still available:
 
 ```bash
-rg-build -r example/coolstore serve --daemon
+rgctl -r example/coolstore serve --daemon
 ```
 
-This creates a Unix socket at `.rgbuilder/query.sock` that the `blast-radius` command auto-connects to for faster repeated queries.
+This starts a **background HTTP+MCP daemon** (default `0.0.0.0:8080`). Cached repos are served under `/{reponame}/`. Foreground `rgctl serve` remains `127.0.0.1:8080` with unprefixed `/api/*`.
 
 ### 8. Daemon idle timeout
 
 `--idle-secs` applies to **`serve --daemon`** only (default 300s). The HTTP server does not auto-exit on idle.
 
 ```bash
-rg-build -r example/coolstore serve --daemon --idle-secs 3600
+rgctl -r example/coolstore serve --daemon --idle-secs 3600
 ```
 
 ## Dashboard Tabs
@@ -167,7 +167,7 @@ See the [HTTP API Reference](../http-api.md) for complete endpoint documentation
 | `--no-pipeline` | off | Fail fast if artifacts are missing (old `serve` behavior) |
 | `--dashboard-dir` | `.rgbuilder/dashboard` | Dashboard directory |
 | `--daemon` | off | Legacy Unix socket mode |
-| `--socket` | `.rgbuilder/query.sock` | Daemon socket path |
+| `--daemon` | off | Background HTTP+MCP daemon (`daemon start`) |
 | `--idle-secs` | `300` | Auto-exit after N seconds idle |
 
 ## Benefits

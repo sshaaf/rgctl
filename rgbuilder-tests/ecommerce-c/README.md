@@ -3,7 +3,7 @@
 C reference fixture for rgBuilder Tier 1 language support.
 
 Layered REST-style ecommerce API (SQLite + service/repository pattern) used by
-`rg-build discover --with-cfg -l c` dashboard gates (add `--with-dashboard` when exercising the UI).
+`rgctl discover --with-cfg -l c` dashboard gates (add `--with-dashboard` when exercising the UI).
 
 ## Layout
 
@@ -15,10 +15,10 @@ Layered REST-style ecommerce API (SQLite + service/repository pattern) used by
 See [summary report](../rgbuilder-reports/REPORT.md) · [language report](../rgbuilder-reports/languages/c.md) · [HTML](../rgbuilder-reports/languages/c.html) (2026-07-22).
 
 ```bash
-rg-build -f json discover . --with-cfg -e build,cmake-build-debug,.rgbuilder
-rg-build -f json blast-radius 'src/coolstore/services/shopping_cart_service.c::price_shopping_cart'
-rg-build -f json metrics --communities --pagerank
-rg-build -f json check --policy-file ../rgbuilder-policy.json
+rgctl -f json discover . --with-cfg -e build,cmake-build-debug,.rgbuilder
+rgctl -f json blast-radius 'src/coolstore/services/shopping_cart_service.c::price_shopping_cart'
+rgctl -f json metrics --communities --pagerank
+rgctl -f json check --policy-file ../rgbuilder-policy.json
 ```
 
 | Metric | Value |

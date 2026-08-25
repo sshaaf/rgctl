@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Download and install rg-build from a GitHub Release (default: latest).
+# Download and install rgctl from a GitHub Release (default: latest).
 #
 # Usage:
 #   ./scripts/install_rgbuilder_release.sh
@@ -88,17 +88,17 @@ trap 'rm -f "$TMP"' EXIT
 echo "Downloading ${ASSET} …" >&2
 curl -fsSL "${AUTH[@]}" -o "$TMP" "$URL"
 tar -xzf "$TMP" -C "$INSTALL_DIR"
-chmod +x "$INSTALL_DIR/rg-build"
+chmod +x "$INSTALL_DIR/rgctl"
 
-if ! "$INSTALL_DIR/rg-build" --version >/dev/null 2>&1; then
-  "$INSTALL_DIR/rg-build" -h >/dev/null 2>&1 || true
+if ! "$INSTALL_DIR/rgctl" --version >/dev/null 2>&1; then
+  "$INSTALL_DIR/rgctl" -h >/dev/null 2>&1 || true
 fi
 
-echo "Installed rg-build ${TAG_NAME} (${TARGET}) → ${INSTALL_DIR}/rg-build" >&2
+echo "Installed rgctl ${TAG_NAME} (${TARGET}) → ${INSTALL_DIR}/rgctl" >&2
 
 if [[ -n "${GITHUB_ENV:-}" && -w "${GITHUB_ENV}" ]]; then
   {
-    echo "RGBUILDER=${INSTALL_DIR}/rg-build"
+    echo "RGBUILDER=${INSTALL_DIR}/rgctl"
     echo "RGBUILDER_VERSION=${TAG_NAME}"
     echo "RGBUILDER_TARGET=${TARGET}"
   } >> "$GITHUB_ENV"

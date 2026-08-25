@@ -1,4 +1,4 @@
-//! rgBuilder CLI entry point (`rg_ctl`).
+//! rgBuilder CLI entry point (`rgctl`).
 
 use clap::Parser;
 use rgbuilder::cli::Cli;

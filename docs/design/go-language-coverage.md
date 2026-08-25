@@ -41,14 +41,14 @@
 ```bash
 # From rgBuilder repo root
 cargo build --release
-./target/release/rg-build discover rgbuilder-tests/ecommerce-go -l go -e vendor \
+./target/release/rgctl discover rgbuilder-tests/ecommerce-go -l go -e vendor \
   --with-cfg --with-taint -v
 
 # Correctness suite (includes lf_* facts once present)
 cargo test --test graph_correctness go -- --nocapture
 
 # Spot-check call edges
-./target/release/rg-build -r rgbuilder-tests/ecommerce-go -f json \
+./target/release/rgctl -r rgbuilder-tests/ecommerce-go -f json \
   gql "MATCH (a:Function)-[:CALLS]->(b:Function) WHERE a.name = 'Run' RETURN a,b"
 ```
 

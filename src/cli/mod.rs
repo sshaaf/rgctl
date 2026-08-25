@@ -49,7 +49,7 @@ use context::CliContext;
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
-#[command(name = "rg_ctl")]
+#[command(name = "rgctl")]
 #[command(about = "A code knowledge graph built for LLM agents", version = BUILD_INFO)]
 pub struct Cli {
     /// Path to the graph cache database
@@ -72,7 +72,7 @@ pub struct Cli {
     #[arg(long = "no-daemon", global = true)]
     pub no_daemon: bool,
 
-    /// Daemon workspace (default: $RG_CTL_HOME, else cwd)
+    /// Daemon workspace root (default: $HOME → state under ~/.rgbuilder/)
     #[arg(long = "daemon-home", value_name = "PATH", global = true)]
     pub daemon_home: Option<std::path::PathBuf>,
 
@@ -379,10 +379,10 @@ pub enum Commands {
 pub enum DaemonAction {
     /// Start the daemon (idempotent)
     Start {
-        #[arg(long, default_value = "0.0.0.0")]
-        host: String,
-        #[arg(long, default_value_t = 8080)]
-        port: u16,
+        #[arg(long)]
+        host: Option<String>,
+        #[arg(long)]
+        port: Option<u16>,
     },
     /// Stop the daemon
     Stop,
@@ -644,7 +644,7 @@ impl Cli {
         init_logging(verbose, discover_json);
 
         if !long_running {
-            eprintln!("[>] rg_ctl {command_label}");
+            eprintln!("[>] rgctl {command_label}");
         }
 
         let command_path = match &self.command {
@@ -661,7 +661,7 @@ impl Cli {
             self.output,
             verbose,
         );
-        ctx.no_daemon = self.no_daemon || std::env::var_os("RG_CTL_NO_DAEMON").is_some();
+        ctx.no_daemon = self.no_daemon || std::env::var_os("RGCTL_NO_DAEMON").is_some();
         ctx.daemon_home = self.daemon_home;
         ctx.fail_if_no_daemon = self.fail_if_no_daemon;
 
@@ -961,8 +961,8 @@ impl Cli {
             Commands::Daemon { action } => match action {
                 DaemonAction::Start { host, port } => {
                     let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
-                    let pid = daemon::start(&home, Some(&host), Some(port))?;
-                    eprintln!("rg_ctl: daemon pid {pid}");
+                    let pid = daemon::start(&home, host.as_deref(), port)?;
+                    eprintln!("rgctl: daemon pid {pid}");
                     Ok(())
                 }
                 DaemonAction::Stop => {
@@ -972,7 +972,7 @@ impl Cli {
                 DaemonAction::Restart => {
                     let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
                     let pid = daemon::restart(&home)?;
-                    eprintln!("rg_ctl: daemon pid {pid}");
+                    eprintln!("rgctl: daemon pid {pid}");
                     Ok(())
                 }
                 DaemonAction::Status => {
@@ -1013,7 +1013,7 @@ impl Cli {
                         Some(host.as_str())
                     };
                     let pid = daemon::start(&home, daemon_host, Some(port))?;
-                    eprintln!("rg_ctl: daemon pid {pid} (background HTTP)");
+                    eprintln!("rgctl: daemon pid {pid} (background HTTP)");
                     Ok(())
                 } else if mode == ServeMode::Mcp {
                     if ctx.no_daemon {
@@ -1086,7 +1086,7 @@ fn command_label_for(command: &Commands) -> &'static str {
 fn log_command_wall_time(command: &str, elapsed: Duration, ok: bool) {
     let mark = if ok { "✓" } else { "✗" };
     let duration = format_elapsed(elapsed);
-    eprintln!("[{mark}] rg_ctl {command} finished in {duration}");
+    eprintln!("[{mark}] rgctl {command} finished in {duration}");
 }
 
 fn format_elapsed(elapsed: Duration) -> String {
@@ -1108,7 +1108,7 @@ fn init_logging(verbose: bool, discover_json: bool) {
         tracing_subscriber::fmt()
             .with_env_filter(
                 EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| EnvFilter::new("info,rg_ctl=debug,profile=info")),
+                    .unwrap_or_else(|_| EnvFilter::new("info,rgctl=debug,profile=info")),
             )
             .with_target(true)
             .with_level(true)
@@ -1127,7 +1127,7 @@ fn init_logging(verbose: bool, discover_json: bool) {
     } else {
         tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                EnvFilter::new("warn,rg_ctl=info,rgbuilder_extraction=warn,rgbuilder_analysis=warn")
+                EnvFilter::new("warn,rgctl=info,rgbuilder_extraction=warn,rgbuilder_analysis=warn")
             }))
             .with_target(false)
             .with_level(false)

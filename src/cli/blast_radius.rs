@@ -1,4 +1,4 @@
-//! `rg-build blast-radius` — SCC macro impact analysis.
+//! `rgctl blast-radius` — SCC macro impact analysis.
 
 use super::args::OutputFormat;
 use super::blast_radius_output::{
@@ -380,7 +380,7 @@ pub fn run(ctx: &CliContext, args: BlastRadiusArgs) -> Result<()> {
 
         let mut session = rgbuilder_service::Session::new(&ctx.repo);
         if !session.graph_ready() {
-            anyhow::bail!("Graph not found (run `rg-build discover` first)");
+            anyhow::bail!("Graph not found (run `rgctl discover` first)");
         }
         let value = rgbuilder_service::execute(
             &mut session,

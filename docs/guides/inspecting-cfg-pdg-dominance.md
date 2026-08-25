@@ -19,7 +19,7 @@ While higher-level commands like `slice` and `cpg flows` build on these structur
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` with `--with-cfg`:
 
 ```bash
-rg-build -r example/coolstore discover . --with-cfg
+rgctl -r example/coolstore discover . --with-cfg
 ```
 
 ## Step-by-Step
@@ -29,7 +29,7 @@ rg-build -r example/coolstore discover . --with-cfg
 Inspect the CFG for `priceShoppingCart`:
 
 ```bash
-rg-build -r example/coolstore -f json inspect priceShoppingCart cfg
+rgctl -r example/coolstore -f json inspect priceShoppingCart cfg
 ```
 
 **Output (truncated):**
@@ -72,7 +72,7 @@ rg-build -r example/coolstore -f json inspect priceShoppingCart cfg
 The PDG combines control and data dependencies into a single graph:
 
 ```bash
-rg-build -r example/coolstore -f json inspect priceShoppingCart pdg
+rgctl -r example/coolstore -f json inspect priceShoppingCart pdg
 ```
 
 **Output (truncated):**
@@ -109,7 +109,7 @@ rg-build -r example/coolstore -f json inspect priceShoppingCart pdg
 The dominator tree shows which basic blocks dominate (must execute before) others:
 
 ```bash
-rg-build -r example/coolstore -f json inspect priceShoppingCart dom
+rgctl -r example/coolstore -f json inspect priceShoppingCart dom
 ```
 
 **Output (truncated):**
@@ -144,7 +144,7 @@ rg-build -r example/coolstore -f json inspect priceShoppingCart dom
 Request dominance frontiers explicitly:
 
 ```bash
-rg-build -r example/coolstore -f json inspect priceShoppingCart dom --frontiers
+rgctl -r example/coolstore -f json inspect priceShoppingCart dom --frontiers
 ```
 
 Dominance frontiers identify the join points in the CFG where phi functions would be needed in SSA form.
@@ -154,7 +154,7 @@ Dominance frontiers identify the join points in the CFG where phi functions woul
 For a cleaner view, prune unreachable blocks:
 
 ```bash
-rg-build -r example/coolstore -f json inspect priceShoppingCart cfg --prune
+rgctl -r example/coolstore -f json inspect priceShoppingCart cfg --prune
 ```
 
 ### 6. PDG with Edge Layer Filtering
@@ -162,13 +162,13 @@ rg-build -r example/coolstore -f json inspect priceShoppingCart cfg --prune
 Filter PDG edges by layer:
 
 ```bash
-rg-build -r example/coolstore -f json inspect priceShoppingCart pdg --edge-layer data
+rgctl -r example/coolstore -f json inspect priceShoppingCart pdg --edge-layer data
 ```
 
 This shows only data-dependency edges, filtering out control dependencies for a cleaner view.
 
 ```bash
-rg-build -r example/coolstore -f json inspect priceShoppingCart pdg --def-use
+rgctl -r example/coolstore -f json inspect priceShoppingCart pdg --def-use
 ```
 
 The `--def-use` flag adds def-use chain information to the edges.

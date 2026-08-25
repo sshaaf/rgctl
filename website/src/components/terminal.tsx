@@ -51,7 +51,7 @@ export function TerminalBlock({
       <pre className="overflow-x-auto p-4 font-[family-name:var(--font-mono)] text-[13px] leading-relaxed text-[var(--body-strong)]">
         {lines.map((line, i) => (
           <div key={i} className="whitespace-pre-wrap">
-            {line.startsWith("$") || line.startsWith("rg-build") ? (
+            {line.startsWith("$") || line.startsWith("rgctl") ? (
               <>
                 <span className="text-[var(--mute)]">{prompt} </span>
                 <span className="text-[var(--ink)]">

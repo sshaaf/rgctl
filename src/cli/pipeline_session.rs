@@ -77,19 +77,25 @@ pub fn print_plan() {
     info!("  3. {STAGE_SEMANTIC} — semantic index (vocab embedder)");
 }
 
+/// Artifact root: daemon cache dir or the source tree when unset.
+fn artifact_store<'a>(source: &'a Path, extras: &'a FullPipelineArgs) -> &'a Path {
+    extras.artifact_root.as_deref().unwrap_or(source)
+}
+
 /// Run the staged full pipeline on `root`, holding the repo lock.
 pub fn run_full_pipeline(
     ctx: &CliContext,
     root: &str,
     extras: FullPipelineArgs,
 ) -> Result<DiscoverJsonResponse> {
-    let root_path = Path::new(root);
-    let _lock = try_acquire_lock(root_path)?;
+    let source_path = Path::new(root);
+    let store_path = artifact_store(source_path, &extras);
+    let _lock = try_acquire_lock(store_path)?;
 
-    let mut status = pipeline_status::default_status(root_path);
+    let mut status = pipeline_status::default_status(store_path);
     status.mode = Some("full".into());
     status.message = Some("Starting full pipeline".into());
-    write_status(root_path, &status)?;
+    write_status(store_path, &status)?;
 
     let human = ctx.format != OutputFormat::Json;
     if human {
@@ -97,7 +103,7 @@ pub fn run_full_pipeline(
     }
 
     let work_ctx = CliContext::new(
-        Some(root_path.to_path_buf()),
+        Some(store_path.to_path_buf()),
         None,
         ctx.format.clone(),
         None,
@@ -108,19 +114,20 @@ pub fn run_full_pipeline(
 
     // --- stage 1 ---
     let skip_basic = should_skip_basic(
-        root_path,
+        source_path,
+        store_path,
         extras.languages.as_deref(),
         extras.exclude.as_deref(),
     );
     if skip_basic {
-        pipeline_status::set_stage(root_path, STAGE_BASIC, StageStatus::Skipped)?;
+        pipeline_status::set_stage(store_path, STAGE_BASIC, StageStatus::Skipped)?;
         if human {
             info!("[✓] Initial discover process is complete (snapshot reused)");
         }
     } else {
-        pipeline_status::set_stage(root_path, STAGE_BASIC, StageStatus::Running)?;
+        pipeline_status::set_stage(store_path, STAGE_BASIC, StageStatus::Running)?;
         let force_reindex =
-            pipeline_status::read_digest_marker(root_path, MATERIALIZED_FIELDS_DIGEST_FILE)
+            pipeline_status::read_digest_marker(store_path, MATERIALIZED_FIELDS_DIGEST_FILE)
                 .is_none();
         match run_full_analysis(
             &work_ctx,
@@ -130,25 +137,25 @@ pub fn run_full_pipeline(
             Ok(outcome) => {
                 last_response = Some(outcome.response);
                 let mut st =
-                    pipeline_status::set_stage(root_path, STAGE_BASIC, StageStatus::Complete)?;
+                    pipeline_status::set_stage(store_path, STAGE_BASIC, StageStatus::Complete)?;
                 st.graph_digest = Some(outcome.graph_digest);
-                write_status(root_path, &st)?;
+                write_status(store_path, &st)?;
                 if human {
                     info!("[✓] Initial discover process is complete");
                 }
             }
             Err(err) => {
-                pipeline_status::set_stage(root_path, STAGE_BASIC, StageStatus::Failed)?;
+                pipeline_status::set_stage(store_path, STAGE_BASIC, StageStatus::Failed)?;
                 return Err(err).context("full pipeline: basic_discover");
             }
         }
     }
 
     // --- stage 2 ---
-    if should_skip_deep(root_path) {
-        pipeline_status::set_stage(root_path, STAGE_DEEP, StageStatus::Skipped)?;
+    if should_skip_deep(store_path) {
+        pipeline_status::set_stage(store_path, STAGE_DEEP, StageStatus::Skipped)?;
     } else {
-        pipeline_status::set_stage(root_path, STAGE_DEEP, StageStatus::Running)?;
+        pipeline_status::set_stage(store_path, STAGE_DEEP, StageStatus::Running)?;
         match run_full_analysis(
             &work_ctx,
             root,
@@ -157,22 +164,22 @@ pub fn run_full_pipeline(
             Ok(outcome) => {
                 last_response = Some(outcome.response);
                 let mut st =
-                    pipeline_status::set_stage(root_path, STAGE_DEEP, StageStatus::Complete)?;
+                    pipeline_status::set_stage(store_path, STAGE_DEEP, StageStatus::Complete)?;
                 st.graph_digest = Some(outcome.graph_digest);
-                write_status(root_path, &st)?;
+                write_status(store_path, &st)?;
             }
             Err(err) => {
-                pipeline_status::set_stage(root_path, STAGE_DEEP, StageStatus::Failed)?;
+                pipeline_status::set_stage(store_path, STAGE_DEEP, StageStatus::Failed)?;
                 return Err(err).context("full pipeline: deep_pass");
             }
         }
     }
 
     // --- stage 3 ---
-    if should_skip_semantic(root_path) {
-        pipeline_status::set_stage(root_path, STAGE_SEMANTIC, StageStatus::Skipped)?;
+    if should_skip_semantic(store_path) {
+        pipeline_status::set_stage(store_path, STAGE_SEMANTIC, StageStatus::Skipped)?;
     } else {
-        pipeline_status::set_stage(root_path, STAGE_SEMANTIC, StageStatus::Running)?;
+        pipeline_status::set_stage(store_path, STAGE_SEMANTIC, StageStatus::Running)?;
         match run_index_with_emit(
             &work_ctx,
             SemanticIndexArgs {
@@ -191,20 +198,20 @@ pub fn run_full_pipeline(
             false,
         ) {
             Ok(()) => {
-                pipeline_status::set_stage(root_path, STAGE_SEMANTIC, StageStatus::Complete)?;
+                pipeline_status::set_stage(store_path, STAGE_SEMANTIC, StageStatus::Complete)?;
                 if human {
                     info!("[✓] Semantic index complete");
                 }
             }
             Err(err) => {
-                pipeline_status::set_stage(root_path, STAGE_SEMANTIC, StageStatus::Failed)?;
+                pipeline_status::set_stage(store_path, STAGE_SEMANTIC, StageStatus::Failed)?;
                 return Err(err).context("full pipeline: semantic_index");
             }
         }
     }
 
-    let mut final_status = pipeline_status::read_status(root_path);
-    pipeline_status::refresh_ready_flags(&mut final_status, root_path);
+    let mut final_status = pipeline_status::read_status(store_path);
+    pipeline_status::refresh_ready_flags(&mut final_status, store_path);
     final_status.phase = Some("complete".into());
     if final_status
         .plan
@@ -215,7 +222,7 @@ pub fn run_full_pipeline(
     } else {
         final_status.message = Some("Full pipeline complete".into());
     }
-    write_status(root_path, &final_status)?;
+    write_status(store_path, &final_status)?;
 
     let mut response = last_response.unwrap_or_else(|| DiscoverJsonResponse {
         schema_version: super::discover_output::DISCOVER_SCHEMA_VERSION,
@@ -277,8 +284,8 @@ fn analysis_opts<'a>(
     }
 }
 
-fn snapshot_digest(root: &Path) -> Option<String> {
-    let path = MmappedGraphSnapshot::default_path(root);
+fn snapshot_digest(store: &Path) -> Option<String> {
+    let path = MmappedGraphSnapshot::default_path(store);
     if !path.is_file() {
         return None;
     }
@@ -286,7 +293,7 @@ fn snapshot_digest(root: &Path) -> Option<String> {
     store.content_digest().ok().map(str::to_string)
 }
 
-fn sources_unchanged(root: &Path, languages: Option<&str>, exclude: Option<&str>) -> bool {
+fn sources_unchanged(source: &Path, store: &Path, languages: Option<&str>, exclude: Option<&str>) -> bool {
     let mut discovery = DiscoveryConfig::default();
     if let Some(langs) = languages {
         discovery.languages = Some(
@@ -306,44 +313,49 @@ fn sources_unchanged(root: &Path, languages: Option<&str>, exclude: Option<&str>
     }
     let registry = LanguageRegistry::new().into();
     let discoverer = FileDiscoverer::with_config(Arc::clone(&registry), discovery);
-    let Ok(files) = discoverer.discover(root) else {
+    let Ok(files) = discoverer.discover(source) else {
         return false;
     };
-    let tracker = FileTracker::load(root).unwrap_or_else(|_| FileTracker::new(root));
+    let tracker = FileTracker::load(store).unwrap_or_else(|_| FileTracker::new(store));
     tracker
         .detect_changes(&files)
         .map(|c| c.is_empty())
         .unwrap_or(false)
 }
 
-fn should_skip_basic(root: &Path, languages: Option<&str>, exclude: Option<&str>) -> bool {
-    let Some(digest) = snapshot_digest(root) else {
+fn should_skip_basic(
+    source: &Path,
+    store: &Path,
+    languages: Option<&str>,
+    exclude: Option<&str>,
+) -> bool {
+    let Some(digest) = snapshot_digest(store) else {
         return false;
     };
-    let marker = pipeline_status::read_digest_marker(root, MATERIALIZED_FIELDS_DIGEST_FILE);
-    marker.as_deref() == Some(digest.as_str()) && sources_unchanged(root, languages, exclude)
+    let marker = pipeline_status::read_digest_marker(store, MATERIALIZED_FIELDS_DIGEST_FILE);
+    marker.as_deref() == Some(digest.as_str()) && sources_unchanged(source, store, languages, exclude)
 }
 
-fn should_skip_deep(root: &Path) -> bool {
-    let Some(digest) = snapshot_digest(root) else {
+fn should_skip_deep(store: &Path) -> bool {
+    let Some(digest) = snapshot_digest(store) else {
         return false;
     };
-    let dash = rgbuilder_graph::paths::artifact_path(root, "dashboard/index.html");
+    let dash = rgbuilder_graph::paths::artifact_path(store, "dashboard/index.html");
     if !dash.is_file() {
         return false;
     }
-    if !crate::analysis::CfgPdgArchive::default_path(root).is_file() {
+    if !crate::analysis::CfgPdgArchive::default_path(store).is_file() {
         return false;
     }
-    pipeline_status::read_digest_marker(root, HARMONIC_DIGEST_FILE).as_deref()
+    pipeline_status::read_digest_marker(store, HARMONIC_DIGEST_FILE).as_deref()
         == Some(digest.as_str())
 }
 
-fn should_skip_semantic(root: &Path) -> bool {
-    let Some(digest) = snapshot_digest(root) else {
+fn should_skip_semantic(store: &Path) -> bool {
+    let Some(digest) = snapshot_digest(store) else {
         return false;
     };
-    let Ok(Some(index)) = SemanticIndex::open_if_exists(root) else {
+    let Ok(Some(index)) = SemanticIndex::open_if_exists(store) else {
         return false;
     };
     index.graph_digest.as_deref() == Some(digest.as_str())
@@ -352,7 +364,7 @@ fn should_skip_semantic(root: &Path) -> bool {
 /// Spawn the full pipeline on a dedicated OS thread (HTTP/MCP).
 pub fn spawn_full_pipeline(root: PathBuf, verbose: bool) -> std::thread::JoinHandle<()> {
     std::thread::Builder::new()
-        .name("rg-build-pipeline".into())
+        .name("rgctl-pipeline".into())
         .spawn(move || {
             let ctx = CliContext::new(Some(root.clone()), None, OutputFormat::Json, None, verbose);
             let path = root.to_string_lossy().into_owned();

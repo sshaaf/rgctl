@@ -6,7 +6,7 @@ level: "2"
 Before editing checkout code in this example, query the graph:
 
 ```bash
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (h:Module)-[:CONTAINS*1..3]->(n) WHERE h.kind = 'heading' AND h.name LIKE 'Checkout*' RETURN h, n LIMIT 20"
 ```
 

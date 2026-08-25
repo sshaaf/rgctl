@@ -19,7 +19,7 @@ Slicing works in two directions: **backward** (what statements contributed to th
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` with `--with-cfg` to enable CFG/PDG analysis:
 
 ```bash
-rg-build -r example/coolstore discover . --with-cfg
+rgctl -r example/coolstore discover . --with-cfg
 ```
 
 The `--with-cfg` flag is required because slicing depends on the Program Dependence Graph (PDG), which is built from the control-flow graph.
@@ -31,7 +31,7 @@ The `--with-cfg` flag is required because slicing depends on the Program Depende
 Find all statements that contribute to the value of `sc` at line 68 in `ShoppingCartService.java`:
 
 ```bash
-rg-build -r example/coolstore -f json slice \
+rgctl -r example/coolstore -f json slice \
   ./src/main/java/com/redhat/coolstore/service/ShoppingCartService.java \
   --line 68 --variable sc --function priceShoppingCart --direction backward
 ```
@@ -99,7 +99,7 @@ rg-build -r example/coolstore -f json slice \
 Trace how the variable `sc` at line 68 influences later statements:
 
 ```bash
-rg-build -r example/coolstore -f json cpg flows \
+rgctl -r example/coolstore -f json cpg flows \
   ./src/main/java/com/redhat/coolstore/service/ShoppingCartService.java \
   --line 68 --variable sc --function priceShoppingCart --direction forward
 ```

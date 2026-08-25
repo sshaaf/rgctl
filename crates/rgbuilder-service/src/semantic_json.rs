@@ -39,7 +39,7 @@ pub struct SemanticBuildStatsJson {
     pub removed: usize,
 }
 
-/// Payload for `rg-build semantic query`.
+/// Payload for `rgctl semantic query`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SemanticQueryJsonResponse {
     pub schema_version: u32,
@@ -51,7 +51,7 @@ pub struct SemanticQueryJsonResponse {
     pub expansion: Option<SemanticExpansion>,
 }
 
-/// Payload for `rg-build semantic index`.
+/// Payload for `rgctl semantic index`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SemanticIndexJsonResponse {
     pub schema_version: u32,

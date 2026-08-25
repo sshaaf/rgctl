@@ -83,7 +83,7 @@ export function MutationsPanel({ index, loadError, onSelect, activeKey }: Mutati
         <div class="fw-semibold mb-1">Field mutations (CPG)</div>
         <p class="text-muted mb-0">
           No field-write index. Re-run{" "}
-          <code>rg-build discover . --with-cfg --with-dashboard</code>.
+          <code>rgctl discover . --with-cfg --with-dashboard</code>.
         </p>
       </div>
     );

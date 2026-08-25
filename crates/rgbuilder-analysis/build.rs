@@ -40,7 +40,7 @@ fn main() {
         let bytes = fs::read(&distilled_path).expect("read distilled vocab_matrix.bin");
         assert!(
             bytes.len() >= 16 && bytes.starts_with(MAGIC),
-            "assets/vocab_matrix.bin is not an RBVK blob; regenerate with `rg-build semantic distill`"
+            "assets/vocab_matrix.bin is not an RBVK blob; regenerate with `rgctl semantic distill`"
         );
         fs::write(&out_path, bytes).expect("write distilled vocab_matrix.bin");
         println!("cargo:rustc-env=RGBUILDER_VOCAB_MODEL_ID=vocab-accumulate-v2");

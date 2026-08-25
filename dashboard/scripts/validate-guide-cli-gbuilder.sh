@@ -3,7 +3,7 @@
 set -uo pipefail
 
 REPO="${RGBUILDER_DASHBOARD_GOLDEN_REPO:-/Users/sshaaf/git/java/gbuilder}"
-RB="${RGBUILDER_BIN:-/Users/sshaaf/git/rust/rgBuilder/target/release/rg-build}"
+RB="${RGBUILDER_BIN:-/Users/sshaaf/git/rust/rgBuilder/target/release/rgctl}"
 TMP="${TMPDIR:-/tmp}/rgbuilder-guide-gbuilder-$$"
 mkdir -p "$TMP"
 

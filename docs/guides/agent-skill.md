@@ -4,7 +4,7 @@
 
 The rgBuilder **agent skill** is a structured instruction set that teaches AI coding agents (Claude Code, Cursor) how to use the rgBuilder CLI to answer structural questions about a codebase. When installed into a repository, the skill gives your agent the ability to automatically map natural-language questions to the right rgBuilder commands, interpret the results, and report findings -- all without the developer needing to know the CLI syntax.
 
-The skill works by embedding a `SKILL.md` file into your project's agent skill directories (`.claude/skills/rgbuilder/` and `.cursor/skills/rgbuilder/`). This file is compiled directly into the `rg-build` binary, so installing it is a single command with no external downloads. Once installed, the agent follows a structured loop: parse the user's natural-language question, route it to the appropriate rgBuilder command, execute it, and summarize the results.
+The skill works by embedding a `SKILL.md` file into your project's agent skill directories (`.claude/skills/rgbuilder/` and `.cursor/skills/rgbuilder/`). This file is compiled directly into the `rgctl` binary, so installing it is a single command with no external downloads. Once installed, the agent follows a structured loop: parse the user's natural-language question, route it to the appropriate rgBuilder command, execute it, and summarize the results.
 
 The skill turns rgBuilder from a CLI tool into an **always-available architectural advisor** inside your editor.
 
@@ -37,7 +37,7 @@ With the skill installed, every code review conversation has access to architect
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rg-build -r example/coolstore discover . --with-cfg
+rgctl -r example/coolstore discover . --with-cfg
 ```
 
 ## Step-by-Step
@@ -47,17 +47,17 @@ rg-build -r example/coolstore discover . --with-cfg
 Install the rgBuilder agent skill into your repository:
 
 ```bash
-rg-build -r example/coolstore install --skill
+rgctl -r example/coolstore install --skill
 ```
 
 **Output:**
 
 ```
-[>] rg-build install
+[>] rgctl install
 Installed rgbuilder skill:
   created  /path/to/example/coolstore/.claude/skills/rgbuilder/SKILL.md
   created  /path/to/example/coolstore/.cursor/skills/rgbuilder/SKILL.md
-[✓] rg-build install finished in 1ms
+[✓] rgctl install finished in 1ms
 ```
 
 **What happened:**
@@ -65,14 +65,14 @@ Installed rgbuilder skill:
 - rgBuilder extracted its embedded `SKILL.md` (compiled into the binary at build time) and wrote it to two agent skill directories.
 - `.claude/skills/rgbuilder/SKILL.md` -- for Claude Code
 - `.cursor/skills/rgbuilder/SKILL.md` -- for Cursor
-- No network requests, no model downloads -- the skill content is baked into the `rg-build` binary.
+- No network requests, no model downloads -- the skill content is baked into the `rgctl` binary.
 
 ### 2. Verify with JSON Output
 
 Check the install status programmatically:
 
 ```bash
-rg-build -r example/coolstore -f json install --skill
+rgctl -r example/coolstore -f json install --skill
 ```
 
 **Output:**
@@ -111,10 +111,10 @@ If you only use one agent platform:
 
 ```bash
 # Claude Code only
-rg-build -r example/coolstore install --skill --host claude
+rgctl -r example/coolstore install --skill --host claude
 
 # Cursor only
-rg-build -r example/coolstore install --skill --host cursor
+rgctl -r example/coolstore install --skill --host cursor
 ```
 
 ### 4. Update After Upgrading rgBuilder
@@ -122,7 +122,7 @@ rg-build -r example/coolstore install --skill --host cursor
 When you upgrade rgBuilder, the embedded skill may have changed. Update it with `--force`:
 
 ```bash
-rg-build -r example/coolstore install --skill --force
+rgctl -r example/coolstore install --skill --force
 ```
 
 This overwrites any existing skill files, even if they have been modified locally.
@@ -133,7 +133,7 @@ Once installed, the agent follows a 5-step loop for every structural question:
 
 ```
 1. USER PROMPT     "What's the impact of changing priceShoppingCart?"
-2. TOOL CALL       rg-build -f json blast-radius priceShoppingCart
+2. TOOL CALL       rgctl -f json blast-radius priceShoppingCart
 3. GRAPH FACTS     Parse JSON: score 40.35, 5 callers, impact zone 7
 4. LLM REASONING   Summarize: moderate risk, spans service and REST layers
 5. ACTION          Report findings, suggest next steps
@@ -156,7 +156,7 @@ When you ask the agent: *"What happens if I change priceShoppingCart?"*
 The agent follows the skill's decision table (row 10: "Impact if I change X") and runs:
 
 ```bash
-rg-build -r example/coolstore -f json blast-radius priceShoppingCart
+rgctl -r example/coolstore -f json blast-radius priceShoppingCart
 ```
 
 **Output:**
@@ -194,7 +194,7 @@ The agent then reports:
 The agent can then trace the call neighborhood to understand what `priceShoppingCart` itself depends on:
 
 ```bash
-rg-build -r example/coolstore -f json cpg calls priceShoppingCart
+rgctl -r example/coolstore -f json cpg calls priceShoppingCart
 ```
 
 **Output (truncated):**
@@ -220,7 +220,7 @@ The agent reports: *"priceShoppingCart calls 7 functions: it initializes pricing
 Before splitting the function, check which fields it modifies:
 
 ```bash
-rg-build -r example/coolstore -f json cpg mutations \
+rgctl -r example/coolstore -f json cpg mutations \
   --type ShoppingCart --exclude-ctors
 ```
 
@@ -256,7 +256,7 @@ When you ask: *"Generate a migration plan for this codebase"*
 The agent follows the skill's decision table (row 1: "Generate a migration plan") and runs:
 
 ```bash
-rg-build -r example/coolstore discover . \
+rgctl -r example/coolstore discover . \
   --with-cfg --with-harmonic --export-migration-hints \
   --migration-preset hybrid_default --migration-order scheduled
 ```
@@ -295,14 +295,14 @@ When the user asks: *"Tell me more about the coolstore model community"*
 The agent queries community members:
 
 ```bash
-rg-build -r example/coolstore -f json gql \
+rgctl -r example/coolstore -f json gql \
   "MATCH (f:Function) WHERE f.community_id = '13' RETURN f LIMIT 20"
 ```
 
 And checks blast radius on key functions:
 
 ```bash
-rg-build -r example/coolstore blast-radius getShoppingCart --depth 3
+rgctl -r example/coolstore blast-radius getShoppingCart --depth 3
 ```
 
 ---
@@ -320,7 +320,7 @@ You are migrating `priceShoppingCart` from Java to Go (or TypeScript, Rust, Pyth
 The agent captures the function's data-flow graph, which is language-independent:
 
 ```bash
-rg-build -r example/coolstore -f json cpg flows \
+rgctl -r example/coolstore -f json cpg flows \
   ./src/main/java/com/redhat/coolstore/service/ShoppingCartService.java \
   --line 68 --variable sc --function priceShoppingCart --direction forward
 ```
@@ -344,7 +344,7 @@ rg-build -r example/coolstore -f json cpg flows \
 **Step 2: Extract the call neighborhood.**
 
 ```bash
-rg-build -r example/coolstore -f json cpg calls priceShoppingCart
+rgctl -r example/coolstore -f json cpg calls priceShoppingCart
 ```
 
 This gives the agent the complete list of outgoing calls that the new implementation must replicate.
@@ -352,7 +352,7 @@ This gives the agent the complete list of outgoing calls that the new implementa
 **Step 3: Extract field mutations.**
 
 ```bash
-rg-build -r example/coolstore -f json cpg mutations \
+rgctl -r example/coolstore -f json cpg mutations \
   --type ShoppingCart --exclude-ctors
 ```
 
@@ -361,7 +361,7 @@ This lists every field that `priceShoppingCart` writes to, which the new impleme
 **Step 4: Extract the PDG.**
 
 ```bash
-rg-build -r example/coolstore -f json cpg pdg priceShoppingCart
+rgctl -r example/coolstore -f json cpg pdg priceShoppingCart
 ```
 
 **Output (truncated):**
@@ -405,7 +405,7 @@ You need to write tests for `priceShoppingCart` and want to ensure you cover all
 **Step 1: Examine the control-flow graph.**
 
 ```bash
-rg-build -r example/coolstore -f json inspect priceShoppingCart cfg
+rgctl -r example/coolstore -f json inspect priceShoppingCart cfg
 ```
 
 **Output (truncated):**
@@ -438,7 +438,7 @@ The agent identifies all branch points:
 **Step 2: Examine data dependencies.**
 
 ```bash
-rg-build -r example/coolstore -f json inspect priceShoppingCart pdg --edge-layer data
+rgctl -r example/coolstore -f json inspect priceShoppingCart pdg --edge-layer data
 ```
 
 The agent identifies the key data flows:
@@ -448,7 +448,7 @@ The agent identifies the key data flows:
 **Step 3: Check field mutations to verify test assertions.**
 
 ```bash
-rg-build -r example/coolstore -f json cpg mutations \
+rgctl -r example/coolstore -f json cpg mutations \
   --type ShoppingCart --exclude-ctors
 ```
 
@@ -495,11 +495,11 @@ The agent handles disambiguation (e.g., adding `--class` or `--file` when a symb
 
 ## How the Skill is Distributed
 
-The skill file (`SKILL.md`) is **compiled into the `rg-build` binary** at build time using Rust's `include_dir!` macro. This means:
+The skill file (`SKILL.md`) is **compiled into the `rgctl` binary** at build time using Rust's `include_dir!` macro. This means:
 
 - No network access needed to install.
 - The skill version always matches the CLI version.
-- Upgrading `rg-build` and running `install --skill --force` updates the skill.
+- Upgrading `rgctl` and running `install --skill --force` updates the skill.
 - No dependency on the source repository being present.
 
 ## Benefits

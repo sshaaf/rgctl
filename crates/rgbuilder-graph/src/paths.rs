@@ -29,7 +29,7 @@ pub fn ensure_artifact_dir_migrated(repo_root: &Path) -> PathBuf {
 
     if neu_exists && old_exists {
         eprintln!(
-            "[rg-build] warning: both {} and {} exist; using {}",
+            "[rgctl] warning: both {} and {} exist; using {}",
             LEGACY_ARTIFACT_DIR_NAME,
             ARTIFACT_DIR_NAME,
             neu.display()
@@ -40,11 +40,11 @@ pub fn ensure_artifact_dir_migrated(repo_root: &Path) -> PathBuf {
     if !neu_exists && old_exists {
         match std::fs::rename(&old, &neu) {
             Ok(()) => {
-                eprintln!("[rg-build] migrated {} → {}", old.display(), neu.display());
+                eprintln!("[rgctl] migrated {} → {}", old.display(), neu.display());
             }
             Err(e) => {
                 eprintln!(
-                    "[rg-build] warning: could not migrate {} → {}: {e}; re-run `rg-build discover`",
+                    "[rgctl] warning: could not migrate {} → {}: {e}; re-run `rgctl discover`",
                     old.display(),
                     neu.display()
                 );

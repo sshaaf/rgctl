@@ -11,6 +11,25 @@ pub struct DaemonHome {
     root: PathBuf,
 }
 
+/// Default daemon workspace root: `$HOME` (Unix) or `%USERPROFILE%` (Windows).
+/// Daemon state is stored under `{root}/.rgbuilder/`.
+pub fn default_home_root() -> Result<PathBuf> {
+    #[cfg(windows)]
+    {
+        if let Ok(p) = std::env::var("USERPROFILE") {
+            if !p.is_empty() {
+                return Ok(PathBuf::from(p));
+            }
+        }
+    }
+    if let Ok(p) = std::env::var("HOME") {
+        if !p.is_empty() {
+            return Ok(PathBuf::from(p));
+        }
+    }
+    bail!("cannot resolve user home directory (set RGCTL_HOME or pass --daemon-home)")
+}
+
 impl DaemonHome {
     pub fn from_path(path: &Path) -> Result<Self> {
         let root = if path.is_absolute() {
@@ -33,10 +52,6 @@ impl DaemonHome {
         self.rgbuilder_dir().join(".config").join("config.toml")
     }
 
-    pub fn cache_dir(&self, cfg: &DaemonConfig) -> PathBuf {
-        self.cache_root(cfg)
-    }
-
     pub fn cache_root(&self, cfg: &DaemonConfig) -> PathBuf {
         if let Some(storage) = &cfg.storage {
             PathBuf::from(storage).join("cache")
@@ -50,7 +65,7 @@ impl DaemonHome {
     }
 
     pub fn pid_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rg_ctl.pid")
+        self.rgbuilder_dir().join("rgctl.pid")
     }
 
     pub fn pid_file(&self) -> PathBuf {
@@ -58,7 +73,7 @@ impl DaemonHome {
     }
 
     pub fn log_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rg_ctl.log")
+        self.rgbuilder_dir().join("rgctl.log")
     }
 
     pub fn log_file(&self) -> PathBuf {
@@ -66,7 +81,7 @@ impl DaemonHome {
     }
 
     pub fn lock_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rg_ctl.lock")
+        self.rgbuilder_dir().join("rgctl.lock")
     }
 
     pub fn lock_file(&self) -> PathBuf {
@@ -75,12 +90,12 @@ impl DaemonHome {
 
     #[cfg(unix)]
     pub fn control_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rg_ctl.sock")
+        self.rgbuilder_dir().join("rgctl.sock")
     }
 
     #[cfg(windows)]
     pub fn control_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rg_ctl.port")
+        self.rgbuilder_dir().join("rgctl.pipe")
     }
 
     pub fn control_file(&self) -> PathBuf {
@@ -111,10 +126,6 @@ impl DaemonHome {
             }
             Err(e) => Err(e.into()),
         }
-    }
-
-    pub fn repo_cache(&self, cfg: &DaemonConfig, name: &str) -> PathBuf {
-        self.cache_dir(cfg).join(name)
     }
 }
 
@@ -297,4 +308,23 @@ pub fn unique_reponame(cache_dir: &Path, source: &Path, base: &str) -> String {
         return format!("{base}-{:08x}", hasher.finish());
     }
     base.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_home_root_uses_home_env() {
+        let home = std::env::var("HOME").expect("HOME for test");
+        let root = default_home_root().unwrap();
+        assert_eq!(root, PathBuf::from(home));
+    }
+
+    #[test]
+    fn rgbuilder_dir_under_default_home() {
+        let home = default_home_root().unwrap();
+        let dh = DaemonHome::from_path(&home).unwrap();
+        assert_eq!(dh.rgbuilder_dir(), home.join(".rgbuilder"));
+    }
 }

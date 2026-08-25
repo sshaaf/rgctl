@@ -104,30 +104,35 @@ impl ProcessingPipeline {
     ///
     /// Spills nodes/edges to disk during extract, then externally sorts and compiles
     /// the columnar snapshot (no full `Vec<Node>` / `Vec<Edge>` residency).
+    ///
+    /// `source_root` is scanned for files; `artifact_root` receives spill/content/code
+    /// artifacts (defaults to `source_root` when unset).
     pub fn process_repository_to_snapshot(
         &self,
-        root: &Path,
+        source_root: &Path,
         snapshot_path: &Path,
+        artifact_root: Option<&Path>,
     ) -> Result<(PipelineStats, String)> {
         let start = Instant::now();
         let discoverer =
             FileDiscoverer::with_config(Arc::clone(&self.registry), self.config.discovery.clone());
-        let files = discoverer.discover(root)?;
+        let files = discoverer.discover(source_root)?;
         let files_discovered = files.len();
 
         let progress = self.make_progress(files_discovered);
         let extractor = Extractor::new(Arc::clone(&self.registry));
         let extract_start = Instant::now();
 
-        let spill_dir = root.join(".rgbuilder").join("spill");
+        let store = artifact_root.unwrap_or(source_root);
+        let spill_dir = rgbuilder_graph::paths::artifact_path(store, "spill");
         if spill_dir.exists() {
             std::fs::remove_dir_all(&spill_dir)?;
         }
         std::fs::create_dir_all(&spill_dir)?;
         let mut builder = GraphBuilder::with_spill(&spill_dir)?;
         builder.set_materialize_fields(self.config.materialize_fields);
-        builder.set_code_index(CodeIndex::load(CodeIndex::default_cache_path(root))?);
-        builder.set_content_store(ContentStore::load(ContentStore::default_path(root))?);
+        builder.set_code_index(CodeIndex::load(CodeIndex::default_cache_path(store))?);
+        builder.set_content_store(ContentStore::load(ContentStore::default_path(store))?);
 
         let progress_for_stream = progress.clone();
         let (stream_stats, tails) = stream_into_graph(

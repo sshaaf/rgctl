@@ -2,8 +2,8 @@
  * Capture dashboard screenshots for docs/design/*.md
  *
  * Prereq: indexed repo + HTTP server, e.g.
- *   rg-build -r /path/to/gbuilder discover . --all
- *   rg-build -r /path/to/gbuilder serve --port 8080
+ *   rgctl -r /path/to/gbuilder discover . --all
+ *   rgctl -r /path/to/gbuilder serve --port 8080
  *
  * Usage:
  *   DASHBOARD_URL=http://127.0.0.1:8080/ node dashboard/scripts/capture-design-screenshots.mjs

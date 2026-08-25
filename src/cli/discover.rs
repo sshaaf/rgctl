@@ -1,4 +1,4 @@
-//! `rg-build discover` — index and analyze a repository.
+//! `rgctl discover` — index and analyze a repository.
 
 use super::context::CliContext;
 use super::discover_impl::{AnalysisOptions, run_full_analysis};
@@ -40,14 +40,20 @@ pub struct DiscoverArgs {
 
 /// Resolve discover root: absolute PATH, PATH joined to `--repo`, or `--repo`/cwd.
 pub fn resolve_session_root(ctx: &CliContext, path: Option<&str>) -> String {
-    path.map(|p| {
+    let raw = path.map(|p| {
         if std::path::Path::new(p).is_absolute() {
             p.to_string()
         } else {
             ctx.repo.join(p).to_string_lossy().into_owned()
         }
     })
-    .unwrap_or_else(|| ctx.repo.to_string_lossy().into_owned())
+    .unwrap_or_else(|| ctx.repo.to_string_lossy().into_owned());
+    let p = std::path::PathBuf::from(&raw);
+    p.canonicalize()
+        .or_else(|_| std::env::current_dir().map(|cwd| cwd.join(&p)))
+        .unwrap_or(p)
+        .to_string_lossy()
+        .into_owned()
 }
 
 pub fn run(ctx: &CliContext, args: DiscoverArgs) -> Result<()> {

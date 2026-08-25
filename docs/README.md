@@ -63,6 +63,6 @@ Internals and contribution bars — not the default agent reading path.
 - [cli-output-schemas.md](cli-output-schemas.md) → [JSON API](json-api.md)  
 - [LANGUAGE_GUIDE.md](LANGUAGE_GUIDE.md) → [languages.md](languages.md)
 
-Docs match the CLI in this repository — verify with `rg-build --version`.
+Docs match the CLI in this repository — verify with `rgctl --version`.
 
 Maintainer scratch: [`internal/`](internal/) (not public).

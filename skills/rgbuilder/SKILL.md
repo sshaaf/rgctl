@@ -11,17 +11,17 @@ description: >-
 
 # rgBuilder
 
-Answer **structural** questions from a pre-built code knowledge graph instead of reading whole files into context. Prefer `rg-build -f json …` on **stdout** (parse `schema_version` + payload). Never scrape stderr for JSON. **Never use `2>/dev/null`** — it swallows rgBuilder errors (ambiguous symbols, invalid edge types) and causes downstream parse failures on empty output.
+Answer **structural** questions from a pre-built code knowledge graph instead of reading whole files into context. Prefer `rgctl -f json …` on **stdout** (parse `schema_version` + payload). Never scrape stderr for JSON. **Never use `2>/dev/null`** — it swallows rgBuilder errors (ambiguous symbols, invalid edge types) and causes downstream parse failures on empty output.
 
 Typical user turns are natural language (“Where is the checkout flow?”), not CLI strings. Map intent → command → summarize.
 
-If the host already connected **`rg-build serve --mode mcp`**, prefer MCP tools (`rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`, `rgbuilder_status`) instead of spawning `rg-build -f json` for those intents. Still spawn CLI for `discover`, `semantic index`, `cpg export`, `communities label --write`, and one-shot CI. MCP query/search default `limit` 20. Unready graph/CFG/semantic returns pipeline status JSON as the tool result.
+If the host already connected **`rgctl serve --mode mcp`**, prefer MCP tools (`rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`, `rgbuilder_status`) instead of spawning `rgctl -f json` for those intents. Still spawn CLI for `discover`, `semantic index`, `cpg export`, `communities label --write`, and one-shot CI. MCP query/search default `limit` 20. Unready graph/CFG/semantic returns pipeline status JSON as the tool result.
 
 ## Agent loop
 
 ```text
 1. USER PROMPT     → natural language (not a CLI string)
-2. TOOL CALL       → rg-build -f json <command> …  (or discover / semantic index when needed)
+2. TOOL CALL       → rgctl -f json <command> …  (or discover / semantic index when needed)
 3. GRAPH FACTS     → parse schema_version + payload from stdout (or read plan/export files)
 4. LLM REASONING   → summarize using “Agent should report” fields
 5. ACTION          → edit / plan / check — re-query if the graph may be stale
@@ -33,7 +33,7 @@ If the host already connected **`rg-build serve --mode mcp`**, prefer MCP tools 
 
 1. **Help-only** — If the user only wants help / command list / how to use this skill → print the NL table + Usage below and **stop** (no discover, no queries).
 2. **Fast path — existing index** — If `.rgbuilder/` exists (especially `graph.snapshot.bin`) **and** the request is a structural NL question (not an explicit rebuild) → **do not re-run discover**. Route via the NL table; run matching command(s) with `-f json`.
-3. **No index** — Run `rg-build discover .`. Add flags only when needed (`--with-cfg` for slice/inspect/cpg PDG; `--with-taint` / `slice --taint` for security; migration flags for migration plans; `semantic index` before semantic query).
+3. **No index** — Run `rgctl discover .`. Add flags only when needed (`--with-cfg` for slice/inspect/cpg PDG; `--with-taint` / `slice --taint` for security; migration flags for migration plans; `semantic index` before semantic query).
 4. **Natural-language routing** — Map the utterance with the table below. Do not ask the user to rephrase into CLI unless disambiguation is required (`--class` / `--file` on blast-radius).
 5. **Summarize** — Report fields under each command’s **Agent should report**. Never dump full JSON unless asked.
 6. **Stop conditions** — Pure code-edit/debug with no structural need → do not force rgBuilder. On failure, use the Failure playbook.
@@ -74,8 +74,8 @@ If the host already connected **`rg-build serve --mode mcp`**, prefer MCP tools 
 
 ```bash
 export REPO=/path/to/repo   # directory that contains or will contain .rgbuilder/
-rg-build -r "$REPO" discover .
-rg-build -r "$REPO" -f json <command> …
+rgctl -r "$REPO" discover .
+rgctl -r "$REPO" -f json <command> …
 ```
 
 Globals: `-f json` (agents), `-r` / `--repo`, `-o` file, `-d` / `--db` (custom graph cache path — rarely needed, defaults under `.rgbuilder/`). Workflow: **discover once → query many**.
@@ -103,9 +103,9 @@ Globals: `-f json` (agents), `-r` / `--repo`, `-o` file, `-d` / `--db` (custom g
 
 | Symptom | Fix |
 |---------|-----|
-| No `.rgbuilder/` / graph missing | `rg-build discover .` |
+| No `.rgbuilder/` / graph missing | `rgctl discover .` |
 | slice / inspect / cpg PDG fails | Re-discover with `--with-cfg` |
-| semantic query fails | `rg-build semantic index` (optional: `--embedder hash` or `code-daemon`) |
+| semantic query fails | `rgctl semantic index` (optional: `--embedder hash` or `code-daemon`) |
 | Ambiguous symbol | `--class` / `--file` on blast-radius; disambiguate via GQL |
 | `check` / policy exit 1 | Report violations (JSON still on stdout when applicable) |
 | `inspect` / `slice --function` confusion | `inspect` = symbol only; `slice --function` = **method** name |
@@ -121,7 +121,7 @@ Samples below are truncated. Field names match live CLI / `docs/json-api.md`. Fi
 
 ### `discover`
 
-**Command:** `rg-build [-f json] discover [PATH] [-l/--languages CSV] [-e/--exclude GLOB] [-v/--verbose] [--with-cfg] [--with-security] [--with-taint] [--with-dashboard] [--with-harmonic] [--export-migration-hints] [--with-ast-skeleton] [--with-dfg-loops] [--write-json-graph] …`
+**Command:** `rgctl [-f json] discover [PATH] [-l/--languages CSV] [-e/--exclude GLOB] [-v/--verbose] [--with-cfg] [--with-security] [--with-taint] [--with-dashboard] [--with-harmonic] [--export-migration-hints] [--with-ast-skeleton] [--with-dfg-loops] [--write-json-graph] …`
 
 **Purpose:** Index the repo once (or after large changes). Build the graph agents query.
 
@@ -152,7 +152,7 @@ Samples below are truncated. Field names match live CLI / `docs/json-api.md`. Fi
 
 ### `gql`
 
-**Command:** `rg-build -f json gql '<MATCH…>'` or `rg-build -f json gql --macro-name <NAME> unused`
+**Command:** `rgctl -f json gql '<MATCH…>'` or `rgctl -f json gql --macro-name <NAME> unused`
 
 **Purpose:** Inventory, callers/callees, communities, path/relationship queries.
 
@@ -176,13 +176,13 @@ Samples below are truncated. Field names match live CLI / `docs/json-api.md`. Fi
 
 ```bash
 # Incoming callers of X
-rg-build -f json gql "MATCH (a:Function)-[:CALLS]->(b:Function) WHERE b.name = 'checkout' RETURN a,b LIMIT 20"
+rgctl -f json gql "MATCH (a:Function)-[:CALLS]->(b:Function) WHERE b.name = 'checkout' RETURN a,b LIMIT 20"
 # Outgoing callees of X
-rg-build -f json gql "MATCH (a:Function)-[:CALLS]->(b:Function) WHERE a.name = 'checkout' RETURN a,b LIMIT 20"
+rgctl -f json gql "MATCH (a:Function)-[:CALLS]->(b:Function) WHERE a.name = 'checkout' RETURN a,b LIMIT 20"
 # Name search (prefix or suffix only — *middle* silently returns 0)
-rg-build -f json gql "MATCH (n:Function) WHERE n.name LIKE '*Service' RETURN n LIMIT 20"
+rgctl -f json gql "MATCH (n:Function) WHERE n.name LIKE '*Service' RETURN n LIMIT 20"
 # Communities macro
-rg-build -f json gql --macro-name all_communities unused
+rgctl -f json gql --macro-name all_communities unused
 ```
 
 **Pitfalls:** `--macro-name` still needs a positional query arg — pass `unused`. `--explain` plan is text-mode only. rgBuilder GQL is a **subset of Cypher** — no `COUNT`, `ORDER BY`, `GROUP BY`, or aggregation functions. CALLS edges are static — interface / dynamic dispatch (receiver methods, virtual calls, trait impls) may not appear; if a `CALLS*1..N` query returns 0 edges for a method you know is called, fall back to `grep` for call sites. If LIKE on function names returns 0 for a concept (e.g. "ingress", "gateway"), it likely lives in package/directory names, type names, or community labels — try `communities list`, `semantic query`, or broaden the LIKE to non-Function node types before concluding nothing exists.
@@ -191,7 +191,7 @@ rg-build -f json gql --macro-name all_communities unused
 
 ### `blast-radius`
 
-**Command:** `rg-build -f json blast-radius '<Symbol>' [--depth N] [--class C] [--file P] [--with-slices] [--policy-file PATH] [--no-policy]`
+**Command:** `rgctl -f json blast-radius '<Symbol>' [--depth N] [--class C] [--file P] [--with-slices] [--policy-file PATH] [--no-policy]`
 
 **Purpose:** Upstream change impact — who breaks if this symbol changes.
 
@@ -200,7 +200,7 @@ rg-build -f json gql --macro-name all_communities unused
 **Sample** (schema v2 shape; ecommerce names — field set matches live CLI):
 
 ```bash
-rg-build -f json blast-radius 'checkout' --class OrderService --depth 3
+rgctl -f json blast-radius 'checkout' --class OrderService --depth 3
 ```
 
 ```json
@@ -248,7 +248,7 @@ rg-build -f json blast-radius 'checkout' --class OrderService --depth 3
 
 ### `slice`
 
-**Command:** `rg-build -f json slice <FILE> --line N --variable V [--function METHOD] [--direction backward|forward] [--taint] [--view text|cfg|pdg]`
+**Command:** `rgctl -f json slice <FILE> --line N --variable V [--function METHOD] [--direction backward|forward] [--taint] [--view text|cfg|pdg]`
 
 **Purpose:** Line-level data dependence (what affects V / where V flows). `--taint` for source→sink security.
 
@@ -257,7 +257,7 @@ rg-build -f json blast-radius 'checkout' --class OrderService --depth 3
 **Sample** (ecommerce-java `CartService.addItem`):
 
 ```bash
-rg-build -f json slice src/main/java/com/example/ecommerce/service/CartService.java \
+rgctl -f json slice src/main/java/com/example/ecommerce/service/CartService.java \
   --line 38 --variable cart --function addItem --direction backward
 ```
 
@@ -287,7 +287,7 @@ rg-build -f json slice src/main/java/com/example/ecommerce/service/CartService.j
 
 ### `inspect`
 
-**Command:** `rg-build -f json inspect <SYMBOL> cfg [--prune] | pdg [--edge-layer all|data|control] [--def-use] | dom [--frontiers]`
+**Command:** `rgctl -f json inspect <SYMBOL> cfg [--prune] | pdg [--edge-layer all|data|control] [--def-use] | dom [--frontiers]`
 
 **Purpose:** Raw CFG / PDG / dominator view for one function.
 
@@ -335,7 +335,7 @@ There are **no** `nodes_count` / `edges_count` fields — use `len(nodes)` / `le
 
 ### `metrics`
 
-**Command:** `rg-build -f json metrics [--pagerank] [--betweenness] [--communities] [--iterations N]`
+**Command:** `rgctl -f json metrics [--pagerank] [--betweenness] [--communities] [--iterations N]`
 
 **Purpose:** Hotspots (PageRank), bridges (betweenness), community stats.
 
@@ -359,9 +359,9 @@ There are **no** `nodes_count` / `edges_count` fields — use `len(nodes)` / `le
 
 ```bash
 # For Function nodes (cheap, O(1)):
-rg-build -f json cpg function '<uuid>'
+rgctl -f json cpg function '<uuid>'
 # For any node type (heavier but always works):
-rg-build -f json blast-radius '<uuid>'
+rgctl -f json blast-radius '<uuid>'
 ```
 
 Loop over `top[]` UUIDs and resolve each. GQL `WHERE n.id = '<uuid>'` does **not** work (node id is not a queryable property).
@@ -373,10 +373,10 @@ Loop over `top[]` UUIDs and resolve each. GQL `WHERE n.id = '<uuid>'` does **not
 **Command:**
 
 ```bash
-rg-build semantic index [--embedder vocab|hash|onnx|code-daemon] [--embed-bodies] [--model PATH] [--tokenizer PATH] \
+rgctl semantic index [--embedder vocab|hash|onnx|code-daemon] [--embed-bodies] [--model PATH] [--tokenizer PATH] \
   [--dimensions N] [--incremental] [--diffuse] [--diffuse-alpha F] [--diffuse-iters N] [--diffuse-bidirectional]
-rg-build semantic distill --matrix PATH [--embedder code-daemon|hash|onnx] [--tokens PATH] [--dimensions N]
-rg-build -f json semantic query "…" [--limit N] [--scope function|community] \
+rgctl semantic distill --matrix PATH [--embedder code-daemon|hash|onnx] [--tokens PATH] [--dimensions N]
+rgctl -f json semantic query "…" [--limit N] [--scope function|community] \
   [--expand neighbors|blast|gql|all] [--expand-depth N] [--no-fusion] [--candidate-pool N] [--keyword-and]
 ```
 
@@ -418,7 +418,7 @@ rg-build -f json semantic query "…" [--limit N] [--scope function|community] \
 
 ### `communities`
 
-**Command:** `rg-build -f json communities list` | `rg-build communities label [--write]`
+**Command:** `rgctl -f json communities list` | `rgctl communities label [--write]`
 
 **Purpose:** Named community overlay (subsystems). `label` recomputes heuristic labels (e.g. after renames shift what a cluster "is about") and persists them into `analysis_results.bin` (`--write` defaults to `true`; response's `written` field confirms).
 
@@ -441,7 +441,7 @@ rg-build -f json semantic query "…" [--limit N] [--scope function|community] \
 
 ### `cpg`
 
-**Command:** `rg-build -f json cpg <subcommand> …`
+**Command:** `rgctl -f json cpg <subcommand> …`
 
 **Purpose:** Hybrid CPG façade (repo topology + CFG/PDG archive).
 
@@ -450,7 +450,7 @@ rg-build -f json semantic query "…" [--limit N] [--scope function|community] \
 #### `cpg status`
 
 ```bash
-rg-build -f json cpg status
+rgctl -f json cpg status
 ```
 
 **Purpose:** Is the L_proc / CFG–PDG archive ready?
@@ -460,8 +460,8 @@ rg-build -f json cpg status
 #### `cpg function` / `cpg calls`
 
 ```bash
-rg-build -f json cpg function '<Symbol>'
-rg-build -f json cpg calls '<Symbol>'
+rgctl -f json cpg function '<Symbol>'
+rgctl -f json cpg calls '<Symbol>'
 ```
 
 **Purpose:** Resolve a function in L_repo and whether L_proc exists; CALL neighborhood.
@@ -471,9 +471,9 @@ rg-build -f json cpg calls '<Symbol>'
 #### `cpg pdg` / `cpg slice` / `cpg flows`
 
 ```bash
-rg-build -f json cpg pdg '<Symbol>' [--edge-layer all|data|control] [--def-use]
-rg-build -f json cpg slice …   # wraps slice; see slice flags
-rg-build -f json cpg flows FILE --line N --variable V --function F \
+rgctl -f json cpg pdg '<Symbol>' [--edge-layer all|data|control] [--def-use]
+rgctl -f json cpg slice …   # wraps slice; see slice flags
+rgctl -f json cpg flows FILE --line N --variable V --function F \
   [--direction forward|backward] [--with-alias]
 ```
 
@@ -486,7 +486,7 @@ rg-build -f json cpg flows FILE --line N --variable V --function F \
 #### `cpg mutations`
 
 ```bash
-rg-build -f json cpg mutations --type ShoppingCart [--exclude-ctors] [--member fieldName] [--include-unresolved]
+rgctl -f json cpg mutations --type ShoppingCart [--exclude-ctors] [--member fieldName] [--include-unresolved]
 ```
 
 **Purpose:** Field mutations on a type (cart / DTO safety).
@@ -500,7 +500,7 @@ rg-build -f json cpg mutations --type ShoppingCart [--exclude-ctors] [--member f
 #### `cpg ast`
 
 ```bash
-rg-build -f json cpg ast '<Symbol>'
+rgctl -f json cpg ast '<Symbol>'
 ```
 
 **Purpose:** Coarse AST skeleton for a function.
@@ -512,7 +512,7 @@ rg-build -f json cpg ast '<Symbol>'
 #### `cpg export`
 
 ```bash
-rg-build cpg export --format graphson --output cpg.json [--path-contains src/] \
+rgctl cpg export --format graphson --output cpg.json [--path-contains src/] \
   [--include-l-proc] [--include-field-writes]
 ```
 
@@ -526,7 +526,7 @@ rg-build cpg export --format graphson --output cpg.json [--path-contains src/] \
 
 ### `check`
 
-**Command:** `rg-build -f json check --policy-file policy.json`
+**Command:** `rgctl -f json check --policy-file policy.json`
 
 **Purpose:** CI gate — fail when blast-radius policy rules are violated.
 
@@ -549,7 +549,7 @@ rg-build cpg export --format graphson --output cpg.json [--path-contains src/] \
 
 ### `export`
 
-**Command:** `rg-build export --export-format mermaid|graphviz|… --export-output OUT [--query FILTER]`
+**Command:** `rgctl export --export-format mermaid|graphviz|… --export-output OUT [--query FILTER]`
 
 **Purpose:** Export graph / neighborhood diagrams.
 
@@ -561,13 +561,13 @@ rg-build cpg export --format graphson --output cpg.json [--path-contains src/] \
 
 ### `serve`
 
-**Command:** `rg-build serve [--open] [--host H] [--port N] [--dashboard-dir DIR] [--query-only|--dashboard-only]`
+**Command:** `rgctl serve [--open] [--host H] [--port N] [--dashboard-dir DIR] [--query-only|--dashboard-only]`
 
 **Purpose:** HTTP dashboard + `POST /api/query` (and semantic routes). Preferred for many interactive queries.
 
 **Prerequisites:** `discover` (dashboard bundle with `--with-dashboard` for full UI).
 
-**Legacy daemon mode:** `rg-build serve --daemon [--socket PATH] [--idle-secs N]` — Unix-socket (or Windows port-file) blast-radius-only daemon; conflicts with all HTTP flags (`--host`/`--port`/`--open`/`--query-only`/`--dashboard-only`/`--dashboard-dir`). `--idle-secs` (default 300) auto-exits after inactivity.
+**Legacy daemon mode:** `rgctl serve --daemon [--socket PATH] [--idle-secs N]` — Unix-socket (or Windows port-file) blast-radius-only daemon; conflicts with all HTTP flags (`--host`/`--port`/`--open`/`--query-only`/`--dashboard-only`/`--dashboard-dir`). `--idle-secs` (default 300) auto-exits after inactivity.
 
 **Pitfalls:** `serve --daemon` is the **legacy** Unix-socket blast-radius daemon — prefer HTTP `serve`. Only use `--daemon` if the user explicitly asks for the old socket.
 
@@ -584,7 +584,7 @@ Run the commands as shown; parse encyclopedia sample shapes. Summarize — don�
 **1. Migration plan** — *“Generate a complete migration plan…”*
 
 ```bash
-rg-build discover . --with-cfg --with-security --with-taint \
+rgctl discover . --with-cfg --with-security --with-taint \
   --with-dashboard --with-harmonic --export-migration-hints \
   --migration-preset hybrid_default --migration-order scheduled
 # read .rgbuilder/migration_plan.json (and/or dashboard Migration tab via serve --open)
@@ -595,7 +595,7 @@ Discover stdout (`-f json`) is **telemetry** — not the plan body. Report path 
 **2. Hotspots** — *“Which core functions are bottlenecks / central dependencies?”*
 
 ```bash
-rg-build -f json metrics --pagerank
+rgctl -f json metrics --pagerank
 ```
 
 Report `.pagerank.top` nodes + why they are risky to change.
@@ -603,7 +603,7 @@ Report `.pagerank.top` nodes + why they are risky to change.
 **3. Function inventory** — *“Give me an inventory of functions … candidates to delete or shrink.”*
 
 ```bash
-rg-build -f json gql --macro-name all_functions unused
+rgctl -f json gql --macro-name all_functions unused
 ```
 
 `all_functions` → full inventory (`count` + `rows`). `unused` is a **placeholder**. Cross-check with blast-radius / CALL queries before deletes.
@@ -611,8 +611,8 @@ rg-build -f json gql --macro-name all_functions unused
 **4. Named communities** — *“What architectural communities / packages does the graph see?”*
 
 ```bash
-rg-build -f json gql --macro-name all_communities unused
-# prefer for labels + modularity: rg-build -f json communities list
+rgctl -f json gql --macro-name all_communities unused
+# prefer for labels + modularity: rgctl -f json communities list
 ```
 
 Lists communities — **not** “orphaned modules.” Inspect members and call edges before proposing a prune.
@@ -620,7 +620,7 @@ Lists communities — **not** “orphaned modules.” Inspect members and call e
 **5. CPG export** — *“Export … GraphSON … archive the baseline…”*
 
 ```bash
-rg-build cpg export --format graphson --output cpg.json --path-contains src/
+rgctl cpg export --format graphson --output cpg.json --path-contains src/
 ```
 
 Writes a **file**; success is typically a text summary. Needs prior `discover --with-cfg` for a useful L_proc-rich export.
@@ -630,8 +630,8 @@ Writes a **file**; success is typically a text summary. Needs prior `discover --
 **6. NL function search** — *“Where is the code that handles our checkout flow?”*
 
 ```bash
-rg-build semantic index                    # opt-in; default vocab. extras: --embedder code-daemon|hash
-rg-build -f json semantic query "checkout flow" --limit 10
+rgctl semantic index                    # opt-in; default vocab. extras: --embedder code-daemon|hash
+rgctl -f json semantic query "checkout flow" --limit 10
 ```
 
 Report top `hits[]` (`name`, `score`, `file_path`).
@@ -639,7 +639,7 @@ Report top `hits[]` (`name`, `score`, `file_path`).
 **7. Community semantic** — *“Which architectural subsystem owns checkout?”*
 
 ```bash
-rg-build -f json semantic query "checkout" --scope community --limit 10
+rgctl -f json semantic query "checkout" --scope community --limit 10
 ```
 
 Hits are pooled **community** results (same `hits[]` contract).
@@ -647,7 +647,7 @@ Hits are pooled **community** results (same `hits[]` contract).
 **8. Pattern search** — *“Find all Service classes … naming consistency.”*
 
 ```bash
-rg-build -f json gql "MATCH (n:Function) WHERE n.name LIKE '*Service' RETURN n LIMIT 20"
+rgctl -f json gql "MATCH (n:Function) WHERE n.name LIKE '*Service' RETURN n LIMIT 20"
 ```
 
 Suffix-only — `*middle*` silently returns 0. For contains-style search, use `semantic query "Service"` instead. Graph names are often bare method names; see LIKE limitations in GQL quick reference.
@@ -655,7 +655,7 @@ Suffix-only — `*middle*` silently returns 0. For contains-style search, use `s
 **9. Community members** — *“List all the functions inside Community 12…”*
 
 ```bash
-rg-build -f json gql "MATCH (f:Function) WHERE f.community_id = '12' RETURN f LIMIT 20"
+rgctl -f json gql "MATCH (f:Function) WHERE f.community_id = '12' RETURN f LIMIT 20"
 ```
 
 #### Flow 3 — Pre-refactor safety (`updateQuantity`)
@@ -663,7 +663,7 @@ rg-build -f json gql "MATCH (f:Function) WHERE f.community_id = '12' RETURN f LI
 **10. Blast radius** — *“What's the impact if I change the signature of `updateQuantity`?”*
 
 ```bash
-rg-build -f json blast-radius updateQuantity --depth 2
+rgctl -f json blast-radius updateQuantity --depth 2
 ```
 
 Report `metrics.score`, `topology.direct_callers`, impact size. Add `--class` / `--file` if ambiguous.
@@ -671,15 +671,15 @@ Report `metrics.score`, `topology.direct_callers`, impact size. Add `--class` / 
 **11. Call neighborhood** — *“Show me the call stack surrounding `updateQuantity` up to 3 hops.”*
 
 ```bash
-rg-build -f json gql "MATCH (a:Function)-[:CALLS*1..3]->(b:Function)
+rgctl -f json gql "MATCH (a:Function)-[:CALLS*1..3]->(b:Function)
   WHERE a.name = 'updateQuantity' RETURN a,b LIMIT 50"
 ```
 
 **12. AST skeleton** — *“Inspect the AST skeleton of `updateQuantity` to check its structure.”*
 
 ```bash
-rg-build discover . --with-ast-skeleton
-rg-build -f json cpg ast updateQuantity
+rgctl discover . --with-ast-skeleton
+rgctl -f json cpg ast updateQuantity
 ```
 
 Coarse skeleton (`kind`, lines, `label`) — **not** a typed signature API (`params` / `return_type` are not emitted).
@@ -687,8 +687,8 @@ Coarse skeleton (`kind`, lines, `label`) — **not** a typed signature API (`par
 **13. Status + line slice** — *“Confirm the CFG archive is ready, then slice how `quantity` is used in `updateQuantity`.”*
 
 ```bash
-rg-build -f json cpg status
-rg-build -f json cpg slice src/cart/CartService.ts \
+rgctl -f json cpg status
+rgctl -f json cpg slice src/cart/CartService.ts \
   --line 50 --variable quantity --function updateQuantity --view pdg
 ```
 
@@ -697,21 +697,21 @@ rg-build -f json cpg slice src/cart/CartService.ts \
 **14. Field mutations** — *“Check where `ShoppingCart` object fields are mutated…”*
 
 ```bash
-rg-build -f json cpg mutations --type ShoppingCart --exclude-ctors
+rgctl -f json cpg mutations --type ShoppingCart --exclude-ctors
 ```
 
 **15. Data flows** — *“Trace how the `quantity` variable flows … into database queries.”*
 
 ```bash
-rg-build -f json cpg flows src/cart/CartService.ts \
+rgctl -f json cpg flows src/cart/CartService.ts \
   --line 50 --variable quantity --function updateQuantity --direction forward
 ```
 
 **16. Loop-carried DFG** — *“Check … loop-carried dependencies that prevent parallelization.”*
 
 ```bash
-rg-build discover . --with-cfg --with-dfg-loops
-rg-build -f json inspect BatchProcessor.process pdg --edge-layer data
+rgctl discover . --with-cfg --with-dfg-loops
+rgctl -f json inspect BatchProcessor.process pdg --edge-layer data
 ```
 
 `--with-dfg-loops` **tags** edges during discover — it does not print a dedicated loop-hazard array. Look for `loop_carried` on PDG data deps.
@@ -721,7 +721,7 @@ rg-build -f json inspect BatchProcessor.process pdg --edge-layer data
 **17. Policy check** — *“Validate … against project policies before committing.”*
 
 ```bash
-rg-build -f json check --policy-file policy.json
+rgctl -f json check --policy-file policy.json
 ```
 
 Blast-radius policy schema (`max_impact_nodes`, `forbidden_crossings`, …) — see [docs/policy-format.md](../../docs/policy-format.md). Named rules like `no-controller-direct-db-access` are **not** built-in ids. Report `passed` + `violations`.
@@ -752,7 +752,7 @@ Blast-radius policy schema (`max_impact_nodes`, `forbidden_crossings`, …) — 
 Migration-oriented discover (heavy):
 
 ```bash
-rg-build discover . --with-cfg --with-security --with-taint \
+rgctl discover . --with-cfg --with-security --with-taint \
   --with-dashboard --with-harmonic --export-migration-hints \
   --migration-preset foundational_first --migration-order scheduled
 # then read .rgbuilder/migration_plan.json (or dashboard copy)
@@ -792,7 +792,7 @@ Always pass a positional query string with `--macro-name` (use `unused` if unuse
 **HTTP session** — for many queries in one task:
 
 ```bash
-rg-build -r "$REPO" serve --open
+rgctl -r "$REPO" serve --open
 # POST http://127.0.0.1:8080/api/query
 # {"query":"MATCH (n:Function) RETURN n LIMIT 5"}
 ```
@@ -810,4 +810,4 @@ See [docs/http-api.md](../../docs/http-api.md). Prefer this over `serve --daemon
 - HTTP API: [docs/http-api.md](../../docs/http-api.md)
 - Policy format: [docs/policy-format.md](../../docs/policy-format.md)
 
-**Other repos / OpenCode:** run `rg-build install --skill` in the target repo (or `rg-build -r /path/to/repo install --skill`). That writes `.claude/skills/rgbuilder/` and `.cursor/skills/rgbuilder/` from the skill embedded in the binary. Manual copy or symlink of this `skills/rgbuilder` directory remains a fallback if you have a git checkout.
+**Other repos / OpenCode:** run `rgctl install --skill` in the target repo (or `rgctl -r /path/to/repo install --skill`). That writes `.claude/skills/rgbuilder/` and `.cursor/skills/rgbuilder/` from the skill embedded in the binary. Manual copy or symlink of this `skills/rgbuilder` directory remains a fallback if you have a git checkout.

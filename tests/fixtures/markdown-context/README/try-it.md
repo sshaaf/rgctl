@@ -3,11 +3,11 @@ qualified_name: "/Users/sraghuna/local_dev/petprojects/rBuilder/tests/fixtures/m
 level: "2"
 ---
 
-From the rgBuilder repo root (build the CLI first: `cargo build --bin rg-build`):
+From the rgBuilder repo root (build the CLI first: `cargo build --bin rgctl`):
 
 ```bash
 export REPO="$(pwd)/tests/fixtures/markdown-context"
-RGB="$(pwd)/target/debug/rg-build"
+RGB="$(pwd)/target/debug/rgctl"
 
 # Docs only (Phase 2a)
 "$RGB" -r "$REPO" discover . -l markdown

@@ -1,4 +1,4 @@
-//! `rg-build install --skill` — copy the bundled agent skill into a repo.
+//! `rgctl install --skill` — copy the bundled agent skill into a repo.
 
 use super::args::{OutputFormat, SkillHost};
 use super::context::CliContext;
@@ -22,7 +22,7 @@ pub struct InstallArgs {
 
 pub fn run(ctx: &CliContext, args: InstallArgs) -> Result<()> {
     if !args.skill {
-        bail!("pass --skill to install the rgBuilder agent skill (see `rg-build install --help`)");
+        bail!("pass --skill to install the rgBuilder agent skill (see `rgctl install --help`)");
     }
 
     let repo = abs_path(&ctx.repo);

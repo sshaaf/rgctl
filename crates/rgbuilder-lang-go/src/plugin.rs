@@ -1376,7 +1376,7 @@ mod cri_promote {
     #[test]
     fn runtime_service_promotes_runpodsandbox() {
         let path = Path::new(
-            "/Users/sshaaf/git/rust/rg-build/example/kubernetes/staging/src/k8s.io/cri-api/pkg/apis/services.go",
+            "/Users/sshaaf/git/rust/rgctl/example/kubernetes/staging/src/k8s.io/cri-api/pkg/apis/services.go",
         );
         let src = std::fs::read(path).unwrap();
         let plugin = GoPlugin::new().unwrap();

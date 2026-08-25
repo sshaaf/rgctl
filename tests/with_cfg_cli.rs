@@ -26,7 +26,7 @@ fn run_discover(repo: &Path, extra: &[&str]) -> std::process::Output {
         "java,rust",
     ]);
     cmd.args(extra);
-    cmd.output().expect("spawn rg-build discover")
+    cmd.output().expect("spawn rgctl discover")
 }
 
 fn assert_ok(output: &std::process::Output, label: &str) {

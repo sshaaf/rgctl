@@ -1,4 +1,4 @@
-//! HTTP server for the analysis dashboard and GQL query API (`rg-build serve`).
+//! HTTP server for the analysis dashboard and GQL query API (`rgctl serve`).
 
 use super::context::CliContext;
 use super::discover::resolve_session_root;
@@ -129,7 +129,7 @@ pub fn serve(ctx: &CliContext, args: HttpServeArgs) -> Result<()> {
         let index = dashboard_dir.join("index.html");
         if !index.is_file() {
             bail!(
-                "dashboard not found at {} (run `rg-build discover` first)",
+                "dashboard not found at {} (run `rgctl discover` first)",
                 dashboard_dir.display()
             );
         }
@@ -141,7 +141,7 @@ pub fn serve(ctx: &CliContext, args: HttpServeArgs) -> Result<()> {
         let community = super::gql::load_community_context(&session_ctx, graph.backend());
         (Some(graph), community)
     } else if args.no_pipeline {
-        bail!("load graph for query API (run `rg-build discover` first)");
+        bail!("load graph for query API (run `rgctl discover` first)");
     } else {
         (None, None)
     };
@@ -210,7 +210,7 @@ pub(crate) fn router_for_state(
     query_only: bool,
     dashboard_only: bool,
 ) -> Router {
-    let mut app = Router::new()
+    let app = Router::new()
         .route("/health", get(health))
         .route("/api/health", get(health));
     let mut rest = Router::new().route("/api/status", get(api_pipeline_status));
@@ -287,7 +287,7 @@ async fn run_server(ctx: &CliContext, args: HttpServeArgs, state: Arc<AppState>)
         eprintln!("[✓] Pipeline status: http://{bound}/api/status");
         eprintln!("[i] Press Ctrl+C to stop");
     } else {
-        eprintln!("rg-build HTTP server listening on http://{bound}");
+        eprintln!("rgctl HTTP server listening on http://{bound}");
     }
 
     let public_url = format!("http://{bound}/");
@@ -468,7 +468,7 @@ async fn api_semantic_query(
         guard.clone().ok_or_else(|| {
             (
                 StatusCode::SERVICE_UNAVAILABLE,
-                "semantic index not available — wait for the full pipeline or run `rg-build semantic index`".into(),
+                "semantic index not available — wait for the full pipeline or run `rgctl semantic index`".into(),
             )
         })?
     };

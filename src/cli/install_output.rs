@@ -1,4 +1,4 @@
-//! Structured `rg-build install` JSON response.
+//! Structured `rgctl install` JSON response.
 
 use serde::{Deserialize, Serialize};
 

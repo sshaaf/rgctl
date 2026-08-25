@@ -34,7 +34,7 @@ const guides = [
   },
   {
     title: "Agent skill",
-    blurb: "rg-build install --skill for Claude Code and Cursor.",
+    blurb: "rgctl install --skill for Claude Code and Cursor.",
     href: "/docs/guides/agent-skill/",
   },
   {

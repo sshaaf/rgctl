@@ -56,7 +56,7 @@ export function GuideView() {
         <div class="card-body small text-muted">
           <span class="fw-semibold text-body">Further reading: </span>
           <code>docs/user-guide.md</code>, <code>docs/json-api.md</code>,{" "}
-          <code>AGENTS.md</code> (CLI is <code>rg-build</code>)
+          <code>AGENTS.md</code> (CLI is <code>rgctl</code>)
         </div>
       </section>
     </div>

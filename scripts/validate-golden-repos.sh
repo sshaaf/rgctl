@@ -19,6 +19,20 @@ DASHBOARD_URL="http://127.0.0.1:${SERVE_PORT}/"
 
 log() { echo "[validate-golden-repos] $*"; }
 
+resolve_rgctl() {
+  if [[ -n "${RGBUILDER_RGCTL:-}" && -x "${RGBUILDER_RGCTL}" ]]; then
+    printf '%s' "${RGBUILDER_RGCTL}"
+    return
+  fi
+  if command -v rgctl >/dev/null 2>&1; then
+    command -v rgctl
+    return
+  fi
+  printf '%s' "$ROOT/target/release/rgctl"
+}
+
+RGCTL="$(resolve_rgctl)"
+
 require_dir() {
   if [[ ! -d "$1" ]]; then
     log "skip: repo not found at $1"
@@ -33,9 +47,9 @@ run_discover_all() {
   log "discover --with-cfg --with-security --with-taint in $repo"
   local start=$SECONDS
   if [[ -n "$langs" ]]; then
-    "$ROOT/target/release/rg-build" -r "$repo" discover . --with-cfg --with-security --with-taint --languages "$langs"
+    "$RGCTL" -r "$repo" discover . --with-cfg --with-security --with-taint --languages "$langs"
   else
-    "$ROOT/target/release/rg-build" -r "$repo" discover . --with-cfg --with-security --with-taint
+    "$RGCTL" -r "$repo" discover . --with-cfg --with-security --with-taint
   fi
   local elapsed=$((SECONDS - start))
   echo "$elapsed"
@@ -55,8 +69,11 @@ else
   log "no build-dashboard.sh — assuming dashboard/dist already embedded"
 fi
 
-log "Building release rg-build..."
-cargo build --release
+log "Building release rgctl (if needed)..."
+if [[ "$RGCTL" != "$ROOT/target/release/rgctl" ]] || [[ ! -x "$RGCTL" ]]; then
+  cargo build --release
+  RGCTL="$(resolve_rgctl)"
+fi
 
 GBUILDER_DISCOVER_S=""
 METASFRESH_DISCOVER_S=""
@@ -77,8 +94,8 @@ if [[ ! -d "$serve_repo/.rgbuilder/dashboard" && -d "$METASFRESH/.rgbuilder/dash
 fi
 
 if [[ -d "$serve_repo/.rgbuilder/dashboard" ]]; then
-  log "Starting rg-build serve on port ${SERVE_PORT} for ${serve_repo}"
-  "$ROOT/target/release/rg-build" -r "$serve_repo" serve --port "$SERVE_PORT" &
+  log "Starting rgctl serve on port ${SERVE_PORT} for ${serve_repo}"
+  "$RGCTL" -r "$serve_repo" serve --port "$SERVE_PORT" &
   SERVE_PID=$!
   cleanup() { kill "$SERVE_PID" 2>/dev/null || true; }
   trap cleanup EXIT

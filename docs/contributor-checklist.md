@@ -130,7 +130,7 @@ Map **what you touched** → **tests to run**. Design detail lives in [design/RE
 | CI policy `check` | subprocess golden paths · `graph_projections` | [ci-policy-checks-design.md](design/ci-policy-checks-design.md) |
 | HTTP `serve` | `cargo test --test http_serve` | [http-api.md](http-api.md) |
 | Dashboard export / UI | `cargo test dashboard_harness` · `./scripts/test-dashboard-golden.sh` | [dashboard-design.md](dashboard-design.md) |
-| User-guide scenarios | `python3 scripts/user-guide-scenarios.py --check` (needs release `rg-build`) | [user-guide.md](user-guide.md) |
+| User-guide scenarios | `python3 scripts/user-guide-scenarios.py --check` (needs release `rgctl`) | [user-guide.md](user-guide.md) |
 | Core integration | `cargo test --test integration_core_features` · `bundles` | Edge extraction + persistence |
 
 ### Dashboard PR checklist
@@ -157,7 +157,7 @@ cargo clippy -p rgbuilder-graph -p rgbuilder-core -- -D warnings
 cargo test --workspace --lib --bins --tests
 
 cargo build --release -p rgbuilder
-CARGO_BIN_EXE_rg_build="$PWD/target/release/rg-build" \
+CARGO_BIN_EXE_rgctl="$PWD/target/release/rgctl" \
   python3 scripts/user-guide-scenarios.py --check
 
 cargo test --test map_collision_qe

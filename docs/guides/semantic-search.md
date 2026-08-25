@@ -19,7 +19,7 @@ Semantic search is built on a separate opt-in index (`semantic_index.bin`) that 
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rg-build -r example/coolstore discover .
+rgctl -r example/coolstore discover .
 ```
 
 ## Step-by-Step
@@ -29,7 +29,7 @@ rg-build -r example/coolstore discover .
 Semantic search requires a separate indexing step. Run `semantic index` after `discover`:
 
 ```bash
-rg-build -r example/coolstore semantic index
+rgctl -r example/coolstore semantic index
 ```
 
 **Output:**
@@ -50,7 +50,7 @@ Indexed 7526 functions (vocab-accumulate-v2, 256 dims) → example/coolstore/.rg
 Search for functions related to "shopping cart checkout":
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "shopping cart checkout" --limit 5
+rgctl -r example/coolstore -f json semantic query "shopping cart checkout" --limit 5
 ```
 
 **Output:**
@@ -88,7 +88,7 @@ rg-build -r example/coolstore -f json semantic query "shopping cart checkout" --
 Disable fusion to use pure keyword matching:
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "checkout" \
+rgctl -r example/coolstore -f json semantic query "checkout" \
   --limit 5 --no-fusion
 ```
 
@@ -97,7 +97,7 @@ rg-build -r example/coolstore -f json semantic query "checkout" \
 For more thorough searches, increase the candidate pool that the fusion step considers:
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "order processing" \
+rgctl -r example/coolstore -f json semantic query "order processing" \
   --limit 10 --candidate-pool 200
 ```
 
@@ -106,7 +106,7 @@ rg-build -r example/coolstore -f json semantic query "order processing" \
 Search within a specific scope. Community-scoped search finds entire communities relevant to your query:
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "checkout" \
+rgctl -r example/coolstore -f json semantic query "checkout" \
   --scope community --limit 10
 ```
 
@@ -115,13 +115,13 @@ rg-build -r example/coolstore -f json semantic query "checkout" \
 To search documentation sections instead of code functions, first index with the `docs` scope:
 
 ```bash
-rg-build -r example/coolstore semantic index --scope docs --embedder hash
+rgctl -r example/coolstore semantic index --scope docs --embedder hash
 ```
 
 Then query:
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "deployment instructions" \
+rgctl -r example/coolstore -f json semantic query "deployment instructions" \
   --scope docs --limit 5
 ```
 

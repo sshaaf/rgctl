@@ -16,10 +16,10 @@ fn fixture_root() -> PathBuf {
 }
 
 fn rgbuilder_bin() -> PathBuf {
-    option_env!("CARGO_BIN_EXE_rg_ctl")
+    option_env!("CARGO_BIN_EXE_rgctl")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg_ctl")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rgctl")
         })
 }
 
@@ -56,7 +56,7 @@ impl Sandbox {
         let mut cmd = Command::new(rgbuilder_bin());
         cmd.arg("-r").arg(&self.repo);
         cmd.args(args);
-        cmd.output().expect("spawn rg-build")
+        cmd.output().expect("spawn rgctl")
     }
 
     fn parse_stdout_json(&self, output: &Output) -> Value {

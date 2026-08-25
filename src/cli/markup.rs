@@ -3,7 +3,7 @@
 use std::path::Path;
 
 const MARKUP_CFG_HINT: &str = "Markdown context files (.md/.mdx) are indexed for GQL only (headings, links). \
-Use `rg-build -f json gql` with `n.kind = 'heading'` — see docs/markdown-context.md.";
+Use `rgctl -f json gql` with `n.kind = 'heading'` — see docs/markdown-context.md.";
 
 /// True when the path is handled by `rgbuilder-lang-markdown` (not CFG-capable).
 pub fn is_markup_context_path(path: &Path) -> bool {

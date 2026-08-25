@@ -34,14 +34,14 @@ export default function InstallPage() {
           >
             Releases
           </a>
-          , put <code className="font-mono text-[var(--body-strong)]">rg-build</code>{" "}
+          , put <code className="font-mono text-[var(--body-strong)]">rgctl</code>{" "}
           on your <code className="font-mono">PATH</code>, then install the agent
           skill into the repo you will index:
         </p>
         <TerminalBlock
           lines={[
-            "rg-build --version",
-            "rg-build install --skill",
+            "rgctl --version",
+            "rgctl install --skill",
           ]}
         />
         <p className="text-sm text-[var(--mute)]">
@@ -68,8 +68,8 @@ export default function InstallPage() {
             "cd rgBuilder",
             "# Optional: only if you use `semantic index --embedder code-daemon` (~206 MB)",
             "git lfs pull",
-            "cargo build --release",
-            "./target/release/rg-build --version",
+            "cargo build --release --bin rgctl",
+            "./target/release/rgctl --version",
           ]}
         />
       </section>
@@ -86,9 +86,9 @@ export default function InstallPage() {
         <TerminalBlock
           lines={[
             "cd rgbuilder-tests/ecommerce-java",
-            "rg-build discover .",
-            "rg-build -f json gql --macro-name all_functions unused | jq '.count'",
-            'rg-build -f json blast-radius "priceShoppingCart" --depth 2',
+            "rgctl discover .",
+            "rgctl -f json gql --macro-name all_functions unused | jq '.count'",
+            'rgctl -f json blast-radius "priceShoppingCart" --depth 2',
           ]}
         />
         <p className="text-sm text-[var(--mute)]">

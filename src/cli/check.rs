@@ -1,4 +1,4 @@
-//! `rg-build check` — CI policy gateway.
+//! `rgctl check` — CI policy gateway.
 
 use super::args::OutputFormat;
 use super::check_output::{build_check_response, violations_from_json_values};
@@ -23,7 +23,7 @@ pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
 
         let mut session = rgbuilder_service::Session::new(&ctx.repo);
         if !session.graph_ready() {
-            anyhow::bail!("Graph not found (run `rg-build discover` first)");
+            anyhow::bail!("Graph not found (run `rgctl discover` first)");
         }
         let value = rgbuilder_service::execute(
             &mut session,
