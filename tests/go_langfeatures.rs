@@ -12,17 +12,17 @@ use std::process::Command;
 use std::sync::Once;
 
 fn repo() -> PathBuf {
-    if let Ok(p) = std::env::var("RGBUILDER_GO_REPO") {
+    if let Ok(p) = std::env::var("RGCTL_GO_REPO") {
         return PathBuf::from(p);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgbuilder-tests/ecommerce-go")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests/ecommerce-go")
 }
 
 fn bin() -> PathBuf {
-    if let Ok(p) = std::env::var("CARGO_BIN_EXE_rg_build") {
+    if let Ok(p) = std::env::var("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(p);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg-build")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rgctl")
 }
 
 fn ensure_discovered() {
@@ -32,7 +32,7 @@ fn ensure_discovered() {
         if !repo.is_dir() {
             return;
         }
-        let _ = std::fs::remove_dir_all(repo.join(".rgbuilder"));
+        let _ = std::fs::remove_dir_all(repo.join(".rgctl"));
         let out = Command::new(bin())
             .args(["discover", ".", "-l", "go", "-e", "vendor", "--with-cfg"])
             .current_dir(&repo)

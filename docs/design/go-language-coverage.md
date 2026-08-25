@@ -1,8 +1,8 @@
 # Go language feature coverage (ecommerce-go)
 
-**Purpose:** Canonical checklist of Go language surfaces that rgBuilder must index and analyze correctly. Fixture code lives under `rgbuilder-tests/ecommerce-go/internal/langfeatures/`. Expected graph facts live in `ecommerce-go/correctness/expected-facts.json` (ids prefixed `lf_`).
+**Purpose:** Canonical checklist of Go language surfaces that rgctl must index and analyze correctly. Fixture code lives under `rgctl-tests/ecommerce-go/internal/langfeatures/`. Expected graph facts live in `ecommerce-go/correctness/expected-facts.json` (ids prefixed `lf_`).
 
-**Tracking:** [sshaaf/rgBuilder#46](https://github.com/sshaaf/rgBuilder/issues/46) · plan: [go-tier1-completion-plan.md](./go-tier1-completion-plan.md)
+**Tracking:** [sshaaf/rgctl#46](https://github.com/sshaaf/rgctl/issues/46) · plan: [go-tier1-completion-plan.md](./go-tier1-completion-plan.md)
 
 **Honesty limits (not “optional gaps”):** no full points-to across reflection/`any` casts; ambiguous multi-impl interface edges may be multi-target or annotated dynamic — but must not be silently dropped.
 
@@ -39,16 +39,16 @@
 ## How to re-verify
 
 ```bash
-# From rgBuilder repo root
+# From rgctl repo root
 cargo build --release
-./target/release/rg-build discover rgbuilder-tests/ecommerce-go -l go -e vendor \
+./target/release/rgctl discover rgctl-tests/ecommerce-go -l go -e vendor \
   --with-cfg --with-taint -v
 
 # Correctness suite (includes lf_* facts once present)
 cargo test --test graph_correctness go -- --nocapture
 
 # Spot-check call edges
-./target/release/rg-build -r rgbuilder-tests/ecommerce-go -f json \
+./target/release/rgctl -r rgctl-tests/ecommerce-go -f json \
   gql "MATCH (a:Function)-[:CALLS]->(b:Function) WHERE a.name = 'Run' RETURN a,b"
 ```
 
@@ -58,7 +58,7 @@ When adding a new Go surface, **add a row here**, a fixture symbol, and an `lf_*
 
 ## Go CFG lowering (Tree-sitter)
 
-Shared builder: `crates/rgbuilder-analysis/src/cfg_builder.rs`. Unit tests: `cfg_builder::tests::test_go_*`.
+Shared builder: `crates/rgctl-analysis/src/cfg_builder.rs`. Unit tests: `cfg_builder::tests::test_go_*`.
 
 | Construct | Lowering | Status |
 |-----------|----------|--------|

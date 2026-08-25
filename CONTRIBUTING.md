@@ -1,6 +1,6 @@
-# Contributing to rgBuilder
+# Contributing to rgctl
 
-Thanks for helping improve rgBuilder. This guide covers local setup, tests, and where to put changes.
+Thanks for helping improve rgctl. This guide covers local setup, tests, and where to put changes.
 
 **Documentation map:** [docs/README.md](docs/README.md)
 
@@ -19,10 +19,10 @@ Optional: **Playwright** (dashboard browser tests) — installed via `dashboard/
 ## Clone and build
 
 ```bash
-git clone https://github.com/sshaaf/rgBuilder.git
-cd rgBuilder
+git clone https://github.com/sshaaf/rgctl.git
+cd rgctl
 cargo build --release
-./target/release/rg-build --version
+./target/release/rgctl --version
 ```
 
 ### Dashboard (when changing `dashboard/`)
@@ -39,7 +39,7 @@ WASM worker:
 
 ```bash
 # from repo root — see dashboard/wasm/ or project scripts if present
-cargo build -p rgbuilder-wasm --target wasm32-unknown-unknown --release
+cargo build -p rgctl-wasm --target wasm32-unknown-unknown --release
 ```
 
 ---
@@ -78,12 +78,12 @@ DASHBOARD_URL=http://127.0.0.1:8765/ node scripts/test-guide-cli.mjs
 | Area | Path |
 |------|------|
 | CLI entry | `src/cli/` |
-| Analysis (CFG, PDG, taint) | `crates/rgbuilder-analysis/` |
-| Graph storage | `crates/rgbuilder-graph/` |
-| Dashboard export | `crates/rgbuilder-dashboard/` |
+| Analysis (CFG, PDG, taint) | `crates/rgctl-analysis/` |
+| Graph storage | `crates/rgctl-graph/` |
+| Dashboard export | `crates/rgctl-dashboard/` |
 | Browser UI | `dashboard/src/` |
-| WASM engine | `crates/rgbuilder-wasm/` |
-| Language plugins | `crates/rgbuilder-lang-*/` |
+| WASM engine | `crates/rgctl-wasm/` |
+| Language plugins | `crates/rgctl-lang-*/` |
 
 Full map: [docs/Code_structure.md](docs/Code_structure.md)
 

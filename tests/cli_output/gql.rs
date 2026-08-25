@@ -1,4 +1,4 @@
-use rgbuilder::cli::gql_output::{GQL_SCHEMA_VERSION, fixture_gql_json};
+use rgctl::cli::gql_output::{GQL_SCHEMA_VERSION, fixture_gql_json};
 
 #[test]
 fn test_gql_json_schema_sanity() {
@@ -28,8 +28,8 @@ fn test_gql_json_schema_sanity() {
 
 #[test]
 fn test_gql_explain_flag_serializes_true() {
-    use rgbuilder::cli::gql_output::gql_response_from_result;
-    use rgbuilder_gql::QueryResult;
+    use rgctl::cli::gql_output::gql_response_from_result;
+    use rgctl_gql::QueryResult;
 
     let response = gql_response_from_result(
         &QueryResult {
@@ -45,8 +45,8 @@ fn test_gql_explain_flag_serializes_true() {
 
 #[test]
 fn test_gql_empty_rows_explicit_array() {
-    use rgbuilder::cli::gql_output::gql_response_from_result;
-    use rgbuilder_gql::QueryResult;
+    use rgctl::cli::gql_output::gql_response_from_result;
+    use rgctl_gql::QueryResult;
 
     let response = gql_response_from_result(
         &QueryResult {

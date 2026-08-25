@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run docs/user-guide/scenarios/*.json against rgbuilder-tests/ecommerce-java.
+"""Run docs/user-guide/scenarios/*.json against rgctl-tests/ecommerce-java.
 
 Modes:
   (default)     run suite + soft marker presence
@@ -23,7 +23,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCENARIO_DIR = ROOT / "docs" / "user-guide" / "scenarios"
-FIXTURE = ROOT / "rgbuilder-tests" / "ecommerce-java"
+FIXTURE = ROOT / "rgctl-tests" / "ecommerce-java"
 GUIDE = ROOT / "docs" / "user-guide.md"
 
 # Volatile / host-specific JSON keys (scrubbed for guide compare)
@@ -40,16 +40,19 @@ SCRUB_KEYS = {
 
 
 def find_bin() -> Path:
-    env = os.environ.get("CARGO_BIN_EXE_rg_build")
+    env = os.environ.get("CARGO_BIN_EXE_rgctl")
     if env:
         return Path(env)
+    which = shutil.which("rgctl")
+    if which:
+        return Path(which)
     for cand in (
-        ROOT / "target" / "release" / "rg-build",
-        ROOT / "target" / "debug" / "rg-build",
+        ROOT / "target" / "release" / "rgctl",
+        ROOT / "target" / "debug" / "rgctl",
     ):
         if cand.is_file():
             return cand
-    raise SystemExit("rg-build binary not found — cargo build --release -p rgbuilder")
+    raise SystemExit("rgctl binary not found — cargo build --release -p rgctl")
 
 
 def load_scenarios() -> list[dict]:
@@ -85,7 +88,7 @@ def assert_json(stdout: str, keys: list[str], sid: str) -> None:
 
 
 def ensure_discover(bin: Path, repo: Path) -> None:
-    rb = repo / ".rgbuilder"
+    rb = repo / ".rgctl"
     if (rb / "graph.snapshot.bin").is_file():
         return
     print("==> discover (suite setup)")
@@ -95,7 +98,7 @@ def ensure_discover(bin: Path, repo: Path) -> None:
 
 
 def scrub_paths(s: str) -> str:
-    s = re.sub(r"[^\s\"]*?/rgbuilder-tests/ecommerce-java/[^\s\"]*?/([^/\s\"]+\.\w+)", r"…/\1", s)
+    s = re.sub(r"[^\s\"]*?/rgctl-tests/ecommerce-java/[^\s\"]*?/([^/\s\"]+\.\w+)", r"…/\1", s)
     s = re.sub(r"/Users/[^\s\"]+", "…", s)
     s = re.sub(r"/home/[^\s\"]+", "…", s)
     s = re.sub(r"/tmp/[^\s\"]+", "/tmp/…", s)
@@ -244,7 +247,7 @@ def run_scenario(bin: Path, sc: dict) -> str:
         for a in args
     ]
     if sc.get("is_discover"):
-        shutil.rmtree(FIXTURE / ".rgbuilder", ignore_errors=True)
+        shutil.rmtree(FIXTURE / ".rgctl", ignore_errors=True)
     elif sc.get("needs_discover", True):
         ensure_discover(bin, FIXTURE)
     print(f"==> {sid}")

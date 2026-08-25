@@ -4,14 +4,14 @@
 mod graph_audit;
 
 use graph_audit::{deep_chain, mixed_edge_hub, random_call_graph, star, structural_topology};
-use rgbuilder::analysis::graph_utils::PetGraphView;
-use rgbuilder::analysis::{
+use rgctl::analysis::graph_utils::PetGraphView;
+use rgctl::analysis::{
     BlastRadiusAnalyzer, BlastRadiusEngine, CentralityScores, PolicyRegistry, PolicyViolation,
     check_policies, resolve_unique_symbol,
 };
-use rgbuilder::gql::{QueryExecutor, parse};
-use rgbuilder::graph::backend::{GraphBackend, MemoryBackend};
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::gql::{QueryExecutor, parse};
+use rgctl::graph::backend::{GraphBackend, MemoryBackend};
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -253,7 +253,7 @@ fn test_deep_chain_parity() {
         14
     );
     let bfs_unlimited = BlastRadiusAnalyzer::new(&backend)
-        .with_traversal_config(rgbuilder::analysis::TraversalConfig::unlimited())
+        .with_traversal_config(rgctl::analysis::TraversalConfig::unlimited())
         .analyze_by_id(leaf)
         .unwrap();
     assert_eq!(bfs_unlimited.impact_zone.len(), 14);
@@ -312,9 +312,9 @@ fn test_scc_loop_sweep() {
 }
 
 #[test]
-#[ignore = "run manually: memory audit at 150k nodes / 1M edges (RGBUILDER_BENCH_LARGE=1)"]
+#[ignore = "run manually: memory audit at 150k nodes / 1M edges (RGCTL_BENCH_LARGE=1)"]
 fn test_memory_footprint_large_graph() {
-    if std::env::var("RGBUILDER_BENCH_LARGE").is_err() {
+    if std::env::var("RGCTL_BENCH_LARGE").is_err() {
         return;
     }
     let backend = graph_audit::large_mixed_graph(150_000, 1_000_000);

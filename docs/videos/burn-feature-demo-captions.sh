@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Burn docs/videos/rgbuilder-feature-demo.srt onto the no-captions dashboard recording.
-# Leaves rgbuilder-feature-demo-no-captions.mp4 untouched for comparison.
+# Burn docs/videos/rgctl-feature-demo.srt onto the no-captions dashboard recording.
+# Leaves rgctl-feature-demo-no-captions.mp4 untouched for comparison.
 #
 # Usage (from repo root):
 #   ./docs/videos/burn-feature-demo-captions.sh
@@ -8,9 +8,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 VID="$ROOT/docs/videos"
-SRC="$VID/rgbuilder-feature-demo-no-captions.mp4"
-SRT="$VID/rgbuilder-feature-demo.srt"
-OUT="$VID/rgbuilder-feature-demo.mp4"
+SRC="$VID/rgctl-feature-demo-no-captions.mp4"
+SRT="$VID/rgctl-feature-demo.srt"
+OUT="$VID/rgctl-feature-demo.mp4"
 
 if [[ ! -f "$SRC" ]]; then
   echo "error: missing $SRC — record first:" >&2
@@ -31,10 +31,10 @@ elif ! ffmpeg -filters 2>/dev/null | grep -q 'subtitles'; then
 fi
 
 cd "$VID"
-"$FFMPEG" -y -i rgbuilder-feature-demo-no-captions.mp4 \
-  -vf "subtitles=filename=rgbuilder-feature-demo.srt:force_style='FontName=Menlo,FontSize=20,PrimaryColour=&H00FFFFFF&,OutlineColour=&H80000000&,BackColour=&H80000000&,BorderStyle=3,Outline=1,Shadow=0,MarginV=40,Alignment=2'" \
+"$FFMPEG" -y -i rgctl-feature-demo-no-captions.mp4 \
+  -vf "subtitles=filename=rgctl-feature-demo.srt:force_style='FontName=Menlo,FontSize=20,PrimaryColour=&H00FFFFFF&,OutlineColour=&H80000000&,BackColour=&H80000000&,BorderStyle=3,Outline=1,Shadow=0,MarginV=40,Alignment=2'" \
   -c:v libx264 -pix_fmt yuv420p -crf 20 \
-  rgbuilder-feature-demo.mp4
+  rgctl-feature-demo.mp4
 
 echo "==> wrote $OUT"
 ls -lh "$OUT" "$SRC"

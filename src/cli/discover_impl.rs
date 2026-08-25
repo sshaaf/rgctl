@@ -21,8 +21,8 @@ use crate::languages::registry::LanguageRegistry;
 use crate::pipeline::{PipelineConfig, PipelineStats, ProcessingPipeline};
 use anyhow::Result;
 use rayon::prelude::*;
-use rgbuilder_core::memory::MemoryMonitor;
-use rgbuilder_graph::schema::NodeType;
+use rgctl_core::memory::MemoryMonitor;
+use rgctl_graph::schema::NodeType;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -46,13 +46,30 @@ pub(crate) struct AnalysisOptions<'a> {
     pub migration_preset: &'a str,
     pub migration_order: &'a str,
     pub db_path: &'a Path,
+    /// Index field members even when CFG is off (full pipeline stage 1).
+    pub force_materialize_fields: bool,
+    /// Do not reuse an existing snapshot (re-extract).
+    pub force_reindex: bool,
+    /// Emit discover JSON / "next steps" footer (disable when nested in `--full`).
+    pub emit_cli_summary: bool,
+    /// Persist snapshots under this root (defaults to the scanned `path`).
+    pub artifact_root: Option<&'a Path>,
+}
+
+/// Result of one `run_full_analysis` pass.
+#[derive(Debug, Clone)]
+pub(crate) struct DiscoverRunOutcome {
+    pub response: super::discover_output::DiscoverJsonResponse,
+    #[allow(dead_code)]
+    pub reused_snapshot: bool,
+    pub graph_digest: String,
 }
 
 pub(crate) fn run_full_analysis(
     ctx: &CliContext,
     path: &str,
     opts: AnalysisOptions<'_>,
-) -> Result<()> {
+) -> Result<DiscoverRunOutcome> {
     let AnalysisOptions {
         languages,
         exclude,
@@ -68,6 +85,10 @@ pub(crate) fn run_full_analysis(
         migration_preset,
         migration_order,
         db_path,
+        force_materialize_fields,
+        force_reindex,
+        emit_cli_summary,
+        artifact_root,
     } = opts;
 
     let verbose = ctx.verbose;
@@ -77,10 +98,13 @@ pub(crate) fn run_full_analysis(
     let mut profile = DiscoverStageReport::default();
     // Taint / DFG loops / AST skeleton need CFG/PDG.
     let run_cfg_pass = with_cfg || with_taint || with_dfg_loops || with_ast_skeleton;
+    let materialize_fields = run_cfg_pass || force_materialize_fields;
     profile.cfg_enabled = run_cfg_pass;
     profile.security_enabled = with_security;
 
     let root = Path::new(path);
+    // Source tree scanned for files; `.rgctl/` artifacts live under `store`.
+    let store = artifact_root.unwrap_or(root);
     let mut discovery = DiscoveryConfig::default();
 
     if let Some(langs) = languages {
@@ -128,7 +152,7 @@ pub(crate) fn run_full_analysis(
         PipelineConfig {
             discovery,
             show_progress: human_output,
-            materialize_fields: run_cfg_pass,
+            materialize_fields,
             ..PipelineConfig::default()
         },
     );
@@ -137,14 +161,14 @@ pub(crate) fn run_full_analysis(
     let discoverer = FileDiscoverer::with_config(Arc::clone(&registry), discovery_config.clone());
     let files = discoverer.discover(root)?;
 
-    let snapshot_path = rgbuilder_graph::snapshot::MmappedGraphSnapshot::default_path(root);
-    let mut file_tracker = FileTracker::load(root).unwrap_or_else(|_| FileTracker::new(root));
+    let snapshot_path = rgctl_graph::snapshot::MmappedGraphSnapshot::default_path(store);
+    let mut file_tracker = FileTracker::load(store).unwrap_or_else(|_| FileTracker::new(store));
     let file_changes = file_tracker.detect_changes(&files)?;
 
     // Index the repository (or reuse snapshot when sources are unchanged).
     // Lever 1: write columnar from GraphBuilder Vecs — never build MemoryBackend for discover.
     let index_start = Instant::now();
-    let graph_from_snapshot = file_changes.is_empty() && snapshot_path.is_file();
+    let graph_from_snapshot = !force_reindex && file_changes.is_empty() && snapshot_path.is_file();
     let mut cold_reused: Option<crate::analysis::ColdMetadataDb> = None;
     let (index_stats, graph_digest) = if graph_from_snapshot {
         let load_start = Instant::now();
@@ -172,8 +196,8 @@ pub(crate) fn run_full_analysis(
         cold_reused = Some(cold);
         (stats, digest)
     } else {
-        std::fs::create_dir_all(rgbuilder_graph::paths::artifact_dir(root))?;
-        let (stats, digest) = pipeline.process_repository_to_snapshot(root, &snapshot_path)?;
+        std::fs::create_dir_all(rgctl_graph::paths::artifact_dir(store))?;
+        let (stats, digest) = pipeline.process_repository_to_snapshot(root, &snapshot_path, Some(store))?;
         if verbose {
             debug!(
                 path = %snapshot_path.display(),
@@ -188,6 +212,14 @@ pub(crate) fn run_full_analysis(
     profile.nodes = index_stats.nodes_created;
     // Snapshot write is folded into index_graph_build (Lever 1: no separate backend rewrite).
     profile.save_snapshot.secs = 0.0;
+
+    if materialize_fields {
+        let _ = super::pipeline_status::write_digest_marker(
+            store,
+            super::pipeline_status::MATERIALIZED_FIELDS_DIGEST_FILE,
+            &graph_digest,
+        );
+    }
 
     if human_output {
         if graph_from_snapshot {
@@ -323,6 +355,13 @@ pub(crate) fn run_full_analysis(
         .with_harmonic(with_harmonic)
         .analyze_columnar(&petgraph_view, &mut analysis_results)?;
     profile.centrality.secs = secs(centrality_start.elapsed());
+    if with_harmonic {
+        let _ = super::pipeline_status::write_digest_marker(
+            store,
+            super::pipeline_status::HARMONIC_DIGEST_FILE,
+            &graph_digest,
+        );
+    }
     if verbose && !with_harmonic {
         debug!("Harmonic centrality skipped (pass --with-harmonic to enable)");
     }
@@ -366,7 +405,7 @@ pub(crate) fn run_full_analysis(
             .community
             .as_ref()
             .and_then(|c| c.infrastructure_community_id);
-        let _ = rgbuilder_analysis::fill_community_labels(&mut analysis_results, infra, |uuid| {
+        let _ = rgctl_analysis::fill_community_labels(&mut analysis_results, infra, |uuid| {
             cold.get_node(uuid).ok().flatten().map(|n| {
                 (
                     n.name.to_string(),
@@ -436,7 +475,7 @@ pub(crate) fn run_full_analysis(
         profile.security.secs = secs(security_start.elapsed());
     }
 
-    let output_dir = rgbuilder_graph::paths::artifact_path(root, "analysis");
+    let output_dir = rgctl_graph::paths::artifact_path(store, "analysis");
 
     // CFG/PDG (+ optional taint) — opt-in with --with-cfg / --with-taint
     if run_cfg_pass {
@@ -479,7 +518,7 @@ pub(crate) fn run_full_analysis(
             profile.cfg_taint.secs = sp.taint_secs;
         }
 
-        let archive_path = CfgPdgArchive::default_path(root);
+        let archive_path = CfgPdgArchive::default_path(store);
         let archive_start = Instant::now();
         if batch.archive_unchanged {
             if verbose {
@@ -490,12 +529,12 @@ pub(crate) fn run_full_analysis(
             }
         } else {
             let mut cfg_archive = if batch.archive_records.is_empty() {
-                CfgPdgArchive::open_if_exists(root)
+                CfgPdgArchive::open_if_exists(store)
                     .ok()
                     .flatten()
                     .unwrap_or_default()
             } else {
-                let mut merged = CfgPdgArchive::open_if_exists(root)
+                let mut merged = CfgPdgArchive::open_if_exists(store)
                     .ok()
                     .flatten()
                     .unwrap_or_default();
@@ -524,10 +563,10 @@ pub(crate) fn run_full_analysis(
 
         // Field-write index for `cpg mutations` (hybrid CPG P1)
         let fw_start = Instant::now();
-        match CfgPdgArchive::open_if_exists(root) {
+        match CfgPdgArchive::open_if_exists(store) {
             Ok(Some(archive)) => {
                 match crate::analysis::build_and_save_field_write_index(
-                    root,
+                    store,
                     &archive,
                     &functions,
                     Some(graph_digest.clone()),
@@ -577,7 +616,7 @@ pub(crate) fn run_full_analysis(
                     skel.records.push(rec);
                 }
             }
-            let skel_path = AstSkeletonArchive::default_path(root);
+            let skel_path = AstSkeletonArchive::default_path(store);
             match skel.write_to_path(&skel_path) {
                 Ok(()) => {
                     if human_output {
@@ -634,7 +673,12 @@ pub(crate) fn run_full_analysis(
         Err(err) => {
             error!(error = %err, "[x] Blast radius engine build failed");
             info!("[✓] Analysis complete");
-            return Ok(());
+            return Ok(discover_outcome(
+                &index_stats,
+                run_start.elapsed().as_millis() as u64,
+                graph_from_snapshot,
+                graph_digest.clone(),
+            ));
         }
     };
     // Topology view is fully consumed into the SCC engine — free DiGraph + UUID maps now.
@@ -658,7 +702,7 @@ pub(crate) fn run_full_analysis(
     // Flat graphs use on-demand reachability: skip bulk fill so discover does not
     // serialize ~O(functions) blast rows into macro_call_index / analysis_results
     // (linux cold: ~976s macro_index, multi‑GB artifacts). Live `blast-radius` still
-    // works via the engine snapshot. See sshaaf/rgBuilder#28 (won't fix).
+    // works via the engine snapshot. See sshaaf/rgctl#28 (won't fix).
     let query_start = Instant::now();
     let skip_bulk_blast = engine.uses_on_demand_reachability();
     if skip_bulk_blast && verbose {
@@ -710,7 +754,7 @@ pub(crate) fn run_full_analysis(
     // Persist SCC engine snapshot for instant blast-radius cache misses
     let blast_snap_start = Instant::now();
     {
-        let blast_path = BlastEngineSnapshot::default_path(root);
+        let blast_path = BlastEngineSnapshot::default_path(store);
         if BlastEngineSnapshot::digest_matches(&blast_path, &graph_digest)? {
             if verbose {
                 debug!(
@@ -732,13 +776,13 @@ pub(crate) fn run_full_analysis(
     // Serialize minimized macro-call index for instant blast-radius lookups
     let macro_start = Instant::now();
     {
-        let macro_path = rgbuilder_graph::paths::artifact_path(root, "macro_call_index.bin");
-        let lookup_db_path = MacroCallLookupDb::default_path(root);
+        let macro_path = rgctl_graph::paths::artifact_path(store, "macro_call_index.bin");
+        let lookup_db_path = MacroCallLookupDb::default_path(store);
 
         if MacroCallIndex::caches_are_current_counts(
             &macro_path,
             &lookup_db_path,
-            root,
+            store,
             cold.node_count(),
             cold.edge_count(),
             &graph_digest,
@@ -869,8 +913,8 @@ pub(crate) fn run_full_analysis(
 
     // Save analysis results (columnar format - separate from graph!)
     let save_analysis_start = Instant::now();
-    let analysis_path = rgbuilder_graph::paths::artifact_path(root, "analysis_results.bin");
-    std::fs::create_dir_all(rgbuilder_graph::paths::artifact_dir(root))?;
+    let analysis_path = rgctl_graph::paths::artifact_path(store, "analysis_results.bin");
+    std::fs::create_dir_all(rgctl_graph::paths::artifact_dir(store))?;
     analysis_results.save(&analysis_path)?;
     profile.save_analysis.secs = secs(save_analysis_start.elapsed());
 
@@ -898,10 +942,10 @@ pub(crate) fn run_full_analysis(
     // Graph mmap snapshot was written early (before topology/analysis) to avoid
     // co-residency of PreparedGraphSnapshot with the live backend (#33).
 
-    let mut hydrated: Option<rgbuilder_graph::code_graph::CodeGraph> = None;
+    let mut hydrated: Option<rgctl_graph::code_graph::CodeGraph> = None;
     let need_hydrate = write_json_graph || with_dashboard || export_migration_hints;
     if need_hydrate {
-        hydrated = Some(rgbuilder_graph::code_graph::CodeGraph::open_snapshot(
+        hydrated = Some(rgctl_graph::code_graph::CodeGraph::open_snapshot(
             &snapshot_path,
         )?);
     }
@@ -913,7 +957,7 @@ pub(crate) fn run_full_analysis(
             std::fs::create_dir_all(parent)?;
         }
         std::fs::write(db_path, &json)?;
-        let saved = graph.save_to_repo(root)?;
+        let saved = graph.save_to_repo(store)?;
         if verbose {
             debug!(path = %saved.display(), "Legacy JSON graph saved");
         }
@@ -921,14 +965,14 @@ pub(crate) fn run_full_analysis(
 
     // Export static dashboard bundle only when requested (#31).
     let save_dashboard_start = Instant::now();
-    let dashboard_dir = rgbuilder_graph::paths::artifact_path(root, "dashboard");
+    let dashboard_dir = rgctl_graph::paths::artifact_path(store, "dashboard");
     if with_dashboard {
         let graph = hydrated.as_ref().expect("hydrated for dashboard");
-        match rgbuilder_dashboard::export_dashboard_bundle_if_changed_with_context(
+        match rgctl_dashboard::export_dashboard_bundle_if_changed_with_context(
             graph.backend(),
-            root,
+            store,
             &snapshot_path,
-            rgbuilder_dashboard::DashboardExportContext::with_analysis(&analysis_results),
+            rgctl_dashboard::DashboardExportContext::with_analysis(&analysis_results),
         ) {
             Ok(true) => {
                 if human_output {
@@ -958,19 +1002,24 @@ pub(crate) fn run_full_analysis(
         let plan_path = ctx
             .output
             .clone()
-            .unwrap_or_else(|| rgbuilder_graph::paths::artifact_path(root, "migration_plan.json"));
+            .unwrap_or_else(|| rgctl_graph::paths::artifact_path(store, "migration_plan.json"));
         let graph = hydrated.as_ref().expect("hydrated for migration");
-        match rgbuilder_dashboard::write_migration_plan_from_repo(
+        match rgctl_dashboard::write_migration_plan_from_repo(
             graph.backend(),
-            root,
+            store,
             &plan_path,
             migration_preset,
-            rgbuilder_analysis::MigrationOrderMode::parse(migration_order),
+            rgctl_analysis::MigrationOrderMode::parse(migration_order),
         ) {
             Ok(plan) => {
-                if json_output && ctx.output.is_none() {
+                if json_output && ctx.output.is_none() && emit_cli_summary {
                     ctx.emit_json_value(&serde_json::to_value(&plan)?)?;
-                    return Ok(());
+                    return Ok(discover_outcome(
+                        &index_stats,
+                        run_start.elapsed().as_millis() as u64,
+                        graph_from_snapshot,
+                        graph_digest.clone(),
+                    ));
                 }
                 if human_output {
                     info!(
@@ -984,12 +1033,17 @@ pub(crate) fn run_full_analysis(
             Err(e) => {
                 if human_output {
                     warn!("[!] Migration plan export skipped: {e}");
-                } else if json_output && ctx.output.is_none() {
+                } else if json_output && ctx.output.is_none() && emit_cli_summary {
                     ctx.emit_json_value(&serde_json::json!({
                         "error": e,
                         "migration_plan": null
                     }))?;
-                    return Ok(());
+                    return Ok(discover_outcome(
+                        &index_stats,
+                        run_start.elapsed().as_millis() as u64,
+                        graph_from_snapshot,
+                        graph_digest.clone(),
+                    ));
                 }
             }
         }
@@ -1006,12 +1060,12 @@ pub(crate) fn run_full_analysis(
         profile.record();
     }
 
-    if json_output {
+    if json_output && emit_cli_summary {
         let response =
             build_discover_response(&index_stats, run_start.elapsed().as_millis() as u64);
         ctx.emit_json_value(&serde_json::to_value(&response)?)?;
-    } else {
-        info!("[✓] Saved to .rgbuilder/ ({:.1} MB total)", analysis_size);
+    } else if !json_output && emit_cli_summary {
+        info!("[✓] Saved to .rgctl/ ({:.1} MB total)", analysis_size);
 
         info!(
             "[✓] Completed in {:.1}s (peak {:.0} MB; ingest {:.0} MB, analysis {:.0} MB)",
@@ -1034,14 +1088,32 @@ pub(crate) fn run_full_analysis(
 
         info!("");
         info!("[i] Next steps:");
-        info!("   rg-build gql \"MATCH (n:Function) RETURN n\"  # Query the graph");
-        info!("   rg-build slice <file> --line <N> --variable <VAR>");
+        info!("   rgctl gql \"MATCH (n:Function) RETURN n\"  # Query the graph");
+        info!("   rgctl slice <file> --line <N> --variable <VAR>");
         if dashboard_dir.join("manifest.json").is_file() {
-            info!("   rg-build serve --open   # Dashboard + query API at http://127.0.0.1:8080");
+            info!("   rgctl serve --open   # Dashboard + query API at http://127.0.0.1:8080");
         }
     }
 
-    Ok(())
+    Ok(discover_outcome(
+        &index_stats,
+        run_start.elapsed().as_millis() as u64,
+        graph_from_snapshot,
+        graph_digest,
+    ))
+}
+
+fn discover_outcome(
+    stats: &PipelineStats,
+    duration_ms: u64,
+    reused_snapshot: bool,
+    graph_digest: String,
+) -> DiscoverRunOutcome {
+    DiscoverRunOutcome {
+        response: build_discover_response(stats, duration_ms),
+        reused_snapshot,
+        graph_digest,
+    }
 }
 
 fn normalized_path_cached(cache: &mut HashMap<String, String>, path: &str) -> String {

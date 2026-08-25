@@ -1,26 +1,26 @@
-# Introduction to rgBuilder
+# Introduction to rgctl
 
-**What rgBuilder is** and how a **code knowledge graph** works — before you run commands.
+**What rgctl is** and how a **code knowledge graph** works — before you run commands.
 
 **Hands-on:** [User Guide](user-guide.md) (ecommerce-java). **Agents:** [AGENTS.md](../AGENTS.md). **JSON:** [json-api.md](json-api.md).
 
 ---
 
-## What problem does rgBuilder solve?
+## What problem does rgctl solve?
 
 Modern codebases are too large to hold in your head. Changing a function raises reachability questions: who calls it, what depends on it, are security-sensitive paths involved, where is complexity concentrated?
 
-**rgBuilder turns the repository into a structured graph** — functions, types, calls, imports, and more — so you ask structural questions and get deterministic answers instead of grepping and guessing. Built in **Rust** for speed and predictable memory on large repos.
+**rgctl turns the repository into a structured graph** — functions, types, calls, imports, and more — so you ask structural questions and get deterministic answers instead of grepping and guessing. Built in **Rust** for speed and predictable memory on large repos.
 
 ---
 
 ## What is a code knowledge graph?
 
-| Everyday idea | In rgBuilder |
+| Everyday idea | In rgctl |
 |---------------|--------------|
 | Places on the map | **Nodes** — functions, classes, files, modules, … |
 | Roads | **Edges** — typed relations (`CALLS`, `CONTAINS`, `IMPORTS`, …) |
-| The map file | Artifacts under **`.rgbuilder/`** after `discover` |
+| The map file | Artifacts under **`.rgctl/`** after `discover` |
 
 **Reachability** (who can reach whom along call paths) is pre-computed and stored compactly — that is why **blast-radius** stays fast on large graphs.
 
@@ -34,7 +34,7 @@ You do not need graph theory to use the CLI: **indexing builds the map; commands
   Your repo
       │
       ▼
-  discover          →  .rgbuilder/  (snapshot, indexes, optional archives)
+  discover          →  .rgctl/  (snapshot, indexes, optional archives)
       │
       ├── gql / blast-radius / metrics / cpg / slice / check   (−f json for agents)
       ├── semantic index + query   (opt-in)
@@ -42,7 +42,7 @@ You do not need graph theory to use the CLI: **indexing builds the map; commands
 ```
 
 1. **Once** (or after large changes): `discover`.  
-2. **Many times:** query commands against `.rgbuilder/`.  
+2. **Many times:** query commands against `.rgctl/`.  
 3. **Agents:** always prefer `-f json` ([AGENTS.md](../AGENTS.md)).  
 4. **Dashboard:** optional visual UI after `--with-dashboard` — not required for structural answers.
 

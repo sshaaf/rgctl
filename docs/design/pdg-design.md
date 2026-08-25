@@ -46,7 +46,7 @@ flowchart TB
   PDG --> DF
 ```
 
-PDG is built after CFG dominator analysis (`crates/rgbuilder-analysis/src/pdg.rs`).
+PDG is built after CFG dominator analysis (`crates/rgctl-analysis/src/pdg.rs`).
 
 ### Opt-in fidelity (hybrid CPG P3)
 
@@ -76,9 +76,9 @@ Exported via `dataflow_index.json` + shared `slice/{id}.json` PDG payloads.
 
 | Component | Path |
 |-----------|------|
-| PDG construction | `crates/rgbuilder-analysis/src/pdg.rs` |
-| Dominators (input) | `crates/rgbuilder-analysis/src/dominance.rs` |
-| Slicing | `crates/rgbuilder-analysis/src/slicing.rs` |
+| PDG construction | `crates/rgctl-analysis/src/pdg.rs` |
+| Dominators (input) | `crates/rgctl-analysis/src/dominance.rs` |
+| Slicing | `crates/rgctl-analysis/src/slicing.rs` |
 | CLI | `src/cli/inspect.rs` |
 | Dashboard engine | `dashboard/src/dataflowEngine.ts` |
 
@@ -98,11 +98,11 @@ Exported via `dataflow_index.json` + shared `slice/{id}.json` PDG payloads.
 ## 6. CLI usage
 
 ```bash
-rg-build discover . --cfg
-rg-build inspect process pdg --edge-layer data
-rg-build inspect process pdg --def-use
-rg-build -f mermaid inspect process pdg
-rg-build slice src/Foo.java --line 42 --variable x --view pdg
+rgctl discover . --cfg
+rgctl inspect process pdg --edge-layer data
+rgctl inspect process pdg --def-use
+rgctl -f mermaid inspect process pdg
+rgctl slice src/Foo.java --line 42 --variable x --view pdg
 ```
 
 ---
@@ -111,7 +111,7 @@ rg-build slice src/Foo.java --line 42 --variable x --view pdg
 
 | Layer | Location |
 |-------|----------|
-| PDG unit tests | `crates/rgbuilder-analysis/src/pdg.rs` |
+| PDG unit tests | `crates/rgctl-analysis/src/pdg.rs` |
 | Dataflow export | `tests/dashboard_harness.rs` (`dataflow_index.json`) |
 
 Screenshots: `capture-design-screenshots.mjs` → `docs/images/design/pdg/`.

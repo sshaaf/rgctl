@@ -113,7 +113,7 @@ export function CfgView({ wasmReady, loadCfgDetail }: CfgViewProps) {
           No CFG archive in this bundle. Run discover with CFG analysis enabled:
         </p>
         <pre class="bg-light border rounded p-3 small mb-0">
-          rg-build discover . --languages java --cfg
+          rgctl discover . --languages java --cfg
         </pre>
         <p class="text-muted small mt-2 mb-0">
           Previews are exported from <code>cfg_pdg.archive.bin</code> into{" "}
@@ -183,7 +183,7 @@ export function CfgView({ wasmReady, loadCfgDetail }: CfgViewProps) {
             ) : (
               <p class="text-muted small mb-0">
                 On-demand CFG records are not in this bundle. Re-run{" "}
-                <code>rg-build discover . --all</code> to regenerate the dashboard export.
+                <code>rgctl discover . --all</code> to regenerate the dashboard export.
               </p>
             )}
             {!wasmReady && canLazyLoad && (

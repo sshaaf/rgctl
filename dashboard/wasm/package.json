@@ -1,16 +1,16 @@
 {
-  "name": "rgbuilder-wasm",
+  "name": "rgctl-wasm",
   "type": "module",
-  "description": "WASM graph engine for rgBuilder dashboard",
+  "description": "WASM graph engine for rgctl dashboard",
   "version": "0.4.4",
   "license": "MIT OR Apache-2.0",
   "files": [
-    "rgbuilder_wasm_bg.wasm",
-    "rgbuilder_wasm.js",
-    "rgbuilder_wasm.d.ts"
+    "rgctl_wasm_bg.wasm",
+    "rgctl_wasm.js",
+    "rgctl_wasm.d.ts"
   ],
-  "main": "rgbuilder_wasm.js",
-  "types": "rgbuilder_wasm.d.ts",
+  "main": "rgctl_wasm.js",
+  "types": "rgctl_wasm.d.ts",
   "sideEffects": [
     "./snippets/*"
   ]

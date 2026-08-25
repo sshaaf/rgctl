@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-# Run rgBuilder feature matrix and publish markdown + HTML reports.
-set -euo pipefail
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-exec python3 "$ROOT/scripts/run_rgbuilder_report.py" "$@"

@@ -3,11 +3,11 @@ qualified_name: "/Users/sraghuna/local_dev/petprojects/rBuilder/tests/fixtures/m
 level: "2"
 ---
 
-From the rgBuilder repo root (build the CLI first: `cargo build --bin rg-build`):
+From the rgctl repo root (build the CLI first: `cargo build --bin rgctl`):
 
 ```bash
 export REPO="$(pwd)/tests/fixtures/markdown-context"
-RGB="$(pwd)/target/debug/rg-build"
+RGB="$(pwd)/target/debug/rgctl"
 
 # Docs only (Phase 2a)
 "$RGB" -r "$REPO" discover . -l markdown
@@ -28,4 +28,4 @@ RGB="$(pwd)/target/debug/rg-build"
   "MATCH (h:Module)-[:REFERENCES]->(f:File)-[:CONTAINS]->(c:Class) WHERE h.name LIKE 'Checkout*' AND f.name LIKE '*CheckoutService.java' RETURN h, f, c"
 ```
 
-Artifacts appear under `$REPO/.rgbuilder/` after discover.
+Artifacts appear under `$REPO/.rgctl/` after discover.

@@ -19,7 +19,7 @@ Metrics give you a quantitative view of your codebase's architecture -- which fu
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rg-build -r example/coolstore discover .
+rgctl -r example/coolstore discover .
 ```
 
 ## Step-by-Step
@@ -29,7 +29,7 @@ rg-build -r example/coolstore discover .
 PageRank ranks functions by structural importance -- how many other functions depend on them, directly or transitively. Functions called by many high-PageRank callers themselves receive a high score.
 
 ```bash
-rg-build -r example/coolstore -f json metrics --pagerank
+rgctl -r example/coolstore -f json metrics --pagerank
 ```
 
 **Output (truncated):**
@@ -68,7 +68,7 @@ rg-build -r example/coolstore -f json metrics --pagerank
 To increase iterations for better convergence:
 
 ```bash
-rg-build -r example/coolstore -f json metrics --pagerank --iterations 50
+rgctl -r example/coolstore -f json metrics --pagerank --iterations 50
 ```
 
 ### 2. Betweenness Centrality
@@ -76,7 +76,7 @@ rg-build -r example/coolstore -f json metrics --pagerank --iterations 50
 Betweenness centrality measures how often a function lies on the shortest path between two other functions. High-betweenness functions are architectural bridges -- removing them would disconnect parts of the call graph.
 
 ```bash
-rg-build -r example/coolstore -f json metrics --betweenness
+rgctl -r example/coolstore -f json metrics --betweenness
 ```
 
 **Output (truncated):**
@@ -108,7 +108,7 @@ rg-build -r example/coolstore -f json metrics --betweenness
 Community detection partitions the graph into clusters of tightly connected functions using the Louvain algorithm. The `modularity` score (0--1) measures how well the code separates into distinct groups.
 
 ```bash
-rg-build -r example/coolstore -f json metrics --communities
+rgctl -r example/coolstore -f json metrics --communities
 ```
 
 **Output:**
@@ -135,7 +135,7 @@ rg-build -r example/coolstore -f json metrics --communities
 You can run multiple metrics in a single command:
 
 ```bash
-rg-build -r example/coolstore -f json metrics --pagerank --betweenness --communities
+rgctl -r example/coolstore -f json metrics --pagerank --betweenness --communities
 ```
 
 This returns all three analyses in a single JSON response.
@@ -145,14 +145,14 @@ This returns all three analyses in a single JSON response.
 The metrics output uses node UUIDs. To find out which function a UUID refers to, query the graph:
 
 ```bash
-rg-build -r example/coolstore -f json gql \
+rgctl -r example/coolstore -f json gql \
   "MATCH (f:Function) WHERE f.name = 'priceShoppingCart' RETURN f"
 ```
 
 Or use `blast-radius` which resolves names automatically:
 
 ```bash
-rg-build -r example/coolstore blast-radius priceShoppingCart
+rgctl -r example/coolstore blast-radius priceShoppingCart
 ```
 
 ## Understanding the Algorithms

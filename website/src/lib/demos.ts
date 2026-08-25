@@ -25,7 +25,7 @@ export const demos: DemoScenario[] = [
     commands: [
       "discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints",
     ],
-    note: "Plan is written to .rgbuilder/migration_plan.json (opt-in flags). Dashboard needs --with-dashboard.",
+    note: "Plan is written to .rgctl/migration_plan.json (opt-in flags). Dashboard needs --with-dashboard.",
     output: `{
   "schema_version": 2,
   "preset": "hybrid_default",
@@ -36,7 +36,7 @@ export const demos: DemoScenario[] = [
   ]
 }`,
     reasoning:
-      "rgBuilder wrote a migration roadmap. Open highest-priority packages first and run blast-radius before editing shared symbols.",
+      "rgctl wrote a migration roadmap. Open highest-priority packages first and run blast-radius before editing shared symbols.",
   },
   {
     id: "pagerank",

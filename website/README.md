@@ -1,4 +1,4 @@
-# rgBuilder website
+# rgctl website
 
 Static marketing + docs hub (Next.js App Router, `output: "export"`).
 
@@ -50,7 +50,7 @@ pnpm build   # writes ./out
 For GitHub Pages project site locally:
 
 ```bash
-NEXT_PUBLIC_BASE_PATH=/rgBuilder pnpm build
+NEXT_PUBLIC_BASE_PATH=/rgctl pnpm build
 ```
 
 ## Deploy
@@ -61,7 +61,7 @@ Runs on pushes to **`main`** or **`docs`** (when `website/` or the workflow file
 
 1. Repo **Settings → Pages → Build and deployment → Source: GitHub Actions**
 2. Environment **github-pages** deployment branches: `main`, `docs`
-3. Site: `https://shaaf.dev/rgBuilder/` (GitHub Pages + custom domain)
+3. Site: `https://shaaf.dev/rgctl/` (GitHub Pages + custom domain)
 
 ## Routes
 

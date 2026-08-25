@@ -1,6 +1,6 @@
 # Tier 1 language support — contributor requirements
 
-This document defines what **fully supported** means for a programming language in rgBuilder, and the concrete steps to add or promote a language to that level.
+This document defines what **fully supported** means for a programming language in rgctl, and the concrete steps to add or promote a language to that level.
 
 **Audience:** contributors adding a new Tier 1 language or bringing a language to parity with the current bar (Java-shaped Layer F + Layers A–E).
 
@@ -10,17 +10,17 @@ This document defines what **fully supported** means for a programming language 
 
 ## 1. Language tiers (quick reference)
 
-rgBuilder uses a **hybrid tiering** model:
+rgctl uses a **hybrid tiering** model:
 
 | Tier | Handler | Crate pattern | Indexing | CFG / PDG / taint | Call graph | Hybrid CPG (Layer F) |
 |------|---------|---------------|----------|-------------------|------------|----------------------|
-| **Tier 1** | `custom` — dedicated `LanguagePlugin` | `rgbuilder-lang-{id}/` | Rich symbols + relations | **Required** | **Required** (`Calls` at minimum) | **Required** — same bar as Java |
-| **Tier 2** | Generic tree-sitter | `rgbuilder-lang-{id}/` + `config.rs` | Kinds from `LanguageConfig` | Optional | Usually none | Not required |
-| **Tier 3** | Regex | `rgbuilder-lang-{id}/` + regex patterns | Pattern-based symbols | No | No | No |
+| **Tier 1** | `custom` — dedicated `LanguagePlugin` | `rgctl-lang-{id}/` | Rich symbols + relations | **Required** | **Required** (`Calls` at minimum) | **Required** — same bar as Java |
+| **Tier 2** | Generic tree-sitter | `rgctl-lang-{id}/` + `config.rs` | Kinds from `LanguageConfig` | Optional | Usually none | Not required |
+| **Tier 3** | Regex | `rgctl-lang-{id}/` + regex patterns | Pattern-based symbols | No | No | No |
 
 **Tier 1 custom plugins today:** Rust, Python, TypeScript, JavaScript, Go, Java, C#, C, C++ — see `languages.toml` (`handler = "custom"`).
 
-**Markdown** is a separate **custom markup plugin** (`rgbuilder-lang-markdown`): documentation context graph only — not Tier 1 and not generic Tier 2. See [markdown-context.md](markdown-context.md).
+**Markdown** is a separate **custom markup plugin** (`rgctl-lang-markdown`): documentation context graph only — not Tier 1 and not generic Tier 2. See [markdown-context.md](markdown-context.md).
 
 **Fully supported** means the language passes **all** of [Layers A–F](#2-capability-checklist--fully-supported) with automated tests. Layer F (hybrid CPG: fields, constructors, typed params, field-write mutations) is **not optional** for Tier 1 — Java is the reference implementation, not a special case.
 
@@ -36,27 +36,27 @@ A language is **fully supported** when all rows are ✅ and backed by automated 
 
 | # | Requirement | Where |
 |---|-------------|--------|
-| A1 | Custom `LanguagePlugin` (not generic Tier 2 only) | `crates/rgbuilder-lang-{id}/src/plugin.rs` |
+| A1 | Custom `LanguagePlugin` (not generic Tier 2 only) | `crates/rgctl-lang-{id}/src/plugin.rs` |
 | A2 | Tree-sitter grammar wired (`grammar()` + parse) | Plugin + `tree-sitter-{id}` crate dep |
 | A3 | **Symbols:** functions/methods with name, location, signature, parameters | `extract_symbols()` |
 | A4 | **Symbols:** types (class/struct/interface/enum as appropriate) | `extract_symbols()` |
-| A5 | **Relations:** `Calls` between functions | `extract_relations()` — use `rgbuilder_plugin_api::walk_calls` or language-specific walker |
+| A5 | **Relations:** `Calls` between functions | `extract_relations()` — use `rgctl_plugin_api::walk_calls` or language-specific walker |
 | A6 | **Relations (OOP / composition):** `Extends` / `Implements` (or language equivalent: Go struct embed → `Extends`, method-set satisfaction → `Implements`; Rust trait impls when extracted) | Required for Tier 1 — not optional. Document honesty limits (no full points-to) separately. |
 | A7 | Cyclomatic / cognitive complexity for functions | `calculate_complexity()` |
 | A8 | Entry in `languages.toml` with `handler = "custom"` | Repo root |
-| A9 | Registered in `rgbuilder-languages` | `crates/rgbuilder-languages/src/lib.rs` |
+| A9 | Registered in `rgctl-languages` | `crates/rgctl-languages/src/lib.rs` |
 
 ### Layer B — Analysis profile (CFG pipeline)
 
 | # | Requirement | Where |
 |---|-------------|--------|
-| B1 | `LanguageAnalysisProfile` with `cfg_enabled: true` | `crates/rgbuilder-analysis/src/language_profile.rs` |
-| B2 | `tree-sitter-{id}` dependency on **`rgbuilder-analysis`** | `crates/rgbuilder-analysis/Cargo.toml` |
+| B1 | `LanguageAnalysisProfile` with `cfg_enabled: true` | `crates/rgctl-analysis/src/language_profile.rs` |
+| B2 | `tree-sitter-{id}` dependency on **`rgctl-analysis`** | `crates/rgctl-analysis/Cargo.toml` |
 | B3 | `function_kinds` match tree-sitter node kinds used in CFG lookup | `language_profile.rs` + `cfg_builder.rs` |
-| B4 | CFG builders for control flow: `if`, loops, `return`, `break`/`continue` | `crates/rgbuilder-analysis/src/cfg_builder.rs` |
+| B4 | CFG builders for control flow: `if`, loops, `return`, `break`/`continue` | `crates/rgctl-analysis/src/cfg_builder.rs` |
 | B5 | CFG builders for language-specific control flow (e.g. `switch`, `select`, `match`, `try`) | `cfg_builder.rs` |
-| B6 | Definition-use extraction for assignments / declarations | `crates/rgbuilder-analysis/src/def_use.rs` |
-| B7 | PDG builds from CFG + source (automatic once CFG + def/use work) | `crates/rgbuilder-analysis/src/pdg.rs` |
+| B6 | Definition-use extraction for assignments / declarations | `crates/rgctl-analysis/src/def_use.rs` |
+| B7 | PDG builds from CFG + source (automatic once CFG + def/use work) | `crates/rgctl-analysis/src/pdg.rs` |
 | B8 | `discover --with-cfg` / `discover --with-cfg --with-security --with-taint` includes `.ext` files | Automatic via `cfg_language_id_from_path` in `discover_impl.rs` |
 
 ### Layer C — Security & interprocedural
@@ -64,7 +64,7 @@ A language is **fully supported** when all rows are ✅ and backed by automated 
 | # | Requirement | Where |
 |---|-------------|--------|
 | C1 | `taint_enabled: true` on profile | `language_profile.rs` |
-| C2 | `detect_{lang}_patterns()` — sources, sinks, sanitizers | `crates/rgbuilder-analysis/src/taint.rs` |
+| C2 | `detect_{lang}_patterns()` — sources, sinks, sanitizers | `crates/rgctl-analysis/src/taint.rs` |
 | C3 | Taint routed via `canonical_language_id()` | `TaintAnalyzer::detect_patterns` |
 | C4 | Interprocedural CFG uses correct language (not wrong grammar) | `interprocedural_cfg.rs` → `language_id_from_path` |
 | C5 | Slice CLI resolves language from file path | `src/cli/context.rs` → `language_from_path` |
@@ -73,7 +73,7 @@ A language is **fully supported** when all rows are ✅ and backed by automated 
 
 | # | Requirement | Where |
 |---|-------------|--------|
-| D1 | `discover --with-cfg --with-security --with-taint` writes `.rgbuilder/dashboard/` with CFG index populated | `cfg_index.json` `available: true` |
+| D1 | `discover --with-cfg --with-security --with-taint` writes `.rgctl/dashboard/` with CFG index populated | `cfg_index.json` `available: true` |
 | D2 | Per-function CFG + dominance render in dashboard | Manual smoke or Playwright |
 | D3 | Dataflow / taint tabs show data when flows exist | PDG + taint archive export |
 | D4 | Blast radius lists functions with non-zero scores when call graph exists | `manifest.json` `calls_count` > 0 |
@@ -82,8 +82,8 @@ A language is **fully supported** when all rows are ✅ and backed by automated 
 
 | # | Requirement | Where |
 |---|-------------|--------|
-| E1 | Plugin unit tests: symbols + at least one `Calls` relation | `crates/rgbuilder-lang-{id}/src/plugin.rs` `#[cfg(test)]` |
-| E2 | CFG unit tests: branching function + loop cycle | `crates/rgbuilder-analysis/src/cfg_builder.rs` tests |
+| E1 | Plugin unit tests: symbols + at least one `Calls` relation | `crates/rgctl-lang-{id}/src/plugin.rs` `#[cfg(test)]` |
+| E2 | CFG unit tests: branching function + loop cycle | `crates/rgctl-analysis/src/cfg_builder.rs` tests |
 | E3 | Taint unit/integration test: at least one source→sink path | `tests/taint_analysis.rs` or `tests/{lang}_taint.rs` |
 | E4 | Fixture integration test on a small real repo | e.g. `tests/go_cfg_analysis.rs` |
 | E5 | Dashboard golden gate: `discover --with-cfg --with-security --with-taint` + bundle assertions | e.g. `tests/dashboard_ecommerce_go.rs` + `tests/dashboard_harness.rs` |
@@ -91,7 +91,7 @@ A language is **fully supported** when all rows are ✅ and backed by automated 
 
 ### Layer F — CPG readiness (hybrid CPG) — **required for Tier 1**
 
-Required for high-quality `cpg mutations` / typed field writes. Reference: Java (`rgbuilder-lang-java`) + `field_write` golden tests. See [hybrid-cpg-plan.md](design/hybrid-cpg-plan.md).
+Required for high-quality `cpg mutations` / typed field writes. Reference: Java (`rgctl-lang-java`) + `field_write` golden tests. See [hybrid-cpg-plan.md](design/hybrid-cpg-plan.md).
 
 | # | Requirement | Where | Acceptance |
 |---|-------------|--------|------------|
@@ -103,7 +103,7 @@ Required for high-quality `cpg mutations` / typed field writes. Reference: Java 
 | F6 | Golden mutation fixture: type `T` with field write outside ctor → `cpg mutations` / index query hits it with `--exclude-ctors` | `field_write::tests::{id}_cfg_captures_field_write_and_query` | Exactly one non-ctor hit for the typed write |
 | F7 | Document resolution limits (no reflection, no full inference) | This doc + hybrid plan | Honesty note in PR / language section |
 
-**Graph extract** must populate `Symbol.fields` on type symbols (F1). **Graph materialization** of those fields as `Variable` nodes under the owning type (`Contains`) happens only when discover runs with **`--with-cfg`** (CPG path) — default discover keeps fields on symbols without emitting per-field graph nodes (`rgbuilder-extraction` graph builder). Empty `fields` on the symbol is not enough for Tier 1 plugins.
+**Graph extract** must populate `Symbol.fields` on type symbols (F1). **Graph materialization** of those fields as `Variable` nodes under the owning type (`Contains`) happens only when discover runs with **`--with-cfg`** (CPG path) — default discover keeps fields on symbols without emitting per-field graph nodes (`rgctl-extraction` graph builder). Empty `fields` on the symbol is not enough for Tier 1 plugins.
 
 **Non-negotiable:** a new Tier 1 language that skips Layer F is **not mergeable** as Tier 1. Ship it as Tier 2 until F1–F6 land.
 
@@ -141,15 +141,15 @@ Required for high-quality `cpg mutations` / typed field writes. Reference: Java 
 ```
 languages.toml                          # Metadata source of truth (handler, extensions, kinds)
 crates/
-  rgbuilder-plugin-api/                  # LanguagePlugin trait, Symbol, Relation, call_extraction
-  rgbuilder-lang-runtime/                # Generic Tier 2 TreeSitterLanguagePlugin
-  rgbuilder-lang-{id}/                   # One crate per language (YOU ADD THIS)
+  rgctl-plugin-api/                  # LanguagePlugin trait, Symbol, Relation, call_extraction
+  rgctl-lang-runtime/                # Generic Tier 2 TreeSitterLanguagePlugin
+  rgctl-lang-{id}/                   # One crate per language (YOU ADD THIS)
     Cargo.toml
     src/
       lib.rs                            # pub fn register(registry: &mut LanguageRegistry)
       plugin.rs                         # Tier 1: custom LanguagePlugin impl
       config.rs                         # Tier 2 only: static LanguageConfig
-  rgbuilder-analysis/
+  rgctl-analysis/
     src/
       language_profile.rs               # CFG/taint gating registry
       cfg_builder.rs                    # Per-language CFG visitors
@@ -157,7 +157,7 @@ crates/
       field_write.rs                    # Mutation index (Layer F)
       field_write_locals.rs             # Per-language local/param type recovery (F5)
       taint.rs                          # Per-language taint patterns
-  rgbuilder-languages/                   # Wire register() into default binary
+  rgctl-languages/                   # Wire register() into default binary
 tests/
   {lang}_cfg_analysis.rs                # Fixture CFG tests
   {lang}_taint.rs                     # Taint + calls integration
@@ -168,11 +168,11 @@ tests/
 
 | Language | Crate name | Package name on crates.io path |
 |----------|------------|--------------------------------|
-| Go | `rgbuilder-lang-go` | `rgbuilder-lang-go` |
-| Java | `rgbuilder-lang-java` | `rgbuilder-lang-java` |
-| TypeScript | `rgbuilder-lang-typescript` | hyphens, not underscores |
+| Go | `rgctl-lang-go` | `rgctl-lang-go` |
+| Java | `rgctl-lang-java` | `rgctl-lang-java` |
+| TypeScript | `rgctl-lang-typescript` | hyphens, not underscores |
 
-- **Directory:** `crates/rgbuilder-lang-{id}/`
+- **Directory:** `crates/rgctl-lang-{id}/`
 - **`language_id()`:** lowercase, no spaces (`"go"`, `"csharp"`, `"javascript"`)
 - **Tree-sitter dep:** `tree-sitter-{grammar}` (version pin in crate `Cargo.toml`)
 
@@ -184,19 +184,19 @@ Use **Kotlin → Tier 1** or **C# → Tier 1** as a mental template; use **Java*
 
 ### Step 1 — Scaffold the plugin crate
 
-1. Copy an existing custom plugin crate (e.g. `rgbuilder-lang-go` or `rgbuilder-lang-java`).
-2. Rename to `crates/rgbuilder-lang-{id}/`.
+1. Copy an existing custom plugin crate (e.g. `rgctl-lang-go` or `rgctl-lang-java`).
+2. Rename to `crates/rgctl-lang-{id}/`.
 3. Update `Cargo.toml`:
 
 ```toml
 [package]
-name = "rgbuilder-lang-{id}"
-description = "rgBuilder language plugin: {id}"
+name = "rgctl-lang-{id}"
+description = "rgctl language plugin: {id}"
 
 [dependencies]
-rgbuilder-plugin-api = { workspace = true }
-rgbuilder-registry = { workspace = true }
-rgbuilder-plugin-helpers = { workspace = true }
+rgctl-plugin-api = { workspace = true }
+rgctl-registry = { workspace = true }
+rgctl-plugin-helpers = { workspace = true }
 tree-sitter = { workspace = true }
 tree-sitter-{grammar} = "0.xx"
 serde_json = "1"
@@ -212,8 +212,8 @@ pub fn register(registry: &mut LanguageRegistry) {
 
 5. Add to **workspace root** `Cargo.toml`:
    - `members` list
-   - `[workspace.dependencies] rgbuilder-lang-{id} = { path = "...", version = "0.1.0" }`
-6. Register in `crates/rgbuilder-languages/src/lib.rs`.
+   - `[workspace.dependencies] rgctl-lang-{id} = { path = "...", version = "0.1.0" }`
+6. Register in `crates/rgctl-languages/src/lib.rs`.
 
 ### Step 2 — `languages.toml`
 
@@ -238,7 +238,7 @@ Run `scripts/generate_lang_configs.py` if you maintain Tier 2 `config.rs` files 
 
 ### Step 3 — Implement `LanguagePlugin`
 
-Required methods — see `crates/rgbuilder-plugin-api/src/lib.rs`:
+Required methods — see `crates/rgctl-plugin-api/src/lib.rs`:
 
 | Method | Purpose |
 |--------|---------|
@@ -252,7 +252,7 @@ Required methods — see `crates/rgbuilder-plugin-api/src/lib.rs`:
 **Calls extraction:** prefer shared helper:
 
 ```rust
-use rgbuilder_plugin_api::{walk_calls, GO_CALL_KINDS}; // or define LANG_CALL_KINDS
+use rgctl_plugin_api::{walk_calls, GO_CALL_KINDS}; // or define LANG_CALL_KINDS
 
 walk_calls(tree.root_node(), source, file_path, symbols, CALL_KINDS, "mylang", &mut relations);
 ```
@@ -263,14 +263,14 @@ Add language-specific call node kinds to `call_extraction.rs` if needed (e.g. `m
 
 | Feature | Look at |
 |---------|---------|
-| Calls + inheritance | `crates/rgbuilder-lang-java/src/plugin.rs` |
-| Structs + methods | `crates/rgbuilder-lang-go/src/plugin.rs` |
-| Classes + type inference | `crates/rgbuilder-lang-python/src/plugin.rs` |
-| Traits + functions | `crates/rgbuilder-lang-rust/src/plugin.rs` |
+| Calls + inheritance | `crates/rgctl-lang-java/src/plugin.rs` |
+| Structs + methods | `crates/rgctl-lang-go/src/plugin.rs` |
+| Classes + type inference | `crates/rgctl-lang-python/src/plugin.rs` |
+| Traits + functions | `crates/rgctl-lang-rust/src/plugin.rs` |
 
 ### Step 4 — Wire the analysis profile
 
-Edit `crates/rgbuilder-analysis/src/language_profile.rs`:
+Edit `crates/rgctl-analysis/src/language_profile.rs`:
 
 ```rust
 LanguageAnalysisProfile {
@@ -289,9 +289,9 @@ Add grammar loader in `grammar_for()`:
 "mylang" => Ok(tree_sitter_mylang::LANGUAGE.into()),
 ```
 
-Add `tree-sitter-mylang` to `crates/rgbuilder-analysis/Cargo.toml`.
+Add `tree-sitter-mylang` to `crates/rgctl-analysis/Cargo.toml`.
 
-Export new helpers from `crates/rgbuilder-analysis/src/lib.rs` if public API additions are needed.
+Export new helpers from `crates/rgctl-analysis/src/lib.rs` if public API additions are needed.
 
 ### Step 5 — CFG builder
 
@@ -325,9 +325,9 @@ Keep patterns **statement-text** based for now (consistent with existing code); 
 Minimum test matrix:
 
 ```
-crates/rgbuilder-lang-{id}/src/plugin.rs   # unit: symbols, calls
-crates/rgbuilder-analysis/src/cfg_builder.rs # unit: CFG shape
-crates/rgbuilder-analysis/src/language_profile.rs # unit: path → id
+crates/rgctl-lang-{id}/src/plugin.rs   # unit: symbols, calls
+crates/rgctl-analysis/src/cfg_builder.rs # unit: CFG shape
+crates/rgctl-analysis/src/language_profile.rs # unit: path → id
 tests/{id}_cfg_analysis.rs                # integration: real fixture file
 tests/{id}_taint.rs                     # taint + calls smoke
 tests/dashboard_{fixture}.rs              # discover --with-cfg --with-security --with-taint + manifest/cfg_index
@@ -335,7 +335,7 @@ tests/dashboard_{fixture}.rs              # discover --with-cfg --with-security 
 
 Reuse `tests/dashboard_harness.rs` helpers (`run_discover_all`, `assert_dashboard_bundle_all_analysis`).
 
-Provide a **small fixture repo** under `rgbuilder-tests/` or document `RGBUILDER_{LANG}_REPO` env override.
+Provide a **small fixture repo** under `rgctl-tests/` or document `RGCTL_{LANG}_REPO` env override.
 
 ### Step 9 — Manual validation
 
@@ -343,8 +343,8 @@ Provide a **small fixture repo** under `rgbuilder-tests/` or document `RGBUILDER
 cargo build --release
 ./scripts/build-dashboard.sh && cargo build --release   # if dashboard dist changed
 
-rg-build discover --with-cfg --with-security --with-taint -r /path/to/fixture-repo -l {id} -v
-rg-build serve -r /path/to/fixture-repo --host 127.0.0.1 --port 8080
+rgctl discover --with-cfg --with-security --with-taint -r /path/to/fixture-repo -l {id} -v
+rgctl serve -r /path/to/fixture-repo --host 127.0.0.1 --port 8080
 # Open http://127.0.0.1:8080 — check Graph, CFG, Dataflow, Taint, Blast Radius tabs
 ```
 
@@ -370,13 +370,13 @@ Many languages exist as **generic tree-sitter** plugins (`TreeSitterLanguagePlug
 
 | Anti-pattern | Why |
 |--------------|-----|
-| Parse language X in `rgbuilder-graph` or `discover_impl.rs` | Belongs in `rgbuilder-lang-*` + `rgbuilder-analysis` |
+| Parse language X in `rgctl-graph` or `discover_impl.rs` | Belongs in `rgctl-lang-*` + `rgctl-analysis` |
 | Hardcode `.ext` lists in CLI | Use `language_profile` / `languages.toml` |
 | Tier 1 plugin without `Calls` relations | Blast radius and call graph stay empty |
 | Tier 1 without Layer F (fields / ctors / mutation golden) | `cpg mutations` is Java-only quality; **not** Tier 1 |
 | CFG enabled without tests | Dashboard shows blocks but regressions go unnoticed |
-| Duplicate grammar only in plugin crate | `rgbuilder-analysis` needs its own `tree-sitter-*` dep for CFG |
-| Skip `rgbuilder-languages` registration | Language won’t ship in default `rg-build` binary |
+| Duplicate grammar only in plugin crate | `rgctl-analysis` needs its own `tree-sitter-*` dep for CFG |
+| Skip `rgctl-languages` registration | Language won’t ship in default `rgctl` binary |
 | Full type checker inside the plugin | Out of scope — bound resolution only (decl / param / field) |
 
 ---
@@ -385,7 +385,7 @@ Many languages exist as **generic tree-sitter** plugins (`TreeSitterLanguagePlug
 
 Copy into your PR description:
 
-- [ ] `crates/rgbuilder-lang-{id}/` with `LanguagePlugin` + tests
+- [ ] `crates/rgctl-lang-{id}/` with `LanguagePlugin` + tests
 - [ ] `languages.toml` updated (`handler = "custom"`)
 - [ ] Workspace `Cargo.toml` + bundle registration
 - [ ] `language_profile.rs` entry (`cfg_enabled`, `taint_enabled`, grammar)
@@ -415,12 +415,12 @@ Copy into your PR description:
 | Rust | 1 custom | ✅ | ✅ | ✅ rich | `dashboard_ecommerce_rust` | ✅ F1–F6 |
 | JS / TS | 1 custom | ✅ | ✅ | ✅ rich | `dashboard_ecommerce_javascript`, `dashboard_ecommerce_typescript` | ✅ F1–F6 (JS weaker types) |
 
-Layer F golden coverage lives in `crates/rgbuilder-analysis/src/field_write.rs` (`*_cfg_captures_field_write_and_query`). Update this table when promoting a language or when F tests regress.
+Layer F golden coverage lives in `crates/rgctl-analysis/src/field_write.rs` (`*_cfg_captures_field_write_and_query`). Update this table when promoting a language or when F tests regress.
 
 ---
 
 ## 9. Getting help
 
 - Open a **[Language Support Request](.github/ISSUE_TEMPLATE/language_request.md)** issue before large work.
-- Point questions at `rgbuilder-plugin-api::LanguagePlugin` and the reference crates above.
+- Point questions at `rgctl-plugin-api::LanguagePlugin` and the reference crates above.
 - For dashboard contract details, see `tests/dashboard_harness.rs` and `docs/dashboard-design.md`.

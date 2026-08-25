@@ -54,24 +54,24 @@ Ship P0→P2 before investing in LLM naming.
 ## 3. Phase 0 — Named communities in the dashboard (quick UX win)
 
 ### Problem
-`detect_communities` / `build_dashboard_community` already infer labels (path prefix, token frequency, `"Infrastructure / Common Library"`), but `rgbuilder_dashboard::communities::summarize_communities` hardcodes `format!("Community {cid}")`.
+`detect_communities` / `build_dashboard_community` already infer labels (path prefix, token frequency, `"Infrastructure / Common Library"`), but `rgctl_dashboard::communities::summarize_communities` hardcodes `format!("Community {cid}")`.
 
 ### Steps
 
-1. **Single label builder** — Extract shared API in `rgbuilder-analysis` (or dashboard helper that calls analysis):
+1. **Single label builder** — Extract shared API in `rgctl-analysis` (or dashboard helper that calls analysis):
    - Input: community id, member node refs (or names + paths), optional infra flag
    - Output: `label: String`
    - Reuse `infer_label_from_names`, path-prefix logic from `community.rs`
 2. **Persist labels with analysis (preferred)** — Extend community sidecar so discover does not recompute labels only at dashboard time:
    - Option A (minimal): add `CommunityLabelTable { labels: Vec<(usize, String)> }` or `HashMap<usize, String>` next to `CommunityTable` in `AnalysisResults`
    - Option B (lighter): compute labels only during dashboard export from graph + assignments (no schema bump) — acceptable for P0 if discover already hydrates for `--with-dashboard`
-3. **Fix export** — In `crates/rgbuilder-dashboard/src/communities.rs`, set `CommunitySummary.label` from the label builder / analysis, not `Community {id}`.
+3. **Fix export** — In `crates/rgctl-dashboard/src/communities.rs`, set `CommunitySummary.label` from the label builder / analysis, not `Community {id}`.
 4. **UI check** — Graph tab community legend / filters show the new strings; colors unchanged (`community_color_hex`).
 5. **Tests** — Unit test: two clusters with `login`/`logout` vs `get_user`/`list_users` → distinct non-placeholder labels; infra hub → `"Infrastructure / Common Library"`.
 6. **Docs** — Note in [dashboard-user-guide.md](../dashboard-user-guide.md) that community names are heuristic.
 
 ### Acceptance
-- After `discover … --with-dashboard`, `.rgbuilder/dashboard/communities.json` has meaningful `label` values for ≥ majority of communities with size ≥ 2 on ecommerce-java (or fixture).
+- After `discover … --with-dashboard`, `.rgctl/dashboard/communities.json` has meaningful `label` values for ≥ majority of communities with size ≥ 2 on ecommerce-java (or fixture).
 - Fallback remains `Community {id}` when inference is weak.
 
 ---
@@ -108,8 +108,8 @@ Ship P0→P2 before investing in LLM naming.
 
 ### Acceptance
 ```bash
-rg-build -r "$REPO" -f json gql 'MATCH (c:Community) RETURN c'
-rg-build -r "$REPO" -f json gql "MATCH (f:Function) WHERE f.community_id = 12 RETURN f LIMIT 20"
+rgctl -r "$REPO" -f json gql 'MATCH (c:Community) RETURN c'
+rgctl -r "$REPO" -f json gql "MATCH (f:Function) WHERE f.community_id = 12 RETURN f LIMIT 20"
 ```
 Both work after normal `discover` (analysis present). Snapshot size / content digest unchanged when only community labels change.
 
@@ -119,7 +119,7 @@ Both work after normal `discover` (analysis present). Snapshot size / content di
 
 ### Steps
 
-1. **Macros** in `crates/rgbuilder-gql/src/macros.rs`:
+1. **Macros** in `crates/rgctl-gql/src/macros.rs`:
    - `all_communities` → `MATCH (c:Community) RETURN c`
    - `community_members` — needs a parameter story; if macros are string-only today, document literal form or add `--macro-arg` later. v1: document the WHERE pattern in recipes only if params unsupported.
 2. **HTTP** — Confirm `/api/query` uses the same analysis-aware executor; document in [http-api.md](../http-api.md).
@@ -142,7 +142,7 @@ Layer on P0 heuristics; keep labels in the community summary sidecar.
 |------|--------|------|
 | **3a Heuristic v2** | Package-majority vote, top PageRank symbol in cluster, strip infra hubs from naming | Default discover |
 | **3b Embedding-assisted** | Mean/pool member vectors from `semantic_index.bin`; pick representative token or nearest lexicon phrase | After `semantic index` |
-| **3c LLM / agent label** | Opt-in `rg-build communities label` (or discover flag) with member sample → short title | CI/offline; never required for core |
+| **3c LLM / agent label** | Opt-in `rgctl communities label` (or discover flag) with member sample → short title | CI/offline; never required for core |
 
 ### Steps (3a first)
 
@@ -171,13 +171,13 @@ Only after P1 + semantic index maturity.
 
 | Area | Likely touch points |
 |------|---------------------|
-| Label inference | `crates/rgbuilder-analysis/src/community.rs` |
-| Analysis schema | `crates/rgbuilder-analysis/src/results.rs` (+ migrate/version if new columns) |
-| Dashboard export | `crates/rgbuilder-dashboard/src/communities.rs`, export bundle entry |
+| Label inference | `crates/rgctl-analysis/src/community.rs` |
+| Analysis schema | `crates/rgctl-analysis/src/results.rs` (+ migrate/version if new columns) |
+| Dashboard export | `crates/rgctl-dashboard/src/communities.rs`, export bundle entry |
 | Discover write path | `src/cli/discover_impl.rs` (fill labels when community table written) |
-| GQL executor | `crates/rgbuilder-gql/src/*` (virtual type, property join) |
+| GQL executor | `crates/rgctl-gql/src/*` (virtual type, property join) |
 | CLI / HTTP | `src/cli/gql.rs`, serve query handler |
-| Macros | `crates/rgbuilder-gql/src/macros.rs` |
+| Macros | `crates/rgctl-gql/src/macros.rs` |
 | Docs | `docs/design/gql-design.md`, `AGENTS.md`, `agent-recipes.md`, user-guide |
 | Tests | analysis unit tests; gql integration; dashboard harness community label assert |
 

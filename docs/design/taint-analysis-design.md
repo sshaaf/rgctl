@@ -70,10 +70,10 @@ Dashboard: filter **vulnerable only**; click a flow for path detail.
 
 | Component | Path |
 |-----------|------|
-| Taint engine | `crates/rgbuilder-analysis/src/taint.rs` |
-| Language sinks/sources | Pattern tables per `rgbuilder-lang-*` |
-| Storage | `crates/rgbuilder-analysis/src/storage.rs` |
-| Dashboard export | `crates/rgbuilder-dashboard/src/taint_export.rs` |
+| Taint engine | `crates/rgctl-analysis/src/taint.rs` |
+| Language sinks/sources | Pattern tables per `rgctl-lang-*` |
+| Storage | `crates/rgctl-analysis/src/storage.rs` |
+| Dashboard export | `crates/rgctl-dashboard/src/taint_export.rs` |
 | CLI taint slice | `src/cli/slice.rs` (`--taint`) |
 
 ---
@@ -92,9 +92,9 @@ Dashboard: filter **vulnerable only**; click a flow for path detail.
 ## 6. CLI usage
 
 ```bash
-rg-build discover . --with-cfg --with-security --with-taint
-rg-build slice src/Endpoint.java --line 20 --variable request --function handle --taint
-# Inspect exported flows under .rgbuilder/analysis/ or dashboard taint/*.json
+rgctl discover . --with-cfg --with-security --with-taint
+rgctl slice src/Endpoint.java --line 20 --variable request --function handle --taint
+# Inspect exported flows under .rgctl/analysis/ or dashboard taint/*.json
 ```
 
 ---

@@ -1,0 +1,28 @@
+[package]
+name = "rgctl-core"
+version = "0.4.7"
+edition.workspace = true
+rust-version.workspace = true
+description = "Facade crate for rgctl library consumers"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-analysis = { path = "../rgctl-analysis" }
+rgctl-error = { path = "../rgctl-error" }
+rgctl-export = { path = "../rgctl-export" }
+rgctl-extraction = { path = "../rgctl-extraction" }
+rgctl-gql = { path = "../rgctl-gql" }
+rgctl-graph = { path = "../rgctl-graph" }
+rgctl-incremental = { path = "../rgctl-incremental" }
+rgctl-pipeline = { path = "../rgctl-pipeline" }
+rgctl-plugin-api = { path = "../rgctl-plugin-api" }
+rgctl-project-config = { path = "../rgctl-project-config" }
+rgctl-registry = { path = "../rgctl-registry" }
+rgctl-rules = { path = "../rgctl-rules" }
+rgctl-security = { path = "../rgctl-security" }
+rgctl-semantic = { path = "../rgctl-semantic" }
+
+sysinfo = "0.30"
+
+[features]
+default = []

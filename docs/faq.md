@@ -4,7 +4,7 @@ Short answers for common first-hour questions. Commands → [User Guide](user-gu
 
 ### Discover vs semantic index?
 
-`discover` builds the **code knowledge graph** and reachability caches. `semantic index` is a separate **opt-in** embedding index for natural-language / keyword search. Run discover first, then `rg-build semantic index` if you need Search / `semantic query`. For **doc sections**, use `semantic index --scope docs` (indexes headings + code blocks); query embedder is fixed at index time — see [markdown-context.md](markdown-context.md#semantic-search-doc-sections).
+`discover` builds the **code knowledge graph** and reachability caches. `semantic index` is a separate **opt-in** embedding index for natural-language / keyword search. Run discover first, then `rgctl semantic index` if you need Search / `semantic query`. For **doc sections**, use `semantic index --scope docs` (indexes headings + code blocks); query embedder is fixed at index time — see [markdown-context.md](markdown-context.md#semantic-search-doc-sections).
 
 ### When do I need `--with-cfg`?
 
@@ -12,12 +12,12 @@ For CFG/PDG archives used by `inspect`, `slice`, `cpg`, and discover-time taint 
 
 ### Why is the dashboard empty after `discover .`?
 
-Dashboard export is **off by default**. Pass `--with-dashboard`, then `rg-build serve --open`.
+Dashboard export is **off by default**. Pass `--with-dashboard`, then `rgctl serve --open`.
 
 ### How do I get a migration plan?
 
 ```bash
-rg-build discover . --with-cfg --with-security --with-taint \
+rgctl discover . --with-cfg --with-security --with-taint \
   --with-dashboard --with-harmonic --export-migration-hints
 ```
 
@@ -41,7 +41,7 @@ No. Combine `--with-cfg --with-security --with-taint` (and dashboard/migration f
 
 ### Louvain or label propagation?
 
-rgBuilder runs **label propagation** (Raghavan 2007). The field `louvain_community_id` is a historical name only.
+rgctl runs **label propagation** (Raghavan 2007). The field `louvain_community_id` is a historical name only.
 
 ### Coolstore or ecommerce-java?
 

@@ -1,0 +1,16 @@
+[package]
+name = "rgctl-lang-c"
+version = "0.4.7"
+edition.workspace = true
+rust-version.workspace = true
+description = "rgctl language plugin: c"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-plugin-api = { workspace = true }
+rgctl-registry = { workspace = true }
+rgctl-plugin-helpers = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-c = "0.24"
+serde_json = "1"
+tracing = "0.1"

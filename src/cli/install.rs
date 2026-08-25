@@ -1,4 +1,4 @@
-//! `rg-build install --skill` — copy the bundled agent skill into a repo.
+//! `rgctl install --skill` — copy the bundled agent skill into a repo.
 
 use super::args::{OutputFormat, SkillHost};
 use super::context::CliContext;
@@ -10,9 +10,9 @@ use include_dir::{Dir, include_dir};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-static SKILL_BUNDLE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skills/rgbuilder");
+static SKILL_BUNDLE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/skills/rgctl");
 
-const SKILL_DIR_NAME: &str = "rgbuilder";
+const SKILL_DIR_NAME: &str = "rgctl";
 
 pub struct InstallArgs {
     pub skill: bool,
@@ -22,13 +22,13 @@ pub struct InstallArgs {
 
 pub fn run(ctx: &CliContext, args: InstallArgs) -> Result<()> {
     if !args.skill {
-        bail!("pass --skill to install the rgBuilder agent skill (see `rg-build install --help`)");
+        bail!("pass --skill to install the rgctl agent skill (see `rgctl install --help`)");
     }
 
     let repo = abs_path(&ctx.repo);
     let files = bundled_skill_files();
     if files.is_empty() {
-        bail!("embedded rgbuilder skill bundle is empty");
+        bail!("embedded rgctl skill bundle is empty");
     }
 
     let hosts = host_targets(args.host);
@@ -187,7 +187,7 @@ fn emit_response(ctx: &CliContext, response: &InstallJsonResponse) -> Result<()>
         ctx.emit_json_value(&serde_json::to_value(response)?)?;
         return Ok(());
     }
-    let mut lines = vec!["Installed rgbuilder skill:".to_string()];
+    let mut lines = vec!["Installed rgctl skill:".to_string()];
     for write in &response.writes {
         lines.push(format!(
             "  {:<16} {}",

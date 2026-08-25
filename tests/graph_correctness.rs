@@ -1,13 +1,13 @@
 //! Graph data correctness — expected-facts + cross-feature invariants.
 //!
-//! Fixtures live under `rgbuilder-tests/ecommerce-*/correctness/expected-facts.json`.
+//! Fixtures live under `rgctl-tests/ecommerce-*/correctness/expected-facts.json`.
 //!
 //! ```bash
 //! cargo test --test graph_correctness
 //! cargo test --test graph_correctness java   # filter by project id in test name
 //! ```
 //!
-//! See `rgbuilder-tests/correctness/SCHEMA.md` and https://github.com/sshaaf/rgBuilder/issues/26
+//! See `rgctl-tests/correctness/SCHEMA.md` and https://github.com/sshaaf/rgctl/issues/26
 
 #![allow(clippy::too_many_arguments)]
 
@@ -16,15 +16,15 @@ mod graph_correctness_lib;
 use graph_correctness_lib::{ProjectSpec, run_project};
 use std::path::PathBuf;
 
-fn rgbuilder_tests_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgbuilder-tests")
+fn rgctl_tests_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests")
 }
 
-fn rgbuilder_bin() -> PathBuf {
-    if let Ok(p) = std::env::var("CARGO_BIN_EXE_rg_build") {
+fn rgctl_bin() -> PathBuf {
+    if let Ok(p) = std::env::var("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(p);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg-build")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
 }
 
 const PROJECTS: &[ProjectSpec] = &[
@@ -76,7 +76,7 @@ const PROJECTS: &[ProjectSpec] = &[
 ];
 
 fn assert_project(spec: &ProjectSpec) {
-    let root = rgbuilder_tests_root();
+    let root = rgctl_tests_root();
     let project_dir = root.join(spec.dir_name);
     let facts = project_dir.join("correctness").join("expected-facts.json");
     if !facts.is_file() {
@@ -92,10 +92,10 @@ fn assert_project(spec: &ProjectSpec) {
         "missing project dir {}",
         project_dir.display()
     );
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     assert!(
         bin.is_file(),
-        "rg-build binary not found at {} (build the test binary first)",
+        "rgctl binary not found at {} (build the test binary first)",
         bin.display()
     );
 

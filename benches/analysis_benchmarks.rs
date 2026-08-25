@@ -3,13 +3,13 @@
 //! Run: `cargo bench --bench analysis_benchmarks`
 
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     CallGraph, DominatorTree, InterproceduralCFG, InterproceduralSlicer, ProgramDependenceGraph,
     SliceCriterion, TaintAnalyzer, TypeInferenceEngine, build_cfg_for_function,
 };
-use rgbuilder::gql::{QueryExecutor, execute, parse};
-use rgbuilder::graph::backend::{GraphBackend, MemoryBackend};
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::gql::{QueryExecutor, execute, parse};
+use rgctl::graph::backend::{GraphBackend, MemoryBackend};
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
 use std::collections::HashMap;
 use std::time::Duration;
 

@@ -1,4 +1,4 @@
-use rgbuilder::cli::install_output::{
+use rgctl::cli::install_output::{
     INSTALL_SCHEMA_VERSION, InstallWrite, InstallWriteHost, InstallWriteStatus,
     build_install_response,
 };
@@ -10,7 +10,7 @@ fn test_install_json_schema_sanity() {
         false,
         vec![InstallWrite {
             host: InstallWriteHost::Claude,
-            path: "/tmp/repo/.claude/skills/rgbuilder/SKILL.md".into(),
+            path: "/tmp/repo/.claude/skills/rgctl/SKILL.md".into(),
             status: InstallWriteStatus::Created,
         }],
     );
@@ -21,7 +21,7 @@ fn test_install_json_schema_sanity() {
         Some(INSTALL_SCHEMA_VERSION as u64)
     );
     assert_eq!(doc.get("command").and_then(|v| v.as_str()), Some("install"));
-    assert_eq!(doc.get("skill").and_then(|v| v.as_str()), Some("rgbuilder"));
+    assert_eq!(doc.get("skill").and_then(|v| v.as_str()), Some("rgctl"));
     for key in ["repo", "force", "writes"] {
         assert!(doc.get(key).is_some(), "install JSON missing '{key}'");
     }

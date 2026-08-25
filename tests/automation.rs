@@ -1,16 +1,16 @@
 //! Phase 13: change detection and incremental updates.
 
-use rgbuilder::changes::ChangeDetector;
-use rgbuilder::config::project::{RgbuilderConfig, RiskLevel};
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
-use rgbuilder::incremental::{IncrementalUpdater, UpdateOptions, changes_for_paths};
-use rgbuilder::languages::registry::LanguageRegistry;
-use rgbuilder::pipeline::{PipelineConfig, ProcessingPipeline};
+use rgctl::changes::ChangeDetector;
+use rgctl::config::project::{RgctlConfig, RiskLevel};
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::incremental::{IncrementalUpdater, UpdateOptions, changes_for_paths};
+use rgctl::languages::registry::LanguageRegistry;
+use rgctl::pipeline::{PipelineConfig, ProcessingPipeline};
 use std::fs;
 use tempfile::TempDir;
 
-fn chain_graph_repo(temp: &TempDir) -> rgbuilder::CodeGraph {
+fn chain_graph_repo(temp: &TempDir) -> rgctl::CodeGraph {
     let root = temp.path();
     fs::create_dir_all(root.join("src")).unwrap();
     fs::write(
@@ -29,7 +29,7 @@ fn chain_graph_repo(temp: &TempDir) -> rgbuilder::CodeGraph {
     let (graph, _) = pipeline.process_repository(root).unwrap();
     graph.save_to_repo(root).unwrap();
 
-    let mut tracker = rgbuilder::incremental::FileTracker::new(root);
+    let mut tracker = rgctl::incremental::FileTracker::new(root);
     let files = vec![root.join("src/lib.rs")];
     tracker.index_files(&files, &graph).unwrap();
     tracker.save().unwrap();
@@ -50,7 +50,7 @@ fn test_changes_for_paths_modified() {
 
 #[test]
 fn test_detect_changes_risk_on_chain() {
-    let mut graph = rgbuilder::CodeGraph::new();
+    let mut graph = rgctl::CodeGraph::new();
     let backend = graph.backend_mut();
     let a = Node::new(NodeType::Function, "a").with_file_path("src/lib.rs");
     let b = Node::new(NodeType::Function, "b").with_file_path("src/lib.rs");
@@ -100,16 +100,16 @@ fn test_update_files_incremental() {
 }
 
 #[test]
-fn test_rgbuilder_config_defaults() {
+fn test_rgctl_config_defaults() {
     let temp = TempDir::new().unwrap();
-    let cfg = RgbuilderConfig::load(temp.path()).unwrap();
+    let cfg = RgctlConfig::load(temp.path()).unwrap();
     assert_eq!(cfg.hooks.block_on_risk, RiskLevel::Critical);
     assert_eq!(cfg.watch.debounce_ms, 500);
 }
 
 #[test]
 fn test_manual_graph_blast_risk() {
-    let mut graph = rgbuilder::CodeGraph::new();
+    let mut graph = rgctl::CodeGraph::new();
     let backend = graph.backend_mut();
     let a = Node::new(NodeType::Function, "a").with_file_path("f.rs");
     let b = Node::new(NodeType::Function, "b").with_file_path("f.rs");
@@ -135,16 +135,16 @@ fn test_manual_graph_blast_risk() {
 
 #[test]
 fn test_critical_risk_blocks_per_config() {
-    use rgbuilder::config::project::RgbuilderConfig;
-    let cfg = RgbuilderConfig::default();
+    use rgctl::config::project::RgctlConfig;
+    let cfg = RgctlConfig::default();
     assert!(cfg.hooks.block_on_risk.blocks(RiskLevel::Critical));
     assert!(!cfg.hooks.block_on_risk.blocks(RiskLevel::Medium));
 }
 
 #[test]
 fn test_high_risk_blocked_when_configured() {
-    use rgbuilder::config::project::{RgbuilderConfig, RiskLevel};
-    let mut cfg = RgbuilderConfig::default();
+    use rgctl::config::project::{RgctlConfig, RiskLevel};
+    let mut cfg = RgctlConfig::default();
     cfg.hooks.block_on_risk = RiskLevel::High;
     assert!(cfg.hooks.block_on_risk.blocks(RiskLevel::Critical));
     assert!(cfg.hooks.block_on_risk.blocks(RiskLevel::High));
@@ -153,7 +153,7 @@ fn test_high_risk_blocked_when_configured() {
 
 #[test]
 fn test_detect_changes_json_contains_summary() {
-    let mut graph = rgbuilder::CodeGraph::new();
+    let mut graph = rgctl::CodeGraph::new();
     let backend = graph.backend_mut();
     let leaf = Node::new(NodeType::Function, "leaf").with_file_path("f.rs");
     backend.insert_node(leaf).unwrap();

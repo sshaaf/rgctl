@@ -45,24 +45,24 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             archive: tar.gz
-            bin: rg-build
+            bin: rgctl
             # Default features include semantic-onnx (code-daemon embedder).
             cargo_args: --features semantic-onnx
           - os: macos-latest
             target: aarch64-apple-darwin
             archive: tar.gz
-            bin: rg-build
+            bin: rgctl
             cargo_args: --features semantic-onnx
           - os: macos-latest
             target: x86_64-apple-darwin
             archive: tar.gz
-            bin: rg-build
+            bin: rgctl
             # ort 2.x has no prebuilt ONNX Runtime for Intel Mac; hash embedder only.
             cargo_args: --no-default-features
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             archive: zip
-            bin: rg-build.exe
+            bin: rgctl.exe
             cargo_args: --features semantic-onnx
 
     steps:
@@ -84,7 +84,7 @@ jobs:
           shared-key: release-${{ matrix.target }}
 
       - name: Build release binary
-        run: cargo build --release ${{ matrix.cargo_args }} --target ${{ matrix.target }} --bin rg-build
+        run: cargo build --release ${{ matrix.cargo_args }} --target ${{ matrix.target }} --bin rgctl
 
       - name: Package archive (Unix)
         if: matrix.archive == 'tar.gz'
@@ -98,10 +98,10 @@ jobs:
           fi
           STAGING="package"
           mkdir -p "$STAGING"
-          cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "$STAGING/rg-build"
-          chmod +x "$STAGING/rg-build"
-          ARCHIVE="rgbuilder-${VERSION}-${{ matrix.target }}.tar.gz"
-          tar -czf "$ARCHIVE" -C "$STAGING" rg-build
+          cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "$STAGING/rgctl"
+          chmod +x "$STAGING/rgctl"
+          ARCHIVE="rgctl-${VERSION}-${{ matrix.target }}.tar.gz"
+          tar -czf "$ARCHIVE" -C "$STAGING" rgctl
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
       - name: Package archive (Windows)
@@ -114,9 +114,9 @@ jobs:
             $version = (Select-String -Path Cargo.toml -Pattern '^version' | Select-Object -First 1).Line -replace '.*"(.*)".*','$1'
           }
           New-Item -ItemType Directory -Force -Path package | Out-Null
-          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin }}" "package/rg-build.exe"
-          $archive = "rgbuilder-${version}-${{ matrix.target }}.zip"
-          Compress-Archive -Path package/rg-build.exe -DestinationPath $archive -Force
+          Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin }}" "package/rgctl.exe"
+          $archive = "rgctl-${version}-${{ matrix.target }}.zip"
+          Compress-Archive -Path package/rgctl.exe -DestinationPath $archive -Force
           echo "ARCHIVE=$archive" >> $env:GITHUB_ENV
 
       - name: Upload build artifact
@@ -149,7 +149,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          shasum -a 256 rgbuilder-* > SHA256SUMS.txt
+          shasum -a 256 rgctl-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Resolve release tag
@@ -181,7 +181,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: rgBuilder ${{ steps.meta.outputs.tag }}
+          name: rgctl ${{ steps.meta.outputs.tag }}
           draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
           prerelease: ${{ contains(steps.meta.outputs.tag, '-') }}
           body_path: release-body.md
@@ -191,25 +191,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # secrets.* cannot appear in job/step `if:` — check token inside the step instead.
-      - name: Trigger rgbuilder-tests report
+      - name: Trigger rgctl-tests report
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.draft }}
         env:
-          DISPATCH_TOKEN: ${{ secrets.RGBUILDER_TESTS_DISPATCH_TOKEN }}
+          DISPATCH_TOKEN: ${{ secrets.RGCTL_TESTS_DISPATCH_TOKEN }}
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
         run: |
           set -euo pipefail
           if [[ -z "${DISPATCH_TOKEN}" ]]; then
-            echo "RGBUILDER_TESTS_DISPATCH_TOKEN not set; skipping rgbuilder-tests report dispatch"
+            echo "RGCTL_TESTS_DISPATCH_TOKEN not set; skipping rgctl-tests report dispatch"
             exit 0
           fi
           payload="$(jq -nc \
             --arg tag "$RELEASE_TAG" \
             --arg repo "${{ github.repository }}" \
             --arg sha "${{ github.sha }}" \
-            '{event_type:"rgbuilder-released", client_payload:{tag:$tag, rgbuilder_repo:$repo, rgbuilder_sha:$sha}}')"
+            '{event_type:"rgctl-released", client_payload:{tag:$tag, rgctl_repo:$repo, rgctl_sha:$sha}}')"
           curl -fsSL -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
-            "https://api.github.com/repos/sshaaf/rgbuilder-tests/dispatches" \
+            "https://api.github.com/repos/sshaaf/rgctl-tests/dispatches" \
             -d "$payload"
-          echo "Dispatched rgbuilder-released for ${RELEASE_TAG}"
+          echo "Dispatched rgctl-released for ${RELEASE_TAG}"

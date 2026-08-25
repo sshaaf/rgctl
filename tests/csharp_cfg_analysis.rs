@@ -1,15 +1,15 @@
 //! C# CFG analysis against the ecommerce-csharp fixture.
 
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     ProgramDependenceGraph, build_cfg_for_function, cfg_language_id_from_path,
 };
 use std::path::{Path, PathBuf};
 
 fn csharp_repo() -> PathBuf {
-    std::env::var("RGBUILDER_CSHARP_REPO")
+    std::env::var("RGCTL_CSHARP_REPO")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgbuilder-tests/ecommerce-csharp")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests/ecommerce-csharp")
         })
 }
 

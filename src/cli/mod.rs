@@ -1,4 +1,4 @@
-//! rgBuilder CLI command definitions and dispatch.
+//! rgctl CLI command definitions and dispatch.
 
 mod args;
 mod blast_radius;
@@ -8,6 +8,7 @@ pub mod check_output;
 mod communities;
 mod context;
 mod cpg;
+mod daemon;
 mod discover;
 mod discover_cfg;
 mod discover_impl;
@@ -21,9 +22,13 @@ pub mod inspect_output;
 mod install;
 pub mod install_output;
 mod markup;
+mod mcp_serve;
 mod metrics;
 pub mod metrics_output;
+mod pipeline_session;
+pub mod pipeline_status;
 mod policy_file;
+#[allow(dead_code)]
 mod query_daemon;
 mod semantic;
 mod semantic_api;
@@ -36,14 +41,16 @@ pub use args::OutputFormat;
 
 use crate::BUILD_INFO;
 use crate::analysis::{DEFAULT_CANDIDATE_POOL, DEFAULT_EMBEDDING_DIMENSIONS};
-use args::{ExportFormat, InspectLayer, PdgEdgeLayer, SkillHost, SliceDirection, SliceView};
+use args::{
+    ExportFormat, InspectLayer, PdgEdgeLayer, ServeMode, SkillHost, SliceDirection, SliceView,
+};
 use clap::{Parser, Subcommand};
 use context::CliContext;
 use std::time::{Duration, Instant};
 
 #[derive(Parser)]
-#[command(name = "rg-build")]
-#[command(about = "AI-powered code knowledge graph", version = BUILD_INFO)]
+#[command(name = "rgctl")]
+#[command(about = "A code knowledge graph built for LLM agents", version = BUILD_INFO)]
 pub struct Cli {
     /// Path to the graph cache database
     #[arg(short = 'd', long = "db", global = true)]
@@ -60,6 +67,18 @@ pub struct Cli {
     /// Write output to file instead of stdout
     #[arg(short = 'o', long = "output", global = true)]
     pub output: Option<std::path::PathBuf>,
+
+    /// Run in-process; do not contact or start a daemon
+    #[arg(long = "no-daemon", global = true)]
+    pub no_daemon: bool,
+
+    /// Daemon workspace root (default: $HOME → state under ~/.rgctl/)
+    #[arg(long = "daemon-home", value_name = "PATH", global = true)]
+    pub daemon_home: Option<std::path::PathBuf>,
+
+    /// Fail if no daemon is running; do not auto-start
+    #[arg(long = "fail-if-no-daemon", global = true)]
+    pub fail_if_no_daemon: bool,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -86,7 +105,7 @@ pub enum Commands {
         #[arg(long = "with-security", visible_alias = "security")]
         with_security: bool,
 
-        /// Per-function CFG, dominators, and PDG → `.rgbuilder/analysis/` + cfg_pdg archive.
+        /// Per-function CFG, dominators, and PDG → `.rgctl/analysis/` + cfg_pdg archive.
         /// Off by default. Does **not** include discover-time taint (see `--with-taint`).
         #[arg(long = "with-cfg", visible_alias = "cfg")]
         with_cfg: bool,
@@ -100,7 +119,7 @@ pub enum Commands {
         #[arg(long = "with-dfg-loops")]
         with_dfg_loops: bool,
 
-        /// Write coarse AST skeleton archive under `.rgbuilder/analysis/` (implies CFG).
+        /// Write coarse AST skeleton archive under `.rgctl/analysis/` (implies CFG).
         #[arg(long = "with-ast-skeleton")]
         with_ast_skeleton: bool,
 
@@ -108,11 +127,11 @@ pub enum Commands {
         #[arg(long = "write-json-graph")]
         write_json_graph: bool,
 
-        /// Export the static dashboard bundle under `.rgbuilder/dashboard/`. Off by default.
+        /// Export the static dashboard bundle under `.rgctl/dashboard/`. Off by default.
         #[arg(long = "with-dashboard")]
         with_dashboard: bool,
 
-        /// Write a migration roadmap JSON after analysis (default: `.rgbuilder/migration_plan.json`).
+        /// Write a migration roadmap JSON after analysis (default: `.rgctl/migration_plan.json`).
         /// Alias: `--export-migration-plan` (deprecated name).
         #[arg(
             long = "export-migration-hints",
@@ -124,6 +143,11 @@ pub enum Commands {
         /// migration ranking; adds ~30s and multi‑GB peak RSS on kernel-scale graphs.
         #[arg(long = "with-harmonic")]
         with_harmonic: bool,
+
+        /// Staged full pipeline: basic discover (queryable snapshot), then CFG + dashboard +
+        /// harmonic, then semantic index. Prints a plan first; does not imply taint/security.
+        #[arg(long = "full")]
+        full: bool,
 
         /// Strategy preset for migration plan export.
         #[arg(
@@ -140,6 +164,10 @@ pub enum Commands {
             value_parser = ["scheduled", "priority"]
         )]
         migration_order: String,
+
+        /// Flags after `--` (e.g. `discover . -- --full`)
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
+        extra: Vec<String>,
     },
 
     /// Execute graph query language
@@ -269,8 +297,21 @@ pub enum Commands {
     /// Serve the analysis dashboard and GQL query API over HTTP.
     ///
     /// Default: dashboard at `/` and query API at `/api/query` (alias `/graphql`).
-    /// Use `--daemon` for the legacy blast-radius query socket instead.
+    /// Starts the full discover pipeline unless `--no-pipeline` or `--daemon`.
+    /// Use `--mode mcp` for MCP stdio (no HTTP). `--daemon` is the legacy blast socket.
     Serve {
+        /// Repository path to index (defaults to `--repo` or cwd)
+        #[arg(value_name = "PATH")]
+        path: Option<String>,
+
+        /// `standard` (HTTP, default) or `mcp` (stdio MCP, no HTTP bind)
+        #[arg(long, value_enum, default_value_t = ServeMode::Standard)]
+        mode: ServeMode,
+
+        /// Do not auto-run discover; fail fast if artifacts are missing (pre-0.4.7 serve)
+        #[arg(long = "no-pipeline")]
+        no_pipeline: bool,
+
         /// Bind host [default: 127.0.0.1]
         #[arg(long, default_value = "127.0.0.1")]
         host: String,
@@ -279,7 +320,7 @@ pub enum Commands {
         #[arg(long, default_value_t = 8080)]
         port: u16,
 
-        /// Dashboard directory [default: `<repo>/.rgbuilder/dashboard`]
+        /// Dashboard directory [default: `<repo>/.rgctl/dashboard`]
         #[arg(long, value_name = "DIR")]
         dashboard_dir: Option<std::path::PathBuf>,
 
@@ -295,11 +336,15 @@ pub enum Commands {
         #[arg(long)]
         dashboard_only: bool,
 
-        /// Legacy blast-radius query daemon (Unix socket or Windows port file)
-        #[arg(long, conflicts_with_all = ["host", "port", "open", "query_only", "dashboard_only", "dashboard_dir"])]
+        /// Background HTTP+MCP daemon (replaces the old blast query socket).
+        #[arg(long)]
         daemon: bool,
 
-        /// Daemon endpoint path (Unix socket or Windows port file; default under `<repo>/.rgbuilder/`)
+        /// Worker process (hidden; spawned by `serve --daemon` / `daemon start`)
+        #[arg(long = "daemon-worker", hide = true)]
+        daemon_worker: bool,
+
+        /// Daemon endpoint path (Unix socket or Windows port file; default under `<repo>/.rgctl/`)
         #[arg(long, value_name = "PATH")]
         socket: Option<std::path::PathBuf>,
 
@@ -310,7 +355,7 @@ pub enum Commands {
 
     /// Install bundled artifacts into a repository
     Install {
-        /// Install the rgBuilder agent skill (Claude Code + Cursor project dirs)
+        /// Install the rgctl agent skill (Claude Code + Cursor project dirs)
         #[arg(long = "skill")]
         skill: bool,
 
@@ -322,11 +367,36 @@ pub enum Commands {
         #[arg(long)]
         force: bool,
     },
+
+    /// Control the background HTTP/MCP daemon
+    Daemon {
+        #[command(subcommand)]
+        action: DaemonAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DaemonAction {
+    /// Start the daemon (idempotent)
+    Start {
+        #[arg(long)]
+        host: Option<String>,
+        #[arg(long)]
+        port: Option<u16>,
+    },
+    /// Stop the daemon
+    Stop,
+    /// Restart the daemon
+    Restart,
+    /// Show pid, HTTP, MCP
+    Status,
+    /// List cached repositories
+    List,
 }
 
 #[derive(Subcommand)]
 pub enum SemanticCommands {
-    /// Build `.rgbuilder/semantic_index.bin` from function symbols (not run by default discover)
+    /// Build `.rgctl/semantic_index.bin` from function symbols (not run by default discover)
     Index {
         /// Embedding dimensions before sign quantization (multiple of 8) [default: 256]
         #[arg(long, default_value_t = DEFAULT_EMBEDDING_DIMENSIONS)]
@@ -379,7 +449,7 @@ pub enum SemanticCommands {
 
     /// Distill `vocab_tokens.txt` through a teacher embedder into an RBVK matrix
     Distill {
-        /// RBVK destination (copy to crates/rgbuilder-analysis/assets/vocab_matrix.bin)
+        /// RBVK destination (copy to crates/rgctl-analysis/assets/vocab_matrix.bin)
         #[arg(long = "matrix", value_name = "PATH")]
         matrix: std::path::PathBuf,
 
@@ -574,16 +644,26 @@ impl Cli {
         init_logging(verbose, discover_json);
 
         if !long_running {
-            eprintln!("[>] rg-build {command_label}");
+            eprintln!("[>] rgctl {command_label}");
         }
 
-        let ctx = CliContext::new(
-            self.repo,
+        let command_path = match &self.command {
+            Commands::Discover { path: Some(p), .. } | Commands::Serve { path: Some(p), .. } => {
+                Some(std::path::PathBuf::from(p))
+            }
+            _ => None,
+        };
+
+        let mut ctx = CliContext::new(
+            command_path.or(self.repo),
             self.db,
             self.format.unwrap_or_default(),
             self.output,
             verbose,
         );
+        ctx.no_daemon = self.no_daemon || std::env::var_os("RGCTL_NO_DAEMON").is_some();
+        ctx.daemon_home = self.daemon_home;
+        ctx.fail_if_no_daemon = self.fail_if_no_daemon;
 
         let result = match self.command {
             Commands::Discover {
@@ -600,27 +680,36 @@ impl Cli {
                 with_dashboard,
                 export_migration_hints,
                 with_harmonic,
+                mut full,
                 migration_preset,
                 migration_order,
-            } => discover::run(
-                &ctx,
-                discover::DiscoverArgs {
-                    path,
-                    languages,
-                    exclude,
-                    with_security,
-                    with_cfg,
-                    with_taint,
-                    with_dfg_loops,
-                    with_ast_skeleton,
-                    write_json_graph,
-                    with_dashboard,
-                    export_migration_hints,
-                    with_harmonic,
-                    migration_preset,
-                    migration_order,
-                },
-            ),
+                extra,
+            } => {
+                if extra.iter().any(|a| a == "--full") {
+                    full = true;
+                }
+                discover::run(
+                    &ctx,
+                    discover::DiscoverArgs {
+                        path,
+                        languages,
+                        exclude,
+                        with_security,
+                        with_cfg,
+                        with_taint,
+                        with_dfg_loops,
+                        with_ast_skeleton,
+                        write_json_graph,
+                        with_dashboard,
+                        export_migration_hints,
+                        with_harmonic,
+                        full,
+                        migration_preset,
+                        migration_order,
+                        artifact_root: None,
+                    },
+                )
+            }
             Commands::Gql {
                 query,
                 explain,
@@ -869,7 +958,38 @@ impl Cli {
             Commands::Install { skill, host, force } => {
                 install::run(&ctx, install::InstallArgs { skill, host, force })
             }
+            Commands::Daemon { action } => match action {
+                DaemonAction::Start { host, port } => {
+                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
+                    let pid = daemon::start(&home, host.as_deref(), port)?;
+                    eprintln!("rgctl: daemon pid {pid}");
+                    Ok(())
+                }
+                DaemonAction::Stop => {
+                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
+                    daemon::stop(&home)
+                }
+                DaemonAction::Restart => {
+                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
+                    let pid = daemon::restart(&home)?;
+                    eprintln!("rgctl: daemon pid {pid}");
+                    Ok(())
+                }
+                DaemonAction::Status => {
+                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
+                    print!("{}", daemon::status_text(&home)?);
+                    Ok(())
+                }
+                DaemonAction::List => {
+                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
+                    print!("{}", daemon::list_text(&home)?);
+                    Ok(())
+                }
+            },
             Commands::Serve {
+                path,
+                mode,
+                no_pipeline,
                 host,
                 port,
                 dashboard_dir,
@@ -877,13 +997,30 @@ impl Cli {
                 query_only,
                 dashboard_only,
                 daemon,
-                socket,
-                idle_secs,
+                daemon_worker,
+                socket: _,
+                idle_secs: _,
             } => {
-                if daemon {
-                    let socket =
-                        socket.unwrap_or_else(|| query_daemon::default_socket_path(&ctx.repo));
-                    query_daemon::serve(&ctx, socket, idle_secs)
+                if daemon_worker {
+                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
+                    daemon::run_worker(home, host, port)
+                } else if daemon {
+                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
+                    // Foreground serve defaults to 127.0.0.1; daemon uses config (0.0.0.0) unless --host was not the foreground default.
+                    let daemon_host = if host == "127.0.0.1" {
+                        None
+                    } else {
+                        Some(host.as_str())
+                    };
+                    let pid = daemon::start(&home, daemon_host, Some(port))?;
+                    eprintln!("rgctl: daemon pid {pid} (background HTTP)");
+                    Ok(())
+                } else if mode == ServeMode::Mcp {
+                    if ctx.no_daemon {
+                        mcp_serve::serve(&ctx, mcp_serve::McpServeArgs { path, no_pipeline })
+                    } else {
+                        daemon::stdio_mcp_bridge(&ctx)
+                    }
                 } else {
                     http_serve::serve(
                         &ctx,
@@ -894,6 +1031,8 @@ impl Cli {
                             open,
                             query_only,
                             dashboard_only,
+                            no_pipeline,
+                            path,
                         },
                     )
                 }
@@ -940,13 +1079,14 @@ fn command_label_for(command: &Commands) -> &'static str {
         Commands::Export { .. } => "export",
         Commands::Install { .. } => "install",
         Commands::Serve { .. } => "serve",
+        Commands::Daemon { .. } => "daemon",
     }
 }
 
 fn log_command_wall_time(command: &str, elapsed: Duration, ok: bool) {
     let mark = if ok { "✓" } else { "✗" };
     let duration = format_elapsed(elapsed);
-    eprintln!("[{mark}] rg-build {command} finished in {duration}");
+    eprintln!("[{mark}] rgctl {command} finished in {duration}");
 }
 
 fn format_elapsed(elapsed: Duration) -> String {
@@ -968,7 +1108,7 @@ fn init_logging(verbose: bool, discover_json: bool) {
         tracing_subscriber::fmt()
             .with_env_filter(
                 EnvFilter::try_from_default_env()
-                    .unwrap_or_else(|_| EnvFilter::new("info,rg-build=debug,profile=info")),
+                    .unwrap_or_else(|_| EnvFilter::new("info,rgctl=debug,profile=info")),
             )
             .with_target(true)
             .with_level(true)
@@ -987,9 +1127,7 @@ fn init_logging(verbose: bool, discover_json: bool) {
     } else {
         tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                EnvFilter::new(
-                    "warn,rg-build=info,rgbuilder_extraction=warn,rgbuilder_analysis=warn",
-                )
+                EnvFilter::new("warn,rgctl=info,rgctl_extraction=warn,rgctl_analysis=warn")
             }))
             .with_target(false)
             .with_level(false)

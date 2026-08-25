@@ -32,16 +32,18 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-# Prefer a freshly built release binary
-if [[ -x "$ROOT/target/release/rg-build" ]]; then
+# Prefer release on PATH; fall back to a local build.
+if command -v rgctl >/dev/null 2>&1; then
+  :
+elif [[ -x "$ROOT/target/release/rgctl" ]]; then
   export PATH="$ROOT/target/release:$PATH"
-elif ! command -v rg-build >/dev/null 2>&1; then
-  echo "error: rg-build not on PATH — run: cargo build --release" >&2
+else
+  echo "error: rgctl not on PATH — run: cargo build --release --bin rgctl" >&2
   exit 1
 fi
 
-echo "==> rg-build: $(command -v rg-build)"
-rg-build --version
+echo "==> rgctl: $(command -v rgctl)"
+rgctl --version
 echo "==> validating tape"
 vhs validate "$TAPE"
 echo "==> recording (this runs discover + the full walkthrough)"

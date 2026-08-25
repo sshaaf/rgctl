@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `communities` command lets you **list and label functional clusters** that rgBuilder automatically detects in your codebase. During `discover`, the Louvain community detection algorithm partitions the call graph into groups of tightly connected functions. The `communities` command gives you tools to explore these clusters and generate human-readable labels for them.
+The `communities` command lets you **list and label functional clusters** that rgctl automatically detects in your codebase. During `discover`, the Louvain community detection algorithm partitions the call graph into groups of tightly connected functions. The `communities` command gives you tools to explore these clusters and generate human-readable labels for them.
 
 Communities reveal the implicit architecture of your code -- groups of functions that work together closely even if they span multiple files or packages.
 
@@ -19,7 +19,7 @@ Communities reveal the implicit architecture of your code -- groups of functions
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rg-build -r example/coolstore discover .
+rgctl -r example/coolstore discover .
 ```
 
 ## Step-by-Step
@@ -29,7 +29,7 @@ rg-build -r example/coolstore discover .
 List all detected communities, sorted by member count (largest first):
 
 ```bash
-rg-build -r example/coolstore -f json communities list
+rgctl -r example/coolstore -f json communities list
 ```
 
 **Output (truncated):**
@@ -77,7 +77,7 @@ rg-build -r example/coolstore -f json communities list
 - **`id`** -- the community's unique identifier, usable in GQL queries.
 - **`label`** -- a heuristic label generated from the most representative member names and paths.
 - **`member_count`** -- how many functions belong to this community.
-- The largest community (120 members) is the lodash utility library. The second largest (60 members) is labeled "Infrastructure / Common Library" -- rgBuilder detected it as shared infrastructure code.
+- The largest community (120 members) is the lodash utility library. The second largest (60 members) is labeled "Infrastructure / Common Library" -- rgctl detected it as shared infrastructure code.
 - The `coolstore.model` communities contain the domain model (entities, serialization).
 
 ### 2. Query Community Members with GQL
@@ -85,7 +85,7 @@ rg-build -r example/coolstore -f json communities list
 Once you have a community ID, use GQL to list its members:
 
 ```bash
-rg-build -r example/coolstore -f json gql \
+rgctl -r example/coolstore -f json gql \
   "MATCH (f:Function) WHERE f.community_id = '12715' RETURN f LIMIT 20"
 ```
 
@@ -96,7 +96,7 @@ This returns all functions in the `coolstore.model::length` community (ID 12715)
 If community labels are missing or stale, regenerate them:
 
 ```bash
-rg-build -r example/coolstore communities label --write
+rgctl -r example/coolstore communities label --write
 ```
 
 The `--write` flag persists the updated labels into the analysis results, so subsequent `communities list` calls use the new labels.
@@ -106,7 +106,7 @@ The `--write` flag persists the updated labels into the analysis results, so sub
 You can also list communities using the GQL macro:
 
 ```bash
-rg-build -r example/coolstore -f json gql --macro-name all_communities unused
+rgctl -r example/coolstore -f json gql --macro-name all_communities unused
 ```
 
 **Output (truncated):**
@@ -146,8 +146,8 @@ This returns the same information as `communities list` but through the GQL inte
 Use semantic search with community scope to find communities matching a concept:
 
 ```bash
-rg-build -r example/coolstore semantic index
-rg-build -r example/coolstore -f json semantic query "checkout" \
+rgctl -r example/coolstore semantic index
+rgctl -r example/coolstore -f json semantic query "checkout" \
   --scope community --limit 10
 ```
 
@@ -155,7 +155,7 @@ This finds entire communities whose member functions are semantically related to
 
 ## Understanding Community Labels
 
-rgBuilder generates community labels heuristically from member names and file paths:
+rgctl generates community labels heuristically from member names and file paths:
 
 | Label Pattern | Meaning |
 |---------------|---------|

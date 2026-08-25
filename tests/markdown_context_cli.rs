@@ -1,42 +1,42 @@
 //! CLI integration for markdown context graph — discover → snapshot → GQL queries 1–6.
 //!
-//! Spawns `rg-build` against a temp copy of `tests/fixtures/markdown-context`.
+//! Spawns `rgctl` against a temp copy of `tests/fixtures/markdown-context`.
 //! Run: `cargo test --test markdown_context_cli`
 
-use rgbuilder_graph::schema::NodeType;
+use rgctl_graph::schema::NodeType;
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::str;
 
-const SNAPSHOT_REL: &str = ".rgbuilder/graph.snapshot.bin";
+const SNAPSHOT_REL: &str = ".rgctl/graph.snapshot.bin";
 
-fn rgbuilder_bin() -> PathBuf {
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg-build") {
+fn rgctl_bin() -> PathBuf {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rg_build") {
+    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
     if let Some(target) = std::env::var_os("CARGO_TARGET_DIR") {
-        let release_candidate = PathBuf::from(&target).join("release/rg-build");
+        let release_candidate = PathBuf::from(&target).join("release/rgctl");
         if release_candidate.is_file() {
             return release_candidate;
         }
-        let candidate = PathBuf::from(target).join("debug/rg-build");
+        let candidate = PathBuf::from(target).join("debug/rgctl");
         if candidate.is_file() {
             return candidate;
         }
     }
-    let release_default = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg-build");
+    let release_default = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rgctl");
     if release_default.is_file() {
         return release_default;
     }
-    if let Some(bin) = option_env!("CARGO_BIN_EXE_rg_build") {
+    if let Some(bin) = option_env!("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg-build")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
 }
 
 fn fixture_root() -> PathBuf {
@@ -48,7 +48,7 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     for entry in fs::read_dir(src)? {
         let entry = entry?;
         let name = entry.file_name();
-        if name == ".rgbuilder" {
+        if name == ".rgctl" {
             continue;
         }
         let target = dst.join(name);
@@ -77,10 +77,10 @@ impl FixtureRepo {
     }
 
     fn run(&self, args: &[&str]) -> Output {
-        let mut cmd = Command::new(rgbuilder_bin());
+        let mut cmd = Command::new(rgctl_bin());
         cmd.arg("-r").arg(&self.path);
         cmd.args(args);
-        cmd.output().expect("spawn rg-build")
+        cmd.output().expect("spawn rgctl")
     }
 
     fn discover_json(&self, languages: &str) -> Value {
@@ -138,7 +138,7 @@ fn cli_discover_snapshot_has_section_body() {
     let repo = FixtureRepo::new();
     repo.discover_json("markdown,java");
     let snap = repo.path.join(SNAPSHOT_REL);
-    let graph = rgbuilder_graph::CodeGraph::open_snapshot(&snap).expect("open snapshot");
+    let graph = rgctl_graph::CodeGraph::open_snapshot(&snap).expect("open snapshot");
     let checkout = graph
         .backend()
         .all_nodes()

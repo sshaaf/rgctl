@@ -6,8 +6,8 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 
 fn env_rg(suffix: &str) -> Result<String, std::env::VarError> {
-    std::env::var(format!("RGBUILDER_{suffix}"))
-        .or_else(|_| std::env::var(format!("RBUILDER_{suffix}")))
+    std::env::var(format!("RGCTL_{suffix}"))
+        .or_else(|_| std::env::var(format!("RGCTL_{suffix}")))
 }
 
 use std::process::{Command, Output};
@@ -18,7 +18,7 @@ pub const DEFAULT_GOLDEN_REPO: &str = "/Users/sshaaf/git/java/gbuilder";
 
 fn in_tree_ecommerce(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("rgbuilder-tests")
+        .join("rgctl-tests")
         .join(name)
 }
 
@@ -116,14 +116,14 @@ pub fn ecommerce_typescript_repo_path() -> PathBuf {
         .unwrap_or_else(|_| default_typescript_repo())
 }
 
-pub fn rgbuilder_bin() -> PathBuf {
+pub fn rgctl_bin() -> PathBuf {
     if let Ok(p) =
-        std::env::var("CARGO_BIN_EXE_rg_build").or_else(|_| std::env::var("CARGO_BIN_EXE_rg-build"))
+        std::env::var("CARGO_BIN_EXE_rgctl")
     {
         return PathBuf::from(p);
     }
     panic!(
-        "CARGO_BIN_EXE_rg_build is not set for dashboard tests; run via `cargo test` so the test harness uses the current binary"
+        "CARGO_BIN_EXE_rgctl is not set for dashboard tests; run via `cargo test` so the test harness uses the current binary"
     );
 }
 
@@ -144,13 +144,14 @@ pub fn run_discover_all_timed(repo: &Path, languages: Option<&str>) -> (Output, 
 }
 
 fn run_discover_with_flags(repo: &Path, languages: Option<&str>, deep: bool) -> Output {
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     assert!(
         bin.is_file(),
-        "rg-build binary not found at {} — run cargo build --release",
+        "rgctl binary not found at {} — run cargo build --release",
         bin.display()
     );
     let mut cmd = Command::new(&bin);
+    cmd.env("RGCTL_NO_DAEMON", "1");
     // Dashboard tests always opt in (#31 — bare discover skips dashboard).
     cmd.args([
         "-r",
@@ -166,7 +167,7 @@ fn run_discover_with_flags(repo: &Path, languages: Option<&str>, deep: bool) -> 
     if let Some(langs) = languages {
         cmd.args(["--languages", langs]);
     }
-    cmd.output().expect("spawn rg-build discover")
+    cmd.output().expect("spawn rgctl discover")
 }
 
 /// Default metasfresh example checkout (override with env).
@@ -178,13 +179,13 @@ pub fn metasfresh_repo_path() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(DEFAULT_METASFRESH_REPO))
 }
 
-/// Assert Phase 0–2 bundle contract under `{repo}/.rgbuilder/dashboard/`.
+/// Assert Phase 0–2 bundle contract under `{repo}/.rgctl/dashboard/`.
 pub fn assert_dashboard_bundle(repo: &Path, min_nodes: u64) {
     assert_dashboard_bundle_with_meta(repo, min_nodes, 1);
 }
 
 pub fn assert_dashboard_bundle_with_meta(repo: &Path, min_nodes: u64, min_metanodes: u64) {
-    let dash = repo.join(".rgbuilder/dashboard");
+    let dash = repo.join(".rgctl/dashboard");
 
     assert!(dash.join("index.html").is_file(), "missing index.html");
     assert!(
@@ -447,7 +448,7 @@ pub fn assert_dashboard_bundle_with_meta(repo: &Path, min_nodes: u64, min_metano
 
     let html = std::fs::read_to_string(dash.join("index.html")).unwrap();
     assert!(
-        html.contains("rgbuilder-manifest"),
+        html.contains("rgctl-manifest"),
         "index.html must have injected manifest bootstrap"
     );
     assert!(
@@ -460,7 +461,7 @@ pub fn assert_dashboard_bundle_with_meta(repo: &Path, min_nodes: u64, min_metano
     );
 
     assert!(
-        !repo.join(".rgbuilder/dashboard.html").exists(),
+        !repo.join(".rgctl/dashboard.html").exists(),
         "legacy monolithic dashboard.html must not be written"
     );
 
@@ -497,7 +498,7 @@ pub fn assert_dashboard_bundle_with_meta(repo: &Path, min_nodes: u64, min_metano
 pub fn assert_dashboard_bundle_all_analysis(repo: &Path, min_nodes: u64, min_metanodes: u64) {
     assert_dashboard_bundle_with_meta(repo, min_nodes, min_metanodes);
 
-    let dash = repo.join(".rgbuilder/dashboard");
+    let dash = repo.join(".rgctl/dashboard");
     let manifest: Value =
         serde_json::from_slice(&std::fs::read(dash.join("manifest.json")).unwrap()).unwrap();
     let analysis = &manifest["analysis"];

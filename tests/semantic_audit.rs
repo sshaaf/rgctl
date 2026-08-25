@@ -7,12 +7,12 @@ mod fixtures;
 use fixtures::{
     dead_code_post_return, diamond_merge, interprocedural_handoff, loop_back_edge, sanitizer_bypass,
 };
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     DominatorTree, PolicyViolation, ProgramDependenceGraph, TaintAnalyzer, build_cfg_for_function,
     verify_idom_acyclic,
 };
-use rgbuilder::graph::backend::{GraphBackend, MemoryBackend};
-use rgbuilder::graph::schema::{Edge, EdgeType, GraphParameter, Node, NodeType};
+use rgctl::graph::backend::{GraphBackend, MemoryBackend};
+use rgctl::graph::schema::{Edge, EdgeType, GraphParameter, Node, NodeType};
 use std::collections::HashMap;
 #[test]
 fn fixture_diamond_merge_frontiers() {
@@ -77,7 +77,7 @@ fn fixture_sanitizer_bypass_detected() {
 }
 #[test]
 fn fixture_interprocedural_handoff_trace() {
-    use rgbuilder::analysis::{BlastRadiusEngine, InterproceduralCFG, resolve_handoff_seeds};
+    use rgctl::analysis::{BlastRadiusEngine, InterproceduralCFG, resolve_handoff_seeds};
 
     let mut backend = MemoryBackend::new();
     let main = Node::new(NodeType::Function, "main").with_file_path("chain.rs");

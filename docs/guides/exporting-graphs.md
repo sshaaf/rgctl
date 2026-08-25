@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `export` command serializes your code knowledge graph into standard file formats for use in external tools, visualization platforms, and documentation systems. rgBuilder supports six export formats: JSON, GraphML, Graphviz (DOT), Mermaid, Obsidian vault, and OKF (Open Knowledge Foundation).
+The `export` command serializes your code knowledge graph into standard file formats for use in external tools, visualization platforms, and documentation systems. rgctl supports six export formats: JSON, GraphML, Graphviz (DOT), Mermaid, Obsidian vault, and OKF (Open Knowledge Foundation).
 
 Whether you want to load your code graph into Neo4j, visualize it in Gephi, embed diagrams in documentation, or browse it as an Obsidian vault, `export` produces the right format.
 
@@ -20,7 +20,7 @@ Whether you want to load your code graph into Neo4j, visualize it in Gephi, embe
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rg-build -r example/coolstore discover .
+rgctl -r example/coolstore discover .
 ```
 
 ## Step-by-Step
@@ -30,7 +30,7 @@ rg-build -r example/coolstore discover .
 Export all functions to GraphML format:
 
 ```bash
-rg-build -r example/coolstore export \
+rgctl -r example/coolstore export \
   --export-format graphml \
   --export-output /tmp/coolstore.graphml \
   --query "type:Function"
@@ -39,14 +39,14 @@ rg-build -r example/coolstore export \
 **Output:**
 
 ```
-[>] rg-build export
+[>] rgctl export
 Exported 7526 nodes, 21396 edges -> /tmp/coolstore.graphml
-[✓] rg-build export finished in 68ms
+[✓] rgctl export finished in 68ms
 ```
 
 **What happened:**
 
-- rgBuilder exported all 7,526 function nodes and 21,396 edges (calls, contains, imports) to a GraphML file.
+- rgctl exported all 7,526 function nodes and 21,396 edges (calls, contains, imports) to a GraphML file.
 - The file is 6.2 MB and can be opened in Gephi, yEd, or any GraphML-compatible tool.
 - The `--query "type:Function"` filter restricts the export to function nodes only.
 
@@ -55,7 +55,7 @@ Exported 7526 nodes, 21396 edges -> /tmp/coolstore.graphml
 Export the entire graph (all node types) to JSON:
 
 ```bash
-rg-build -r example/coolstore export \
+rgctl -r example/coolstore export \
   --export-format json \
   --export-output /tmp/coolstore.json \
   --query all
@@ -64,9 +64,9 @@ rg-build -r example/coolstore export \
 **Output:**
 
 ```
-[>] rg-build export
+[>] rgctl export
 Exported 14763 nodes, 50082 edges -> /tmp/coolstore.json
-[✓] rg-build export finished in 70ms
+[✓] rgctl export finished in 70ms
 ```
 
 The `all` query exports every node and edge in the graph -- 14,763 nodes and 50,082 edges for the CoolStore application.
@@ -77,19 +77,19 @@ Use query filters to export subsets of the graph:
 
 ```bash
 # Export only classes
-rg-build -r example/coolstore export \
+rgctl -r example/coolstore export \
   --export-format json \
   --export-output /tmp/coolstore-classes.json \
   --query "type:Class"
 
 # Export by name
-rg-build -r example/coolstore export \
+rgctl -r example/coolstore export \
   --export-format json \
   --export-output /tmp/cart-service.json \
   --query "name:ShoppingCartService"
 
 # Export all functions
-rg-build -r example/coolstore export \
+rgctl -r example/coolstore export \
   --export-format graphml \
   --export-output /tmp/coolstore-functions.graphml \
   --query functions
@@ -100,7 +100,7 @@ rg-build -r example/coolstore export \
 Create an Obsidian vault where each heading section becomes an interlinked note:
 
 ```bash
-rg-build -r example/coolstore export \
+rgctl -r example/coolstore export \
   --export-format obsidian \
   --export-output /tmp/coolstore-vault \
   --query all
@@ -113,7 +113,7 @@ This creates a directory of markdown files that you can open in Obsidian, with w
 Generate a DOT file for rendering with Graphviz:
 
 ```bash
-rg-build -r example/coolstore export \
+rgctl -r example/coolstore export \
   --export-format graphviz \
   --export-output /tmp/coolstore.dot \
   --query "name:ShoppingCartService"
@@ -130,7 +130,7 @@ dot -Tsvg /tmp/coolstore.dot -o /tmp/coolstore.svg
 Generate a Mermaid diagram for embedding in markdown:
 
 ```bash
-rg-build -r example/coolstore export \
+rgctl -r example/coolstore export \
   --export-format mermaid \
   --export-output /tmp/coolstore.mmd \
   --query "name:ShoppingCartService"
@@ -143,7 +143,7 @@ The output can be pasted directly into a markdown file or rendered by any Mermai
 Export in Open Knowledge Foundation JSON format:
 
 ```bash
-rg-build -r example/coolstore export \
+rgctl -r example/coolstore export \
   --export-format okf \
   --export-output /tmp/coolstore-okf.json \
   --query all

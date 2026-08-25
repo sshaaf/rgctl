@@ -4,7 +4,7 @@
 //!   ./scripts/test-dashboard-golden.sh
 //!   cargo test --release --test dashboard_gbuilder
 //!
-//! Repo path: `/Users/sshaaf/git/java/gbuilder` (override: `RGBUILDER_DASHBOARD_GOLDEN_REPO`).
+//! Repo path: `/Users/sshaaf/git/java/gbuilder` (override: `RGCTL_DASHBOARD_GOLDEN_REPO`).
 
 mod dashboard_harness;
 
@@ -12,7 +12,7 @@ use dashboard_harness::{
     assert_dashboard_bundle_all_analysis, assert_dashboard_bundle_with_meta, golden_repo_path,
     run_discover, run_discover_all_timed,
 };
-use rgbuilder_dashboard::dist_embedded;
+use rgctl_dashboard::dist_embedded;
 
 /// gbuilder is a real multi-module Java graph (~2k nodes). Minimum counts guard against regressions.
 const GBUILDER_MIN_NODES: u64 = 500;
@@ -30,7 +30,7 @@ fn discover_writes_dashboard_bundle_on_gbuilder_golden_repo() {
     let repo = golden_repo_path();
     if !repo.is_dir() {
         eprintln!(
-            "skip: golden repo not found at {} (set RGBUILDER_DASHBOARD_GOLDEN_REPO)",
+            "skip: golden repo not found at {} (set RGCTL_DASHBOARD_GOLDEN_REPO)",
             repo.display()
         );
         return;
@@ -47,7 +47,7 @@ fn discover_writes_dashboard_bundle_on_gbuilder_golden_repo() {
     assert_dashboard_bundle_with_meta(&repo, GBUILDER_MIN_NODES, GBUILDER_MIN_METANODES);
 
     let manifest: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(repo.join(".rgbuilder/dashboard/manifest.json")).unwrap(),
+        &std::fs::read(repo.join(".rgctl/dashboard/manifest.json")).unwrap(),
     )
     .unwrap();
     let functions = manifest["metrics"]["function_count"].as_u64().unwrap_or(0);
@@ -77,7 +77,7 @@ fn discover_all_writes_dashboard_bundle_on_gbuilder() {
     let repo = golden_repo_path();
     if !repo.is_dir() {
         eprintln!(
-            "skip: golden repo not found at {} (set RGBUILDER_DASHBOARD_GOLDEN_REPO)",
+            "skip: golden repo not found at {} (set RGCTL_DASHBOARD_GOLDEN_REPO)",
             repo.display()
         );
         return;
@@ -94,7 +94,7 @@ fn discover_all_writes_dashboard_bundle_on_gbuilder() {
     assert_dashboard_bundle_all_analysis(&repo, GBUILDER_MIN_NODES, GBUILDER_MIN_METANODES);
 
     let manifest: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(repo.join(".rgbuilder/dashboard/manifest.json")).unwrap(),
+        &std::fs::read(repo.join(".rgctl/dashboard/manifest.json")).unwrap(),
     )
     .unwrap();
 

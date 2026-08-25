@@ -14,13 +14,14 @@ The `serve` command launches an HTTP server that provides both a **browser-based
 
 ## Example Project
 
-This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` with `--with-dashboard`:
+This guide uses the **CoolStore** (`example/coolstore`). `rgctl serve` can start the full pipeline itself. To only serve existing artifacts:
 
 ```bash
-rg-build -r example/coolstore discover . --with-cfg --with-dashboard
+rgctl -r example/coolstore discover . --with-cfg --with-dashboard
+rgctl -r example/coolstore serve --no-pipeline --open
 ```
 
-The `--with-dashboard` flag exports the static dashboard bundle to `.rgbuilder/dashboard/`.
+The `--with-dashboard` flag exports the static dashboard bundle to `.rgctl/dashboard/`.
 
 ## Step-by-Step
 
@@ -29,21 +30,21 @@ The `--with-dashboard` flag exports the static dashboard bundle to `.rgbuilder/d
 Launch the HTTP server with the dashboard:
 
 ```bash
-rg-build -r example/coolstore serve --open
+rgctl -r example/coolstore serve --open
 ```
 
 **What happens:**
 
 - The server starts on `http://127.0.0.1:8080`.
 - The `--open` flag opens the dashboard in your default browser.
-- The dashboard serves from `.rgbuilder/dashboard/` and the query API is available at `/api/query`.
+- The dashboard serves from `.rgctl/dashboard/` and the query API is available at `/api/query`.
 
 ### 2. Custom Host and Port
 
 Bind to a different address or port:
 
 ```bash
-rg-build -r example/coolstore serve --host 0.0.0.0 --port 3000
+rgctl -r example/coolstore serve --host 0.0.0.0 --port 3000
 ```
 
 This makes the server accessible on all network interfaces at port 3000, useful for team sharing.
@@ -53,7 +54,7 @@ This makes the server accessible on all network interfaces at port 3000, useful 
 If you only need the API (no dashboard UI):
 
 ```bash
-rg-build -r example/coolstore serve --query-only
+rgctl -r example/coolstore serve --query-only
 ```
 
 This starts a lighter server with only the `/api/query` and `/api/semantic/*` endpoints.
@@ -63,7 +64,7 @@ This starts a lighter server with only the `/api/query` and `/api/semantic/*` en
 If you only need the visual dashboard:
 
 ```bash
-rg-build -r example/coolstore serve --dashboard-only
+rgctl -r example/coolstore serve --dashboard-only
 ```
 
 ### 5. Querying the API with curl
@@ -106,22 +107,24 @@ curl -s http://127.0.0.1:8080/api/semantic/query \
   -d '{"query": "shopping cart checkout", "limit": 5}'
 ```
 
-### 7. Legacy Daemon Mode
+### 7. Background daemon (HTTP + MCP)
 
-For backward compatibility, the legacy Unix socket daemon is still available:
+Start a shared background daemon (catalog, per-repo HTTP, MCP at `/mcp`). Default cache: `~/.rgctl/cache/{reponame}/` (override with `--daemon-home` / `RGCTL_HOME`).
 
 ```bash
-rg-build -r example/coolstore serve --daemon
+rgctl daemon start --host 127.0.0.1 --port 8080
+# or foreground bootstrap:
+rgctl -r example/coolstore serve --daemon
 ```
 
-This creates a Unix socket at `.rgbuilder/query.sock` that the `blast-radius` command auto-connects to for faster repeated queries.
+Cached repos are served under `http://127.0.0.1:8080/{reponame}/…`. Foreground `rgctl serve` (without `--daemon`) stays `127.0.0.1:8080` with unprefixed `/api/*` for one repo.
 
-### 8. Idle Timeout
+### 8. Daemon idle timeout
 
-The server automatically exits after 300 seconds (5 minutes) of inactivity by default. Adjust with `--idle-secs`:
+`--idle-secs` applies to **`serve --daemon`** only (default 300s). The HTTP server does not auto-exit on idle.
 
 ```bash
-rg-build -r example/coolstore serve --idle-secs 3600
+rgctl -r example/coolstore serve --daemon --idle-secs 3600
 ```
 
 ## Dashboard Tabs
@@ -145,7 +148,8 @@ When the dashboard opens in your browser, you will see several tabs:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/query` | POST | Execute a GQL query |
+| `/api/query` | POST | Execute a GQL query (HTTP 503 + pipeline status if the graph is not ready) |
+| `/api/status` | GET | Full-pipeline status (`schema_version` 1) |
 | `/api/semantic/query` | POST | Semantic search |
 | `/api/semantic/index` | POST | Trigger semantic indexing |
 | `/` | GET | Dashboard UI |
@@ -158,12 +162,14 @@ See the [HTTP API Reference](../http-api.md) for complete endpoint documentation
 |--------|---------|-------------|
 | `--host` | `127.0.0.1` | Bind host |
 | `--port` | `8080` | HTTP port |
-| `--open` | off | Open dashboard in browser |
+| `--open` | off | Open dashboard in browser (preparing page if the bundle is not ready) |
 | `--query-only` | off | Serve API only, no dashboard |
 | `--dashboard-only` | off | Serve dashboard only, no API |
-| `--dashboard-dir` | `.rgbuilder/dashboard` | Dashboard directory |
+| `--mode` | `standard` | `standard` (HTTP) or `mcp` (stdio, no HTTP) |
+| `--no-pipeline` | off | Fail fast if artifacts are missing (old `serve` behavior) |
+| `--dashboard-dir` | `.rgctl/dashboard` | Dashboard directory |
 | `--daemon` | off | Legacy Unix socket mode |
-| `--socket` | `.rgbuilder/query.sock` | Daemon socket path |
+| `--daemon` | off | Background HTTP+MCP daemon (`daemon start`) |
 | `--idle-secs` | `300` | Auto-exit after N seconds idle |
 
 ## Benefits
@@ -172,11 +178,12 @@ See the [HTTP API Reference](../http-api.md) for complete endpoint documentation
 - **Dual interface.** Visual dashboard for humans, HTTP API for agents and scripts.
 - **Session persistence.** The server keeps the graph in memory, making repeated queries fast.
 - **Team accessible.** Bind to `0.0.0.0` to share the dashboard across a network.
-- **Low resource.** The server is lightweight and exits automatically when idle.
+- **Low resource.** HTTP `serve` stays up until Ctrl+C. `--daemon` idle-exits (default 300s).
 
 ## Related Guides
 
 - [Discovering and Indexing a Codebase](discovering-and-indexing.md) -- `discover --with-dashboard` generates the dashboard bundle
+- [MCP Server](mcp-server.md) -- `serve --mode mcp` for Cursor / Claude Code (no HTTP)
 - [Graph Query Language](graph-query-language.md) -- the query language used by the API
 - [Semantic Search](semantic-search.md) -- semantic queries available via `/api/semantic/*`
 - [Blast Radius Analysis](blast-radius-analysis.md) -- blast-radius visualization in the dashboard

@@ -1,0 +1,21 @@
+[package]
+name = "rgctl-languages"
+version = "0.4.7"
+edition.workspace = true
+rust-version.workspace = true
+description = "Built-in Tier 1 language plugins for rgctl"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-registry = { workspace = true }
+rgctl-config-formats = { workspace = true }
+rgctl-lang-rust = { workspace = true }
+rgctl-lang-python = { workspace = true }
+rgctl-lang-javascript = { workspace = true }
+rgctl-lang-typescript = { workspace = true }
+rgctl-lang-go = { workspace = true }
+rgctl-lang-java = { workspace = true }
+rgctl-lang-csharp = { workspace = true }
+rgctl-lang-c = { workspace = true }
+rgctl-lang-cpp = { workspace = true }
+rgctl-lang-markdown = { workspace = true }

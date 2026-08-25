@@ -1,4 +1,4 @@
-use rgbuilder::cli::inspect_output::{INSPECT_SCHEMA_VERSION, fixture_inspect_cfg_response};
+use rgctl::cli::inspect_output::{INSPECT_SCHEMA_VERSION, fixture_inspect_cfg_response};
 
 #[test]
 fn test_inspect_cfg_json_schema_sanity() {

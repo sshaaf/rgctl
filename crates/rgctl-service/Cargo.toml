@@ -1,0 +1,25 @@
+[package]
+name = "rgctl-service"
+version = "0.4.7"
+edition.workspace = true
+rust-version.workspace = true
+description = "Shared command execution for rgctl CLI, HTTP, and MCP"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+anyhow = "1"
+rgctl-analysis = { workspace = true }
+rgctl-error = { workspace = true }
+rgctl-gql = { workspace = true }
+rgctl-graph = { workspace = true }
+rgctl-rules = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -1,53 +1,53 @@
 # Further Reading
 
-Research that informs rgBuilder — what we **implement today**, what we **read for inspiration**, and where **you** can push the project forward.
+Research that informs rgctl — what we **implement today**, what we **read for inspiration**, and where **you** can push the project forward.
 
-If a paper sparks an idea (new relation type, better slice precision, agent retrieval pattern), open a [GitHub issue](https://github.com/sshaaf/rgBuilder/issues) or PR and point at the row below. We treat this doc as a living map, not marketing copy.
+If a paper sparks an idea (new relation type, better slice precision, agent retrieval pattern), open a [GitHub issue](https://github.com/sshaaf/rgctl/issues) or PR and point at the row below. We treat this doc as a living map, not marketing copy.
 
 **See also:** [Introduction](Introduction.md) (features) · [Graph storage architecture](graph-storage-architecture.md) (caches)
 
 ---
 
-## Research foundations in rgBuilder
+## Research foundations in rgctl
 
 Legend: **Implemented** = algorithm or structure in the codebase with tests; **Inspired** = aligned design, not a full reproduction; **Reading** = related work, not yet in code.
 
 ### Classic program analysis
 
-| Work | Status | rgBuilder | CLI / docs |
+| Work | Status | rgctl | CLI / docs |
 |------|--------|----------|------------|
-| [Ferrante et al. — Program Dependence Graph (TOPLAS 1987)](#14-the-program-dependence-graph-and-its-use-in-optimization-toplas-1987) | **Implemented** | [`pdg.rs`](../crates/rgbuilder-analysis/src/pdg.rs) — data + control deps | [`inspect`](Introduction.md#cfg-pdg-and-dominance-deep-structure), [`slice`](Introduction.md#program-slicing) |
-| [Weiser — Program slicing (ICSE 1981)](https://dl.acm.org/doi/10.1145/800078.802466) | **Implemented** | [`slicing.rs`](../crates/rgbuilder-analysis/src/slicing.rs), [`interprocedural_slicing.rs`](../crates/rgbuilder-analysis/src/interprocedural_slicing.rs) | `rg-build slice` — [User Guide §8](user-guide.md#8-program-slicing-and-taint) |
-| Reaching-definitions dataflow (standard compiler analysis) | **Implemented** | [`dataflow.rs`](../crates/rgbuilder-analysis/src/dataflow.rs) → PDG data edges | via `discover --with-cfg` |
-| [Cooper, Harvey & Kennedy — Simple fast dominance (SPE 2001)](https://doi.org/10.1002/spe.3780310304) | **Implemented** | [`dominance.rs`](../crates/rgbuilder-analysis/src/dominance.rs) (iterative CHK-style) | `rg-build inspect` |
-| Control-flow graphs | **Implemented** | [`cfg.rs`](../crates/rgbuilder-analysis/src/cfg.rs), [`cfg_builder.rs`](../crates/rgbuilder-analysis/src/cfg_builder.rs) | `discover --with-cfg`, `inspect` |
-| Forward taint (source → sink + sanitizers) | **Implemented** | [`taint.rs`](../crates/rgbuilder-analysis/src/taint.rs) | `rg-build slice --taint` — [Introduction § Taint](Introduction.md#taint-analysis) |
+| [Ferrante et al. — Program Dependence Graph (TOPLAS 1987)](#14-the-program-dependence-graph-and-its-use-in-optimization-toplas-1987) | **Implemented** | [`pdg.rs`](../crates/rgctl-analysis/src/pdg.rs) — data + control deps | [`inspect`](Introduction.md#cfg-pdg-and-dominance-deep-structure), [`slice`](Introduction.md#program-slicing) |
+| [Weiser — Program slicing (ICSE 1981)](https://dl.acm.org/doi/10.1145/800078.802466) | **Implemented** | [`slicing.rs`](../crates/rgctl-analysis/src/slicing.rs), [`interprocedural_slicing.rs`](../crates/rgctl-analysis/src/interprocedural_slicing.rs) | `rgctl slice` — [User Guide §8](user-guide.md#8-program-slicing-and-taint) |
+| Reaching-definitions dataflow (standard compiler analysis) | **Implemented** | [`dataflow.rs`](../crates/rgctl-analysis/src/dataflow.rs) → PDG data edges | via `discover --with-cfg` |
+| [Cooper, Harvey & Kennedy — Simple fast dominance (SPE 2001)](https://doi.org/10.1002/spe.3780310304) | **Implemented** | [`dominance.rs`](../crates/rgctl-analysis/src/dominance.rs) (iterative CHK-style) | `rgctl inspect` |
+| Control-flow graphs | **Implemented** | [`cfg.rs`](../crates/rgctl-analysis/src/cfg.rs), [`cfg_builder.rs`](../crates/rgctl-analysis/src/cfg_builder.rs) | `discover --with-cfg`, `inspect` |
+| Forward taint (source → sink + sanitizers) | **Implemented** | [`taint.rs`](../crates/rgctl-analysis/src/taint.rs) | `rgctl slice --taint` — [Introduction § Taint](Introduction.md#taint-analysis) |
 
 **Tests:** [`slicing.rs`](../tests/slicing.rs), [`taint_security.rs`](../tests/taint_security.rs) (CWE-oriented taint/security patterns).
 
 ### Graph algorithms & architecture metrics
 
-| Work | Status | rgBuilder | CLI |
+| Work | Status | rgctl | CLI |
 |------|--------|----------|-----|
-| [Page & Brin — PageRank (1998)](https://doi.org/10.1109/69.681760) | **Implemented** | [`centrality.rs`](../crates/rgbuilder-analysis/src/centrality.rs) — `FastPageRank` on `FlatGraphIndex`; adaptive gating >500k nodes | `rg-build metrics --pagerank` |
-| [Brandes — Betweenness centrality (2001)](https://doi.org/10.1080/00207160108942084) | **Implemented** | [`centrality.rs`](../crates/rgbuilder-analysis/src/centrality.rs), [`centrality_approx.rs`](../crates/rgbuilder-analysis/src/centrality_approx.rs) — exact / sampled Brandes | `rg-build metrics --betweenness` |
-| Boldi & Vigna — HyperANF / HyperBall | **Implemented** | [`centrality_approx.rs`](../crates/rgbuilder-analysis/src/centrality_approx.rs) — parallel HyperLogLog propagation | discover / migration harmonic term |
-| [Raghavan et al. — Label propagation (2007)](https://doi.org/10.1103/PhysRevE.76.036106) + Newman modularity | **Implemented** | [`community.rs`](../crates/rgbuilder-analysis/src/community.rs) | `rg-build metrics --communities` |
+| [Page & Brin — PageRank (1998)](https://doi.org/10.1109/69.681760) | **Implemented** | [`centrality.rs`](../crates/rgctl-analysis/src/centrality.rs) — `FastPageRank` on `FlatGraphIndex`; adaptive gating >500k nodes | `rgctl metrics --pagerank` |
+| [Brandes — Betweenness centrality (2001)](https://doi.org/10.1080/00207160108942084) | **Implemented** | [`centrality.rs`](../crates/rgctl-analysis/src/centrality.rs), [`centrality_approx.rs`](../crates/rgctl-analysis/src/centrality_approx.rs) — exact / sampled Brandes | `rgctl metrics --betweenness` |
+| Boldi & Vigna — HyperANF / HyperBall | **Implemented** | [`centrality_approx.rs`](../crates/rgctl-analysis/src/centrality_approx.rs) — parallel HyperLogLog propagation | discover / migration harmonic term |
+| [Raghavan et al. — Label propagation (2007)](https://doi.org/10.1103/PhysRevE.76.036106) + Newman modularity | **Implemented** | [`community.rs`](../crates/rgctl-analysis/src/community.rs) | `rgctl metrics --communities` |
 
 **Tests:** [`centrality_audit.rs`](../tests/centrality_audit.rs).
 
 ### Reachability, blast radius, and the “R”
 
-| Idea | Status | rgBuilder | CLI |
+| Idea | Status | rgctl | CLI |
 |------|--------|----------|-----|
-| Sparse pre-computed call reachability | **Implemented** (rgBuilder engineering) | Blast engine + compressed snapshots — see [graph-storage-architecture.md](graph-storage-architecture.md) | `rg-build blast-radius`, `rg-build check` |
-| Rich relation matrix (30+ edge types) | **Implemented** | [`schema.rs`](../crates/rgbuilder-graph/src/schema.rs), extraction pipeline | `rg-build gql`, `rg-build export` |
+| Sparse pre-computed call reachability | **Implemented** (rgctl engineering) | Blast engine + compressed snapshots — see [graph-storage-architecture.md](graph-storage-architecture.md) | `rgctl blast-radius`, `rgctl check` |
+| Rich relation matrix (30+ edge types) | **Implemented** | [`schema.rs`](../crates/rgctl-graph/src/schema.rs), extraction pipeline | `rgctl gql`, `rgctl export` |
 
 This is the core differentiator for **LLM agents**: deterministic reachability answers in compact JSON instead of dumping whole files into context.
 
 ### Modern code graphs & LLM agents
 
-| Work | Status | Overlap with rgBuilder | Gap / opportunity |
+| Work | Status | Overlap with rgctl | Gap / opportunity |
 |------|--------|----------------------|-------------------|
 | [CodexGraph (NAACL 2025)](#2-codexgraph-bridging-large-language-models-and-code-repositories-via-code-graph-databases-naacl-2025) | **Inspired** | GQL, rich node metadata, `-f json`, [JSON API](json-api.md), export | Dual-agent “write then translate” query planner not implemented — good contribution target |
 | [Codebadger — CPG + LLM (ICSE 2026)](https://arxiv.org/abs/2603.24837) | **Inspired** | CFG + PDG + slice + taint stack (CPG-shaped) | No Joern import; interprocedural taint depth varies — see [TASK_PLAN](../.github/TASK_PLAN.md) Phase 12/13 |
@@ -56,20 +56,20 @@ This is the core differentiator for **LLM agents**: deterministic reachability a
 
 ### Security standards
 
-| Standard | Status | rgBuilder |
+| Standard | Status | rgctl |
 |----------|--------|----------|
-| [CWE](https://cwe.mitre.org/) / OWASP-style categories | **Implemented** (pattern + taint hooks) | [`taint.rs`](../crates/rgbuilder-analysis/src/taint.rs), [`taint_security.rs`](../tests/taint_security.rs) — SQLi (CWE-89), XSS (CWE-79), command injection (CWE-78), etc. |
+| [CWE](https://cwe.mitre.org/) / OWASP-style categories | **Implemented** (pattern + taint hooks) | [`taint.rs`](../crates/rgctl-analysis/src/taint.rs), [`taint_security.rs`](../tests/taint_security.rs) — SQLi (CWE-89), XSS (CWE-79), command injection (CWE-78), etc. |
 
 ---
 
 ## Ideas we welcome
 
-Read a paper above and want to land it in rgBuilder? High-value openings:
+Read a paper above and want to land it in rgctl? High-value openings:
 
 1. **Interprocedural taint** with sanitizer summaries across call boundaries (Codebadger / CPG literature).
 2. **Query planning for agents** — natural language → GQL / blast-radius without token-heavy file reads (CodexGraph direction).
 3. **Migration-specific relations** — framework API pairs, deprecated symbol tracking (ReCode / environment-in-the-loop papers).
-4. **Benchmarks** — publish repro scripts comparing rgBuilder JSON output vs file-grep baselines on coolstore or your repo.
+4. **Benchmarks** — publish repro scripts comparing rgctl JSON output vs file-grep baselines on coolstore or your repo.
 5. **Cross-language reachability** — richer IMPORTS / IMPLEMENTS for polyglot monorepos.
 
 Open an issue with the paper link, which row in the table above you extend, and a sketch of the CLI or JSON shape you want.
@@ -78,7 +78,7 @@ Open an issue with the paper link, which row in the table above you extend, and 
 
 ## External bibliography
 
-Research papers on code graphs, migration, LLM agents, and program analysis — for depth beyond what rgBuilder ships today.
+Research papers on code graphs, migration, LLM agents, and program analysis — for depth beyond what rgctl ships today.
 
 ### Language & Framework Migration
 
@@ -96,12 +96,12 @@ Research papers on code graphs, migration, LLM agents, and program analysis — 
    - Integrates LLM agents with graph database interfaces for code structure-aware context retrieval
    - Evaluated on CrossCodeEval, SWE-bench, and EvoCodeBench benchmarks
    - Uses structural properties of graph databases for precise retrieval
-   - **rgBuilder:** [Inspired — see table above](#modern-code-graphs--llm-agents) (GQL + JSON; dual-agent planner is a gap)
+   - **rgctl:** [Inspired — see table above](#modern-code-graphs--llm-agents) (GQL + JSON; dual-agent planner is a gap)
 
 2b. **Codebadger: Bridging Code Property Graphs and Language Models** (ICSE 2026)
    - [arXiv](https://arxiv.org/abs/2603.24837)
    - CPG + MCP + backward slicing for vulnerability analysis; reports large context reduction via slicing
-   - **rgBuilder:** [Inspired — see table above](#modern-code-graphs--llm-agents) (CFG/PDG/slice/taint; not Joern-compatible)
+   - **rgctl:** [Inspired — see table above](#modern-code-graphs--llm-agents) (CFG/PDG/slice/taint; not Joern-compatible)
 
 3. **Code Graph Model (CGM): A Graph-Integrated Large Language Model** (arXiv 2025, NeurIPS 2025)
    - [arXiv PDF](https://arxiv.org/pdf/2505.16901)
@@ -172,20 +172,20 @@ Research papers on code graphs, migration, LLM agents, and program analysis — 
     - [PDF](https://www.cs.utexas.edu/~pingali/CS395T/2009fa/papers/ferrante87.pdf)
     - Seminal work on PDG representing data and control dependences
     - Foundation for program slicing and transformation
-    - **rgBuilder:** [Implemented](../crates/rgbuilder-analysis/src/pdg.rs) — see [classic program analysis table](#classic-program-analysis)
+    - **rgctl:** [Implemented](../crates/rgctl-analysis/src/pdg.rs) — see [classic program analysis table](#classic-program-analysis)
 
 15. **Program Slicing** (Weiser, ICSE 1981)
     - [ACM DL](https://dl.acm.org/doi/10.1145/800078.802466)
     - Original backward slicing criterion
-    - **rgBuilder:** [Implemented](../crates/rgbuilder-analysis/src/slicing.rs)
+    - **rgctl:** [Implemented](../crates/rgctl-analysis/src/slicing.rs)
 
 16. **A Simple, Fast Dominance Algorithm** (Cooper, Harvey & Kennedy, SPE 2001)
     - [DOI](https://doi.org/10.1002/spe.3780310304)
-    - **rgBuilder:** [Implemented](../crates/rgbuilder-analysis/src/dominance.rs)
+    - **rgctl:** [Implemented](../crates/rgctl-analysis/src/dominance.rs)
 
 17. **Enhancing program dependency graph based clone detection using approximate subgraph matching**
     - [PDF](https://www.academia.edu/63870307/Enhancing_program_dependency_graph_based_clone_detection_using_approximate_subgraph_matching)
-    - **rgBuilder:** Reading — clone detection not a CLI feature today; PDG substrate exists
+    - **rgctl:** Reading — clone detection not a CLI feature today; PDG substrate exists
 
 ## Survey & Review Papers
 

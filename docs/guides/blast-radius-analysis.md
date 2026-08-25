@@ -19,7 +19,7 @@ The result is a **blast-radius score** (0--100), a list of direct callers, and t
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rg-build -r example/coolstore discover .
+rgctl -r example/coolstore discover .
 ```
 
 ## Step-by-Step
@@ -29,7 +29,7 @@ rg-build -r example/coolstore discover .
 Check the impact of the `priceShoppingCart` method:
 
 ```bash
-rg-build -r example/coolstore blast-radius priceShoppingCart
+rgctl -r example/coolstore blast-radius priceShoppingCart
 ```
 
 **Output:**
@@ -65,7 +65,7 @@ Blast radius for 'priceShoppingCart'
 For machine consumption or scripting, use `-f json`:
 
 ```bash
-rg-build -r example/coolstore -f json blast-radius priceShoppingCart
+rgctl -r example/coolstore -f json blast-radius priceShoppingCart
 ```
 
 **Output:**
@@ -124,7 +124,7 @@ The JSON output provides full detail: the target function's signature, file path
 By default, blast radius computes the full transitive closure. To limit analysis to a specific number of call hops:
 
 ```bash
-rg-build -r example/coolstore blast-radius getShoppingCart --depth 3
+rgctl -r example/coolstore blast-radius getShoppingCart --depth 3
 ```
 
 **Output:**
@@ -149,7 +149,7 @@ The `--depth 3` flag limits the impact zone to at most 3 levels of callers, usef
 Compare with a constructor, which typically has zero callers:
 
 ```bash
-rg-build -r example/coolstore blast-radius ShoppingCartService
+rgctl -r example/coolstore blast-radius ShoppingCartService
 ```
 
 **Output:**
@@ -168,7 +168,7 @@ A score of 0 means this function (the constructor) has no upstream callers in th
 Use `--policy-file` to enforce thresholds:
 
 ```bash
-rg-build -r example/coolstore -f json blast-radius priceShoppingCart \
+rgctl -r example/coolstore -f json blast-radius priceShoppingCart \
   --policy-file example/coolstore/policy.json
 ```
 

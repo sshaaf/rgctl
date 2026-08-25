@@ -1,10 +1,10 @@
 //! Map / symbol-resolution collision QE (OpenSpec `qe-sanity-gates`).
 //!
-//! Policy: required failures stay red until fixed (see `rgbuilder-tests/correctness/QE.md`).
+//! Policy: required failures stay red until fixed (see `rgctl-tests/correctness/QE.md`).
 
-use rgbuilder::analysis::resolve_unique_symbol;
-use rgbuilder::graph::backend::{GraphBackend, MemoryBackend};
-use rgbuilder::graph::schema::{Node, NodeType};
+use rgctl::analysis::resolve_unique_symbol;
+use rgctl::graph::backend::{GraphBackend, MemoryBackend};
+use rgctl::graph::schema::{Node, NodeType};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,11 +15,11 @@ fn fixture_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/collision_repo")
 }
 
-fn rgbuilder_bin() -> PathBuf {
-    option_env!("CARGO_BIN_EXE_rg_build")
+fn rgctl_bin() -> PathBuf {
+    option_env!("CARGO_BIN_EXE_rgctl")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rg-build")
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/release/rgctl")
         })
 }
 
@@ -53,10 +53,10 @@ impl Sandbox {
     }
 
     fn run(&self, args: &[&str]) -> Output {
-        let mut cmd = Command::new(rgbuilder_bin());
+        let mut cmd = Command::new(rgctl_bin());
         cmd.arg("-r").arg(&self.repo);
         cmd.args(args);
-        cmd.output().expect("spawn rg-build")
+        cmd.output().expect("spawn rgctl")
     }
 
     fn parse_stdout_json(&self, output: &Output) -> Value {
@@ -142,7 +142,7 @@ fn rust_twin_short_name_is_ambiguous() {
 
 /// Qualified-index lossiness: two nodes with the same FQN must not collapse to a
 /// single definitive qualified lookup. See GraphBuilder unit tests in
-/// `rgbuilder-extraction` — this subprocess check ensures both function nodes survive discover.
+/// `rgctl-extraction` — this subprocess check ensures both function nodes survive discover.
 #[test]
 fn duplicate_bare_names_both_nodes_survive_discover() {
     let sandbox = Sandbox::new();

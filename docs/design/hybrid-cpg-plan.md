@@ -59,7 +59,7 @@ flowchart TB
 
 | Phase | Outcome | User-visible |
 |-------|---------|--------------|
-| **P0** | CPG façade over existing CFG/PDG + CALL | `rg-build cpg …` / HTTP; docs for agents |
+| **P0** | CPG façade over existing CFG/PDG + CALL | `rgctl cpg …` / HTTP; docs for agents |
 | **P1** | Field-write IR + type-linked mutation index | OrderDTO Turn-2 query works on fixtures |
 | **P1 status** | **Shipped:** `field_write.index.bin`, `cpg mutations --type … --exclude-ctors` | |
 | **P2** | Unified slice / flows in CPG API | OrderDTO Turn-5 without separate mental model |
@@ -88,10 +88,10 @@ Agents must stitch `gql` / `blast-radius` / `inspect` / `slice` and know `--with
 
 ### Steps
 
-1. **Module** — `crates/rgbuilder-analysis/src/cpg/` (or `cpg_query.rs`):
+1. **Module** — `crates/rgctl-analysis/src/cpg/` (or `cpg_query.rs`):
    - `CpgContext { graph, archive, call_graph }`
    - Resolvers: `function_by_name`, `type_by_name`, `cfg(fn)`, `pdg(fn)`
-2. **CLI** — `rg-build cpg` subcommands (v0):
+2. **CLI** — `rgctl cpg` subcommands (v0):
    - `cpg status` — archive present? function count with CFG/PDG
    - `cpg function <name>` — L_repo node + whether L_proc exists
    - `cpg calls <name>` — CALL neighborhood from snapshot (bridge demo)
@@ -144,7 +144,7 @@ Today:
 3. Map to L_repo `Class`/`Struct` by name/FQN when possible; store type string even if Class UUID missing.
 4. Skip unresolved receivers into `kind=Unresolved` bucket (queryable with flag; not counted as proof).
 
-**Index:** Prefer **sidecar** `.rgbuilder/analysis/field_write.index.bin` (function_id → writes, secondary map type→writes) built during `--with-cfg` pass—avoid bloating every PDG if scan-only is enough. Rebuild when archive rebuilds; invalidate with same digest rules as other sidecars.
+**Index:** Prefer **sidecar** `.rgctl/analysis/field_write.index.bin` (function_id → writes, secondary map type→writes) built during `--with-cfg` pass—avoid bloating every PDG if scan-only is enough. Rebuild when archive rebuilds; invalidate with same digest rules as other sidecars.
 
 **Do not** stamp field-write edges into `graph.snapshot.bin` in v1 (digest + RSS). Optional later: `Modifies` edges Function→Variable if Variable nodes for fields are extracted.
 
@@ -163,7 +163,7 @@ Today:
 
 ### Acceptance
 
-- Turn 2 of the record-refactor loop works on the Java fixture via `rg-build -f json cpg mutations --type OrderDTO --exclude-ctors`.
+- Turn 2 of the record-refactor loop works on the Java fixture via `rgctl -f json cpg mutations --type OrderDTO --exclude-ctors`.
 - Empty result ⇒ agent may proceed to record conversion **under documented resolution limits**.
 - `--with-cfg` wall time / RSS: measure on ecommerce-java; no default-discover impact. Target: index build ≪ CFG/PDG build (profile stage `[profile] field_writes`).
 
@@ -184,7 +184,7 @@ Agents switch to `slice` / Joern `reachableByFlows` mentally; hybrid CPG should 
 
 Map:
 
-| CPG concept | rgBuilder |
+| CPG concept | rgctl |
 |-------------|----------|
 | `reachableByFlows` (forward) | Forward PDG slice / data-dep BFS |
 | Backward slice | Existing `slice` default |
@@ -238,7 +238,7 @@ Tighten L_proc data edges without changing L_repo.
 
 ### 4b Export
 
-- `rg-build cpg export --format graphml|graphson` materializing L_repo CALL/type ∪ selected L_proc edges for one package or whole repo (explicit scope).
+- `rgctl cpg export --format graphml|graphson` materializing L_repo CALL/type ∪ selected L_proc edges for one package or whole repo (explicit scope).
 - No change to primary store.
 
 ### Acceptance
@@ -268,13 +268,13 @@ Document known gaps: reflection, `Object` receivers without cast, cross-language
 ## 9. API sketch (stable for agents)
 
 ```bash
-rg-build -r "$REPO" discover . --with-cfg
+rgctl -r "$REPO" discover . --with-cfg
 
-rg-build -r "$REPO" -f json cpg status
-rg-build -r "$REPO" -f json cpg mutations --type OrderDTO --exclude-ctors
-rg-build -r "$REPO" -f json cpg flows \
+rgctl -r "$REPO" -f json cpg status
+rgctl -r "$REPO" -f json cpg mutations --type OrderDTO --exclude-ctors
+rgctl -r "$REPO" -f json cpg flows \
   --file src/.../OrderProcessor.java --line 114 --variable order --direction forward
-rg-build -r "$REPO" -f json cpg calls OrderProcessor::process
+rgctl -r "$REPO" -f json cpg calls OrderProcessor::process
 ```
 
 HTTP: `POST /api/cpg` with the same `op` + args; stdout/JSON only on success path (stderr diagnostics).

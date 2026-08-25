@@ -1,0 +1,16 @@
+[package]
+name = "rgctl-plugin-api"
+version = "0.4.7"
+edition.workspace = true
+rust-version.workspace = true
+description = "Stable plugin API for rgctl language and config format plugins"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "1"
+toml = "0.8"
+tree-sitter = "0.25"
+tracing = "0.1"

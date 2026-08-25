@@ -15,8 +15,8 @@ fn user_guide_scenarios_pass() {
 
     let mut cmd = Command::new("python3");
     cmd.arg(&script).current_dir(&root);
-    if let Ok(bin) = std::env::var("CARGO_BIN_EXE_rg_build") {
-        cmd.env("CARGO_BIN_EXE_rg_build", bin);
+    if let Ok(bin) = std::env::var("CARGO_BIN_EXE_rgctl") {
+        cmd.env("CARGO_BIN_EXE_rgctl", bin);
     }
     let out = cmd.output().expect("spawn python3");
     if !out.status.success() {

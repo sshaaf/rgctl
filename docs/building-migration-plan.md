@@ -5,17 +5,17 @@ CLI-oriented how-to. Scoring/ordering math: [migration-algorithms.md](migration-
 ## Phase 1 — Inventory
 
 ```bash
-rg-build discover . --with-cfg --with-security --with-taint --with-harmonic --export-migration-hints
-rg-build -f json gql --macro-name all_functions unused | jq '.count'
-rg-build -f json gql --macro-name all_communities unused | jq '.count'
+rgctl discover . --with-cfg --with-security --with-taint --with-harmonic --export-migration-hints
+rgctl -f json gql --macro-name all_functions unused | jq '.count'
+rgctl -f json gql --macro-name all_communities unused | jq '.count'
 ```
 
-Read `.rgbuilder/migration_plan.json`. Optional UI: add `--with-dashboard` and `rg-build serve --open` ([dashboard user guide](dashboard-user-guide.md)).
+Read `.rgctl/migration_plan.json`. Optional UI: add `--with-dashboard` and `rgctl serve --open` ([dashboard user guide](dashboard-user-guide.md)).
 
 ## Phase 2 — Hotspots
 
 ```bash
-rg-build -f json metrics --pagerank --betweenness --communities
+rgctl -f json metrics --pagerank --betweenness --communities
 ```
 
 Low PageRank/betweenness → earlier migration candidates; high → core bridges. Communities (label propagation) suggest batch boundaries.
@@ -23,7 +23,7 @@ Low PageRank/betweenness → earlier migration candidates; high → core bridges
 ## Phase 3 — Blast radius
 
 ```bash
-rg-build -f json blast-radius <Symbol> --depth 2
+rgctl -f json blast-radius <Symbol> --depth 2
 ```
 
 Use impact zone + score; deepen with `--depth` for wrappers/adapters. Prefer `-f json` for durable UUIDs/names.
@@ -35,11 +35,11 @@ Use impact zone + score; deepen with `--depth` for wrappers/adapters. Prefer `-f
 
 ## Phase 5 — CI guardrails
 
-Write a [policy file](policy-format.md) and run `rg-build -f json check --policy-file policy.json` in PRs (exit `1` on violations).
+Write a [policy file](policy-format.md) and run `rgctl -f json check --policy-file policy.json` in PRs (exit `1` on violations).
 
 ## Artifacts
 
 | Path | When |
 |------|------|
-| `.rgbuilder/migration_plan.json` | `--export-migration-hints` |
-| `.rgbuilder/dashboard/migration_*.json` | also `--with-dashboard` |
+| `.rgctl/migration_plan.json` | `--export-migration-hints` |
+| `.rgctl/dashboard/migration_*.json` | also `--with-dashboard` |

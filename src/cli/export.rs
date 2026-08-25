@@ -1,4 +1,4 @@
-//! `rg-build export` — graph serialization.
+//! `rgctl export` — graph serialization.
 
 use super::args::ExportFormat;
 use super::context::CliContext;
@@ -8,9 +8,9 @@ use crate::export::{
     select_subgraph,
 };
 use anyhow::{Context, Result, bail};
-use rgbuilder_graph::content_store::ContentStore;
-use rgbuilder_graph::export::GraphSnapshot;
-use rgbuilder_graph::schema::GRAPH_SCHEMA_VERSION;
+use rgctl_graph::content_store::ContentStore;
+use rgctl_graph::export::GraphSnapshot;
+use rgctl_graph::schema::GRAPH_SCHEMA_VERSION;
 use std::path::Path;
 
 pub struct ExportArgs {
@@ -109,7 +109,7 @@ pub fn run(ctx: &CliContext, args: ExportArgs) -> Result<()> {
 }
 
 fn filtered_counts(
-    backend: &rgbuilder_graph::backend::MemoryBackend,
+    backend: &rgctl_graph::backend::MemoryBackend,
     query: &str,
 ) -> Result<(usize, usize)> {
     if query == "all" {

@@ -1,11 +1,11 @@
 //! Phase 14: Mermaid diagram export tests.
 
-use rgbuilder::export::{DiagramType, MermaidOptions, generate_mermaid};
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::export::{DiagramType, MermaidOptions, generate_mermaid};
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
 
-fn sample_backend() -> rgbuilder::graph::backend::MemoryBackend {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+fn sample_backend() -> rgctl::graph::backend::MemoryBackend {
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     let func = Node::new(NodeType::Function, "authenticate");
     let cls = Node::new(NodeType::Class, "AuthService");
     let id_f = func.id;
@@ -53,7 +53,7 @@ fn test_mermaid_class_diagram() {
 
 #[test]
 fn test_mermaid_call_graph_filters_calls() {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     let a = Node::new(NodeType::Function, "a");
     let b = Node::new(NodeType::Function, "b");
     let id_a = a.id;
@@ -95,14 +95,14 @@ fn test_mermaid_horizontal_layout() {
 
 #[test]
 fn test_mermaid_empty_query_errors() {
-    let backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let backend = rgctl::graph::backend::MemoryBackend::new();
     let err = generate_mermaid(&backend, "name:missing", MermaidOptions::default()).unwrap_err();
     assert!(err.to_string().contains("No nodes matched"));
 }
 
 #[test]
 fn test_mermaid_escapes_quotes() {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     backend
         .insert_node(Node::new(NodeType::Function, r#"say "hi""#))
         .unwrap();
@@ -112,7 +112,7 @@ fn test_mermaid_escapes_quotes() {
 
 #[test]
 fn test_mermaid_max_depth_expansion() {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     let a = Node::new(NodeType::Function, "a");
     let b = Node::new(NodeType::Function, "b");
     let c = Node::new(NodeType::Function, "c");

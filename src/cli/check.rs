@@ -1,4 +1,4 @@
-//! `rg-build check` — CI policy gateway.
+//! `rgctl check` — CI policy gateway.
 
 use super::args::OutputFormat;
 use super::check_output::{build_check_response, violations_from_json_values};
@@ -6,7 +6,7 @@ use super::context::CliContext;
 use super::policy_file::PolicyFile;
 use crate::analysis::{BlastRadiusEngine, CentralityAnalyzer, PetGraphView, PolicyViolation};
 use anyhow::Result;
-use rgbuilder_graph::schema::NodeType;
+use rgctl_graph::schema::NodeType;
 use serde_json::json;
 use std::path::Path;
 use std::process::Command;
@@ -16,6 +16,28 @@ pub struct CheckArgs {
 }
 
 pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
+    if ctx.format == OutputFormat::Json {
+        if super::daemon::route_check(ctx, &args.policy_file)? {
+            return Ok(());
+        }
+
+        let mut session = rgctl_service::Session::new(&ctx.repo);
+        if !session.graph_ready() {
+            anyhow::bail!("Graph not found (run `rgctl discover` first)");
+        }
+        let value = rgctl_service::execute(
+            &mut session,
+            rgctl_service::Command::Check(rgctl_service::CheckArgs {
+                policy_file: args.policy_file.clone(),
+            }),
+        )?;
+        ctx.emit_json_value(&value)?;
+        if value.get("passed").and_then(|v| v.as_bool()) == Some(false) {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
     let registry = PolicyFile::load(Path::new(&args.policy_file))?.into_registry();
     let centrality_threshold = registry.centrality_alert_threshold;
     let graph = ctx.load_graph()?;
@@ -83,7 +105,7 @@ pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
 
 fn changed_function_symbols(
     repo: &Path,
-    backend: &rgbuilder_graph::backend::MemoryBackend,
+    backend: &rgctl_graph::backend::MemoryBackend,
 ) -> Result<Vec<String>> {
     let output = Command::new("git")
         .args(["diff", "--name-only", "HEAD"])

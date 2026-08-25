@@ -1,6 +1,6 @@
 # Languages
 
-rgBuilder indexes source through **language plugins**. Tier metadata: [`languages.toml`](../languages.toml).
+rgctl indexes source through **language plugins**. Tier metadata: [`languages.toml`](../languages.toml).
 
 **Contributors adding a language:** [tier-1-language-support.md](tier-1-language-support.md).
 
@@ -27,13 +27,13 @@ rgBuilder indexes source through **language plugins**. Tier metadata: [`language
 | C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, … | |
 
 ```bash
-rg-build discover . -l java,go,rust
-rg-build discover . -e node_modules,target,.git
+rgctl discover . -l java,go,rust
+rgctl discover . -e node_modules,target,.git
 ```
 
-Config format plugins (JSON, YAML, TOML, properties, …) add structure nodes; they do not run CFG/PDG. See `crates/rgbuilder-config-formats`.
+Config format plugins (JSON, YAML, TOML, properties, …) add structure nodes; they do not run CFG/PDG. See `crates/rgctl-config-formats`.
 
-**Markdown / docs:** custom markup plugin `rgbuilder-lang-markdown` (tree-sitter-md). Not Tier 1, not generic Tier 2. See [markdown-context.md](markdown-context.md). `.md` and `.mdx` are indexed by default when registered via `rgbuilder-languages`.
+**Markdown / docs:** custom markup plugin `rgctl-lang-markdown` (tree-sitter-md). Not Tier 1, not generic Tier 2. See [markdown-context.md](markdown-context.md). `.md` and `.mdx` are indexed by default when registered via `rgctl-languages`.
 
 ## Discover depth
 

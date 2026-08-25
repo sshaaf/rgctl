@@ -1,12 +1,12 @@
 //! C CFG analysis against the ecommerce-c fixture.
 
-use rgbuilder::analysis::{build_cfg_for_function, cfg_language_id_from_path};
+use rgctl::analysis::{build_cfg_for_function, cfg_language_id_from_path};
 use std::path::PathBuf;
 
-const C_REPO: &str = "/Users/sshaaf/git/rust/rgbuilder-tests/ecommerce-c";
+const C_REPO: &str = "/Users/sshaaf/git/rust/rgctl-tests/ecommerce-c";
 
 fn c_repo() -> PathBuf {
-    std::env::var("RGBUILDER_C_REPO")
+    std::env::var("RGCTL_C_REPO")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(C_REPO))
 }

@@ -1,6 +1,6 @@
 //! Phase 14: Graphviz rendering tests.
 
-use rgbuilder::export::{ImageFormat, Layout, check_graphviz_installed, render_dot_to_file};
+use rgctl::export::{ImageFormat, Layout, check_graphviz_installed, render_dot_to_file};
 use std::process::Command;
 use tempfile::TempDir;
 

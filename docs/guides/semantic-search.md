@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `semantic` command provides **natural-language search** over function symbols in your codebase. Instead of matching exact names or patterns, you describe what you are looking for in plain English (e.g., "shopping cart checkout") and rgBuilder returns the most semantically similar functions.
+The `semantic` command provides **natural-language search** over function symbols in your codebase. Instead of matching exact names or patterns, you describe what you are looking for in plain English (e.g., "shopping cart checkout") and rgctl returns the most semantically similar functions.
 
 Semantic search is built on a separate opt-in index (`semantic_index.bin`) that embeds every function symbol into a vector space. Queries are then answered via Hamming nearest-neighbor search, returning results ranked by a **fusion score** that combines vector similarity with keyword matching.
 
@@ -19,7 +19,7 @@ Semantic search is built on a separate opt-in index (`semantic_index.bin`) that 
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rg-build -r example/coolstore discover .
+rgctl -r example/coolstore discover .
 ```
 
 ## Step-by-Step
@@ -29,20 +29,20 @@ rg-build -r example/coolstore discover .
 Semantic search requires a separate indexing step. Run `semantic index` after `discover`:
 
 ```bash
-rg-build -r example/coolstore semantic index
+rgctl -r example/coolstore semantic index
 ```
 
 **Output:**
 
 ```
-Indexed 7526 functions (vocab-accumulate-v2, 256 dims) → example/coolstore/.rgbuilder/semantic_index.bin
+Indexed 7526 functions (vocab-accumulate-v2, 256 dims) → example/coolstore/.rgctl/semantic_index.bin
   incremental: 0 reused, 7526 embedded, 0 removed
 ```
 
 **What happened:**
 
-- rgBuilder embedded all 7,526 function symbols into 256-dimensional vectors using the **vocab-accumulate-v2** model (a compiled token-table embedder that requires no external model or ONNX runtime).
-- The index was written to `.rgbuilder/semantic_index.bin`.
+- rgctl embedded all 7,526 function symbols into 256-dimensional vectors using the **vocab-accumulate-v2** model (a compiled token-table embedder that requires no external model or ONNX runtime).
+- The index was written to `.rgctl/semantic_index.bin`.
 - On subsequent runs, unchanged functions are reused (incremental indexing).
 
 ### 2. Query with Natural Language
@@ -50,7 +50,7 @@ Indexed 7526 functions (vocab-accumulate-v2, 256 dims) → example/coolstore/.rg
 Search for functions related to "shopping cart checkout":
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "shopping cart checkout" --limit 5
+rgctl -r example/coolstore -f json semantic query "shopping cart checkout" --limit 5
 ```
 
 **Output:**
@@ -88,7 +88,7 @@ rg-build -r example/coolstore -f json semantic query "shopping cart checkout" --
 Disable fusion to use pure keyword matching:
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "checkout" \
+rgctl -r example/coolstore -f json semantic query "checkout" \
   --limit 5 --no-fusion
 ```
 
@@ -97,7 +97,7 @@ rg-build -r example/coolstore -f json semantic query "checkout" \
 For more thorough searches, increase the candidate pool that the fusion step considers:
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "order processing" \
+rgctl -r example/coolstore -f json semantic query "order processing" \
   --limit 10 --candidate-pool 200
 ```
 
@@ -106,7 +106,7 @@ rg-build -r example/coolstore -f json semantic query "order processing" \
 Search within a specific scope. Community-scoped search finds entire communities relevant to your query:
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "checkout" \
+rgctl -r example/coolstore -f json semantic query "checkout" \
   --scope community --limit 10
 ```
 
@@ -115,13 +115,13 @@ rg-build -r example/coolstore -f json semantic query "checkout" \
 To search documentation sections instead of code functions, first index with the `docs` scope:
 
 ```bash
-rg-build -r example/coolstore semantic index --scope docs --embedder hash
+rgctl -r example/coolstore semantic index --scope docs --embedder hash
 ```
 
 Then query:
 
 ```bash
-rg-build -r example/coolstore -f json semantic query "deployment instructions" \
+rgctl -r example/coolstore -f json semantic query "deployment instructions" \
   --scope docs --limit 5
 ```
 
@@ -129,7 +129,7 @@ Note: the `--scope` flag on the `index` command determines what gets embedded. T
 
 ### 7. Choosing an Embedder
 
-rgBuilder supports three embedding backends:
+rgctl supports three embedding backends:
 
 | Embedder | Command | Requirements | Best For |
 |----------|---------|-------------|----------|

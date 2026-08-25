@@ -1,15 +1,18 @@
-rgBuilder CLI Structure (developer reference)
+rgctl CLI Structure (developer reference)
 ==========================================
-Last synced: 2026-07-23 — prefer `rg-build --help` and docs/cli-output-schemas.md / docs/json-api.md for JSON contracts.
+Last synced: 2026-08-25 — prefer `rgctl --help` and docs/json-api.md for JSON contracts.
 User Guide is the canonical human reference; this file is a maintainer cheat sheet.
 
-rg-build [GLOBAL OPTIONS] <COMMAND>
+rgctl [GLOBAL OPTIONS] <COMMAND>
 
 Global Options:
   -r, --repo <PATH>           Target repository root (default: cwd)
-  -d, --db <PATH>             Legacy graph.db path (default: {repo}/.rgbuilder/graph.db)
+  -d, --db <PATH>             Legacy graph.db path (default: {repo}/.rgctl/graph.db)
   -f, --format <FORMAT>       Output format: text | json | graphviz | mermaid
   -o, --output <FILE>         Write stdout to file instead of terminal
+  --no-daemon                 In-process; do not contact or start daemon
+  --daemon-home <PATH>        Daemon workspace root (default: $HOME → ~/.rgctl/)
+  --fail-if-no-daemon         Fail if daemon is not running (no auto-start)
 
 Active Commands:
 ================
@@ -30,7 +33,7 @@ Active Commands:
 │   ├── --migration-order           scheduled|priority
 │   └── --write-json-graph          Also write legacy graph.db / graph.json (opt-in)
 │
-│   Writes (default, under {repo}/.rgbuilder/):
+│   Writes (default, under {repo}/.rgctl/):
 │     graph.snapshot.bin          Columnar v2 mmap graph (default)
 │     blast_engine.snapshot.bin   Pre-built SCC blast engine
 │     macro_call_index.db/.bin    Blast-radius lookup cache (SQLite + bincode; not the graph)
@@ -45,16 +48,19 @@ Active Commands:
 │   ├── --no-policy                 Skip default policy behavior
 │   └── --with-slices               Slice hand-offs in gatekeeping (slow; full graph path)
 │
-│   Query path order (no --with-slices / --policy-file):
-│     T0 blast lookup cache (macro_call_index.db) → socket daemon (if `serve --daemon` running) → lite engine → full graph
-│   Env: RGBUILDER_NO_QUERY_DAEMON=1 disables daemon auto-connect
+│   Query path: daemon (default) or in-process with --no-daemon
 │
-├── serve
-│   ├── (default)                   HTTP dashboard + POST /api/query on 127.0.0.1:8080
-│   ├── --open                      Open browser after start
-│   ├── --daemon                    Legacy Unix socket blast daemon only
-│   ├── --socket <PATH>             Socket path when --daemon (default: {repo}/.rgbuilder/query.sock)
-│   └── --idle-secs <SECS>          Daemon idle exit (default: 300)
+├── serve [PATH]
+│   ├── --mode standard|mcp     HTTP (default) or stdio MCP (no HTTP bind)
+│   ├── --no-pipeline           Fail fast if artifacts missing (no auto discover --full)
+│   ├── --open                  Open browser after start
+│   ├── --daemon                Background HTTP+MCP daemon (0.0.0.0:8080)
+│   ├── --socket <PATH>         Control socket (default: {daemon-home}/.rgctl/rgctl.sock)
+│   └── --idle-secs <SECS>      Daemon idle exit (default: 300)
+│
+├── install --skill [--host all|claude|cursor] [--force]
+│
+├── daemon start|stop|restart|status|list
 │
 ├── gql <QUERY>
 │   ├── --explain                   Execution plan
@@ -114,29 +120,29 @@ Usage Examples:
 ===============
 
 # Index (snapshot-canonical; no legacy JSON unless requested)
-rg-build -r /path/to/repo discover . --languages java,rust
+rgctl -r /path/to/repo discover . --languages java,rust
 
 # Blast radius (text)
-rg-build -r /path/to/repo blast-radius OrderService::process
+rgctl -r /path/to/repo blast-radius OrderService::process
 
 # Hop-limited impact zone
-rg-build -r /path/to/repo -f json blast-radius OrderService::process --depth 5
+rgctl -r /path/to/repo -f json blast-radius OrderService::process --depth 5
 
 # Optional warm daemon for repeated queries
-rg-build -r /path/to/repo serve &
-rg-build -r /path/to/repo -f json blast-radius saveError
+rgctl -r /path/to/repo serve &
+rgctl -r /path/to/repo -f json blast-radius saveError
 
 # JSON + policy
-rg-build -r /path/to/repo -f json blast-radius publishEvent --policy-file policy.json
+rgctl -r /path/to/repo -f json blast-radius publishEvent --policy-file policy.json
 
 # GQL
-rg-build -r /path/to/repo gql "MATCH (n:Function) RETURN n LIMIT 10"
+rgctl -r /path/to/repo gql "MATCH (n:Function) RETURN n LIMIT 10"
 
 # Slice
-rg-build -r /path/to/repo slice src/main.rs --line 42 --variable x --function main
+rgctl -r /path/to/repo slice src/main.rs --line 42 --variable x --function main
 
 # Export
-rg-build -r /path/to/repo export --export-format graphml --export-output out.graphml --query all
+rgctl -r /path/to/repo export --export-format graphml --export-output out.graphml --query all
 
 
 Performance / architecture notes:

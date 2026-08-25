@@ -1,38 +1,40 @@
 [workspace]
 members = [
     ".",
-    "rgbuilder-macros",
-    "crates/rgbuilder-plugin-api",
-    "crates/rgbuilder-plugin-helpers",
-    "crates/rgbuilder-config-formats",
-    "crates/rgbuilder-lang-runtime",
-    "crates/rgbuilder-registry",
-    "crates/rgbuilder-error",
-    "crates/rgbuilder-graph",
-    "crates/rgbuilder-extraction",
-    "crates/rgbuilder-pipeline",
-    "crates/rgbuilder-analysis",
-    "crates/rgbuilder-gql",
-    "crates/rgbuilder-export",
-    "crates/rgbuilder-dashboard",
-    "crates/rgbuilder-wasm",
-    "crates/rgbuilder-security",
-    "crates/rgbuilder-project-config",
-    "crates/rgbuilder-incremental",
-    "crates/rgbuilder-semantic",
-    "crates/rgbuilder-rules",
-    "crates/rgbuilder-core",
-    "crates/rgbuilder-lang-go",
-    "crates/rgbuilder-lang-java",
-    "crates/rgbuilder-lang-javascript",
-    "crates/rgbuilder-lang-python",
-    "crates/rgbuilder-lang-rust",
-    "crates/rgbuilder-lang-typescript",
-    "crates/rgbuilder-lang-csharp",
-    "crates/rgbuilder-lang-c",
-    "crates/rgbuilder-lang-cpp",
-    "crates/rgbuilder-lang-markdown",
-    "crates/rgbuilder-languages",
+    "rgctl-macros",
+    "crates/rgctl-plugin-api",
+    "crates/rgctl-plugin-helpers",
+    "crates/rgctl-config-formats",
+    "crates/rgctl-lang-runtime",
+    "crates/rgctl-registry",
+    "crates/rgctl-error",
+    "crates/rgctl-graph",
+    "crates/rgctl-extraction",
+    "crates/rgctl-pipeline",
+    "crates/rgctl-analysis",
+    "crates/rgctl-gql",
+    "crates/rgctl-export",
+    "crates/rgctl-dashboard",
+    "crates/rgctl-wasm",
+    "crates/rgctl-security",
+    "crates/rgctl-project-config",
+    "crates/rgctl-incremental",
+    "crates/rgctl-semantic",
+    "crates/rgctl-rules",
+    "crates/rgctl-core",
+    "crates/rgctl-service",
+    "crates/rgctl-mcp",
+    "crates/rgctl-lang-go",
+    "crates/rgctl-lang-java",
+    "crates/rgctl-lang-javascript",
+    "crates/rgctl-lang-python",
+    "crates/rgctl-lang-rust",
+    "crates/rgctl-lang-typescript",
+    "crates/rgctl-lang-csharp",
+    "crates/rgctl-lang-c",
+    "crates/rgctl-lang-cpp",
+    "crates/rgctl-lang-markdown",
+    "crates/rgctl-languages",
 ]
 resolver = "2"
 
@@ -41,40 +43,42 @@ edition = "2024"
 rust-version = "1.88"
 
 [workspace.dependencies]
-rgbuilder-plugin-api = { path = "crates/rgbuilder-plugin-api", version = "0.4.6" }
-rgbuilder-plugin-helpers = { path = "crates/rgbuilder-plugin-helpers", version = "0.4.6" }
-rgbuilder-config-formats = { path = "crates/rgbuilder-config-formats", version = "0.4.6" }
-rgbuilder-lang-runtime = { path = "crates/rgbuilder-lang-runtime", version = "0.4.6" }
-rgbuilder-registry = { path = "crates/rgbuilder-registry", version = "0.4.6" }
-rgbuilder-error = { path = "crates/rgbuilder-error", version = "0.4.6" }
-rgbuilder-graph = { path = "crates/rgbuilder-graph", version = "0.4.6" }
-rgbuilder-extraction = { path = "crates/rgbuilder-extraction", version = "0.4.6" }
-rgbuilder-pipeline = { path = "crates/rgbuilder-pipeline", version = "0.4.6" }
-rgbuilder-analysis = { path = "crates/rgbuilder-analysis", version = "0.4.6", default-features = false }
-rgbuilder-gql = { path = "crates/rgbuilder-gql", version = "0.4.6" }
-rgbuilder-export = { path = "crates/rgbuilder-export", version = "0.4.6" }
-rgbuilder-dashboard = { path = "crates/rgbuilder-dashboard", version = "0.4.6" }
-rgbuilder-wasm = { path = "crates/rgbuilder-wasm", version = "0.4.6" }
-rgbuilder-security = { path = "crates/rgbuilder-security", version = "0.4.6" }
-rgbuilder-project-config = { path = "crates/rgbuilder-project-config", version = "0.4.6" }
-rgbuilder-incremental = { path = "crates/rgbuilder-incremental", version = "0.4.6" }
-rgbuilder-semantic = { path = "crates/rgbuilder-semantic", version = "0.4.6" }
-rgbuilder-rules = { path = "crates/rgbuilder-rules", version = "0.4.6" }
-rgbuilder-core = { path = "crates/rgbuilder-core", version = "0.4.6" }
+rgctl-plugin-api = { path = "crates/rgctl-plugin-api", version = "0.4.7" }
+rgctl-plugin-helpers = { path = "crates/rgctl-plugin-helpers", version = "0.4.7" }
+rgctl-config-formats = { path = "crates/rgctl-config-formats", version = "0.4.7" }
+rgctl-lang-runtime = { path = "crates/rgctl-lang-runtime", version = "0.4.7" }
+rgctl-registry = { path = "crates/rgctl-registry", version = "0.4.7" }
+rgctl-error = { path = "crates/rgctl-error", version = "0.4.7" }
+rgctl-graph = { path = "crates/rgctl-graph", version = "0.4.7" }
+rgctl-extraction = { path = "crates/rgctl-extraction", version = "0.4.7" }
+rgctl-pipeline = { path = "crates/rgctl-pipeline", version = "0.4.7" }
+rgctl-analysis = { path = "crates/rgctl-analysis", version = "0.4.7", default-features = false }
+rgctl-gql = { path = "crates/rgctl-gql", version = "0.4.7" }
+rgctl-export = { path = "crates/rgctl-export", version = "0.4.7" }
+rgctl-dashboard = { path = "crates/rgctl-dashboard", version = "0.4.7" }
+rgctl-wasm = { path = "crates/rgctl-wasm", version = "0.4.7" }
+rgctl-security = { path = "crates/rgctl-security", version = "0.4.7" }
+rgctl-project-config = { path = "crates/rgctl-project-config", version = "0.4.7" }
+rgctl-incremental = { path = "crates/rgctl-incremental", version = "0.4.7" }
+rgctl-semantic = { path = "crates/rgctl-semantic", version = "0.4.7" }
+rgctl-rules = { path = "crates/rgctl-rules", version = "0.4.7" }
+rgctl-core = { path = "crates/rgctl-core", version = "0.4.7" }
+rgctl-service = { path = "crates/rgctl-service", version = "0.4.7" }
+rgctl-mcp = { path = "crates/rgctl-mcp", version = "0.4.7" }
 tempfile = "3"
 zstd = "0.13"
 rayon = "1.7"
-rgbuilder-lang-go = { path = "crates/rgbuilder-lang-go", version = "0.4.6" }
-rgbuilder-lang-java = { path = "crates/rgbuilder-lang-java", version = "0.4.6" }
-rgbuilder-lang-javascript = { path = "crates/rgbuilder-lang-javascript", version = "0.4.6" }
-rgbuilder-lang-python = { path = "crates/rgbuilder-lang-python", version = "0.4.6" }
-rgbuilder-lang-rust = { path = "crates/rgbuilder-lang-rust", version = "0.4.6" }
-rgbuilder-lang-typescript = { path = "crates/rgbuilder-lang-typescript", version = "0.4.6" }
-rgbuilder-lang-csharp = { path = "crates/rgbuilder-lang-csharp", version = "0.4.6" }
-rgbuilder-lang-c = { path = "crates/rgbuilder-lang-c", version = "0.4.6" }
-rgbuilder-lang-cpp = { path = "crates/rgbuilder-lang-cpp", version = "0.4.6" }
-rgbuilder-lang-markdown = { path = "crates/rgbuilder-lang-markdown", version = "0.4.6" }
-rgbuilder-languages = { path = "crates/rgbuilder-languages", version = "0.4.6" }
+rgctl-lang-go = { path = "crates/rgctl-lang-go", version = "0.4.7" }
+rgctl-lang-java = { path = "crates/rgctl-lang-java", version = "0.4.7" }
+rgctl-lang-javascript = { path = "crates/rgctl-lang-javascript", version = "0.4.7" }
+rgctl-lang-python = { path = "crates/rgctl-lang-python", version = "0.4.7" }
+rgctl-lang-rust = { path = "crates/rgctl-lang-rust", version = "0.4.7" }
+rgctl-lang-typescript = { path = "crates/rgctl-lang-typescript", version = "0.4.7" }
+rgctl-lang-csharp = { path = "crates/rgctl-lang-csharp", version = "0.4.7" }
+rgctl-lang-c = { path = "crates/rgctl-lang-c", version = "0.4.7" }
+rgctl-lang-cpp = { path = "crates/rgctl-lang-cpp", version = "0.4.7" }
+rgctl-lang-markdown = { path = "crates/rgctl-lang-markdown", version = "0.4.7" }
+rgctl-languages = { path = "crates/rgctl-languages", version = "0.4.7" }
 tree-sitter = "0.25"
 
 [workspace.lints.rust]
@@ -104,42 +108,44 @@ unwrap_used = "warn"
 expect_used = "warn"
 
 [package]
-name = "rgbuilder"
-version = "0.4.6"
+name = "rgctl"
+version = "0.4.7"
 edition.workspace = true
 rust-version.workspace = true
-authors = ["rgBuilder Contributors"]
+authors = ["rgctl Contributors"]
 description = "A Code knowledge graph system"
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/sshaaf/rgBuilder"
+repository = "https://github.com/sshaaf/rgctl"
 readme = "README.md"
 keywords = ["code-analysis", "graph", "ai", "knowledge-graph"]
 categories = ["development-tools", "command-line-utilities"]
 
 [dependencies]
 # Workspace crates
-rgbuilder-core = { workspace = true }
-rgbuilder-plugin-api = { workspace = true }
-rgbuilder-plugin-helpers = { workspace = true }
-rgbuilder-config-formats = { workspace = true }
-rgbuilder-lang-runtime = { workspace = true }
-rgbuilder-registry = { workspace = true }
-rgbuilder-error = { workspace = true }
-rgbuilder-graph = { workspace = true }
-rgbuilder-extraction = { workspace = true }
-rgbuilder-pipeline = { workspace = true }
-rgbuilder-analysis = { workspace = true }
-rgbuilder-gql = { workspace = true }
-rgbuilder-export = { workspace = true }
-rgbuilder-dashboard = { workspace = true }
-rgbuilder-security = { workspace = true }
-rgbuilder-project-config = { workspace = true }
-rgbuilder-incremental = { workspace = true }
-rgbuilder-semantic = { workspace = true }
-rgbuilder-rules = { workspace = true }
-rgbuilder-languages = { workspace = true }
+rgctl-core = { workspace = true }
+rgctl-service = { workspace = true }
+rgctl-mcp = { workspace = true }
+rgctl-plugin-api = { workspace = true }
+rgctl-plugin-helpers = { workspace = true }
+rgctl-config-formats = { workspace = true }
+rgctl-lang-runtime = { workspace = true }
+rgctl-registry = { workspace = true }
+rgctl-error = { workspace = true }
+rgctl-graph = { workspace = true }
+rgctl-extraction = { workspace = true }
+rgctl-pipeline = { workspace = true }
+rgctl-analysis = { workspace = true }
+rgctl-gql = { workspace = true }
+rgctl-export = { workspace = true }
+rgctl-dashboard = { workspace = true }
+rgctl-security = { workspace = true }
+rgctl-project-config = { workspace = true }
+rgctl-incremental = { workspace = true }
+rgctl-semantic = { workspace = true }
+rgctl-rules = { workspace = true }
+rgctl-languages = { workspace = true }
 
-rgbuilder-macros = { path = "rgbuilder-macros", optional = true }
+rgctl-macros = { path = "rgctl-macros", optional = true }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -176,6 +182,14 @@ ignore = "0.4"
 include_dir = "0.7"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["fs"] }
+tower = { version = "0.5", features = ["util"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Pipes",
+] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -184,20 +198,20 @@ tempfile = "3"
 pretty_assertions = "1"
 insta = "1"
 reqwest = { version = "0.12", features = ["blocking", "json"] }
-rgbuilder-graph = { workspace = true }
-rgbuilder-dashboard = { workspace = true }
-rgbuilder-lang-go = { workspace = true }
-rgbuilder-lang-csharp = { workspace = true }
-rgbuilder-lang-c = { workspace = true }
-rgbuilder-lang-cpp = { workspace = true }
-rgbuilder-lang-javascript = { workspace = true }
-rgbuilder-lang-typescript = { workspace = true }
-rgbuilder-lang-rust = { workspace = true }
+rgctl-graph = { workspace = true }
+rgctl-dashboard = { workspace = true }
+rgctl-lang-go = { workspace = true }
+rgctl-lang-csharp = { workspace = true }
+rgctl-lang-c = { workspace = true }
+rgctl-lang-cpp = { workspace = true }
+rgctl-lang-javascript = { workspace = true }
+rgctl-lang-typescript = { workspace = true }
+rgctl-lang-rust = { workspace = true }
 
 [features]
 default = ["semantic-onnx"]
-proc-macros = ["rgbuilder-macros"]
-semantic-onnx = ["rgbuilder-analysis/semantic-onnx"]
+proc-macros = ["rgctl-macros"]
+semantic-onnx = ["rgctl-analysis/semantic-onnx"]
 
 [profile.release]
 opt-level = 3
@@ -212,7 +226,7 @@ debug = false
 strip = false
 
 [[bin]]
-name = "rg-build"
+name = "rgctl"
 path = "src/main.rs"
 
 [[test]]
@@ -238,6 +252,18 @@ path = "tests/install_skill.rs"
 [[test]]
 name = "http_serve"
 path = "tests/http_serve.rs"
+
+[[test]]
+name = "discover_full_serve"
+path = "tests/discover_full_serve.rs"
+
+[[test]]
+name = "rgctl_no_daemon"
+path = "tests/rgctl_no_daemon.rs"
+
+[[test]]
+name = "opencode_mcp_smoke"
+path = "tests/opencode_mcp_smoke.rs"
 
 [[test]]
 name = "dashboard_bundle"

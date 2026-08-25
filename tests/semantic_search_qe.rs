@@ -1,7 +1,7 @@
 //! Semantic search QE — index/query oracles (OpenSpec `qe-sanity-gates`).
 //!
 //! Distinct from `semantic_audit` / `semantic_boundary` (CFG/PDG). Policy: required red
-//! until fixed — see `rgbuilder-tests/correctness/QE.md`.
+//! until fixed — see `rgctl-tests/correctness/QE.md`.
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -22,18 +22,18 @@ fn oracles_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/semantic_oracles.json")
 }
 
-fn rgbuilder_bin() -> PathBuf {
-    for key in ["CARGO_BIN_EXE_rg_build", "CARGO_BIN_EXE_rg-build"] {
+fn rgctl_bin() -> PathBuf {
+    for key in ["CARGO_BIN_EXE_rgctl"] {
         if let Ok(p) = std::env::var(key) {
             return PathBuf::from(p);
         }
     }
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let debug = root.join("target/debug/rg-build");
+    let debug = root.join("target/debug/rgctl");
     if debug.is_file() {
         return debug;
     }
-    panic!("rg-build binary not found; run via `cargo test` or `cargo build`");
+    panic!("rgctl binary not found; run via `cargo test` or `cargo build`");
 }
 
 fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
@@ -100,10 +100,10 @@ impl Sandbox {
     }
 
     fn run(&self, args: &[&str]) -> Output {
-        let mut cmd = Command::new(rgbuilder_bin());
+        let mut cmd = Command::new(rgctl_bin());
         cmd.arg("-r").arg(&self.repo);
         cmd.args(args);
-        cmd.output().expect("spawn rg-build")
+        cmd.output().expect("spawn rgctl")
     }
 
     fn parse_json(&self, output: &Output) -> Value {

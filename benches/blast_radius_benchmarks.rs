@@ -4,10 +4,10 @@
 //! Ignored gates: `cargo test --release --test blast_radius_perf -- --ignored`
 
 use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
-use rgbuilder::analysis::{BlastEngineSnapshot, BlastRadiusEngine, PetGraphView};
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
-use rgbuilder::graph::{CodeGraph, MmappedGraphSnapshot, PreparedGraphSnapshot, SnapshotNodeStore};
+use rgctl::analysis::{BlastEngineSnapshot, BlastRadiusEngine, PetGraphView};
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::graph::{CodeGraph, MmappedGraphSnapshot, PreparedGraphSnapshot, SnapshotNodeStore};
 use std::time::{Duration, Instant};
 
 fn build_monorepo_mock(nodes: usize, edges: usize) -> CodeGraph {
@@ -51,7 +51,7 @@ fn bench_blast_analyze_small(c: &mut Criterion) {
 }
 
 fn bench_petgraph_from_prepared_150k(c: &mut Criterion) {
-    if std::env::var("RGBUILDER_BENCH_LARGE").is_err() {
+    if std::env::var("RGCTL_BENCH_LARGE").is_err() {
         return;
     }
 
@@ -79,7 +79,7 @@ fn bench_petgraph_from_prepared_150k(c: &mut Criterion) {
 }
 
 fn bench_engine_snapshot_roundtrip_150k(c: &mut Criterion) {
-    if std::env::var("RGBUILDER_BENCH_LARGE").is_err() {
+    if std::env::var("RGCTL_BENCH_LARGE").is_err() {
         return;
     }
 
@@ -102,7 +102,7 @@ fn bench_engine_snapshot_roundtrip_150k(c: &mut Criterion) {
 }
 
 fn bench_snapshot_open_150k(c: &mut Criterion) {
-    if std::env::var("RGBUILDER_BENCH_LARGE").is_err() {
+    if std::env::var("RGCTL_BENCH_LARGE").is_err() {
         return;
     }
 

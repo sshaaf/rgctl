@@ -112,7 +112,7 @@ export function MigrationView() {
     return (
       <div class="p-4">
         <p class="text-muted mb-0">
-          No community migration data available. Re-run <code>rg-build discover</code> on this
+          No community migration data available. Re-run <code>rgctl discover</code> on this
           repository.
         </p>
       </div>

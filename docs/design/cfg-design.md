@@ -63,11 +63,11 @@ flowchart LR
 
 | Component | Path |
 |-----------|------|
-| CFG IR | `crates/rgbuilder-analysis/src/cfg.rs` |
-| Language lowering | `crates/rgbuilder-lang-*/` CFG hooks |
-| Archive | `crates/rgbuilder-analysis/src/cfg_pdg_archive.rs` |
+| CFG IR | `crates/rgctl-analysis/src/cfg.rs` |
+| Language lowering | `crates/rgctl-lang-*/` CFG hooks |
+| Archive | `crates/rgctl-analysis/src/cfg_pdg_archive.rs` |
 | CLI inspect | `src/cli/inspect.rs` |
-| Dashboard export | `crates/rgbuilder-dashboard/src/cfg_export.rs` |
+| Dashboard export | `crates/rgctl-dashboard/src/cfg_export.rs` |
 
 ---
 
@@ -85,10 +85,10 @@ flowchart LR
 ## 6. CLI usage
 
 ```bash
-rg-build discover . --cfg
-rg-build inspect MyClass#myMethod cfg
-rg-build -f mermaid inspect MyClass#myMethod cfg --prune
-rg-build -f json inspect MyClass#myMethod cfg -o /tmp/cfg.json
+rgctl discover . --cfg
+rgctl inspect MyClass#myMethod cfg
+rgctl -f mermaid inspect MyClass#myMethod cfg --prune
+rgctl -f json inspect MyClass#myMethod cfg -o /tmp/cfg.json
 ```
 
 ---
@@ -97,7 +97,7 @@ rg-build -f json inspect MyClass#myMethod cfg -o /tmp/cfg.json
 
 | Layer | Location |
 |-------|----------|
-| CFG unit tests | `crates/rgbuilder-analysis/src/cfg.rs`, `cfg_builder.rs` (`test_go_*`, `test_java_*`, `test_rust_*`, `test_c_*`, `test_cpp_*`) |
+| CFG unit tests | `crates/rgctl-analysis/src/cfg.rs`, `cfg_builder.rs` (`test_go_*`, `test_java_*`, `test_rust_*`, `test_c_*`, `test_cpp_*`) |
 | Dashboard harness | `tests/dashboard_harness.rs` (`cfg_index.json`) |
 | Playwright | `dashboard/scripts/test-graph-tabs.mjs` |
 

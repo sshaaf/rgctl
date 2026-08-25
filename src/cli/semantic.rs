@@ -1,4 +1,4 @@
-//! `rg-build semantic` — opt-in function semantic index and Hamming search.
+//! `rgctl semantic` — opt-in function semantic index and Hamming search.
 
 use super::args::OutputFormat;
 use super::context::CliContext;
@@ -98,6 +98,14 @@ pub struct SemanticQueryArgs {
 }
 
 pub fn run_index(ctx: &CliContext, args: SemanticIndexArgs) -> Result<()> {
+    run_index_with_emit(ctx, args, true)
+}
+
+pub(crate) fn run_index_with_emit(
+    ctx: &CliContext,
+    args: SemanticIndexArgs,
+    emit_cli: bool,
+) -> Result<()> {
     if args.dimensions == 0 || !args.dimensions.is_multiple_of(8) {
         bail!("--dimensions must be a positive multiple of 8");
     }
@@ -172,28 +180,30 @@ pub fn run_index(ctx: &CliContext, args: SemanticIndexArgs) -> Result<()> {
         Some(stats),
     );
 
-    if ctx.format == OutputFormat::Json {
-        ctx.emit_json_value(&index_response_to_json(&response))?;
-    } else {
-        let scope_label = match args.scope {
-            CliSemanticScope::Function => "functions",
-            CliSemanticScope::Docs => "doc sections",
-            CliSemanticScope::All => "entries",
-            CliSemanticScope::Community => "functions",
-        };
-        println!(
-            "Indexed {} {} ({}, {} dims) → {}",
-            response.functions_indexed,
-            scope_label,
-            response.model_id,
-            response.dimensions,
-            response.path
-        );
-        if let Some(build_stats) = &response.build_stats {
+    if emit_cli {
+        if ctx.format == OutputFormat::Json {
+            ctx.emit_json_value(&index_response_to_json(&response))?;
+        } else {
+            let scope_label = match args.scope {
+                CliSemanticScope::Function => "functions",
+                CliSemanticScope::Docs => "doc sections",
+                CliSemanticScope::All => "entries",
+                CliSemanticScope::Community => "functions",
+            };
             println!(
-                "  incremental: {} reused, {} embedded, {} removed",
-                build_stats.reused, build_stats.embedded, build_stats.removed
+                "Indexed {} {} ({}, {} dims) → {}",
+                response.functions_indexed,
+                scope_label,
+                response.model_id,
+                response.dimensions,
+                response.path
             );
+            if let Some(build_stats) = &response.build_stats {
+                println!(
+                    "  incremental: {} reused, {} embedded, {} removed",
+                    build_stats.reused, build_stats.embedded, build_stats.removed
+                );
+            }
         }
     }
 
@@ -273,7 +283,7 @@ pub fn run_distill(ctx: &CliContext, args: SemanticDistillArgs) -> Result<()> {
             embedder.model_id()
         );
         println!(
-            "Copy to crates/rgbuilder-analysis/assets/vocab_matrix.bin and rebuild to activate {VOCAB_ACCUMULATE_DISTILLED_ID}"
+            "Copy to crates/rgctl-analysis/assets/vocab_matrix.bin and rebuild to activate {VOCAB_ACCUMULATE_DISTILLED_ID}"
         );
     }
     Ok(())
@@ -283,7 +293,7 @@ pub fn run_query(ctx: &CliContext, args: SemanticQueryArgs) -> Result<()> {
     let path = semantic_index_path(ctx);
     if !path.is_file() {
         bail!(
-            "Semantic index not found at {} (run `rg-build semantic index` first)",
+            "Semantic index not found at {} (run `rgctl semantic index` first)",
             path.display()
         );
     }
@@ -292,7 +302,26 @@ pub fn run_query(ctx: &CliContext, args: SemanticQueryArgs) -> Result<()> {
         .with_context(|| format!("load semantic index {}", path.display()))?;
 
     let graph = ctx.load_graph()?;
-    let response = super::semantic_api::execute_semantic_query(&ctx.repo, &graph, &index, &args)?;
+    let response = if ctx.format == OutputFormat::Json && args.expand.is_none() {
+        let mut session = rgctl_service::Session::new(&ctx.repo);
+        let value = rgctl_service::execute(
+            &mut session,
+            rgctl_service::Command::Search(rgctl_service::SearchArgs {
+                text: args.query.clone(),
+                scope: match args.scope {
+                    CliSemanticScope::Function => rgctl_service::SearchScope::Function,
+                    CliSemanticScope::Docs => rgctl_service::SearchScope::Docs,
+                    CliSemanticScope::Community => rgctl_service::SearchScope::Community,
+                    CliSemanticScope::All => rgctl_service::SearchScope::All,
+                },
+                limit: Some(args.limit),
+            }),
+        )?;
+        ctx.emit_json_value(&value)?;
+        return Ok(());
+    } else {
+        super::semantic_api::execute_semantic_query(&ctx.repo, &graph, &index, &args)?
+    };
 
     if ctx.format == OutputFormat::Json {
         ctx.emit_json_value(&query_response_to_json(&response))?;
@@ -411,7 +440,7 @@ impl BlastSummaryProvider for EngineBlastProvider<'_> {
     fn summarize(
         &self,
         anchor_id: Uuid,
-    ) -> rgbuilder_error::Result<Option<crate::analysis::SemanticBlastSummary>> {
+    ) -> rgctl_error::Result<Option<crate::analysis::SemanticBlastSummary>> {
         let result = if let Some(digest) = self.graph_digest.as_deref() {
             if let Some(engine) = try_load_engine(self.repo, digest)? {
                 engine.analyze(anchor_id)?
@@ -425,7 +454,7 @@ impl BlastSummaryProvider for EngineBlastProvider<'_> {
         let node = self
             .backend
             .get_node(anchor_id)?
-            .ok_or_else(|| rgbuilder_error::Error::NodeNotFound(anchor_id.to_string()))?;
+            .ok_or_else(|| rgctl_error::Error::NodeNotFound(anchor_id.to_string()))?;
 
         Ok(Some(blast_summary_from_result(
             &crate::analysis::SemanticEntry {

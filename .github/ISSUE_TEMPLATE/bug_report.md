@@ -14,7 +14,7 @@ A clear and concise description of the bug.
 
 Steps to reproduce the behavior:
 
-1. Run command `rg-build ...`
+1. Run command `rgctl ...`
 2. With file `example.rs` containing...
 3. See error
 
@@ -32,7 +32,7 @@ Paste error output here
 
 ## Environment
 
-- **rgBuilder version**: (run `rg-build --version`)
+- **rgctl version**: (run `rgctl --version`)
 - **OS**: (e.g., macOS 13.4, Ubuntu 22.04, Windows 11)
 - **Rust version**: (run `rustc --version`)
 - **Feature flags**: (e.g., `proc-macros`, custom)

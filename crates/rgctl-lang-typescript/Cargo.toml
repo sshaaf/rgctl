@@ -1,0 +1,15 @@
+[package]
+name = "rgctl-lang-typescript"
+version = "0.4.7"
+edition.workspace = true
+rust-version.workspace = true
+description = "rgctl language plugin: typescript"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-plugin-api = { workspace = true }
+rgctl-registry = { workspace = true }
+rgctl-plugin-helpers = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-typescript = "0.23"
+serde_json = "1"

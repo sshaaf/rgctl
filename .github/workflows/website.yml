@@ -49,8 +49,8 @@ jobs:
 
       - name: Build static export
         env:
-          # Custom domain Pages site: https://shaaf.dev/rgBuilder/
-          NEXT_PUBLIC_BASE_PATH: /rgBuilder
+          # Custom domain Pages site: https://shaaf.dev/rgctl/
+          NEXT_PUBLIC_BASE_PATH: /rgctl
           # Optional: repo Settings → Secrets → Actions → NEXT_PUBLIC_GA_MEASUREMENT_ID (G-…)
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
         run: pnpm build

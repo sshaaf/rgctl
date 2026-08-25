@@ -1,16 +1,18 @@
-# HTTP query API (`rg-build serve`)
+# HTTP query API (`rgctl serve`)
 
-`rg-build serve` starts a local HTTP server that serves the **static dashboard** and a **GQL query API** on the same origin.
+`rgctl serve` starts a local HTTP server that serves the **static dashboard** and a **GQL query API** on the same origin.
 
 **CLI reference:** [User Guide §15](user-guide.md#15-http-server-serve)
+
+Default `rgctl serve` **starts the full discover pipeline** (unless `--no-pipeline`) and binds HTTP even if the dashboard bundle is not ready yet. `GET /` returns a preparing page until `index.html` exists. `GET /api/status` is the pipeline document (`schema_version` 1). `--mode mcp` speaks MCP on stdio and does **not** bind HTTP (seven workflow tools). Walkthrough: [MCP Server](guides/mcp-server.md). `--daemon` does not auto-discover.
 
 ---
 
 ## Default behavior
 
 ```bash
-rg-build -r "$REPO" discover .
-rg-build -r "$REPO" serve
+rgctl -r "$REPO" serve
+# or: rgctl discover . --full && rgctl serve --no-pipeline
 ```
 
 | URL | Purpose |
@@ -19,13 +21,14 @@ rg-build -r "$REPO" serve
 | `http://127.0.0.1:8080/api/query` | GQL / macro queries (POST JSON) |
 | `http://127.0.0.1:8080/graphql` | Alias for `/api/query` |
 | `http://127.0.0.1:8080/api/health` | Health check (GET) |
+| `http://127.0.0.1:8080/api/status` | Full-pipeline status (GET) |
 | `http://127.0.0.1:8080/api/semantic/status` | Semantic index status (GET) |
 | `http://127.0.0.1:8080/api/semantic/query` | Semantic search (POST JSON) |
 
 Open browser automatically:
 
 ```bash
-rg-build -r "$REPO" serve --open
+rgctl -r "$REPO" serve --open
 ```
 
 ### Options
@@ -33,10 +36,12 @@ rg-build -r "$REPO" serve --open
 | Flag | Effect |
 |------|--------|
 | `--host`, `--port` | Bind address (default `127.0.0.1:8080`) |
-| `--dashboard-dir DIR` | Override `.rgbuilder/dashboard` |
+| `--dashboard-dir DIR` | Override `.rgctl/dashboard` |
 | `--query-only` | API only, no static files |
 | `--dashboard-only` | Dashboard only, no query API |
-| `--daemon` | **Legacy** Unix-socket blast daemon (no HTTP) |
+| `--mode standard\|mcp` | HTTP (default) or MCP stdio |
+| `--no-pipeline` | Do not auto-discover; fail if dashboard/graph missing |
+| `--daemon` | **Legacy** Unix-socket blast daemon (no HTTP, no pipeline) |
 
 ---
 
@@ -83,11 +88,11 @@ curl -sS -X POST http://127.0.0.1:8080/api/query \
   -d '{"macro":"all_communities"}' | jq '.rows[:5]'
 ```
 
-`serve` loads `.rgbuilder/analysis_results.bin` so virtual `:Community` nodes and `community_id` filters work the same as CLI `gql`.
+`serve` loads `.rgctl/analysis_results.bin` so virtual `:Community` nodes and `community_id` filters work the same as CLI `gql`.
 
 ### Response
 
-Same JSON shape as `rg-build -f json gql` on the CLI. See [json-api.md](json-api.md) §5.
+Same JSON shape as `rgctl -f json gql` on the CLI. See [json-api.md](json-api.md) §5.
 
 Errors return HTTP 400 with a plain-text message body.
 
@@ -95,7 +100,7 @@ Errors return HTTP 400 with a plain-text message body.
 
 ## Semantic search API
 
-Requires `rg-build semantic index` before `serve` (embedder chosen at index time: **vocab** default, or `hash` / `code-daemon` / `onnx`). Restart `serve` after rebuilding `.rgbuilder/semantic_index.bin`. Same origin as the dashboard.
+Requires `rgctl semantic index` before `serve` (embedder chosen at index time: **vocab** default, or `hash` / `code-daemon` / `onnx`). Restart `serve` after rebuilding `.rgctl/semantic_index.bin`. Same origin as the dashboard.
 
 ### `GET /api/semantic/status`
 
@@ -117,7 +122,7 @@ Returns JSON: `{ "available": true, "model_id": "...", "dimensions": N, "functio
 
 `scope` may be `"function"` (default) or `"community"` (pooled member embeddings; requires discover analysis).
 
-Response matches `rg-build -f json semantic query`. Errors return HTTP 503 when the index is missing.
+Response matches `rgctl -f json semantic query`. Errors return HTTP 503 when the index is missing.
 
 ```bash
 curl -sS http://127.0.0.1:8080/api/semantic/status | jq .
@@ -136,24 +141,31 @@ curl -sS -X POST http://127.0.0.1:8080/api/semantic/query \
 Static hosting (no Rust process after export):
 
 ```bash
-cd .rgbuilder/dashboard && python3 -m http.server 8765
+cd .rgctl/dashboard && python3 -m http.server 8765
 # open http://localhost:8765/
 ```
 
-WASM requires HTTP (not `file://`). The in-browser worker cannot run full GQL — use `rg-build serve` for live queries or the CLI.
+WASM requires HTTP (not `file://`). The in-browser worker cannot run full GQL — use `rgctl serve` for live queries or the CLI.
 
 ---
 
-## Legacy socket daemon
+## Background HTTP+MCP daemon
 
-For backward compatibility only:
+Shared daemon for multi-repo cache, catalog, and MCP:
 
 ```bash
-rg-build -r "$REPO" serve --daemon
-rg-build -r "$REPO" serve --daemon --socket /tmp/rg-build.sock --idle-secs 600
+rgctl daemon start [--host HOST] [--port PORT]
+rgctl -r "$REPO" discover .
+rgctl -r "$REPO" serve --daemon   # foreground bootstrap; same daemon model
 ```
 
-Subsequent `blast-radius` commands may auto-connect to `.rgbuilder/query.sock` unless `RGBUILDER_NO_QUERY_DAEMON=1`.
+- **Catalog:** `GET http://127.0.0.1:8080/`
+- **Per-repo API:** `POST http://127.0.0.1:8080/{reponame}/api/query`
+- **MCP:** `POST http://127.0.0.1:8080/mcp`
+
+CLI commands route through the daemon by default (cache under `~/.rgctl/`). Use **`--no-daemon`** for in-process execution and `{repo}/.rgctl/` artifacts.
+
+The legacy blast-radius-only **`query.sock`** auto-connect path is **retired** on current main (see [unreleased](releases/unreleased.md)).
 
 ---
 
@@ -172,4 +184,5 @@ These CLI surfaces are **not** available as HTTP routes today (use `-f json` on 
 ## See also
 
 - [AGENTS.md](../AGENTS.md) — agent integration patterns
+- [MCP Server](guides/mcp-server.md) — `serve --mode mcp` (stdio, no HTTP)
 - [Dashboard user guide](dashboard-user-guide.md) — browser UI

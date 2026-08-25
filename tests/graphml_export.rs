@@ -1,12 +1,12 @@
 //! Phase 14: GraphML export tests.
 
-use rgbuilder::export::export_graphml;
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::export::export_graphml;
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
 
 #[test]
 fn test_graphml_header_and_keys() {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     backend
         .insert_node(Node::new(NodeType::Function, "main").with_file_path("src/main.rs"))
         .unwrap();
@@ -20,7 +20,7 @@ fn test_graphml_header_and_keys() {
 
 #[test]
 fn test_graphml_node_data() {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     let node = Node::new(NodeType::Function, "main").with_property("cyclomatic".into(), "5".into());
     backend.insert_node(node).unwrap();
 
@@ -31,7 +31,7 @@ fn test_graphml_node_data() {
 
 #[test]
 fn test_graphml_edges() {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     let a = Node::new(NodeType::Function, "a");
     let b = Node::new(NodeType::Function, "b");
     let id_a = a.id;
@@ -49,7 +49,7 @@ fn test_graphml_edges() {
 
 #[test]
 fn test_graphml_xml_escapes_ampersand() {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     backend
         .insert_node(Node::new(NodeType::Class, "A&B"))
         .unwrap();
@@ -59,7 +59,7 @@ fn test_graphml_xml_escapes_ampersand() {
 
 #[test]
 fn test_graphml_empty_query_errors() {
-    let backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let backend = rgctl::graph::backend::MemoryBackend::new();
     let err = export_graphml(&backend, "name:missing").unwrap_err();
     assert!(err.to_string().contains("No nodes matched"));
 }

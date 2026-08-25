@@ -1,0 +1,16 @@
+[package]
+name = "rgctl-gql"
+version = "0.4.7"
+edition.workspace = true
+rust-version.workspace = true
+description = "Graph query language for rgctl"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-analysis = { path = "../rgctl-analysis" }
+rgctl-error = { path = "../rgctl-error" }
+rgctl-graph = { path = "../rgctl-graph" }
+petgraph = "0.6"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

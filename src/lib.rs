@@ -1,9 +1,9 @@
-//! rgBuilder - AI-Powered Code Knowledge Graph
+//! rgctl - AI-Powered Code Knowledge Graph
 
 #![warn(missing_docs)]
 #![warn(clippy::all)]
 
-pub use rgbuilder_core::*;
+pub use rgctl_core::*;
 
 pub mod analysis;
 #[allow(missing_docs)]
@@ -12,12 +12,12 @@ pub mod graph;
 pub mod languages;
 pub mod security;
 
-pub use rgbuilder_error::{Error, Result};
-pub use rgbuilder_graph::CodeGraph;
+pub use rgctl_error::{Error, Result};
+pub use rgctl_graph::CodeGraph;
 
 /// Build information
 pub const BUILD_INFO: &str = concat!(
-    "rgBuilder v",
+    "rgctl v",
     env!("CARGO_PKG_VERSION"),
     " (",
     env!("CARGO_PKG_REPOSITORY"),
@@ -31,7 +31,7 @@ pub fn init() {
 
 /// Build a code graph from a repository using all built-in language plugins.
 pub fn code_graph_from_repository(root: &std::path::Path) -> Result<CodeGraph> {
-    use rgbuilder_pipeline::ProcessingPipeline;
+    use rgctl_pipeline::ProcessingPipeline;
     use std::sync::Arc;
 
     languages::ensure_registry_initialized();
@@ -52,6 +52,6 @@ mod tests {
 
     #[test]
     fn test_build_info() {
-        assert!(BUILD_INFO.contains("rgBuilder"));
+        assert!(BUILD_INFO.contains("rgctl"));
     }
 }

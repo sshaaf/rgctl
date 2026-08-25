@@ -35,7 +35,7 @@ flowchart TB
     PR[PageRank]
     BC[Betweenness]
     COM[Communities]
-    CLI[rg-build metrics]
+    CLI[rgctl metrics]
     PR --> CLI
     BC --> CLI
     COM --> CLI
@@ -61,7 +61,7 @@ flowchart TB
 | **Communities** | Label-propagation clusters | Graph colors, migration Louvain vote |
 | **Blast score** | Precomputed impact (per function) | Functions tab, migration γ term |
 
-Background: [harmonic-centrality.md](../harmonic-centrality.md), [migration-algorithms.md](../migration-algorithms.md), [internal/temp.md](../internal/temp.md) (approximate algorithms + kernel-scale timings).
+Background: [harmonic-centrality.md](../harmonic-centrality.md), [migration-algorithms.md](../migration-algorithms.md), [internal/profile.md](../internal/profile.md) (cold-profile corpora and timings).
 
 ---
 
@@ -78,15 +78,15 @@ Discover applies **adaptive centrality gating** and a **columnar write path** so
 | `metagraph.json` | Package-level aggregates only (`member_indices` omitted at scale) |
 | Dashboard export | In-memory `AnalysisResults` via `DashboardExportContext` (no reload per stage) |
 
-**Profiling:** `RUST_LOG=profile=info rg-build discover . -v` → `[profile] centrality sub-phase` lines.
+**Profiling:** `RUST_LOG=profile=info rgctl discover . -v` → `[profile] centrality sub-phase` lines.
 
-**CLI precision:** `rg-build metrics --pagerank --iterations N` still honors explicit iteration counts on demand.
+**CLI precision:** `rgctl metrics --pagerank --iterations N` still honors explicit iteration counts on demand.
 
 ---
 
 ## 3.1 Community detection naming
 
-**Naming first:** rgBuilder does **not** run the Leiden algorithm today. What ships is **label propagation** ([Raghavan et al., 2007](https://doi.org/10.1103/PhysRevE.76.036106)) with Newman modularity scoring, plus hub stripping and deterministic tie-breaking. Docs and UI still say “Louvain” in places (`louvain_community_id`, migration layout colors), and [`.github/TASK_PLAN.md`](../../.github/TASK_PLAN.md) lists Leiden as planned but unimplemented.
+**Naming first:** rgctl does **not** run the Leiden algorithm today. What ships is **label propagation** ([Raghavan et al., 2007](https://doi.org/10.1103/PhysRevE.76.036106)) with Newman modularity scoring, plus hub stripping and deterministic tie-breaking. Docs and UI still say “Louvain” in places (`louvain_community_id`, migration layout colors), and [`.github/TASK_PLAN.md`](../../.github/TASK_PLAN.md) lists Leiden as planned but unimplemented.
 
 | Name in repo | What it actually is |
 |--------------|---------------------|
@@ -94,7 +94,7 @@ Discover applies **adaptive centrality gating** and a **columnar write path** so
 | “Louvain” in dashboard / migration | Majority vote of label-propagation ids (layout color only) |
 | Leiden (task 2.1.1) | **Not implemented** |
 
-Implementation: [`crates/rgbuilder-analysis/src/community.rs`](../../crates/rgbuilder-analysis/src/community.rs). For migration batching, the dashboard uses **package/module macro nodes**; community ids mainly drive graph coloring and cluster-aware layout, not the primary schedule order.
+Implementation: [`crates/rgctl-analysis/src/community.rs`](../../crates/rgctl-analysis/src/community.rs). For migration batching, the dashboard uses **package/module macro nodes**; community ids mainly drive graph coloring and cluster-aware layout, not the primary schedule order.
 
 ---
 
@@ -102,12 +102,12 @@ Implementation: [`crates/rgbuilder-analysis/src/community.rs`](../../crates/rgbu
 
 | Component | Path |
 |-----------|------|
-| Centrality | `crates/rgbuilder-analysis/src/centrality.rs`, `centrality_approx.rs` |
-| Communities | `crates/rgbuilder-analysis/src/community.rs` |
-| Harmonic | `crates/rgbuilder-analysis/src/centrality_approx.rs` (`HyperBallHarmonic`) |
-| Persist | `crates/rgbuilder-analysis/src/results.rs` |
+| Centrality | `crates/rgctl-analysis/src/centrality.rs`, `centrality_approx.rs` |
+| Communities | `crates/rgctl-analysis/src/community.rs` |
+| Harmonic | `crates/rgctl-analysis/src/centrality_approx.rs` (`HyperBallHarmonic`) |
+| Persist | `crates/rgctl-analysis/src/results.rs` |
 | CLI | `src/cli/metrics.rs` |
-| Dashboard export | `crates/rgbuilder-dashboard/src/export_context.rs`, `function_metrics_export.rs` |
+| Dashboard export | `crates/rgctl-dashboard/src/export_context.rs`, `function_metrics_export.rs` |
 
 ---
 
@@ -127,11 +127,11 @@ Graph tab uses `communities.json` / metagraph community colors for package view 
 ## 6. CLI usage
 
 ```bash
-rg-build discover .
-rg-build metrics
-rg-build -f json metrics --pagerank --iterations 50
-rg-build -f json metrics --betweenness
-rg-build -f json metrics --communities
+rgctl discover .
+rgctl metrics
+rgctl -f json metrics --pagerank --iterations 50
+rgctl -f json metrics --betweenness
+rgctl -f json metrics --communities
 ```
 
 `discover` already computes core metrics; `metrics` re-emits them as JSON without re-indexing.
@@ -142,7 +142,7 @@ rg-build -f json metrics --communities
 
 | Layer | Location |
 |-------|----------|
-| Analysis unit tests | `crates/rgbuilder-analysis/src/centrality.rs`, `community.rs` |
+| Analysis unit tests | `crates/rgctl-analysis/src/centrality.rs`, `community.rs` |
 | CLI subprocess | `tests/cli_output/all_commands_sanity.rs` |
 | Dashboard harness | `tests/dashboard_harness.rs` (`function_metrics.json`) |
 

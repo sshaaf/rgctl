@@ -1,0 +1,20 @@
+[package]
+name = "rgctl-pipeline"
+version = "0.4.7"
+edition.workspace = true
+rust-version.workspace = true
+description = "Parallel processing pipeline for rgctl"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-error = { path = "../rgctl-error" }
+rgctl-extraction = { path = "../rgctl-extraction" }
+rgctl-graph = { path = "../rgctl-graph" }
+rgctl-registry = { path = "../rgctl-registry" }
+indicatif = "0.17"
+rayon = "1.7"
+crossbeam = "0.8"
+
+[dev-dependencies]
+tempfile = { workspace = true }
+rgctl-languages = { workspace = true }

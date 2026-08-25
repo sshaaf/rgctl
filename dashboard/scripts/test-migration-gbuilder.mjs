@@ -83,7 +83,7 @@ const graph = await sigmaMetrics(page);
 await page.screenshot({ path: path.join(OUT_DIR, "gbuilder-migration-graph.png"), fullPage: true });
 
 const manifestMigration = await page.evaluate(async () => {
-  const embedded = document.getElementById("rgbuilder-manifest");
+  const embedded = document.getElementById("rgctl-manifest");
   if (embedded?.textContent) {
     const m = JSON.parse(embedded.textContent);
     return m.analysis?.migration_available ?? null;

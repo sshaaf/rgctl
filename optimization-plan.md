@@ -1,4 +1,4 @@
-# Comprehensive Optimization Plan: `rgbuilder-analysis`
+# Comprehensive Optimization Plan: `rgctl-analysis`
 
 ## Evaluation of the Specification Against Actual Code & Regression Findings
 
@@ -362,7 +362,7 @@ Rayon). However:
   async needed). Rayon parallelism alone handles the compute.
 - **The daemon/serve path** should use `spawn_blocking` for analysis queries. This is
   already the case for GQL query execution.
-- **Do not add Tokio as a dependency to `rgbuilder-analysis`.** Keep it in the CLI/daemon
+- **Do not add Tokio as a dependency to `rgctl-analysis`.** Keep it in the CLI/daemon
   crate only.
 
 ---
@@ -378,7 +378,7 @@ Rayon). However:
 | R3: Hoist bidirectional neighbor construction out of loop | semantic_diffuse.rs | Trivial | Low |
 | R4: Revert macro_call_lookup `"[]"` to serialized JSON | macro_call_lookup.rs | Trivial | Low |
 
-**Verification:** Run `cargo test --release -p rgbuilder-analysis`. Run discover on a
+**Verification:** Run `cargo test --release -p rgctl-analysis`. Run discover on a
 medium codebase and verify wall time returns to baseline.
 
 ---

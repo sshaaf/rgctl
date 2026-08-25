@@ -1,10 +1,10 @@
 //! Phase 12.2 — blast radius integration tests
 
-use rgbuilder::analysis::cfg::{Statement, StatementKind};
-use rgbuilder::analysis::pdg::{DataDepType, DataDependency, PdgNode};
-use rgbuilder::analysis::{BlastRadiusAnalyzer, FlowCache, ProgramDependenceGraph};
-use rgbuilder::graph::backend::{GraphBackend, MemoryBackend};
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::analysis::cfg::{Statement, StatementKind};
+use rgctl::analysis::pdg::{DataDepType, DataDependency, PdgNode};
+use rgctl::analysis::{BlastRadiusAnalyzer, FlowCache, ProgramDependenceGraph};
+use rgctl::graph::backend::{GraphBackend, MemoryBackend};
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
 use std::collections::HashSet;
 
 fn build_call_chain() -> (MemoryBackend, uuid::Uuid, uuid::Uuid, uuid::Uuid) {

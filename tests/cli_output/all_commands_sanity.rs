@@ -1,13 +1,13 @@
 //! Full-platform CLI subprocess I/O sanity audit (Layer 3).
 //!
 //! Single test [`test_all_cli_commands_json_schema_sanity`] spawns the real
-//! `rg-build` binary once per command and validates JSON contracts + exit codes.
+//! `rgctl` binary once per command and validates JSON contracts + exit codes.
 //!
 //! # Harness
 //!
 //! - **`Sandbox`** — copies [`tests/fixtures/tiny_polyglot_repo`] into a temp dir;
 //!   passes `-r {repo}` and `-d {repo}/sandbox_graph.db` on every invocation.
-//! - **Binary** — `CARGO_BIN_EXE_rg_build` when set; otherwise `target/debug/rg-build`.
+//! - **Binary** — `CARGO_BIN_EXE_rgctl` when set; otherwise `target/debug/rgctl`.
 //! - **Helpers** — schema version, key presence/absence, nil-UUID scan, exit-code checks.
 //!
 //! # Coverage (see `docs/cli-io-sanity-qe.md` for the full matrix)
@@ -34,18 +34,18 @@ use std::str;
 
 const NIL_UUID: &str = "00000000-0000-0000-0000-000000000000";
 
-fn rgbuilder_bin() -> PathBuf {
-    for key in ["CARGO_BIN_EXE_rg_build", "CARGO_BIN_EXE_rg-build"] {
+fn rgctl_bin() -> PathBuf {
+    for key in ["CARGO_BIN_EXE_rgctl"] {
         if let Ok(p) = std::env::var(key) {
             return PathBuf::from(p);
         }
     }
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let debug = root.join("target/debug/rg-build");
+    let debug = root.join("target/debug/rgctl");
     if debug.is_file() {
         return debug;
     }
-    root.join("target/release/rg-build")
+    root.join("target/release/rgctl")
 }
 
 fn fixture_root() -> PathBuf {
@@ -85,10 +85,12 @@ impl Sandbox {
     }
 
     fn run(&self, args: &[&str]) -> Output {
-        let mut cmd = Command::new(rgbuilder_bin());
+        let mut cmd = Command::new(rgctl_bin());
+        cmd.env("RGCTL_NO_DAEMON", "1");
+        cmd.arg("--no-daemon");
         cmd.arg("-r").arg(&self.repo).arg("-d").arg(&self.db);
         cmd.args(args);
-        cmd.output().expect("spawn rg-build")
+        cmd.output().expect("spawn rgctl")
     }
 
     fn parse_stdout_json(&self, output: &Output) -> Value {

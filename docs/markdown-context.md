@@ -1,6 +1,6 @@
 # Markdown context graph
 
-rgBuilder indexes `.md` and `.mdx` through the **custom markup plugin** `rgbuilder-lang-markdown` (not Tier 1, not generic Tier 2). It uses official `tree-sitter-md` (block + inline grammars) to build a documentation context graph alongside code.
+rgctl indexes `.md` and `.mdx` through the **custom markup plugin** `rgctl-lang-markdown` (not Tier 1, not generic Tier 2). It uses official `tree-sitter-md` (block + inline grammars) to build a documentation context graph alongside code.
 
 ## Discover
 
@@ -8,41 +8,41 @@ Markdown is registered in `default_registry()` — `discover` indexes `.md` / `.
 
 ```bash
 export REPO=/path/to/repo
-rg-build -r "$REPO" discover . -l markdown
-rg-build -r "$REPO" discover . -l markdown,java   # doc + code (Phase 2b)
+rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover . -l markdown,java   # doc + code (Phase 2b)
 ```
 
 Fixture corpus: `tests/fixtures/markdown-context/` — start with its [README.md](../tests/fixtures/markdown-context/README.md) for layout, narrative, and copy-paste commands.
 
-Automated integration gate: `cargo test --test markdown_context_cli` (CLI discover + GQL) and `cargo test -p rgbuilder-extraction markdown_spec_coverage` (in-memory spec matrix).
+Automated integration gate: `cargo test --test markdown_context_cli` (CLI discover + GQL) and `cargo test -p rgctl-extraction markdown_spec_coverage` (in-memory spec matrix).
 
 ## Cold profile (kubernetes/website)
 
-Large real-world markdown corpus: [kubernetes/website `content/en`](https://github.com/kubernetes/website/tree/main/content/en). Same **cold profile** pattern as `example/linux` — gitignored local checkout, deletes `.rgbuilder/` before discover, release `rg-build` only.
+Large real-world markdown corpus: [kubernetes/website `content/en`](https://github.com/kubernetes/website/tree/main/content/en). Same **cold profile** pattern as `example/linux` — gitignored local checkout, deletes `.rgctl/` before discover, release `rgctl` only.
 
 **Cold profile definition:** run a **fresh** release build right before profiling:
 
 ```bash
-cargo build --release --bin rg-build
+cargo build --release --bin rgctl
 ```
 
-Use that newly built `target/release/rg-build`; do not use debug or stale release binaries for cold profile comparisons.
+Use that newly built `target/release/rgctl`; do not use debug or stale release binaries for cold profile comparisons.
 
 **Agent prompt (suggested):**
 
-> Run **cold profile** on markdown: `cargo build --release --bin rg-build`, `./scripts/fetch-profile-repos.sh`, then `cargo test --release --test cold_profile_gates k8s_website_markdown_cold_discover_within_baseline -- --ignored --nocapture`. Report `[profile] discover summary` wall_secs, nodes, functions, and `index_graph_build` vs baseline 3s (+10%). Compare to last known good on this machine. Do not use an existing `.rgbuilder/` cache.
+> Run **cold profile** on markdown: `cargo build --release --bin rgctl`, `./scripts/fetch-profile-repos.sh`, then `cargo test --release --test cold_profile_gates k8s_website_markdown_cold_discover_within_baseline -- --ignored --nocapture`. Report `[profile] discover summary` wall_secs, nodes, functions, and `index_graph_build` vs baseline 3s (+10%). Compare to last known good on this machine. Do not use an existing `.rgctl/` cache.
 
 ```bash
 ./scripts/fetch-profile-repos.sh
-cargo build --release --bin rg-build
+cargo build --release --bin rgctl
 cargo test --release --test cold_profile_gates k8s_website_markdown_cold_discover_within_baseline -- --ignored --nocapture
 ```
 
-- Discover root: `example/k8s-website` (override with `RGBUILDER_K8S_WEBSITE_REPO`)
+- Discover root: `example/k8s-website` (override with `RGCTL_K8S_WEBSITE_REPO`)
 - Command: cold `discover . -l markdown -v` (markdown plugin only; no CFG)
-- Baseline: **3.0s** profile wall_secs (+10% tolerance); override with `RGBUILDER_K8S_WEBSITE_DISCOVER_BASELINE_SECS` after you establish a number on your machine
+- Baseline: **3.0s** profile wall_secs (+10% tolerance); override with `RGCTL_K8S_WEBSITE_DISCOVER_BASELINE_SECS` after you establish a number on your machine
 - Correctness: ≥500 heading modules, zero `:Function` nodes
-- **Obsidian export gate** (warm index, does not re-run discover): `cargo test --release --test cold_profile_gates k8s_website_obsidian_export_to_vault -- --ignored --nocapture` — baseline **30s** wall (+10%); override with `RGBUILDER_K8S_WEBSITE_OBSIDIAN_EXPORT_BASELINE_SECS`. Expect ~17k notes, note count = heading count.
+- **Obsidian export gate** (warm index, does not re-run discover): `cargo test --release --test cold_profile_gates k8s_website_obsidian_export_to_vault -- --ignored --nocapture` — baseline **30s** wall (+10%); override with `RGCTL_K8S_WEBSITE_OBSIDIAN_EXPORT_BASELINE_SECS`. Expect ~17k notes, note count = heading count.
 
 See [example/README.md](../example/README.md) for other large local corpora.
 
@@ -74,7 +74,7 @@ Agents can read section prose from the graph instead of opening files:
 
 **Code fences:** `body_text` is fence inner content (not delimiter lines).
 
-Large corpora: bodies beyond the inline cap get `body_truncated`, `body_ref` (same Blake3 hex as `body_hash`), and full UTF-8 in `.rgbuilder/content_store.bin`. `:File` nodes carry `content_hash` (Blake3 of raw file bytes) and `blob_ref` when the file exceeds the inline cap.
+Large corpora: bodies beyond the inline cap get `body_truncated`, `body_ref` (same Blake3 hex as `body_hash`), and full UTF-8 in `.rgctl/content_store.bin`. `:File` nodes carry `content_hash` (Blake3 of raw file bytes) and `blob_ref` when the file exceeds the inline cap.
 
 ## Obsidian vault export
 
@@ -84,17 +84,17 @@ Turn the markdown context graph into an **Obsidian vault** — one note per head
 
 ```bash
 export REPO=/path/to/repo
-cargo build --release --bin rg-build   # release is faster for large exports
+cargo build --release --bin rgctl   # release is faster for large exports
 export PATH="$PWD/target/release:$PATH"
 
-rg-build -r "$REPO" discover . -l markdown
-# or docs + code: rg-build -r "$REPO" discover .
+rgctl -r "$REPO" discover . -l markdown
+# or docs + code: rgctl -r "$REPO" discover .
 ```
 
 ### 2. Export vault
 
 ```bash
-rg-build -r "$REPO" export \
+rgctl -r "$REPO" export \
   --export-format obsidian \
   --export-output "$REPO/vault" \
   --query all
@@ -144,8 +144,8 @@ Section prose (from `body_text` or `content_store.bin` via `body_ref`).
 ### Re-export after doc edits
 
 ```bash
-rg-build -r "$REPO" discover . -l markdown
-rg-build -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
+rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 ```
 
 Obsidian export is **read-only** — edits in Obsidian are not synced back to the graph.
@@ -156,8 +156,8 @@ Obsidian export is **read-only** — edits in Obsidian are not synced back to th
 
 ```bash
 export REPO="$(pwd)/tests/fixtures/markdown-context"
-rg-build -r "$REPO" discover . -l markdown
-rg-build -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
+rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 ```
 
 **kubernetes/website** (~17k notes, ~5–20s release export after fetch + discover):
@@ -165,14 +165,14 @@ rg-build -r "$REPO" export --export-format obsidian --export-output "$REPO/vault
 ```bash
 ./scripts/fetch-profile-repos.sh
 export REPO="$(pwd)/example/k8s-website"
-rg-build -r "$REPO" discover . -l markdown
-rg-build -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
+rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 ```
 
 ### OKF JSON export
 
 ```bash
-rg-build -r "$REPO" export --export-format okf --export-output "$REPO/okf.json" --query all
+rgctl -r "$REPO" export --export-format okf --export-output "$REPO/okf.json" --query all
 ```
 
 Entity bundle for Open Knowledge Foundation tooling (heading modules + bodies).
@@ -182,13 +182,13 @@ Entity bundle for Open Knowledge Foundation tooling (heading modules + bodies).
 Default `semantic index` embeds **`:Function` nodes only**. For documentation:
 
 ```bash
-rg-build -r "$REPO" discover . -l markdown   # or full discover
+rgctl -r "$REPO" discover . -l markdown   # or full discover
 
 # Index doc sections (offline embedder — no ONNX)
-rg-build -r "$REPO" semantic index --scope docs --embedder hash
+rgctl -r "$REPO" semantic index --scope docs --embedder hash
 
 # Query (embedder comes from the saved index — no --embedder on query)
-rg-build -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 10
+rgctl -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 10
 ```
 
 ### Index scope vs query scope
@@ -203,7 +203,7 @@ rg-build -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 
 
 **Rule:** build the index with the scope you need (`--scope docs` for NL doc search). Re-run `semantic index` when switching scope or after large doc edits. On a markdown-only repo, default function index is empty.
 
-**Bodies:** embeddings use `body_text` inline, or full UTF-8 from `.rgbuilder/content_store.bin` when `body_ref` is set (same store as Obsidian export).
+**Bodies:** embeddings use `body_text` inline, or full UTF-8 from `.rgctl/content_store.bin` when `body_ref` is set (same store as Obsidian export).
 
 **CLI note:** success text still says `Indexed N functions` — the count is **index entries** (doc sections when `--scope docs`).
 
@@ -220,7 +220,7 @@ GQL remains the low-token default for structural navigation; semantic `--scope d
 ## GQL body text (agents)
 
 ```bash
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (n:Module) WHERE n.kind = 'heading' AND n.name LIKE 'Checkout*' RETURN n.body_text LIMIT 1"
 ```
 
@@ -266,7 +266,7 @@ Query 6 finds doc → Java **file → class** via existing `REFERENCES` and `CON
 
 ## PageRank and communities
 
-Doc `REFERENCES` edges participate in discover-time centrality ([`default_behavioral_edges`](../../crates/rgbuilder-analysis/src/centrality.rs)) and community detection (`default_community_edge_types` includes `References`).
+Doc `REFERENCES` edges participate in discover-time centrality ([`default_behavioral_edges`](../../crates/rgctl-analysis/src/centrality.rs)) and community detection (`default_community_edge_types` includes `References`).
 
 **Communities at discover:** `detect_with_view_defaults` projects neighbors via `build_community_neighbor_lists`:
 
@@ -274,7 +274,7 @@ Doc `REFERENCES` edges participate in discover-time centrality ([`default_behavi
 - **Markdown-only** graph (zero functions): all `Contains` edges (heading trees + file structure).
 - **Mixed code + docs:** `Contains` only for **heading → heading** (nested doc sections), not file→class/code containment.
 
-`rg-build -f json metrics --pagerank` uses the same behavioral edge set — markdown-only corpora converge with **non-zero** PageRank (fixture top ~0.04; k8s smaller per-node scores at ~17k headings).
+`rgctl -f json metrics --pagerank` uses the same behavioral edge set — markdown-only corpora converge with **non-zero** PageRank (fixture top ~0.04; k8s smaller per-node scores at ~17k headings).
 
 For navigation, heading `CONTAINS` trees and targeted GQL are still usually clearer than global PageRank on mixed code+doc graphs.
 

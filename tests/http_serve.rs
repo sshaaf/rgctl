@@ -1,4 +1,4 @@
-//! Integration tests for `rg-build serve` HTTP mode.
+//! Integration tests for `rgctl serve` HTTP mode.
 
 use std::net::TcpListener;
 use std::process::{Child, Command, Stdio};
@@ -12,17 +12,17 @@ fn pick_port() -> u16 {
         .port()
 }
 
-fn rgbuilder_bin() -> std::path::PathBuf {
-    std::env::var_os("CARGO_BIN_EXE_rg_build")
+fn rgctl_bin() -> std::path::PathBuf {
+    std::env::var_os("CARGO_BIN_EXE_rgctl")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| {
-            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rg-build")
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
         })
 }
 
 fn repo_with_dashboard() -> Option<std::path::PathBuf> {
     let repo = std::path::PathBuf::from("/Users/sshaaf/git/java/gbuilder");
-    if repo.join(".rgbuilder/dashboard/index.html").is_file() {
+    if repo.join(".rgctl/dashboard/index.html").is_file() {
         return Some(repo);
     }
     None
@@ -59,10 +59,10 @@ fn http_serve_serves_dashboard_and_query_api() {
         eprintln!("skip: gbuilder dashboard bundle not present");
         return;
     };
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     assert!(
         bin.is_file(),
-        "missing rg-build binary at {}",
+        "missing rgctl binary at {}",
         bin.display()
     );
 
@@ -71,6 +71,7 @@ fn http_serve_serves_dashboard_and_query_api() {
 
     let child = Command::new(&bin)
         .args([
+            "--no-daemon",
             "-r",
             repo.to_str().unwrap(),
             "serve",
@@ -82,7 +83,7 @@ fn http_serve_serves_dashboard_and_query_api() {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .expect("spawn rg-build serve");
+        .expect("spawn rgctl serve");
 
     let _guard = ServerGuard { child };
     assert!(
@@ -99,7 +100,7 @@ fn http_serve_serves_dashboard_and_query_api() {
         .text()
         .expect("dashboard body");
     assert!(
-        dashboard.contains("rgBuilder")
+        dashboard.contains("rgctl")
             || dashboard.contains("rb-app")
             || dashboard.contains("<!doctype html")
     );
@@ -124,7 +125,7 @@ fn http_serve_serves_dashboard_and_query_api() {
         .status();
     assert!(gql_alias.is_success());
 
-    if let Ok(entries) = std::fs::read_dir(repo.join(".rgbuilder/dashboard/assets")) {
+    if let Ok(entries) = std::fs::read_dir(repo.join(".rgctl/dashboard/assets")) {
         if let Some(wasm) = entries.flatten().find(|e| {
             e.path()
                 .extension()

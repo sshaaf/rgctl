@@ -19,17 +19,17 @@ GQL is the primary interface for asking precise, composable questions: "What fun
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rg-build -r example/coolstore discover .
+rgctl -r example/coolstore discover .
 ```
 
 ## Step-by-Step
 
 ### 1. List All Functions (Macro)
 
-rgBuilder ships built-in macros for common queries. The `all_functions` macro returns every function in the graph:
+rgctl ships built-in macros for common queries. The `all_functions` macro returns every function in the graph:
 
 ```bash
-rg-build -r example/coolstore gql --macro-name all_functions unused
+rgctl -r example/coolstore gql --macro-name all_functions unused
 ```
 
 **Output (first 10 lines):**
@@ -54,7 +54,7 @@ The text format prints one function name per line. The argument `unused` is a pl
 Add `-f json` to get structured output with file paths, types, and qualified names:
 
 ```bash
-rg-build -r example/coolstore -f json gql --macro-name all_functions unused
+rgctl -r example/coolstore -f json gql --macro-name all_functions unused
 ```
 
 **Output (truncated):**
@@ -84,7 +84,7 @@ The `count` field tells you the graph contains **7,526 functions** total.
 Write a `MATCH` query with a `WHERE` clause to find a specific function:
 
 ```bash
-rg-build -r example/coolstore -f json gql \
+rgctl -r example/coolstore -f json gql \
   "MATCH (f:Function) WHERE f.name = 'priceShoppingCart' RETURN f"
 ```
 
@@ -116,7 +116,7 @@ This returns the exact function with its file path and fully qualified name.
 Use `LIKE` with wildcards (`%`) to find functions matching a pattern:
 
 ```bash
-rg-build -r example/coolstore gql \
+rgctl -r example/coolstore gql \
   "MATCH (f:Function) WHERE f.name LIKE '%Cart%' RETURN f.name, f.file LIMIT 15"
 ```
 
@@ -127,7 +127,7 @@ This finds all functions containing "Cart" in their name.
 Query for `Class` nodes to see every class in the graph:
 
 ```bash
-rg-build -r example/coolstore -f json gql \
+rgctl -r example/coolstore -f json gql \
   "MATCH (c:Class) RETURN c LIMIT 15"
 ```
 
@@ -165,7 +165,7 @@ rg-build -r example/coolstore -f json gql \
 Use `qualified_name` for precise lookups when a short name is ambiguous:
 
 ```bash
-rg-build -r example/coolstore -f json gql \
+rgctl -r example/coolstore -f json gql \
   "MATCH (c:Class) WHERE c.qualified_name = 'com.redhat.coolstore.model.ShoppingCart' RETURN c"
 ```
 
@@ -174,7 +174,7 @@ rg-build -r example/coolstore -f json gql \
 The `all_communities` macro returns detected functional clusters:
 
 ```bash
-rg-build -r example/coolstore -f json gql --macro-name all_communities unused
+rgctl -r example/coolstore -f json gql --macro-name all_communities unused
 ```
 
 **Output (truncated):**
@@ -212,7 +212,7 @@ rg-build -r example/coolstore -f json gql --macro-name all_communities unused
 Find all functions in a specific community by its ID:
 
 ```bash
-rg-build -r example/coolstore -f json gql \
+rgctl -r example/coolstore -f json gql \
   "MATCH (f:Function) WHERE f.community_id = '12715' RETURN f LIMIT 20"
 ```
 
@@ -221,7 +221,7 @@ rg-build -r example/coolstore -f json gql \
 Add the `--explain` flag to include extra metadata (like qualified names) in the response:
 
 ```bash
-rg-build -r example/coolstore -f json gql --explain \
+rgctl -r example/coolstore -f json gql --explain \
   "MATCH (f:Function) WHERE f.name = 'priceShoppingCart' RETURN f"
 ```
 
@@ -257,3 +257,4 @@ rg-build -r example/coolstore -f json gql --explain \
 - [Blast Radius Analysis](blast-radius-analysis.md) -- higher-level impact analysis built on the same graph
 - [Community Detection](community-detection.md) -- understand the communities that GQL can query
 - [HTTP Server and Dashboard](http-server-and-dashboard.md) -- run GQL queries via HTTP API
+- [MCP Server](mcp-server.md) -- IDE session; `rgctl_query` for MATCH / macros

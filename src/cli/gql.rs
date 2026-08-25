@@ -1,11 +1,10 @@
-//! `rg-build gql` — graph query language execution.
+//! `rgctl gql` — graph query language execution.
 
 use super::args::OutputFormat;
 use super::context::CliContext;
-use super::gql_output::gql_result_to_json;
 use anyhow::Result;
-use rgbuilder_analysis::{AnalysisResults, CommunityQueryContext};
-use rgbuilder_graph::backend::GraphBackend;
+use rgctl_service::command::{Command, QueryArgs};
+use rgctl_service::{Session, execute};
 
 pub struct GqlArgs {
     pub query: String,
@@ -14,6 +13,32 @@ pub struct GqlArgs {
 }
 
 pub fn run(ctx: &CliContext, args: GqlArgs) -> Result<()> {
+    if ctx.format == OutputFormat::Json {
+        if super::daemon::route_gql(ctx, &args)? {
+            return Ok(());
+        }
+        let mut session = Session::new(&ctx.repo);
+        if !session.graph_ready() {
+            anyhow::bail!(
+                "Graph not found (run `rgctl discover` first)"
+            );
+        }
+        let value = execute(
+            &mut session,
+            Command::Query(QueryArgs {
+                query: if args.macro_name.is_some() {
+                    None
+                } else {
+                    Some(args.query)
+                },
+                macro_name: args.macro_name,
+                explain: args.explain,
+                limit: None,
+            }),
+        )?;
+        return ctx.emit_json_value(&value);
+    }
+
     use crate::gql::{
         QueryMacroRegistry, execute_explain_with_community, execute_macro_with_community,
         execute_with_community,
@@ -31,10 +56,6 @@ pub fn run(ctx: &CliContext, args: GqlArgs) -> Result<()> {
     } else {
         execute_with_community(backend, &args.query, community.as_ref())?
     };
-
-    if ctx.format == OutputFormat::Json {
-        return ctx.emit_json_value(&gql_result_to_json(&result, args.explain));
-    }
 
     if args.explain {
         if let Some(plan) = result.plan {
@@ -54,9 +75,11 @@ pub fn run(ctx: &CliContext, args: GqlArgs) -> Result<()> {
 
 pub(crate) fn load_community_context(
     ctx: &CliContext,
-    backend: &rgbuilder_graph::backend::MemoryBackend,
-) -> Option<CommunityQueryContext> {
-    let path = ctx.repo.join(".rgbuilder/analysis_results.bin");
+    backend: &rgctl_graph::backend::MemoryBackend,
+) -> Option<rgctl_analysis::CommunityQueryContext> {
+    use rgctl_analysis::{AnalysisResults, CommunityQueryContext};
+    use rgctl_graph::backend::GraphBackend;
+    let path = ctx.repo.join(".rgctl/analysis_results.bin");
     if !path.is_file() {
         return None;
     }

@@ -1,4 +1,4 @@
-//! `rg-build blast-radius` — SCC macro impact analysis.
+//! `rgctl blast-radius` — SCC macro impact analysis.
 
 use super::args::OutputFormat;
 use super::blast_radius_output::{
@@ -7,7 +7,6 @@ use super::blast_radius_output::{
 };
 use super::context::CliContext;
 use super::policy_file::PolicyFile;
-use super::query_daemon;
 use crate::analysis::{
     BlastRadiusEngine, BlastRadiusResult, MacroCallIndex, MacroCallLookupDb, MacroIndexEntry,
     PetGraphView, candidates_from_backend, candidates_from_snapshot, filter_impact_by_caller_depth,
@@ -16,7 +15,7 @@ use crate::analysis::{
 };
 use crate::graph::backend::GraphBackend;
 use anyhow::Result;
-use rgbuilder_graph::SnapshotNodeStore;
+use rgctl_graph::SnapshotNodeStore;
 use std::path::Path;
 use uuid::Uuid;
 
@@ -274,7 +273,7 @@ fn resolve_target_uuid_impl(
         )?
     };
     if candidates.is_empty() {
-        return Err(rgbuilder_error::Error::NodeNotFound(parsed.target_name.clone()).into());
+        return Err(rgctl_error::Error::NodeNotFound(parsed.target_name.clone()).into());
     }
 
     if let Ok(Some(index)) = MacroCallIndex::load(&MacroCallIndex::default_path(&ctx.repo)) {
@@ -368,6 +367,41 @@ fn emit_output(ctx: &CliContext, response: &BlastRadiusResponse) -> Result<()> {
 }
 
 pub fn run(ctx: &CliContext, args: BlastRadiusArgs) -> Result<()> {
+    if ctx.format == OutputFormat::Json && args.policy_file.is_none() && !args.with_slices {
+        if super::daemon::route_impact(
+            ctx,
+            &args.symbol,
+            args.depth,
+            args.class.clone(),
+            args.file.clone(),
+        )? {
+            return Ok(());
+        }
+
+        let mut session = rgctl_service::Session::new(&ctx.repo);
+        if !session.graph_ready() {
+            anyhow::bail!("Graph not found (run `rgctl discover` first)");
+        }
+        let value = rgctl_service::execute(
+            &mut session,
+            rgctl_service::Command::Impact(rgctl_service::ImpactArgs {
+                symbol: args.symbol.clone(),
+                depth: args.depth,
+                class: args.class.clone(),
+                file: args.file.clone(),
+            }),
+        )?;
+        ctx.emit_json_value(&value)?;
+        if value
+            .pointer("/gatekeeping/policy_status")
+            .and_then(|v| v.as_str())
+            == Some("VIOLATED")
+        {
+            std::process::exit(1);
+        }
+        return Ok(());
+    }
+
     let parsed = parsed_from_args(&args);
     let needs_full_graph = args.with_slices || args.policy_file.is_some();
 
@@ -377,12 +411,6 @@ pub fn run(ctx: &CliContext, args: BlastRadiusArgs) -> Result<()> {
         }
 
         if let Some(session) = ctx.snapshot_session()? {
-            if let Some(response) =
-                query_daemon::try_client_blast_radius(ctx, &args, &parsed, session.digest.as_ref())?
-            {
-                return emit_output(ctx, &response);
-            }
-
             if try_snapshot_lite_path(
                 ctx,
                 &args,

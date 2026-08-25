@@ -1,11 +1,11 @@
 //! Phase 13-style Rust analysis: expanded taint patterns and call relations.
 
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     ProgramDependenceGraph, TaintAnalyzer, TaintSink, TaintSource, build_cfg_for_function,
     cfg_language_id_from_path,
 };
-use rgbuilder_lang_rust::RustPlugin;
-use rgbuilder_plugin_api::{LanguagePlugin, RelationType};
+use rgctl_lang_rust::RustPlugin;
+use rgctl_plugin_api::{LanguagePlugin, RelationType};
 use std::path::Path;
 
 #[path = "common/analysis_helpers.rs"]
@@ -84,8 +84,8 @@ fn persist() {}
 
 #[test]
 fn rust_cfg_builds_from_fixture_when_present() {
-    const RUST_REPO: &str = "/Users/sshaaf/git/rust/rgbuilder-tests/ecommerce-rust";
-    let repo = std::env::var("RGBUILDER_RUST_REPO")
+    const RUST_REPO: &str = "/Users/sshaaf/git/rust/rgctl-tests/ecommerce-rust";
+    let repo = std::env::var("RGCTL_RUST_REPO")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| std::path::PathBuf::from(RUST_REPO));
     let file = repo.join("src/routes/orders.rs");

@@ -34,7 +34,7 @@ export function SearchView({ manifest }: SearchViewProps) {
         setStatus({
           available: false,
           message:
-            "Could not reach /api/semantic/status — start with `rg-build serve --open` (not python -m http.server).",
+            "Could not reach /api/semantic/status — start with `rgctl serve --open` (not python -m http.server).",
         }),
       );
   }, []);
@@ -68,14 +68,14 @@ export function SearchView({ manifest }: SearchViewProps) {
         <p class="text-muted small mb-0">
           Natural-language and keyword search over indexed functions (default vocab; optional
           code-daemon or hash → Hamming retrieval, optional fusion re-ranking). Build with
-          <code>rg-build semantic index</code>.
+          <code>rgctl semantic index</code>.
         </p>
       </div>
 
       {!available && (
         <div class="alert alert-warning py-2 small" role="status">
           {status?.message ??
-            "Semantic index not built yet. Run `rg-build semantic index`, then `rg-build serve --open`."}
+            "Semantic index not built yet. Run `rgctl semantic index`, then `rgctl serve --open`."}
         </div>
       )}
 

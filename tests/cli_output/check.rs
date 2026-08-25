@@ -1,4 +1,4 @@
-use rgbuilder::cli::check_output::{CHECK_SCHEMA_VERSION, fixture_check_json};
+use rgctl::cli::check_output::{CHECK_SCHEMA_VERSION, fixture_check_json};
 
 #[test]
 fn test_check_json_schema_sanity() {
@@ -23,7 +23,7 @@ fn test_check_json_schema_sanity() {
 
 #[test]
 fn test_check_violations_always_array_when_passing() {
-    use rgbuilder::cli::check_output::build_check_response;
+    use rgctl::cli::check_output::build_check_response;
 
     let response = build_check_response("policy.json", vec![]);
     let doc = serde_json::to_value(&response).unwrap();
@@ -33,7 +33,7 @@ fn test_check_violations_always_array_when_passing() {
 
 #[test]
 fn test_check_passed_false_contract() {
-    use rgbuilder::cli::check_output::{CheckViolationEntry, build_check_response};
+    use rgctl::cli::check_output::{CheckViolationEntry, build_check_response};
 
     let response = build_check_response(
         "policy.json",

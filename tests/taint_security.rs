@@ -6,10 +6,10 @@ mod analysis_helpers;
 
 use analysis_helpers::run_taint_security;
 use regex::Regex;
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     ProgramDependenceGraph, TaintFlow, TaintSink, TaintSource, build_cfg_for_function,
 };
-use rgbuilder::security::{SecurityAnalyzer, default_cwe_patterns};
+use rgctl::security::{SecurityAnalyzer, default_cwe_patterns};
 
 macro_rules! cwe_test {
     ($name:ident, $cwe:expr, $body:expr) => {
@@ -80,14 +80,14 @@ def run(request):
     assert!(
         flows
             .iter()
-            .any(|f| f.sink_type == rgbuilder::analysis::TaintSink::ShellCommand)
+            .any(|f| f.sink_type == rgctl::analysis::TaintSink::ShellCommand)
     );
     let vulns = run_taint_security("python", code, "run");
     assert!(
         vulns.iter().any(|v| v.cwe_id == cwe)
             || vulns
                 .iter()
-                .any(|v| v.taint_flow.sink_type == rgbuilder::analysis::TaintSink::ShellCommand),
+                .any(|v| v.taint_flow.sink_type == rgctl::analysis::TaintSink::ShellCommand),
         "expected shell-command CWE mapping"
     );
     assert!(default_cwe_patterns().iter().any(|p| p.cwe_id == cwe));

@@ -3,8 +3,8 @@
 //! Run with: cargo bench --bench parsing
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-use rgbuilder::languages::registry::LanguageRegistry;
-use rgbuilder::pipeline::{PipelineConfig, ProcessingPipeline};
+use rgctl::languages::registry::LanguageRegistry;
+use rgctl::pipeline::{PipelineConfig, ProcessingPipeline};
 use std::fs;
 use std::sync::Arc;
 use tempfile::TempDir;

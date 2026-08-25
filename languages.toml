@@ -1,9 +1,9 @@
-# rgBuilder tree-sitter language configuration
+# rgctl tree-sitter language configuration
 # Source of truth for Tier 1 language metadata.
 
 [metadata]
 version = "2.0"
-description = "Tier 1 custom tree-sitter plugins for rgBuilder"
+description = "Tier 1 custom tree-sitter plugins for rgctl"
 
 # ---------------------------------------------------------------------------
 # Tier 1 — custom LanguagePlugin implementations

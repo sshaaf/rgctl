@@ -75,7 +75,7 @@ export default function HomePage() {
             A code knowledge graph built for agents
           </h1>
           <p className="mt-5 max-w-[58ch] text-[17.5px] leading-relaxed text-[var(--body)]">
-            rgBuilder indexes your repository once, then answers reachability
+            rgctl indexes your repository once, then answers reachability
             and structure questions in compact JSON — so coding agents use{" "}
             <b className="font-semibold text-[var(--ink)]">fewer tokens</b> and
             make{" "}
@@ -111,7 +111,7 @@ export default function HomePage() {
           What sets it apart
         </h2>
         <p className="mb-10 max-w-[62ch] text-[var(--body)]">
-          Most code graphs stop at symbols, callers, and impact. rgBuilder adds
+          Most code graphs stop at symbols, callers, and impact. rgctl adds
           precomputed reachability, hybrid CPG depth, centrality, communities,
           and migration/CI outputs — always as deterministic{" "}
           <code className="font-[family-name:var(--font-mono)] text-[0.9em] text-[var(--ink)]">
@@ -178,7 +178,7 @@ export default function HomePage() {
               >
                 AGENTS.md
               </Link>{" "}
-              into your agent workflow. The model calls rgBuilder instead of
+              into your agent workflow. The model calls rgctl instead of
               grepping blindly — then reasons on structured impact.
             </p>
             <Button variant="ghost" asChild>
@@ -189,9 +189,9 @@ export default function HomePage() {
           </div>
           <TerminalBlock
             lines={[
-              "rg-build discover .",
-              'rg-build -f json semantic query "checkout flow" --limit 5',
-              'rg-build -f json blast-radius "priceShoppingCart" --depth 2',
+              "rgctl discover .",
+              'rgctl -f json semantic query "checkout flow" --limit 5',
+              'rgctl -f json blast-radius "priceShoppingCart" --depth 2',
             ]}
           />
         </div>

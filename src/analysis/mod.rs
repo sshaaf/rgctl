@@ -1,3 +1,3 @@
 //! Graph analysis algorithms (monolith re-exports)
 
-pub use rgbuilder_analysis::*;
+pub use rgctl_analysis::*;

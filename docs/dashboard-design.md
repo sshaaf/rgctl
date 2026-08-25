@@ -1,8 +1,8 @@
-# rgBuilder static dashboard — engineering design (living document)
+# rgctl static dashboard — engineering design (living document)
 
 **Status:** Phase 8 complete (taint tab); Query Guide + HTTP `serve` integrated  
 **Last updated:** 2026-07-13  
-**Owner:** rgBuilder core / export pipeline  
+**Owner:** rgctl core / export pipeline  
 
 This document is the **running source of truth** for the WASM + WebGL dashboard replacement. Update the [Implementation status](#implementation-status) section at the end of every phase PR.
 
@@ -15,7 +15,7 @@ Related: [cli-io-sanity-qe.md](cli-io-sanity-qe.md), [Code_structure.md](Code_st
 | Goal | Target |
 |------|--------|
 | Scale | 300k+ nodes (community view); full exploration at smaller sizes |
-| Distribution | Self-contained `.rgbuilder/dashboard/` — no CDN, works offline |
+| Distribution | Self-contained `.rgctl/dashboard/` — no CDN, works offline |
 | Data | Reuse **columnar v2** `graph.snapshot.bin` as `graph_payload.bin` (no third graph format) |
 | Analysis | Rust/WASM worker; UI thread stays at 60 FPS |
 | Legacy | **Delete** monolithic `html.rs` — no parallel stacks |
@@ -31,20 +31,20 @@ dashboard/                      # Vite + Preact + Bootstrap 5 (bundled, offline)
   src/worker.ts                 # Loads WASM + graph_payload.bin
   dist/                         # Built assets (npm run build) — embedded at compile time
 
-crates/rgbuilder-dashboard/      # Rust: export bundle on discover
+crates/rgctl-dashboard/      # Rust: export bundle on discover
   src/lib.rs                    # export_dashboard_bundle()
   src/manifest.rs               # manifest.json schema
   src/bundle.rs                 # Copy/extract static assets
 
-crates/rgbuilder-wasm/           # WASM engine (Phase 1+)
+crates/rgctl-wasm/           # WASM engine (Phase 1+)
   src/lib.rs                    # Columnar v2 header parse, future graph ops
 
-.rgbuilder/dashboard/            # Runtime output (per repo, gitignored)
+.rgctl/dashboard/            # Runtime output (per repo, gitignored)
   index.html
   assets/                       # Hashed JS/CSS from Vite
   manifest.json                 # Counts, paths, phase flags
   graph_payload.bin             # Copy of graph.snapshot.bin (columnar v2)
-  wasm/                         # rgbuilder_engine.wasm + JS glue
+  wasm/                         # rgctl_engine.wasm + JS glue
 ```
 
 ---
@@ -53,7 +53,7 @@ crates/rgbuilder-wasm/           # WASM engine (Phase 1+)
 
 | Phase | Build | Remove |
 |-------|-------|--------|
-| **0** | Preact shell, bundle export, manifest | `crates/rgbuilder-export/src/html.rs`, CDN D3 dashboard |
+| **0** | Preact shell, bundle export, manifest | `crates/rgctl-export/src/html.rs`, CDN D3 dashboard |
 | **1** | `graph_payload.bin`, WASM header parse, worker boot | JSON-in-HTML graph embed (already gone with html.rs) |
 | **2** | Sigma.js metanode view @ 50k+ | Placeholder graph renderer |
 | **3** | LOD drill-down, bitmask filters, function table | Placeholder function tab text |
@@ -70,7 +70,7 @@ crates/rgbuilder-wasm/           # WASM engine (Phase 1+)
 
 ### What it does
 
-1. `discover` writes `.rgbuilder/dashboard/` instead of monolithic `dashboard.html`.
+1. `discover` writes `.rgctl/dashboard/` instead of monolithic `dashboard.html`.
 2. UI: responsive tab bar matching legacy areas (graph, functions, CFG, slice, blast, guide).
 3. Stat cards read **`manifest.json`** (no inline graph JSON).
 4. Static assets bundled at **compile time** via `include_dir` from `dashboard/dist/`.
@@ -79,17 +79,17 @@ crates/rgbuilder-wasm/           # WASM engine (Phase 1+)
 
 ```bash
 cd dashboard && npm ci && npm run build
-cargo build --release   # rgbuilder-dashboard embeds dashboard/dist
+cargo build --release   # rgctl-dashboard embeds dashboard/dist
 ```
 
 ### How to open after discover
 
 ```bash
-rg-build discover .
-# Option A — rg-build HTTP server (dashboard + POST /api/query)
-rg-build serve --open
+rgctl discover .
+# Option A — rgctl HTTP server (dashboard + POST /api/query)
+rgctl serve --open
 # Option B — local static server (WASM fetch; no query API)
-cd .rgbuilder/dashboard && python3 -m http.server 8765
+cd .rgctl/dashboard && python3 -m http.server 8765
 open http://localhost:8080   # or :8765 for Option B
 ```
 
@@ -97,10 +97,10 @@ open http://localhost:8080   # or :8765 for Option B
 
 | Question | Where |
 |----------|-------|
-| Export entrypoint | `rgbuilder_dashboard::export_dashboard_bundle` |
+| Export entrypoint | `rgctl_dashboard::export_dashboard_bundle` |
 | Discover hook | `src/cli/discover_impl.rs` |
-| Manifest schema | `crates/rgbuilder-dashboard/src/manifest.rs` |
-| Embedded UI files | `crates/rgbuilder-dashboard/src/bundle.rs` |
+| Manifest schema | `crates/rgctl-dashboard/src/manifest.rs` |
+| Embedded UI files | `crates/rgctl-dashboard/src/bundle.rs` |
 
 ---
 
@@ -108,7 +108,7 @@ open http://localhost:8080   # or :8765 for Option B
 
 ### What it does
 
-1. **`graph_payload.bin`** — byte copy of `.rgbuilder/graph.snapshot.bin` (columnar v2).
+1. **`graph_payload.bin`** — byte copy of `.rgctl/graph.snapshot.bin` (columnar v2).
 2. **`manifest.json`** — `payload_format: "columnar_v2"`, node/edge counts, digest.
 3. **Web worker** fetches payload + instantiates WASM.
 4. **WASM** parses columnar header (magic, version, counts) — no full graph hydrate.
@@ -125,7 +125,7 @@ Future phases add `filter`, `blast_radius`, `compute_slice`, etc.
 
 ### Columnar v2 header (first 136 bytes)
 
-See `crates/rgbuilder-graph/src/columnar_snapshot.rs`:
+See `crates/rgctl-graph/src/columnar_snapshot.rs`:
 
 - `[0..4]` magic `RBGR`
 - `[4..8]` format version `2`
@@ -134,14 +134,14 @@ See `crates/rgbuilder-graph/src/columnar_snapshot.rs`:
 - `[20..28]` edge count (u64 LE)
 - `[28..92]` digest (64-byte UTF-8, null padded)
 
-WASM duplicates minimal parse in `crates/rgbuilder-wasm/src/lib.rs` (no full graph crate in WASM yet).
+WASM duplicates minimal parse in `crates/rgctl-wasm/src/lib.rs` (no full graph crate in WASM yet).
 
 ### Lookup
 
 | Question | Where |
 |----------|-------|
-| WASM API | `EngineContext::from_bytes` in `crates/rgbuilder-wasm` |
-| Build WASM | `scripts/build-dashboard.sh` or `wasm-pack build` in `crates/rgbuilder-wasm` |
+| WASM API | `EngineContext::from_bytes` in `crates/rgctl-wasm` |
+| Build WASM | `scripts/build-dashboard.sh` or `wasm-pack build` in `crates/rgctl-wasm` |
 | Worker | `dashboard/src/worker.ts` |
 
 ---
@@ -176,7 +176,7 @@ WASM duplicates minimal parse in `crates/rgbuilder-wasm/src/lib.rs` (no full gra
 ## Sanity checks
 
 **Golden repo (run after every phase):** `/Users/sshaaf/git/java/gbuilder`  
-Override: `RGBUILDER_DASHBOARD_GOLDEN_REPO=/path/to/repo`
+Override: `RGCTL_DASHBOARD_GOLDEN_REPO=/path/to/repo`
 
 ```bash
 # One-shot phase gate (build UI + WASM + both tests)
@@ -188,7 +188,7 @@ cargo build --release
 cargo test --release --test dashboard_bundle --test dashboard_gbuilder -- --nocapture
 
 # Preview gbuilder dashboard
-cd /Users/sshaaf/git/java/gbuilder/.rgbuilder/dashboard && python3 -m http.server 8765
+cd /Users/sshaaf/git/java/gbuilder/.rgctl/dashboard && python3 -m http.server 8765
 ```
 
 ### Test targets
@@ -239,11 +239,11 @@ _Update this table when a phase lands._
 |-----------|-------|--------|-------|
 | `docs/dashboard-design.md` | 0 | **done** | This document |
 | `dashboard/` Preact shell | 0 | **done** | Tabs + stat cards from manifest |
-| `rgbuilder-dashboard` crate | 0 | **done** | `export_dashboard_bundle`, embed dist |
+| `rgctl-dashboard` crate | 0 | **done** | `export_dashboard_bundle`, embed dist |
 | Discover → bundle (not html) | 0 | **done** | Replaces `export_html_dashboard` |
-| Delete `html.rs` | 0 | **done** | Removed from rgbuilder-export |
+| Delete `html.rs` | 0 | **done** | Removed from rgctl-export |
 | `graph_payload.bin` copy | 1 | **done** | From `graph.snapshot.bin` |
-| `rgbuilder-wasm` header parse | 1 | **done** | Counts from columnar v2 |
+| `rgctl-wasm` header parse | 1 | **done** | Counts from columnar v2 |
 | Worker + WASM boot in UI | 1 | **done** | Status bar shows engine stats |
 | `tests/dashboard_bundle.rs` | 0+1 | **done** | Tiny fixture subprocess |
 | `tests/dashboard_gbuilder.rs` | 0+1 | **done** | **gbuilder** golden repo gate |
@@ -270,19 +270,19 @@ _Update this table when a phase lands._
 | Dataflow index export | 7 | **done** | `dataflow_index.json` → PDG in `slice/` |
 | Dataflow tab (Sigma PDG) | 7 | **done** | `DataflowView.tsx`, worker `compute_dataflow` |
 | `tests/dashboard_harness.rs` | 7 | **done** | phase 7 + `dataflow_index.json` |
-| Taint index + detail export | 8 | **done** | `taint_index.json`, `taint/*.json` from `.rgbuilder/analysis/` |
+| Taint index + detail export | 8 | **done** | `taint_index.json`, `taint/*.json` from `.rgctl/analysis/` |
 | Taint tab (flows table) | 8 | **done** | `TaintView.tsx` — source→sink paths from archive |
 | `tests/dashboard_harness.rs` | 8 | **done** | phase 8 + `taint_index.json` |
 | `tests/dashboard_metasfresh.rs` | 8+ | **manual** | metasfresh `discover --with-cfg --with-security --with-taint`; `./scripts/test-dashboard-metasfresh.sh` |
 | Query Guide tab | 9 | **done** | `GuideView.tsx` + `guideCliWorkflows.ts`; validated by `validate-guide-cli-gbuilder.sh` |
-| HTTP `serve` integration | 9 | **done** | `rg-build serve` serves bundle + `/api/query`; see [http-api.md](http-api.md) |
-| Migration tab live weights | 9 | **done** | `MigrationView.tsx` mirrors Rust scoring; exports in `.rgbuilder/dashboard/` |
+| HTTP `serve` integration | 9 | **done** | `rgctl serve` serves bundle + `/api/query`; see [http-api.md](http-api.md) |
+| Migration tab live weights | 9 | **done** | `MigrationView.tsx` mirrors Rust scoring; exports in `.rgctl/dashboard/` |
 
 ### Removed (Phase 0)
 
-- `crates/rgbuilder-export/src/html.rs` (~2700 lines)
+- `crates/rgctl-export/src/html.rs` (~2700 lines)
 - `export_html_dashboard` public API
-- Monolithic `.rgbuilder/dashboard.html` default output
+- Monolithic `.rgctl/dashboard.html` default output
 
 ### Removed (Phase 4)
 

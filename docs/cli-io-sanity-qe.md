@@ -21,7 +21,7 @@ flowchart TB
 
   subgraph L2["Layer 2 — Golden-path subprocess"]
     G["subprocess_golden_path.rs"]
-    G --> B["CARGO_BIN_EXE_rg_build"]
+    G --> B["CARGO_BIN_EXE_rgctl"]
   end
 
   subgraph L3["Layer 3 — Full-platform subprocess"]
@@ -66,8 +66,8 @@ cargo test --test all_commands_sanity     # comprehensive subprocess audit
 ### Design goals
 
 1. **Never touch a developer tree** — each test copies `tests/fixtures/tiny_polyglot_repo` into a `tempfile::TempDir`.
-2. **Explicit sandbox database** — graph writes go to `{temp}/sandbox_graph.db` via `-d`, not `{repo}/.rgbuilder/`.
-3. **Real binary** — uses `env!("CARGO_BIN_EXE_rg_build")` so `cargo test` always runs the binary built for the current profile.
+2. **Explicit sandbox database** — graph writes go to `{temp}/sandbox_graph.db` via `-d`, not `{repo}/.rgctl/`.
+3. **Real binary** — uses `env!("CARGO_BIN_EXE_rgctl")` so `cargo test` always runs the binary built for the current profile.
 4. **Shared repo root** — `-r {temp_repo}` keeps paths stable for slice/inspect file arguments.
 
 ### `Sandbox` helper
@@ -77,7 +77,7 @@ cargo test --test all_commands_sanity     # comprehensive subprocess audit
 | `Sandbox::new()` | Copies fixture into temp dir; sets `db = {temp}/sandbox_graph.db` |
 | `sandbox.repo` | Root of the copied polyglot repo (Java + Rust) |
 | `sandbox.db` | Isolated legacy JSON graph path (`-d`; not SQLite) |
-| `sandbox.run(args)` | Spawns `rg-build -r {repo} -d {db} …args` and returns `Output` |
+| `sandbox.run(args)` | Spawns `rgctl -r {repo} -d {db} …args` and returns `Output` |
 | `parse_stdout_json(output)` | Parses stdout as JSON; panics with stdout/stderr on failure |
 
 ### Assertion helpers
@@ -131,7 +131,7 @@ Minimal polyglot repo used by all subprocess suites.
 
 1. **Rust `Calls` edges** — Rust plugin may not emit call edges in this tiny fixture; blast-radius/check upstream counts for Rust symbols can be zero.
 2. **Duplicate bare names** — `process`, `helper`, etc. exist in both languages; blast-radius needs `Class::method` or `--class`; `check` skips ambiguous symbols via `resolve_unique_symbol`. Use `publishEvent` for subprocess scale-failure coverage.
-3. **Re-discover after cache schema changes** — subprocess tests always run fresh discover; stale local `.rgbuilder/` is not used.
+3. **Re-discover after cache schema changes** — subprocess tests always run fresh discover; stale local `.rgctl/` is not used.
 
 ---
 
@@ -203,12 +203,12 @@ These tests call **serializer fixtures** in `src/cli/*_output.rs` directly. They
 
 ## Layer 2 — Golden-path subprocess (`subprocess_golden_path.rs`)
 
-Focused regressions that proved fragile during P2 work. Uses the same temp-copy fixture pattern but **default `-d`** (graph under `{repo}/.rgbuilder/`) except where noted.
+Focused regressions that proved fragile during P2 work. Uses the same temp-copy fixture pattern but **default `-d`** (graph under `{repo}/.rgctl/`) except where noted.
 
 | Test | What it proves |
 |------|----------------|
 | `discover_json_emits_telemetry_on_stdout` | JSON mode: single telemetry object on stdout; no human `[✓] Indexed` lines on stdout |
-| `discover_initializes_tiny_polyglot_repo` | Text discover creates `.rgbuilder/graph.db` or snapshot |
+| `discover_initializes_tiny_polyglot_repo` | Text discover creates `.rgctl/graph.db` or snapshot |
 | `blast_radius_json_exit_zero_after_discover` | Java `OrderService::process` via `--class`; v2 target metadata including `signature` |
 | `blast_radius_policy_violation_fails_closed_with_exit_one` | `--policy-file` with `max_impact_nodes: 0` → exit **1**, `policy_status: VIOLATED` |
 | `blast_radius_with_slices_populates_handoffs` | `--with-slices` on `publishEvent` → non-empty `handoffs` |
@@ -230,7 +230,7 @@ Add a golden-path test when a **specific** discover → command pipeline breaks 
 | Exit 0 on success | — | ✅ | All success paths |
 | Exit 1 on policy breach | ✅ check serializer | ✅ check + blast-radius subprocess |
 
-Architecture alignment: [Code_structure.md](Code_structure.md) — CLI thin, serializers in `*_output.rs`, cache enrichment in `rgbuilder-analysis`.
+Architecture alignment: [Code_structure.md](Code_structure.md) — CLI thin, serializers in `*_output.rs`, cache enrichment in `rgctl-analysis`.
 
 ---
 

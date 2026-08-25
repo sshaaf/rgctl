@@ -1,4 +1,4 @@
-# rgBuilder documentation
+# rgctl documentation
 
 Agent-first docs: index once, query with `-f json`, deepen in the User Guide when a human needs the full walkthrough.
 
@@ -6,14 +6,15 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 
 | Goal | Canon |
 |------|--------|
+| Install rgctl + choose operating mode | **[Installation](installation.md)** |
 | Step-by-step feature how-tos (CoolStore) | **[Guides](guides/README.md)** |
 | LLM / agent workflows | [AGENTS.md](../AGENTS.md) · [Agent recipes](agent-recipes.md) |
 | JSON shapes (`schema_version`, fields) | [JSON API](json-api.md) |
-| Install + CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
+| CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
 | Concepts (what / why) | [Introduction](Introduction.md) |
 
 **Agent loop:** [AGENTS.md](../AGENTS.md) → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json`.  
-**First hour (human):** User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.
+**First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.
 
 ## Secondary
 
@@ -42,6 +43,7 @@ Internals and contribution bars — not the default agent reading path.
 | [Analysis architecture](analysis-architecture.md) | CFG / PDG / taint |
 | [Graph storage architecture](graph-storage-architecture.md) | Snapshots, blast cache |
 | [CLI I/O sanity QE](cli-io-sanity-qe.md) | Golden-path test contract |
+| [Integration test matrix](internal/integration-tests.md) | Tier A/B/C — daemon, MCP, OpenCode |
 | [Dashboard design](dashboard-design.md) | WASM export pipeline |
 | [Migration planner design](design/migration-planner-design.md) · [Migration algorithms](migration-algorithms.md) · [Harmonic centrality](harmonic-centrality.md) | Migration internals |
 | [Releasing](releasing.md) | Versioned binaries |
@@ -59,10 +61,10 @@ Internals and contribution bars — not the default agent reading path.
 
 ## Redirects
 
-- [cli-getting-started.md](cli-getting-started.md) → User Guide  
+- [cli-getting-started.md](cli-getting-started.md) → [Installation](installation.md) / User Guide  
 - [cli-output-schemas.md](cli-output-schemas.md) → [JSON API](json-api.md)  
 - [LANGUAGE_GUIDE.md](LANGUAGE_GUIDE.md) → [languages.md](languages.md)
 
-Docs match the CLI in this repository — verify with `rg-build --version`.
+Docs match the CLI in this repository — verify with `rgctl --version`.
 
 Maintainer scratch: [`internal/`](internal/) (not public).

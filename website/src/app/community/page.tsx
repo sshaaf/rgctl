@@ -28,7 +28,7 @@ const actions = [
   },
   {
     title: "Releases",
-    body: "Grab binaries and read release notes. Docs match the CLI — verify with rg-build --version.",
+    body: "Grab binaries and read release notes. Docs match the CLI — verify with rgctl --version.",
     href: GITHUB_RELEASES,
     cta: "Latest release",
   },
@@ -39,7 +39,7 @@ export default function CommunityPage() {
     <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
       <Badge className="mb-4">Open source</Badge>
       <h1 className="text-3xl tracking-tight text-[var(--ink)] sm:text-4xl">
-        Grow rgBuilder with us
+        Grow rgctl with us
       </h1>
       <p className="mt-3 text-[var(--body)]">
         No product tiers — just an MIT-licensed tool. Adoption means stars,

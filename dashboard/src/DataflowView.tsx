@@ -246,7 +246,7 @@ export function DataflowView({ wasmReady, loadCfgDetail }: DataflowViewProps) {
           <code>--with-cfg</code>:
         </p>
         <pre class="bg-light border rounded p-3 small mb-0">
-          rg-build discover . --languages java --with-cfg --with-dashboard
+          rgctl discover . --languages java --with-cfg --with-dashboard
         </pre>
       </div>
     );

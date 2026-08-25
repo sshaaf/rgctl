@@ -1,0 +1,6 @@
+{
+  "max_impact_nodes": 500,
+  "centrality_alert_threshold": 0.95,
+  "forbidden_crossings": [],
+  "node_domains": {}
+}

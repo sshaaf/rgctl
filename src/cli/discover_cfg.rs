@@ -7,9 +7,9 @@ use crate::analysis::{
     ProgramDependenceGraph, TaintAnalyzer, build_cfg_for_function, cfg_language_id_from_path,
 };
 use rayon::prelude::*;
-use rgbuilder_graph::code_index::hash_code;
-use rgbuilder_graph::schema::Node;
-use rgbuilder_pipeline::with_pool;
+use rgctl_graph::code_index::hash_code;
+use rgctl_graph::schema::Node;
+use rgctl_pipeline::with_pool;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};

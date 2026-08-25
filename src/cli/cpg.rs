@@ -1,4 +1,4 @@
-//! `rg-build cpg` — hybrid CPG façade (L_repo ⟷ L_proc).
+//! `rgctl cpg` — hybrid CPG façade (L_repo ⟷ L_proc).
 
 use super::args::{InspectLayer, OutputFormat, PdgEdgeLayer, SliceDirection, SliceView};
 use super::context::CliContext;
@@ -6,7 +6,7 @@ use super::inspect::{self, InspectArgs};
 use super::markup::markup_context_unsupported;
 use super::slice::{self, SliceArgs};
 use anyhow::Result;
-use rgbuilder_analysis::{
+use rgctl_analysis::{
     AstSkeletonArchive, CpgExportFormat, CpgExportScope, CpgFlowsArgs, MutationQuery,
     SliceDirection as AnalysisSliceDirection, cpg_calls, cpg_flows, cpg_function, cpg_mutations,
     cpg_status, export_cpg,
@@ -63,7 +63,159 @@ pub enum CpgAction {
     },
 }
 
+fn cpg_action_to_service(action: &CpgAction) -> rgctl_service::CpgArgs {
+    use rgctl_service::{CpgArgs, CpgOp};
+    let dir = |d: &SliceDirection| match d {
+        SliceDirection::Forward => Some("forward".into()),
+        SliceDirection::Backward => Some("backward".into()),
+    };
+    match action {
+        CpgAction::Status => CpgArgs {
+            op: CpgOp::Status,
+            symbol: None,
+            type_name: None,
+            file: None,
+            line: None,
+            variable: None,
+            function: None,
+            exclude_ctors: false,
+            member: None,
+            include_unresolved: false,
+            direction: None,
+            with_alias: false,
+        },
+        CpgAction::Function { symbol } => CpgArgs {
+            op: CpgOp::Function,
+            symbol: Some(symbol.clone()),
+            type_name: None,
+            file: None,
+            line: None,
+            variable: None,
+            function: None,
+            exclude_ctors: false,
+            member: None,
+            include_unresolved: false,
+            direction: None,
+            with_alias: false,
+        },
+        CpgAction::Calls { symbol } => CpgArgs {
+            op: CpgOp::Calls,
+            symbol: Some(symbol.clone()),
+            type_name: None,
+            file: None,
+            line: None,
+            variable: None,
+            function: None,
+            exclude_ctors: false,
+            member: None,
+            include_unresolved: false,
+            direction: None,
+            with_alias: false,
+        },
+        CpgAction::Mutations {
+            type_name,
+            exclude_ctors,
+            member,
+            include_unresolved,
+        } => CpgArgs {
+            op: CpgOp::Mutations,
+            symbol: None,
+            type_name: Some(type_name.clone()),
+            file: None,
+            line: None,
+            variable: None,
+            function: None,
+            exclude_ctors: *exclude_ctors,
+            member: member.clone(),
+            include_unresolved: *include_unresolved,
+            direction: None,
+            with_alias: false,
+        },
+        CpgAction::Flows {
+            file,
+            line,
+            variable,
+            function,
+            direction,
+            with_alias,
+            ..
+        } => CpgArgs {
+            op: CpgOp::Flows,
+            symbol: None,
+            type_name: None,
+            file: Some(file.clone()),
+            line: Some(*line),
+            variable: Some(variable.clone()),
+            function: Some(function.clone()),
+            exclude_ctors: false,
+            member: None,
+            include_unresolved: false,
+            direction: dir(direction),
+            with_alias: *with_alias,
+        },
+        CpgAction::Ast { symbol } => CpgArgs {
+            op: CpgOp::Ast,
+            symbol: Some(symbol.clone()),
+            type_name: None,
+            file: None,
+            line: None,
+            variable: None,
+            function: None,
+            exclude_ctors: false,
+            member: None,
+            include_unresolved: false,
+            direction: None,
+            with_alias: false,
+        },
+        CpgAction::Pdg { symbol, .. } => CpgArgs {
+            op: CpgOp::Pdg,
+            symbol: Some(symbol.clone()),
+            type_name: None,
+            file: None,
+            line: None,
+            variable: None,
+            function: None,
+            exclude_ctors: false,
+            member: None,
+            include_unresolved: false,
+            direction: None,
+            with_alias: false,
+        },
+        CpgAction::Slice {
+            file,
+            line,
+            variable,
+            function,
+            direction,
+            ..
+        } => CpgArgs {
+            op: CpgOp::Slice,
+            symbol: None,
+            type_name: None,
+            file: Some(file.clone()),
+            line: Some(*line),
+            variable: Some(variable.clone()),
+            function: function.clone(),
+            exclude_ctors: false,
+            member: None,
+            include_unresolved: false,
+            direction: dir(direction),
+            with_alias: false,
+        },
+        CpgAction::Export { .. } => unreachable!("export stays on CLI path"),
+    }
+}
+
 pub fn run(ctx: &CliContext, action: CpgAction) -> Result<()> {
+    if ctx.format == OutputFormat::Json
+        && !matches!(&action, CpgAction::Export { .. })
+    {
+        let svc = cpg_action_to_service(&action);
+        let mut session = rgctl_service::Session::new(&ctx.repo);
+        let value =
+            rgctl_service::execute(&mut session, rgctl_service::Command::Cpg(svc))?;
+        return ctx.emit_json_value(&value);
+    }
     match action {
         CpgAction::Status => run_status(ctx),
         CpgAction::Function { symbol } => run_function(ctx, &symbol),
@@ -154,7 +306,7 @@ fn run_status(ctx: &CliContext) -> Result<()> {
         }
     } else {
         println!(
-            "CPG L_proc: missing (run `rg-build discover --with-cfg`)\n  expected: {}",
+            "CPG L_proc: missing (run `rgctl discover --with-cfg`)\n  expected: {}",
             status.archive_path
         );
     }
@@ -259,7 +411,7 @@ fn run_flows(
 fn run_ast(ctx: &CliContext, symbol: &str) -> Result<()> {
     let archive = AstSkeletonArchive::open_if_exists(&ctx.repo)?.ok_or_else(|| {
         anyhow::anyhow!(
-            "AST skeleton archive missing (run `rg-build discover --with-ast-skeleton`)"
+            "AST skeleton archive missing (run `rgctl discover --with-ast-skeleton`)"
         )
     })?;
     let matches: Vec<_> = archive
