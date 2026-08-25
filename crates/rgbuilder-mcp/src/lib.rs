@@ -124,18 +124,35 @@ where
     Ok(())
 }
 
+const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
+
+fn negotiate_protocol_version(client_version: Option<&str>) -> &'static str {
+    match client_version {
+        Some("2025-03-26") => "2025-03-26",
+        Some("2024-11-05") => "2024-11-05",
+        Some("2024-10-07") => "2024-10-07",
+        _ => DEFAULT_PROTOCOL_VERSION,
+    }
+}
+
 fn handle_message(session: &mut Session, msg: &Value) -> Option<Value> {
     let method = msg.get("method")?.as_str()?;
     let id = msg.get("id").cloned();
     match method {
-        "initialize" => Some(rpc_ok(
-            id,
-            json!({
-                "protocolVersion": "2024-11-05",
-                "capabilities": { "tools": {}, "resources": {} },
-                "serverInfo": { "name": "rgbuilder", "version": env!("CARGO_PKG_VERSION") }
-            }),
-        )),
+        "initialize" => {
+            let client_version = msg
+                .pointer("/params/protocolVersion")
+                .and_then(|v| v.as_str());
+            let protocol_version = negotiate_protocol_version(client_version);
+            Some(rpc_ok(
+                id,
+                json!({
+                    "protocolVersion": protocol_version,
+                    "capabilities": { "tools": {}, "resources": {} },
+                    "serverInfo": { "name": "rgbuilder", "version": env!("CARGO_PKG_VERSION") }
+                }),
+            ))
+        }
         "notifications/initialized" | "initialized" => None,
         "ping" => Some(rpc_ok(id, json!({}))),
         "tools/list" => Some(rpc_ok(id, json!({ "tools": tool_descriptors() }))),
@@ -562,6 +579,22 @@ mod tests {
             message.to_ascii_lowercase().contains(&needle.to_ascii_lowercase()),
             "expected '{needle}' in '{message}' ({resp})"
         );
+    }
+
+    #[test]
+    fn initialize_echoes_supported_client_protocol_version() {
+        let mut h = empty_repo();
+        let resp = rpc(
+            &mut h.session,
+            1,
+            "initialize",
+            json!({
+                "protocolVersion": "2025-03-26",
+                "capabilities": {},
+                "clientInfo": { "name": "opencode", "version": "0" }
+            }),
+        );
+        assert_eq!(resp["result"]["protocolVersion"], "2025-03-26");
     }
 
     #[test]

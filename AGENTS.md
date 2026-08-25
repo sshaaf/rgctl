@@ -130,5 +130,6 @@ After `discover`:
 
 - [Introduction](docs/Introduction.md) — concepts
 - [User Guide](docs/user-guide.md) — full CLI
+- [Integration test matrix](docs/internal/integration-tests.md) — Tier A/B/C (daemon, no-daemon, MCP, OpenCode)
 - [Markdown context graph](docs/markdown-context.md) — `.md` / `.mdx` indexing and GQL
 - [Further reading](docs/further-reading.md) — research map and contribution ideas

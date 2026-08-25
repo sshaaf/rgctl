@@ -216,6 +216,61 @@ Same rules as `discover` / HTTP `serve`:
 
 Two full pipelines on the same repo cannot run at once (`.rgbuilder/pipeline.lock`).
 
+### 11. OpenCode smoke test (host integration)
+
+[OpenCode](https://opencode.ai/) can verify that a real MCP host spawns `rgctl` and completes the handshake. The repo ships a script that indexes the tiny polyglot fixture, writes a scratch `opencode.json`, and runs `opencode mcp list`.
+
+**Stdio (local MCP — default):**
+
+```bash
+./scripts/integration/opencode-mcp-smoke.sh
+```
+
+**Daemon HTTP MCP (remote):**
+
+```bash
+RGBUILDER_OPENCODE_MODE=daemon ./scripts/integration/opencode-mcp-smoke.sh
+```
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `RGBUILDER_RGCTL` | `target/debug/rgctl` | Path to `rgctl` binary |
+| `RGBUILDER_OPENCODE_MODE` | `stdio` | `stdio` or `daemon` |
+| `RGBUILDER_REQUIRE_OPENCODE` | `0` | Exit 1 if `opencode` is missing |
+
+If `opencode` is not installed, the script exits **0** with `skip:` (unless `RGBUILDER_REQUIRE_OPENCODE=1`).
+
+Example scratch config (stdio):
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "rgbuilder": {
+      "type": "local",
+      "command": ["/absolute/path/to/rgctl", "--no-daemon", "serve", "--mode", "mcp", "--no-pipeline"],
+      "cwd": "repo",
+      "enabled": true,
+      "timeout": 60000,
+      "environment": {
+        "RGCTL_NO_DAEMON": "1",
+        "RUST_LOG": "error"
+      }
+    }
+  }
+}
+```
+
+Cargo wrapper (ignored unless opencode is present):
+
+```bash
+cargo test --release --test opencode_mcp_smoke -- --ignored --nocapture
+```
+
+Success line: `[opencode-smoke] OK — rgbuilder connected`.
+
+Full tier matrix (A/B/C), corpora, and the **ecommerce-java 7-tool checklist**: [integration-tests.md](../internal/integration-tests.md).
+
 ## Tools
 
 | MCP tool | Arguments | Notes |

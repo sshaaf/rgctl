@@ -262,6 +262,10 @@ name = "rgctl_no_daemon"
 path = "tests/rgctl_no_daemon.rs"
 
 [[test]]
+name = "opencode_mcp_smoke"
+path = "tests/opencode_mcp_smoke.rs"
+
+[[test]]
 name = "dashboard_bundle"
 path = "tests/dashboard_bundle.rs"
 
