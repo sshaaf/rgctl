@@ -73,7 +73,7 @@ pub fn run_label(ctx: &CliContext, args: CommunitiesLabelArgs) -> Result<()> {
         }));
     }
 
-    println!(
+    ctx.stdout_line(&format!(
         "{} communities (modularity {:.3}){}",
         ctx_q.communities.len(),
         ctx_q.modularity,
@@ -82,9 +82,12 @@ pub fn run_label(ctx: &CliContext, args: CommunitiesLabelArgs) -> Result<()> {
         } else {
             ""
         }
-    );
+    ))?;
     for c in &ctx_q.communities {
-        println!("  [{:>4}] {} ({} members)", c.id, c.label, c.member_count);
+        ctx.stdout_line(&format!(
+            "  [{:>4}] {} ({} members)",
+            c.id, c.label, c.member_count
+        ))?;
     }
     Ok(())
 }
