@@ -6,14 +6,15 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 
 | Goal | Canon |
 |------|--------|
+| Install rgctl + choose operating mode | **[Installation](installation.md)** |
 | Step-by-step feature how-tos (CoolStore) | **[Guides](guides/README.md)** |
 | LLM / agent workflows | [AGENTS.md](../AGENTS.md) · [Agent recipes](agent-recipes.md) |
 | JSON shapes (`schema_version`, fields) | [JSON API](json-api.md) |
-| Install + CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
+| CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
 | Concepts (what / why) | [Introduction](Introduction.md) |
 
 **Agent loop:** [AGENTS.md](../AGENTS.md) → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json`.  
-**First hour (human):** User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.
+**First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.
 
 ## Secondary
 
@@ -59,7 +60,7 @@ Internals and contribution bars — not the default agent reading path.
 
 ## Redirects
 
-- [cli-getting-started.md](cli-getting-started.md) → User Guide  
+- [cli-getting-started.md](cli-getting-started.md) → [Installation](installation.md) / User Guide  
 - [cli-output-schemas.md](cli-output-schemas.md) → [JSON API](json-api.md)  
 - [LANGUAGE_GUIDE.md](LANGUAGE_GUIDE.md) → [languages.md](languages.md)
 

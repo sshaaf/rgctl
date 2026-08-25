@@ -2,6 +2,7 @@
 
 rgBuilder is designed so agents answer **structural questions** from a pre-built graph instead of reading whole files into context.
 
+**Installation:** [docs/installation.md](docs/installation.md) (prerequisites, modes, setup)  
 **Full JSON reference:** [docs/json-api.md](docs/json-api.md) (also on the site: [sshaaf.github.io/rgBuilder/docs/json-api/](https://sshaaf.github.io/rgBuilder/docs/json-api/))  
 **Copy-paste recipes:** [docs/agent-recipes.md](docs/agent-recipes.md)  
 **Human walkthrough:** [docs/user-guide.md](docs/user-guide.md)  

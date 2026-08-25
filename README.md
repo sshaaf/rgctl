@@ -8,7 +8,7 @@
 [![User Guide](https://img.shields.io/badge/docs-User%20Guide-0A7EA4)](docs/user-guide.md)
 [![Rust](https://img.shields.io/badge/Made%20with-Rust-orange?logo=rust)](https://www.rust-lang.org/)
 
-**Try it now:** [User Guide](docs/user-guide.md) (install → index → query) · [Download latest release](https://github.com/sshaaf/rgBuilder/releases/latest) · [Agent skill](skills/rgbuilder/SKILL.md) · [AGENTS.md](AGENTS.md) for LLM workflows
+**Try it now:** [Installation](docs/installation.md) · [User Guide](docs/user-guide.md) (index → query) · [Download latest release](https://github.com/sshaaf/rgBuilder/releases/latest) · [Agent skill](skills/rgbuilder/SKILL.md) · [AGENTS.md](AGENTS.md) for LLM workflows
 
 AI coding agents default to reading files sequentially. That burns context, misses structure, and produces confident wrong answers about impact and dependencies. **rgBuilder indexes the whole repository once** into a rich graph with pre-computed **reachability**, then serves **compact, deterministic query results** — so agents (and humans) get the right slice of the codebase without loading it into the prompt.
 
@@ -146,7 +146,7 @@ Walkthrough on the in-tree Spring Boot fixture → **[ecommerce-java example](do
 
 ## Quick start
 
-**Install** from [GitHub Releases](https://github.com/sshaaf/rgBuilder/releases) or build from source:
+**Install** from [GitHub Releases](https://github.com/sshaaf/rgBuilder/releases) or build from source (full guide: [Installation](docs/installation.md)):
 
 ```bash
 git clone https://github.com/sshaaf/rgBuilder.git
@@ -239,8 +239,9 @@ Quick links into **[Introduction](docs/Introduction.md)** — see [Where most to
 | Document | For |
 |----------|-----|
 | **[Documentation index](docs/README.md)** | Map of all docs by persona |
+| **[Installation](docs/installation.md)** | Install rgctl, choose operating mode (CLI / HTTP / MCP), verify setup |
 | **[Introduction](docs/Introduction.md)** | Concepts — graph, reachability, capability map |
-| **[User Guide](docs/user-guide.md)** | Install, ecommerce-java fixture, every CLI command |
+| **[User Guide](docs/user-guide.md)** | ecommerce-java fixture, every CLI command |
 | **[Agent skill](skills/rgbuilder/SKILL.md)** | **Canonical agent playbook** — NL routing + CLI samples. Install with `rgctl install --skill` |
 | **[AGENTS.md](AGENTS.md)** | Minimal agent contract (points at skill) |
 | **[Agent recipes](docs/agent-recipes.md)** | Copy-paste automation workflows |

@@ -24,7 +24,7 @@ Practical, step-by-step guides for every major rgBuilder feature. Each guide use
 
 ## Prerequisites
 
-All guides assume you have rgBuilder installed. See the [installation instructions](../user-guide.md) to get started.
+All guides assume you have rgBuilder installed. See the [Installation guide](../installation.md) to get started.
 
 To follow the examples, clone the repository and navigate to the example project:
 

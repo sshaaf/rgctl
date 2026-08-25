@@ -40,6 +40,8 @@ End-to-end guide for installing rgBuilder, indexing an in-tree example, and quer
 
 ## 1. Installation
 
+> **Standalone guide:** [Installation](installation.md) covers prerequisites, all operating modes (CLI / HTTP / MCP), daemon vs no-daemon, agent skill setup, upgrading, and troubleshooting.
+
 ### Option A — GitHub release (recommended)
 
 Pre-built binaries are published on the project **Releases** page:
