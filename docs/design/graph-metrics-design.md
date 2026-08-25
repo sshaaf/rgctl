@@ -61,7 +61,7 @@ flowchart TB
 | **Communities** | Label-propagation clusters | Graph colors, migration Louvain vote |
 | **Blast score** | Precomputed impact (per function) | Functions tab, migration γ term |
 
-Background: [harmonic-centrality.md](../harmonic-centrality.md), [migration-algorithms.md](../migration-algorithms.md), [internal/temp.md](../internal/temp.md) (approximate algorithms + kernel-scale timings).
+Background: [harmonic-centrality.md](../harmonic-centrality.md), [migration-algorithms.md](../migration-algorithms.md), [internal/profile.md](../internal/profile.md) (cold-profile corpora and timings).
 
 ---
 

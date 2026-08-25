@@ -21,9 +21,12 @@ use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
 /// Post–field-gating linux cold wall (default discover, no cfg/dashboard/harmonic).
-const LINUX_COLD_WALL_BASELINE_SECS: f64 = 170.0;
+/// Baseline: **145 s** cold wall on reference M3 Pro / 36 GB (2026-08-25, `--no-daemon`).
+const LINUX_COLD_WALL_BASELINE_SECS: f64 = 145.0;
 const LINUX_COLD_MAX_NODES: u64 = 2_800_000;
-const METASFRESH_COLD_WALL_BASELINE_SECS: f64 = 531.0;
+/// metasfresh `discover --full` cold wall (basic + deep + semantic).
+/// Baseline: **74 s** on same reference machine (2026-08-25, `--no-daemon`).
+const METASFRESH_COLD_WALL_BASELINE_SECS: f64 = 74.0;
 /// Establish on maintainer machine; override via `RGBUILDER_KAFKA_COLD_BASELINE_SECS`.
 const KAFKA_COLD_WALL_BASELINE_SECS: f64 = 600.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
@@ -310,8 +313,7 @@ fn metasfresh_cold_discover_within_baseline() {
         return;
     }
 
-    let (output, elapsed) =
-        run_cold_discover_timed(&repo, &["--with-cfg", "--with-security", "--with-taint"]);
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["--full"]);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(

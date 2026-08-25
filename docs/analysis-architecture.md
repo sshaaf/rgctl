@@ -112,7 +112,7 @@ Constants: `LARGE_GRAPH_PAGERANK_*`, `LARGE_GRAPH_HYPERBALL_*` in `centrality.rs
 
 **Profiling:** `discover -v` with `RUST_LOG=profile=info` emits `[profile] stage` and `[profile] centrality sub-phase` lines (PageRank, betweenness, harmonic, columnar fill timings). Harmonic runs only with `discover --with-harmonic`.
 
-See [internal/temp.md](internal/temp.md) for algorithm detail and kernel-scale measurements.
+See [internal/profile.md](internal/profile.md) for cold-profile commands and developer-machine timings; [harmonic-centrality.md](harmonic-centrality.md) for HyperBall detail.
 
 ## Further reading
 

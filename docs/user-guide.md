@@ -354,7 +354,7 @@ Example profile lines (ecommerce-java, `--with-cfg`):
 
 Harmonic centrality is **off by default** — pass `--with-harmonic` when you need it for migration ranking. On kernel-scale graphs it adds ~30s wall and multi‑GB peak RSS.
 
-See [analysis-architecture.md](analysis-architecture.md) and [internal/temp.md](internal/temp.md) for large-graph adaptive gating.
+See [analysis-architecture.md](analysis-architecture.md) and [internal/profile.md](internal/profile.md) for large-graph adaptive gating and cold-profile runs.
 
 ### Legacy JSON graph (optional)
 
