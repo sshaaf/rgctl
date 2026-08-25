@@ -149,16 +149,23 @@ WASM requires HTTP (not `file://`). The in-browser worker cannot run full GQL â€
 
 ---
 
-## Legacy socket daemon
+## Background HTTP+MCP daemon
 
-For backward compatibility only:
+Shared daemon for multi-repo cache, catalog, and MCP:
 
 ```bash
-rgctl -r "$REPO" serve --daemon
-rgctl -r "$REPO" serve --daemon --socket /tmp/rgctl.sock --idle-secs 600
+rgctl daemon start [--host HOST] [--port PORT]
+rgctl -r "$REPO" discover .
+rgctl -r "$REPO" serve --daemon   # foreground bootstrap; same daemon model
 ```
 
-Use `rgctl daemon start` / `serve --daemon` for a shared HTTP daemon. `blast-radius` goes through the service (in-process with `--no-daemon`, or daemon `execute` / impact).
+- **Catalog:** `GET http://127.0.0.1:8080/`
+- **Per-repo API:** `POST http://127.0.0.1:8080/{reponame}/api/query`
+- **MCP:** `POST http://127.0.0.1:8080/mcp`
+
+CLI commands route through the daemon by default (cache under `~/.rgbuilder/`). Use **`--no-daemon`** for in-process execution and `{repo}/.rgbuilder/` artifacts.
+
+The legacy blast-radius-only **`query.sock`** auto-connect path is **retired** on current main (see [unreleased](releases/unreleased.md)).
 
 ---
 

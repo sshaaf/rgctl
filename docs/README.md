@@ -43,6 +43,7 @@ Internals and contribution bars — not the default agent reading path.
 | [Analysis architecture](analysis-architecture.md) | CFG / PDG / taint |
 | [Graph storage architecture](graph-storage-architecture.md) | Snapshots, blast cache |
 | [CLI I/O sanity QE](cli-io-sanity-qe.md) | Golden-path test contract |
+| [Integration test matrix](internal/integration-tests.md) | Tier A/B/C — daemon, MCP, OpenCode |
 | [Dashboard design](dashboard-design.md) | WASM export pipeline |
 | [Migration planner design](design/migration-planner-design.md) · [Migration algorithms](migration-algorithms.md) · [Harmonic centrality](harmonic-centrality.md) | Migration internals |
 | [Releasing](releasing.md) | Versioned binaries |

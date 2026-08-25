@@ -13,7 +13,7 @@ Pre-computed **call-graph reachability** for change-impact analysis: upstream ca
 | Goal | How |
 |------|-----|
 | Answer “what breaks if I change this?” | Reverse call-graph traversal with SCC-aware macro impact |
-| Stay fast at scale | T0 lookup cache → T1 mmap engine → optional socket daemon |
+| Stay fast at scale | T0 lookup cache → T1 mmap engine → optional HTTP+MCP daemon |
 | Agent-ready output | JSON schema v2 (`target`, `metrics`, `topology`, `gatekeeping`) |
 | Governance | Optional `--policy-file` centrality / cascade checks |
 
@@ -50,7 +50,9 @@ flowchart TB
   E --> WASM
 ```
 
-**Query tiers** (`src/cli/blast_radius.rs`): T0 blast lookup cache hit → optional `serve --daemon` socket → lite mmap path → full hydrate for `--with-slices` / `--policy-file`.
+**Query tiers** (`src/cli/blast_radius.rs`): T0 blast lookup cache hit → daemon-backed service (default) or in-process mmap path → full hydrate for `--with-slices` / `--policy-file`.
+
+> **Retired:** The per-repo **`query.sock`** blast-only daemon (`src/cli/query_daemon.rs`, `serve --daemon` as a Unix socket) is removed on current main. Use the shared **HTTP+MCP daemon** (`rgctl daemon start`, cache under `~/.rgbuilder/`) or **`--no-daemon`** for in-process queries. See [unreleased.md](../releases/unreleased.md).
 
 ---
 
@@ -73,7 +75,8 @@ CLI JSON: [json-api.md](../json-api.md) (blast-radius + field catalogs).
 | Engine snapshot | `crates/rgbuilder-analysis/src/blast_engine_snapshot.rs` |
 | T0 lookup cache | `crates/rgbuilder-analysis/src/macro_call_lookup.rs` |
 | CLI orchestration | `src/cli/blast_radius.rs` |
-| Socket daemon | `src/cli/query_daemon.rs` (`serve --daemon`) |
+| Daemon routing | `src/cli/daemon/` (HTTP+MCP; shared command service) |
+| Legacy socket client *(retired)* | `src/cli/query_daemon.rs` |
 | Policy integration | `src/cli/policy_file.rs`, `engine.analyze_with_policy` |
 
 ---
@@ -96,7 +99,8 @@ rgctl discover .
 rgctl -f json blast-radius ShoppingCartService
 rgctl -f json blast-radius process --class OrderService --depth 3
 rgctl -f json blast-radius Foo --policy-file policy.json   # exit 1 if VIOLATED
-rgctl serve --daemon   # optional blast socket warm path
+# Default: routes through HTTP+MCP daemon when running. CI / cold profiles:
+rgctl --no-daemon -f json blast-radius ShoppingCartService
 ```
 
 ---

@@ -1234,9 +1234,9 @@ rgctl -f json blast-radius <SYMBOL> [--depth N] [--policy-file PATH] [--with-sli
 
 ---
 
-## 1b. `serve` — HTTP dashboard + optional socket daemon
+## 1b. `serve` — HTTP dashboard + background daemon
 
-**Default (HTTP):**
+**Foreground HTTP (one repo):**
 
 ```bash
 rgctl serve -r REPO [--open]
@@ -1244,19 +1244,18 @@ rgctl serve -r REPO [--open]
 
 Binds `http://127.0.0.1:8080/` — dashboard at `/`, GQL at `POST /api/query`. See [http-api.md](http-api.md).
 
-**Legacy socket daemon (`--daemon`):**
+**Background HTTP+MCP daemon:**
 
 ```bash
-rgctl serve -r REPO --daemon [--socket PATH] [--idle-secs SECS]
+rgctl daemon start [--host HOST] [--port PORT]
+rgctl serve -r REPO --daemon [--idle-secs SECS]
 ```
 
-**Defaults:** socket `{repo}/.rgbuilder/query.sock`, idle exit 300s.
+Default bind `0.0.0.0:8080`; catalog at `/`, per-repo routes under `/{reponame}/`, MCP at `/mcp`. Cache lives under `~/.rgbuilder/cache/{reponame}/` unless `--daemon-home` / storage override is set.
 
-**Role:** Loads mmap graph + blast engine once; answers NDJSON RPC (`ping`, `blast_radius`) over a Unix socket. Lite `blast-radius` (no `--with-slices`, no `--policy-file`) auto-connects when the socket exists.
+**Role:** Shared in-memory graph + command service for CLI routing, HTTP, and MCP. Opt out with **`--no-daemon`** (in-process, `{repo}/.rgbuilder/`).
 
-**Environment:** `RGBUILDER_NO_QUERY_DAEMON=1` disables client auto-connect.
-
-**Requires:** prior `discover` producing `graph.snapshot.bin` and `blast_engine.snapshot.bin`.
+**Requires:** prior `discover` (via daemon or `--no-daemon`) producing `graph.snapshot.bin`.
 
 ---
 

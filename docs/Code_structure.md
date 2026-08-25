@@ -138,7 +138,7 @@ flowchart TB
 - **`src/main.rs`** — process entry, dispatches to CLI.
 - **`src/cli/`** — subcommands: `discover`, `blast-radius`, `serve`, `gql`, `slice`, `inspect`, `metrics`, `semantic`, `communities`, `cpg`, `check`, `export`.
 - **`src/cli/http_serve.rs`** — default `serve`: dashboard + `POST /api/query`.
-- **`src/cli/query_daemon.rs`** — `serve --daemon`; optional blast-radius client when `.rgbuilder/query.sock` exists (`RGBUILDER_NO_QUERY_DAEMON=1` to disable).
+- **`src/cli/query_daemon.rs`** — legacy blast-radius socket client (retired on main; see [unreleased](releases/unreleased.md)). Background daemon lives under `src/cli/daemon/`.
 - **`src/cli/*_output.rs`** — typed JSON serializers (`blast_radius_output`, `discover_output`, `gql_output`, …). Commands assemble domain results from workspace crates and serialize here; **do not** embed algorithm logic in output modules.
 - **`src/languages/`** — wires the active language **bundle** into a `LanguageRegistry` at runtime.
 - Re-exports **`rgbuilder-core`** for library users (`use rgbuilder::analysis`, etc.).
@@ -246,7 +246,7 @@ Understanding files helps avoid duplicating cache layers:
 | `blast_engine.snapshot.bin` | `discover` | `try_load_engine`, lite blast-radius path, `serve` |
 | `macro_call_index.db` / `.bin` | `discover` | `blast-radius` T0 fast path only — SQLite/bincode lookup cache, not the graph |
 | `cfg_pdg.archive.bin` | `discover --with-cfg` | `blast-radius --with-slices`, slice hand-offs |
-| `query.sock` | `serve --daemon` | blast-radius auto-connect (optional) |
+| `query.sock` | *(retired)* | Former blast-radius auto-connect; use HTTP+MCP daemon or `--no-daemon` |
 | `analysis_results.bin` | `discover` | Columnar metrics (`CentralityTable`, community, blast); blast columns may stay empty on flat/on-demand graphs (bulk fill skipped — #28 won't-fix; use live `blast-radius`) |
 | `dashboard/` (bundle) | `discover` | Browser static dashboard (`index.html`, `manifest.json`, `graph_payload.bin`) |
 

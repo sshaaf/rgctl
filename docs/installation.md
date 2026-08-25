@@ -272,7 +272,7 @@ rgctl -r /path/to/repo install --skill   # specific repo
 
 This writes skill files to:
 
-- `<repo>/.claude/skills/rgbuilder/` (Claude Code)
+- `<repo>/.claude/skills/rgbuilder/` (Claude Code) — `SKILL.md`, `references/`, …
 - `<repo>/.cursor/skills/rgbuilder/` (Cursor)
 
 Limit to one host with `--host claude` or `--host cursor`. Use `--force` to overwrite after upgrading `rgctl`.

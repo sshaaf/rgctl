@@ -107,15 +107,17 @@ curl -s http://127.0.0.1:8080/api/semantic/query \
   -d '{"query": "shopping cart checkout", "limit": 5}'
 ```
 
-### 7. Legacy Daemon Mode
+### 7. Background daemon (HTTP + MCP)
 
-For backward compatibility, the legacy Unix socket daemon is still available:
+Start a shared background daemon (catalog, per-repo HTTP, MCP at `/mcp`). Default cache: `~/.rgbuilder/cache/{reponame}/` (override with `--daemon-home` / `RGCTL_HOME`).
 
 ```bash
+rgctl daemon start --host 127.0.0.1 --port 8080
+# or foreground bootstrap:
 rgctl -r example/coolstore serve --daemon
 ```
 
-This starts a **background HTTP+MCP daemon** (default `0.0.0.0:8080`). Cached repos are served under `/{reponame}/`. Foreground `rgctl serve` remains `127.0.0.1:8080` with unprefixed `/api/*`.
+Cached repos are served under `http://127.0.0.1:8080/{reponame}/…`. Foreground `rgctl serve` (without `--daemon`) stays `127.0.0.1:8080` with unprefixed `/api/*` for one repo.
 
 ### 8. Daemon idle timeout
 

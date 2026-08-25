@@ -1123,17 +1123,18 @@ rgctl -r "$REPO" serve --mode mcp
 
 Walkthrough (Cursor / Claude Code config): [MCP Server](guides/mcp-server.md).
 
-### Legacy socket daemon
+### Background HTTP+MCP daemon
 
-For blast-radius auto-connect only (no HTTP):
+Shared daemon for catalog, per-repo HTTP API, and `/mcp` (default cache under `~/.rgbuilder/`):
 
 ```bash
-rgctl -r "$REPO" serve --daemon
-# Terminal 2 — rgctl blast-radius (daemon or --no-daemon)
+rgctl daemon start --host 127.0.0.1 --port 8080
+rgctl -r "$REPO" discover .
+# Terminal 2 — CLI routes through daemon unless --no-daemon
 rgctl -r "$REPO" -f json blast-radius 'CartService::clearCart'
 ```
 
-Disable auto-connect: `RGBUILDER_NO_QUERY_DAEMON=1`.
+Foreground start: `rgctl serve --daemon`. Opt out: `--no-daemon` (in-process, `{repo}/.rgbuilder/`). See [HTTP Server and Dashboard](guides/http-server-and-dashboard.md) and [installation.md](installation.md#daemon-vs-no-daemon).
 
 ---
 

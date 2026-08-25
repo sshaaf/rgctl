@@ -79,12 +79,15 @@ See [docs/http-api.md](docs/http-api.md).
 
 **Option B — MCP stdio (prefer in IDE):** `rgctl serve --mode mcp` (no HTTP). Use the seven tools for query / search / impact / metrics / CPG / check / status. Keep CLI for `discover`, `semantic index`, `cpg export`, and CI scripts. See [docs/guides/mcp-server.md](docs/guides/mcp-server.md).
 
-**Option C — Legacy socket daemon:**
+**Option C — HTTP+MCP daemon (shared cache):**
 
 ```bash
-rgctl -r "$REPO" serve --daemon
-# blast-radius auto-connects to .rgbuilder/query.sock unless RGBUILDER_NO_QUERY_DAEMON=1
+rgctl daemon start --host 127.0.0.1 --port 8080
+rgctl -r "$REPO" discover .          # auto-routes through daemon; cache under ~/.rgbuilder/
+curl -s http://127.0.0.1:8080/       # repo catalog
 ```
+
+Foreground equivalent: `rgctl serve --daemon`. Use `--no-daemon` for in-repo artifacts or CI. See [installation.md](docs/installation.md#daemon-vs-no-daemon) and [integration-tests.md](docs/internal/integration-tests.md).
 
 ---
 

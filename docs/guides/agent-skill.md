@@ -62,10 +62,11 @@ Installed rgbuilder skill:
 
 **What happened:**
 
-- rgBuilder extracted its embedded `SKILL.md` (compiled into the binary at build time) and wrote it to two agent skill directories.
-- `.claude/skills/rgbuilder/SKILL.md` -- for Claude Code
-- `.cursor/skills/rgbuilder/SKILL.md` -- for Cursor
-- No network requests, no model downloads -- the skill content is baked into the `rgctl` binary.
+- rgBuilder extracted the embedded skill bundle (`SKILL.md`, `references/*.md`, etc.) and wrote it under each host skill directory.
+- `.claude/skills/rgbuilder/` — for Claude Code
+- `.cursor/skills/rgbuilder/` — for Cursor
+- Subdirectories such as **`references/`** are preserved (GQL patterns, workflows, command encyclopedia).
+- No network requests, no model downloads — the skill content is baked into the `rgctl` binary.
 
 ### 2. Verify with JSON Output
 
@@ -495,7 +496,7 @@ The agent handles disambiguation (e.g., adding `--class` or `--file` when a symb
 
 ## How the Skill is Distributed
 
-The skill file (`SKILL.md`) is **compiled into the `rgctl` binary** at build time using Rust's `include_dir!` macro. This means:
+The skill bundle (`SKILL.md`, `references/`, …) is **compiled into the `rgctl` binary** at build time using Rust's `include_dir!` macro. This means:
 
 - No network access needed to install.
 - The skill version always matches the CLI version.
