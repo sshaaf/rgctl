@@ -41,7 +41,7 @@ No. Combine `--with-cfg --with-security --with-taint` (and dashboard/migration f
 
 ### Louvain or label propagation?
 
-rgBuilder runs **label propagation** (Raghavan 2007). The field `louvain_community_id` is a historical name only.
+rgctl runs **label propagation** (Raghavan 2007). The field `louvain_community_id` is a historical name only.
 
 ### Coolstore or ecommerce-java?
 

@@ -1,3 +1,3 @@
 //! Security analysis (monolith re-exports)
 
-pub use rgbuilder_security::*;
+pub use rgctl_security::*;

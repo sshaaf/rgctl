@@ -73,8 +73,8 @@ Example files: [policy-permissive.json](../examples/policy-permissive.json), [po
 | `check` command | `src/cli/check.rs` |
 | JSON output | `src/cli/check_output.rs` |
 | Policy load | `src/cli/policy_file.rs` |
-| Engine | `crates/rgbuilder-analysis/src/blast_radius_scc.rs` |
-| Centrality | `crates/rgbuilder-analysis/src/centrality.rs` |
+| Engine | `crates/rgctl-analysis/src/blast_radius_scc.rs` |
+| Centrality | `crates/rgctl-analysis/src/centrality.rs` |
 | Git diff symbols | `src/cli/check.rs` (`changed_function_symbols`) |
 
 ---
@@ -100,7 +100,7 @@ rgctl check --policy-file policy.json
 rgctl -f json check --policy-file policy.json | jq '.passed, .violations'
 ```
 
-Typical GitHub Actions pattern: run `discover` in a setup job, then `check` on each PR with the same `.rgbuilder/` cache artifact.
+Typical GitHub Actions pattern: run `discover` in a setup job, then `check` on each PR with the same `.rgctl/` cache artifact.
 
 ---
 

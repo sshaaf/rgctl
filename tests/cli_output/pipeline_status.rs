@@ -1,4 +1,4 @@
-use rgbuilder::cli::pipeline_status::{
+use rgctl::cli::pipeline_status::{
     PIPELINE_STATUS_SCHEMA_VERSION, STAGE_BASIC, STAGE_DEEP, STAGE_SEMANTIC,
     fixture_pipeline_status_json,
 };

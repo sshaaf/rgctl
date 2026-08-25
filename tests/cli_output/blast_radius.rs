@@ -1,4 +1,4 @@
-use rgbuilder::cli::blast_radius_output::{
+use rgctl::cli::blast_radius_output::{
     BLAST_RADIUS_SCHEMA_VERSION, fixture_response, response_to_json, skipped_gatekeeping,
 };
 
@@ -46,8 +46,8 @@ fn test_blast_radius_symbol_context_shape() {
 
 #[test]
 fn test_handoffs_from_seeds_populated() {
-    use rgbuilder::analysis::SliceHandoffSeed;
-    use rgbuilder::cli::blast_radius_output::{SliceHandoff, handoffs_from_seeds};
+    use rgctl::analysis::SliceHandoffSeed;
+    use rgctl::cli::blast_radius_output::{SliceHandoff, handoffs_from_seeds};
     use uuid::Uuid;
 
     let seeds = vec![SliceHandoffSeed {

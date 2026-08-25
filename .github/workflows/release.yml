@@ -100,7 +100,7 @@ jobs:
           mkdir -p "$STAGING"
           cp "target/${{ matrix.target }}/release/${{ matrix.bin }}" "$STAGING/rgctl"
           chmod +x "$STAGING/rgctl"
-          ARCHIVE="rgbuilder-${VERSION}-${{ matrix.target }}.tar.gz"
+          ARCHIVE="rgctl-${VERSION}-${{ matrix.target }}.tar.gz"
           tar -czf "$ARCHIVE" -C "$STAGING" rgctl
           echo "ARCHIVE=$ARCHIVE" >> "$GITHUB_ENV"
 
@@ -115,7 +115,7 @@ jobs:
           }
           New-Item -ItemType Directory -Force -Path package | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/${{ matrix.bin }}" "package/rgctl.exe"
-          $archive = "rgbuilder-${version}-${{ matrix.target }}.zip"
+          $archive = "rgctl-${version}-${{ matrix.target }}.zip"
           Compress-Archive -Path package/rgctl.exe -DestinationPath $archive -Force
           echo "ARCHIVE=$archive" >> $env:GITHUB_ENV
 
@@ -149,7 +149,7 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          shasum -a 256 rgbuilder-* > SHA256SUMS.txt
+          shasum -a 256 rgctl-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Resolve release tag
@@ -181,7 +181,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
-          name: rgBuilder ${{ steps.meta.outputs.tag }}
+          name: rgctl ${{ steps.meta.outputs.tag }}
           draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
           prerelease: ${{ contains(steps.meta.outputs.tag, '-') }}
           body_path: release-body.md
@@ -191,25 +191,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # secrets.* cannot appear in job/step `if:` — check token inside the step instead.
-      - name: Trigger rgbuilder-tests report
+      - name: Trigger rgctl-tests report
         if: ${{ github.event_name != 'workflow_dispatch' || !inputs.draft }}
         env:
-          DISPATCH_TOKEN: ${{ secrets.RGBUILDER_TESTS_DISPATCH_TOKEN }}
+          DISPATCH_TOKEN: ${{ secrets.RGCTL_TESTS_DISPATCH_TOKEN }}
           RELEASE_TAG: ${{ steps.meta.outputs.tag }}
         run: |
           set -euo pipefail
           if [[ -z "${DISPATCH_TOKEN}" ]]; then
-            echo "RGBUILDER_TESTS_DISPATCH_TOKEN not set; skipping rgbuilder-tests report dispatch"
+            echo "RGCTL_TESTS_DISPATCH_TOKEN not set; skipping rgctl-tests report dispatch"
             exit 0
           fi
           payload="$(jq -nc \
             --arg tag "$RELEASE_TAG" \
             --arg repo "${{ github.repository }}" \
             --arg sha "${{ github.sha }}" \
-            '{event_type:"rgbuilder-released", client_payload:{tag:$tag, rgbuilder_repo:$repo, rgbuilder_sha:$sha}}')"
+            '{event_type:"rgctl-released", client_payload:{tag:$tag, rgctl_repo:$repo, rgctl_sha:$sha}}')"
           curl -fsSL -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${DISPATCH_TOKEN}" \
-            "https://api.github.com/repos/sshaaf/rgbuilder-tests/dispatches" \
+            "https://api.github.com/repos/sshaaf/rgctl-tests/dispatches" \
             -d "$payload"
-          echo "Dispatched rgbuilder-released for ${RELEASE_TAG}"
+          echo "Dispatched rgctl-released for ${RELEASE_TAG}"

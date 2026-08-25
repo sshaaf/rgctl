@@ -1,4 +1,4 @@
-rgBuilder CLI Structure (developer reference)
+rgctl CLI Structure (developer reference)
 ==========================================
 Last synced: 2026-08-25 — prefer `rgctl --help` and docs/json-api.md for JSON contracts.
 User Guide is the canonical human reference; this file is a maintainer cheat sheet.
@@ -7,11 +7,11 @@ rgctl [GLOBAL OPTIONS] <COMMAND>
 
 Global Options:
   -r, --repo <PATH>           Target repository root (default: cwd)
-  -d, --db <PATH>             Legacy graph.db path (default: {repo}/.rgbuilder/graph.db)
+  -d, --db <PATH>             Legacy graph.db path (default: {repo}/.rgctl/graph.db)
   -f, --format <FORMAT>       Output format: text | json | graphviz | mermaid
   -o, --output <FILE>         Write stdout to file instead of terminal
   --no-daemon                 In-process; do not contact or start daemon
-  --daemon-home <PATH>        Daemon workspace root (default: $HOME → ~/.rgbuilder/)
+  --daemon-home <PATH>        Daemon workspace root (default: $HOME → ~/.rgctl/)
   --fail-if-no-daemon         Fail if daemon is not running (no auto-start)
 
 Active Commands:
@@ -33,7 +33,7 @@ Active Commands:
 │   ├── --migration-order           scheduled|priority
 │   └── --write-json-graph          Also write legacy graph.db / graph.json (opt-in)
 │
-│   Writes (default, under {repo}/.rgbuilder/):
+│   Writes (default, under {repo}/.rgctl/):
 │     graph.snapshot.bin          Columnar v2 mmap graph (default)
 │     blast_engine.snapshot.bin   Pre-built SCC blast engine
 │     macro_call_index.db/.bin    Blast-radius lookup cache (SQLite + bincode; not the graph)
@@ -55,7 +55,7 @@ Active Commands:
 │   ├── --no-pipeline           Fail fast if artifacts missing (no auto discover --full)
 │   ├── --open                  Open browser after start
 │   ├── --daemon                Background HTTP+MCP daemon (0.0.0.0:8080)
-│   ├── --socket <PATH>         Control socket (default: {daemon-home}/.rgbuilder/rgctl.sock)
+│   ├── --socket <PATH>         Control socket (default: {daemon-home}/.rgctl/rgctl.sock)
 │   └── --idle-secs <SECS>      Daemon idle exit (default: 300)
 │
 ├── install --skill [--host all|claude|cursor] [--force]

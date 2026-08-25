@@ -1,2 +1,2 @@
-//! Re-export GQL JSON types from `rgbuilder-service`.
-pub use rgbuilder_service::gql_json::*;
+//! Re-export GQL JSON types from `rgctl-service`.
+pub use rgctl_service::gql_json::*;

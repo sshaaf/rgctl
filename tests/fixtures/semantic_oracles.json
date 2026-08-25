@@ -2,7 +2,7 @@
   "schema_version": 1,
   "fixture": "tiny_polyglot_repo",
   "languages": ["java", "rust"],
-  "notes": "Semantic search QE oracles. Required — suite red until fixed (rgbuilder-tests/correctness/QE.md). Distinct from tests/semantic_audit.rs.",
+  "notes": "Semantic search QE oracles. Required — suite red until fixed (rgctl-tests/correctness/QE.md). Distinct from tests/semantic_audit.rs.",
   "pin": {
     "model_id_contains": "vocab-accumulate",
     "dimensions": 256

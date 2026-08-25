@@ -1,17 +1,17 @@
 //! Manual helper to rebuild caches (macro index, graph snapshot, blast engine) for an existing discover cache.
 
-use rgbuilder::analysis::{BlastEngineSnapshot, BlastRadiusEngine, MacroCallIndex};
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::schema::NodeType;
-use rgbuilder::graph::{CodeGraph, PreparedGraphSnapshot};
+use rgctl::analysis::{BlastEngineSnapshot, BlastRadiusEngine, MacroCallIndex};
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::schema::NodeType;
+use rgctl::graph::{CodeGraph, PreparedGraphSnapshot};
 use std::path::Path;
 use std::time::Instant;
 
 #[test]
 #[ignore = "manual: rebuild caches for metasfresh"]
 fn rebuild_metasfresh_caches() {
-    let repo = Path::new("/Users/sshaaf/git/rust/rgBuilder/example/metasfresh-4.9.8b");
-    let db = repo.join(".rgbuilder/graph.db");
+    let repo = Path::new("/Users/sshaaf/git/rust/rgctl/example/metasfresh-4.9.8b");
+    let db = repo.join(".rgctl/graph.db");
     let json = std::fs::read_to_string(&db).expect("read graph.db");
 
     let load_start = Instant::now();
@@ -36,7 +36,7 @@ fn rebuild_metasfresh_caches() {
     let prepared = PreparedGraphSnapshot::from_backend(backend).expect("prepare snapshot");
     let digest = prepared.content_digest.clone();
     prepared
-        .write_to_path(&repo.join(".rgbuilder/graph.snapshot.bin"))
+        .write_to_path(&repo.join(".rgctl/graph.snapshot.bin"))
         .expect("write graph snapshot");
     eprintln!("Graph snapshot: {:.2}s", snap_start.elapsed().as_secs_f64());
 

@@ -1,8 +1,8 @@
 //! Shared CLI context: paths, graph I/O, and output routing.
 
 use anyhow::{Context, Result, bail};
-use rgbuilder_graph::CodeGraph;
-use rgbuilder_graph::SnapshotNodeStore;
+use rgctl_graph::CodeGraph;
+use rgctl_graph::SnapshotNodeStore;
 use std::cell::RefCell;
 use std::fs;
 use std::io::{self, Write};
@@ -41,8 +41,8 @@ impl CliContext {
     ) -> Self {
         let repo =
             repo.unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
-        let _ = rgbuilder_graph::paths::ensure_artifact_dir_migrated(&repo);
-        let db = db.unwrap_or_else(|| rgbuilder_graph::paths::artifact_path(&repo, "graph.db"));
+        let _ = rgctl_graph::paths::ensure_artifact_dir_migrated(&repo);
+        let db = db.unwrap_or_else(|| rgctl_graph::paths::artifact_path(&repo, "graph.db"));
         Self {
             repo,
             db,
@@ -57,7 +57,7 @@ impl CliContext {
     }
 
     fn snapshot_path(&self) -> PathBuf {
-        rgbuilder_graph::paths::artifact_path(&self.repo, rgbuilder_graph::snapshot::SNAPSHOT_FILE)
+        rgctl_graph::paths::artifact_path(&self.repo, rgctl_graph::snapshot::SNAPSHOT_FILE)
     }
 
     fn ensure_snapshot_loaded(&self) -> Result<()> {
@@ -94,7 +94,7 @@ impl CliContext {
                 .with_context(|| format!("read graph db {}", self.db.display()))?;
             return CodeGraph::import_json(&json).map_err(Into::into);
         }
-        let legacy = rgbuilder_graph::paths::artifact_path(&self.repo, "graph.json");
+        let legacy = rgctl_graph::paths::artifact_path(&self.repo, "graph.json");
         if legacy.exists() {
             let json = fs::read_to_string(&legacy)?;
             return CodeGraph::import_json(&json).map_err(Into::into);

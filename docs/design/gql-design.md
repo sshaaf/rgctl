@@ -79,10 +79,10 @@ MATCH (n:Class) WHERE n.qualified_name = 'com.example.Foo' RETURN n
 
 | Component | Path |
 |-----------|------|
-| Parser / AST | `crates/rgbuilder-gql/src/parser.rs`, `ast.rs` |
-| Optimizer | `crates/rgbuilder-gql/src/optimizer.rs` |
-| Executor | `crates/rgbuilder-gql/src/executor.rs` |
-| Macros | `crates/rgbuilder-gql/src/macros.rs` |
+| Parser / AST | `crates/rgctl-gql/src/parser.rs`, `ast.rs` |
+| Optimizer | `crates/rgctl-gql/src/optimizer.rs` |
+| Executor | `crates/rgctl-gql/src/executor.rs` |
+| Macros | `crates/rgctl-gql/src/macros.rs` |
 | CLI | `src/cli/gql.rs` |
 | HTTP | `src/cli/http_serve.rs` (`/api/query`) |
 
@@ -118,7 +118,7 @@ See [http-api.md](../http-api.md).
 
 ### Virtual communities (analysis overlay)
 
-Communities are **not** stored in `graph.snapshot.bin`. After discover, `gql` / `/api/query` join `.rgbuilder/analysis_results.bin`:
+Communities are **not** stored in `graph.snapshot.bin`. After discover, `gql` / `/api/query` join `.rgctl/analysis_results.bin`:
 
 | Pattern | Meaning |
 |---------|---------|
@@ -134,7 +134,7 @@ Labels are heuristic; see [community-query-and-naming-plan.md](community-query-a
 
 | Layer | Location |
 |-------|----------|
-| GQL crate tests | `crates/rgbuilder-gql/src/` |
+| GQL crate tests | `crates/rgctl-gql/src/` |
 | CLI subprocess | `tests/cli_output/all_commands_sanity.rs` |
 | Query Guide validation | `dashboard/scripts/validate-guide-cli-gbuilder.sh` |
 

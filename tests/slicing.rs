@@ -1,7 +1,7 @@
 //! Phase 12.1 integration: CFG, PDG, and backward slicing.
 #![allow(dead_code, unused_imports, unused_macros)]
 
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     BackwardSlicer, ProgramDependenceGraph, SliceCriterion, build_cfg_for_function,
 };
 #[test]

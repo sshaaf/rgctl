@@ -1,2 +1,2 @@
-//! Re-export pipeline status from `rgbuilder-service`.
-pub use rgbuilder_service::status::*;
+//! Re-export pipeline status from `rgctl-service`.
+pub use rgctl_service::status::*;

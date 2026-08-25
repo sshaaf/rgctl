@@ -1,11 +1,11 @@
 //! Phase 13-style C++ analysis: CFG, taint, and call relations.
 
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     ProgramDependenceGraph, TaintAnalyzer, TaintSink, TaintSource, build_cfg_for_function,
     canonical_language_id, cfg_language_id_from_path,
 };
-use rgbuilder_lang_cpp::CppPlugin;
-use rgbuilder_plugin_api::{LanguagePlugin, RelationType, SymbolType};
+use rgctl_lang_cpp::CppPlugin;
+use rgctl_plugin_api::{LanguagePlugin, RelationType, SymbolType};
 use std::path::Path;
 
 #[test]

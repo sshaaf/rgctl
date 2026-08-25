@@ -157,7 +157,7 @@ const DEMOS: Demo[] = [
       "rgctl discover . --export-migration-hints\nrgctl -f json check --policy-file policy.json",
     lines: [
       { kind: "cmd", text: "discover . --export-migration-hints" },
-      { kind: "out", text: "✓ wrote .rgbuilder/migration_plan.json" },
+      { kind: "out", text: "✓ wrote .rgctl/migration_plan.json" },
       { kind: "gap" },
       { kind: "cmd", text: "check --policy-file policy.json" },
       { kind: "out", text: "✓ no blast-radius policy violations" },

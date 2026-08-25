@@ -1,16 +1,16 @@
-# rgBuilder
+# rgctl
 
 **A code knowledge graph built for LLM agents — accurate answers, minimal tokens, maximum speed.**
 
-[![CI](https://github.com/sshaaf/rgBuilder/actions/workflows/ci.yml/badge.svg)](https://github.com/sshaaf/rgBuilder/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/sshaaf/rgBuilder?display_name=tag&label=release)](https://github.com/sshaaf/rgBuilder/releases/latest)
+[![CI](https://github.com/sshaaf/rgctl/actions/workflows/ci.yml/badge.svg)](https://github.com/sshaaf/rgctl/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/sshaaf/rgctl?display_name=tag&label=release)](https://github.com/sshaaf/rgctl/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![User Guide](https://img.shields.io/badge/docs-User%20Guide-0A7EA4)](docs/user-guide.md)
 [![Rust](https://img.shields.io/badge/Made%20with-Rust-orange?logo=rust)](https://www.rust-lang.org/)
 
-**Try it now:** [Installation](docs/installation.md) · [User Guide](docs/user-guide.md) (index → query) · [Download latest release](https://github.com/sshaaf/rgBuilder/releases/latest) · [Agent skill](skills/rgbuilder/SKILL.md) · [AGENTS.md](AGENTS.md) for LLM workflows
+**Try it now:** [Installation](docs/installation.md) · [User Guide](docs/user-guide.md) (index → query) · [Download latest release](https://github.com/sshaaf/rgctl/releases/latest) · [Agent skill](skills/rgctl/SKILL.md) · [AGENTS.md](AGENTS.md) for LLM workflows
 
-AI coding agents default to reading files sequentially. That burns context, misses structure, and produces confident wrong answers about impact and dependencies. **rgBuilder indexes the whole repository once** into a rich graph with pre-computed **reachability**, then serves **compact, deterministic query results** — so agents (and humans) get the right slice of the codebase without loading it into the prompt.
+AI coding agents default to reading files sequentially. That burns context, misses structure, and produces confident wrong answers about impact and dependencies. **rgctl indexes the whole repository once** into a rich graph with pre-computed **reachability**, then serves **compact, deterministic query results** — so agents (and humans) get the right slice of the codebase without loading it into the prompt.
 
 ## Demo
 
@@ -29,14 +29,14 @@ https://github.com/user-attachments/assets/81328399-dca1-4232-8edc-2a23563c3451
 
 **Goal:** make LLM-assisted development **more accurate** while **using fewer tokens**.
 
-| Without rgBuilder | With rgBuilder |
+| Without rgctl | With rgctl |
 |------------------|---------------|
 | Agent reads dozens of files to guess dependencies | Agent calls `blast-radius Symbol` → structured impact JSON |
 | “What calls this?” requires search + inference | `gql` returns exact graph matches |
 | Migration planning from partial context | **Migration planner** — package roadmap, dual ordering, tunable scores, interactive graph |
 | Repeated file dumps every turn | One `discover`, then cache-backed queries via CLI or `-f json` |
 
-rgBuilder answers **reachability and relation questions deterministically** from the indexed graph. The LLM reasons on **summaries and facts**, not raw repo grep — fewer tokens, less hallucination, faster turns.
+rgctl answers **reachability and relation questions deterministically** from the indexed graph. The LLM reasons on **summaries and facts**, not raw repo grep — fewer tokens, less hallucination, faster turns.
 
 **Primary outputs for agents:** `-f json` on `discover`, `gql`, `blast-radius`, `metrics`, `semantic`, `communities`, `cpg`, `check`, `slice`, and `inspect`. File export uses `export --export-format` (not stdout JSON). See **[JSON API](docs/json-api.md)**.
 
@@ -44,7 +44,7 @@ rgBuilder answers **reachability and relation questions deterministically** from
 
 ## Where most tools stop
 
-Most codebase tools stop at **text search**, **file trees**, or a **shallow call graph**. rgBuilder goes further — compiler-grade structure and security analysis, pre-computed at index time, queryable in milliseconds. That is what makes agent answers trustworthy.
+Most codebase tools stop at **text search**, **file trees**, or a **shallow call graph**. rgctl goes further — compiler-grade structure and security analysis, pre-computed at index time, queryable in milliseconds. That is what makes agent answers trustworthy.
 
 | Feature | What it gives you | Design doc |
 |---------|-------------------|------------|
@@ -70,7 +70,7 @@ All of the above share one index: run [`discover`](docs/Introduction.md#indexing
 
 ## Speed by design
 
-rgBuilder is **async and parallel by design** — discovery walks the tree, parses languages concurrently, and builds analytics on the graph in parallel (Rayon + Tokio throughout the pipeline).
+rgctl is **async and parallel by design** — discovery walks the tree, parses languages concurrently, and builds analytics on the graph in parallel (Rayon + Tokio throughout the pipeline).
 
 - **Full discovery in seconds** on typical repos (not minutes of ad-hoc agent exploration)
 - **Reachability compressed** — enterprise-scale call graphs stored in compact on-disk snapshots, not gigabytes in RAM
@@ -85,7 +85,7 @@ Index once → query many times. That is the agent workflow.
     rgctl gql | blast-radius | metrics | semantic | export -f json
            │
            ▼
-  .rgbuilder/  ← graph snapshot + reachability engine + indexes
+  .rgctl/  ← graph snapshot + reachability engine + indexes
            ▲
            │
       discover .     ← async parallel index (seconds)
@@ -108,14 +108,14 @@ Use the features above together for **migration and modernization** work:
 
 ### Migration planner
 
-After deep discover + `--export-migration-hints`, read `.rgbuilder/migration_plan.json` (agents) or optionally open a dashboard **Migration** tab if you also passed `--with-dashboard`:
+After deep discover + `--export-migration-hints`, read `.rgctl/migration_plan.json` (agents) or optionally open a dashboard **Migration** tab if you also passed `--with-dashboard`:
 
 *Scoring and package ordering; community coloring uses label propagation — see [graph metrics naming](docs/design/graph-metrics-design.md#31-community-detection-naming).*
 
 - **Package macro graph** — aggregates functions into path-derived package labels (Java package paths, Rust/C `/src/` modules)
 - **Dual ordering** — **scheduled step** (Kahn topological sort, callee before caller) and **priority rank** (score-only)
 - **Scoring** — `Priority = α·PageRank + β·Harmonic − γ·Blast`; presets include Hybrid Default, Foundational First, Dense Cluster Extraction, Risk Mitigation
-- **CLI export** — `--export-migration-hints` writes a preset-tuned plan (default `.rgbuilder/migration_plan.json`); `--with-dashboard` additionally copies UI assets under `.rgbuilder/dashboard/`
+- **CLI export** — `--export-migration-hints` writes a preset-tuned plan (default `.rgctl/migration_plan.json`); `--with-dashboard` additionally copies UI assets under `.rgctl/dashboard/`
 
 ```bash
 rgctl discover . --with-cfg --with-security --with-taint --with-harmonic --export-migration-hints
@@ -128,7 +128,7 @@ All feature designs → **[docs/design/](docs/design/README.md)**
 
 ### Community detection naming
 
-rgBuilder does **not** run the Leiden algorithm today. What ships is **label propagation** (Raghavan et al., 2007) with Newman modularity scoring, plus hub stripping and deterministic tie-breaking. Docs/UI still say “Louvain” in places (`louvain_community_id`, migration layout), and `TASK_PLAN.md` lists Leiden as planned but unimplemented.
+rgctl does **not** run the Leiden algorithm today. What ships is **label propagation** (Raghavan et al., 2007) with Newman modularity scoring, plus hub stripping and deterministic tie-breaking. Docs/UI still say “Louvain” in places (`louvain_community_id`, migration layout), and `TASK_PLAN.md` lists Leiden as planned but unimplemented.
 
 | Name in repo | What it actually is |
 |--------------|---------------------|
@@ -140,17 +140,17 @@ Full detail → **[Graph metrics — community naming](docs/design/graph-metrics
 
 Walkthrough on the in-tree Spring Boot fixture → **[ecommerce-java example](docs/user-guide.md#3-example-project-ecommerce-java)** (User Guide).
 
-**Research map** — which papers rgBuilder implements, which inspire the roadmap, and where to propose changes → **[Further reading](docs/further-reading.md#research-foundations-in-rgbuilder)**.
+**Research map** — which papers rgctl implements, which inspire the roadmap, and where to propose changes → **[Further reading](docs/further-reading.md#research-foundations-in-rgctl)**.
 
 ---
 
 ## Quick start
 
-**Install** from [GitHub Releases](https://github.com/sshaaf/rgBuilder/releases) or build from source (full guide: [Installation](docs/installation.md)):
+**Install** from [GitHub Releases](https://github.com/sshaaf/rgctl/releases) or build from source (full guide: [Installation](docs/installation.md)):
 
 ```bash
-git clone https://github.com/sshaaf/rgBuilder.git
-cd rgBuilder
+git clone https://github.com/sshaaf/rgctl.git
+cd rgctl
 git lfs pull   # only if you use `semantic index --embedder code-daemon` (~206 MB)
 cargo build --release
 ```
@@ -203,9 +203,9 @@ rgctl -f json semantic query "checkout flow" --limit 10
 | **Reachability** | Pre-computed call reachability (sparse bitsets, not multi‑GB dense matrices) so “what breaks if I change this?” stays sub-second |
 | **Rich** code graph | 30+ typed relations — CALLS, IMPORTS, CONTAINS, IMPLEMENTS, and more — not just files and folders |
 
-Together: **rgBuilder** is the **reachability builder** — it constructs the graph and the compressed reachability engine agents need for trustworthy structural reasoning.
+Together: **rgctl** is the **reachability builder** — it constructs the graph and the compressed reachability engine agents need for trustworthy structural reasoning.
 
-Algorithm and complexity details: crate READMEs under `crates/rgbuilder-analysis/` and [CLI I/O sanity QE](docs/cli-io-sanity-qe.md) for automated perf gates.
+Algorithm and complexity details: crate READMEs under `crates/rgctl-analysis/` and [CLI I/O sanity QE](docs/cli-io-sanity-qe.md) for automated perf gates.
 
 ---
 
@@ -228,7 +228,7 @@ Quick links into **[Introduction](docs/Introduction.md)** — see [Where most to
 | `check` | [CI policy](docs/Introduction.md#ci-policy-checks) |
 | `serve` | [HTTP server](docs/Introduction.md#http-server-serve) |
 
-**Dashboard** — visual exploration after `discover --with-dashboard` (`.rgbuilder/dashboard/`). See **[Feature designs](docs/design/README.md)** for per-tab engineering docs.  
+**Dashboard** — visual exploration after `discover --with-dashboard` (`.rgctl/dashboard/`). See **[Feature designs](docs/design/README.md)** for per-tab engineering docs.  
 **Migration export** — `discover --export-migration-hints` (alias `--export-migration-plan`; optional `--migration-preset`, `--migration-order scheduled|priority`).  
 **Languages** — nine Tier 1 languages (Rust, Python, Java, Go, TypeScript, JavaScript, C#, C, C++) plus config/IaC plugins and **markdown** (`.md` / `.mdx` docs context). See [Languages](docs/languages.md) and [Markdown context](docs/markdown-context.md).
 
@@ -242,7 +242,7 @@ Quick links into **[Introduction](docs/Introduction.md)** — see [Where most to
 | **[Installation](docs/installation.md)** | Install rgctl, choose operating mode (CLI / HTTP / MCP), verify setup |
 | **[Introduction](docs/Introduction.md)** | Concepts — graph, reachability, capability map |
 | **[User Guide](docs/user-guide.md)** | ecommerce-java fixture, every CLI command |
-| **[Agent skill](skills/rgbuilder/SKILL.md)** | **Canonical agent playbook** — NL routing + CLI samples. Install with `rgctl install --skill` |
+| **[Agent skill](skills/rgctl/SKILL.md)** | **Canonical agent playbook** — NL routing + CLI samples. Install with `rgctl install --skill` |
 | **[AGENTS.md](AGENTS.md)** | Minimal agent contract (points at skill) |
 | **[Agent recipes](docs/agent-recipes.md)** | Copy-paste automation workflows |
 | **[JSON API](docs/json-api.md)** | Parse `-f json` payloads + field catalogs |

@@ -7,27 +7,72 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-fn rgbuilder_bin() -> PathBuf {
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
-        return PathBuf::from(bin);
-    }
+fn rgctl_bin() -> PathBuf {
     if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
 }
 
-fn bundled_skill_md() -> Vec<u8> {
-    fs::read(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("skills/rgbuilder/SKILL.md"))
-        .expect("read in-tree skills/rgbuilder/SKILL.md")
+fn bundled_skill_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("skills/rgctl")
 }
 
-fn skill_path(repo: &Path, host: &str) -> PathBuf {
-    repo.join(format!(".{host}/skills/rgbuilder/SKILL.md"))
+fn collect_bundled_files() -> Vec<(PathBuf, Vec<u8>)> {
+    fn walk(base: &Path, rel: &Path, out: &mut Vec<(PathBuf, Vec<u8>)>) {
+        for ent in fs::read_dir(base.join(rel)).unwrap_or_else(|err| {
+            panic!("read bundled skill dir {}: {err}", base.join(rel).display())
+        }) {
+            let ent = ent.expect("dir entry");
+            let rel_path = rel.join(ent.file_name());
+            if ent.path().is_dir() {
+                walk(base, &rel_path, out);
+            } else {
+                let bytes = fs::read(base.join(&rel_path))
+                    .unwrap_or_else(|err| panic!("read {}: {err}", rel_path.display()));
+                out.push((rel_path, bytes));
+            }
+        }
+    }
+    let root = bundled_skill_root();
+    let mut out = Vec::new();
+    walk(&root, Path::new(""), &mut out);
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+fn bundled_file_count() -> usize {
+    collect_bundled_files().len()
+}
+
+fn skill_dest(repo: &Path, host: &str, rel: &Path) -> PathBuf {
+    repo.join(format!(".{host}/skills/rgctl")).join(rel)
+}
+
+fn assert_host_matches_bundle(repo: &Path, host: &str) {
+    let files = collect_bundled_files();
+    assert!(
+        !files.is_empty(),
+        "expected non-empty skills/rgctl bundle in tree"
+    );
+    for (rel, expected) in files {
+        let path = skill_dest(repo, host, &rel);
+        assert!(
+            path.is_file(),
+            "missing bundled file for {host}: {}",
+            path.display()
+        );
+        let got = fs::read(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+        assert_eq!(
+            got, expected,
+            "{host} {} must match bundle",
+            rel.display()
+        );
+    }
 }
 
 fn run_in(cwd: &Path, args: &[&str]) -> Output {
-    Command::new(rgbuilder_bin())
+    Command::new(rgctl_bin())
         .args(args)
         .current_dir(cwd)
         .output()
@@ -62,8 +107,8 @@ fn install_without_skill_exits_one_and_writes_nothing() {
         err.contains("--skill"),
         "error should mention --skill: {err}"
     );
-    assert!(!skill_path(dir.path(), "claude").exists());
-    assert!(!skill_path(dir.path(), "cursor").exists());
+    assert!(!dir.path().join(".claude/skills/rgctl").exists());
+    assert!(!dir.path().join(".cursor/skills/rgctl").exists());
 }
 
 #[test]
@@ -79,11 +124,8 @@ fn install_skill_writes_both_hosts_matching_bundle() {
         "stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let expected = bundled_skill_md();
     for host in ["claude", "cursor"] {
-        let path = skill_path(&repo, host);
-        let got = fs::read(&path).unwrap_or_else(|_| panic!("missing {}", path.display()));
-        assert_eq!(got, expected, "{host} SKILL.md must match bundle");
+        assert_host_matches_bundle(&repo, host);
     }
 }
 
@@ -108,10 +150,9 @@ fn install_host_claude_does_not_create_cursor_and_repo_flag_ignores_cwd() {
         "stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(skill_path(&repo, "claude").is_file());
+    assert_host_matches_bundle(&repo, "claude");
     assert!(!cwd_dir.path().join(".claude").exists());
-    assert!(!skill_path(&repo, "cursor").exists());
-    assert!(!repo.join(".cursor").exists());
+    assert!(!repo.join(".cursor/skills/rgctl").exists());
     assert!(!cwd_dir.path().join(".cursor").exists());
 }
 
@@ -134,27 +175,36 @@ fn install_second_run_unchanged_conflict_then_force() {
     );
     let doc = stdout_json(&second);
     let writes = doc["writes"].as_array().expect("writes");
+    assert_eq!(writes.len(), bundled_file_count() * 2);
     assert!(
         writes
             .iter()
             .all(|w| w["status"].as_str() == Some("unchanged"))
     );
 
-    let claude = skill_path(&repo, "claude");
-    fs::write(&claude, b"local edits\n").expect("dirty skill");
+    let claude_skill = skill_dest(&repo, "claude", Path::new("SKILL.md"));
+    fs::write(&claude_skill, b"local edits\n").expect("dirty skill");
     let refused = run_in(
         dir.path(),
         &["-r", &repo_s, "-f", "json", "install", "--skill"],
     );
     assert_eq!(refused.status.code(), Some(1));
-    assert_eq!(fs::read(&claude).expect("read dirty"), b"local edits\n");
+    assert_eq!(
+        fs::read(&claude_skill).expect("read dirty"),
+        b"local edits\n"
+    );
     let refused_doc = stdout_json(&refused);
     let skipped = refused_doc["writes"]
         .as_array()
         .expect("writes")
         .iter()
-        .find(|w| w["host"].as_str() == Some("claude"))
-        .expect("claude write");
+        .find(|w| {
+            w["host"].as_str() == Some("claude")
+                && w["path"]
+                    .as_str()
+                    .is_some_and(|p| p.ends_with("SKILL.md"))
+        })
+        .expect("claude SKILL.md write");
     assert_eq!(skipped["status"].as_str(), Some("skipped_exists"));
 
     let forced = run_in(
@@ -166,17 +216,19 @@ fn install_second_run_unchanged_conflict_then_force() {
         "stderr={}",
         String::from_utf8_lossy(&forced.stderr)
     );
-    assert_eq!(
-        fs::read(&claude).expect("read after force"),
-        bundled_skill_md()
-    );
+    assert_host_matches_bundle(&repo, "claude");
     let forced_doc = stdout_json(&forced);
     let overwritten = forced_doc["writes"]
         .as_array()
         .expect("writes")
         .iter()
-        .find(|w| w["host"].as_str() == Some("claude"))
-        .expect("claude write");
+        .find(|w| {
+            w["host"].as_str() == Some("claude")
+                && w["path"]
+                    .as_str()
+                    .is_some_and(|p| p.ends_with("SKILL.md"))
+        })
+        .expect("claude SKILL.md write");
     assert_eq!(overwritten["status"].as_str(), Some("overwritten"));
 }
 
@@ -203,27 +255,42 @@ fn install_json_created_shape() {
     let doc = stdout_json(&output);
     assert_eq!(doc["schema_version"].as_u64(), Some(1));
     assert_eq!(doc["command"].as_str(), Some("install"));
-    assert_eq!(doc["skill"].as_str(), Some("rgbuilder"));
+    assert_eq!(doc["skill"].as_str(), Some("rgctl"));
     assert_eq!(doc["force"].as_bool(), Some(false));
     let repo_json = doc["repo"].as_str().expect("repo");
     assert!(
         Path::new(repo_json).is_absolute(),
         "repo should be absolute: {repo_json}"
     );
+
+    let bundled = collect_bundled_files();
+    let per_host = bundled.len();
+    assert!(per_host >= 2, "bundle should include SKILL.md and references");
+
     let writes = doc["writes"].as_array().expect("writes");
-    assert_eq!(writes.len(), 2);
-    let mut hosts: Vec<_> = writes
-        .iter()
-        .map(|w| w["host"].as_str().unwrap_or_default())
-        .collect();
-    hosts.sort_unstable();
-    assert_eq!(hosts, ["claude", "cursor"]);
-    for write in writes {
-        assert_eq!(write["status"].as_str(), Some("created"));
-        let path = write["path"].as_str().expect("path");
-        assert!(Path::new(path).is_absolute());
-        assert!(Path::new(path).ends_with("SKILL.md"));
+    assert_eq!(writes.len(), per_host * 2);
+
+    for host in ["claude", "cursor"] {
+        let host_writes: Vec<_> = writes
+            .iter()
+            .filter(|w| w["host"].as_str() == Some(host))
+            .collect();
+        assert_eq!(host_writes.len(), per_host, "{host} write count");
+        for (rel, _) in &bundled {
+            let found = host_writes.iter().any(|w| {
+                w["status"].as_str() == Some("created")
+                    && w["path"]
+                        .as_str()
+                        .is_some_and(|p| Path::new(p).ends_with(rel))
+            });
+            assert!(found, "{host} missing created write for {}", rel.display());
+        }
     }
+
+    assert!(
+        skill_dest(&repo, "claude", Path::new("references/gql-reference.md")).is_file(),
+        "references/ should be installed"
+    );
 }
 
 #[test]
@@ -246,7 +313,7 @@ fn install_uses_embedded_bundle_when_cwd_has_no_skills_tree() {
     let repo_dir = tempfile::tempdir().expect("repo");
     let cwd_dir = tempfile::tempdir().expect("cwd without skills");
     let repo = fs::canonicalize(repo_dir.path()).expect("canonicalize repo");
-    assert!(!cwd_dir.path().join("skills/rgbuilder").exists());
+    assert!(!cwd_dir.path().join("skills/rgctl").exists());
     let output = run_in(
         cwd_dir.path(),
         &["-r", &repo.display().to_string(), "install", "--skill"],
@@ -256,10 +323,7 @@ fn install_uses_embedded_bundle_when_cwd_has_no_skills_tree() {
         "stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(
-        fs::read(skill_path(&repo, "claude")).expect("claude skill"),
-        bundled_skill_md()
-    );
+    assert_host_matches_bundle(&repo, "claude");
 }
 
 #[cfg(unix)]
@@ -268,10 +332,11 @@ fn install_replaces_symlink_with_regular_file() {
     use std::os::unix::fs::symlink;
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = fs::canonicalize(dir.path()).expect("canonicalize repo");
-    let dest_dir = repo.join(".claude/skills/rgbuilder");
+    let dest_dir = repo.join(".claude/skills/rgctl");
     fs::create_dir_all(&dest_dir).expect("mkdir dest");
     let sidecar = repo.join("sidecar.md");
-    fs::write(&sidecar, bundled_skill_md()).expect("sidecar");
+    let skill_md = bundled_skill_root().join("SKILL.md");
+    fs::write(&sidecar, fs::read(&skill_md).expect("bundle SKILL.md")).expect("sidecar");
     let dest = dest_dir.join("SKILL.md");
     symlink(&sidecar, &dest).expect("symlink");
     assert!(
@@ -300,5 +365,8 @@ fn install_replaces_symlink_with_regular_file() {
     let meta = dest.symlink_metadata().expect("meta after");
     assert!(meta.file_type().is_file());
     assert!(!meta.file_type().is_symlink());
-    assert_eq!(fs::read(&dest).expect("read dest"), bundled_skill_md());
+    assert_eq!(
+        fs::read(&dest).expect("read dest"),
+        fs::read(&skill_md).expect("bundle")
+    );
 }

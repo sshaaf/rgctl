@@ -1,4 +1,4 @@
-use rgbuilder::cli::slice_output::{SLICE_SCHEMA_VERSION, fixture_cfg_response};
+use rgctl::cli::slice_output::{SLICE_SCHEMA_VERSION, fixture_cfg_response};
 
 #[test]
 fn test_slice_cfg_json_schema_sanity() {

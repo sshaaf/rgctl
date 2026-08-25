@@ -1,6 +1,6 @@
 # PR Check Template
 
-Use this template to run a consistent, merge-readiness review for rgBuilder PRs.
+Use this template to run a consistent, merge-readiness review for rgctl PRs.
 
 ## 0) PR context
 
@@ -31,10 +31,10 @@ Evidence:
 - [ ] Build release binary:
   - `cargo build --release --bin rgctl`
 - [ ] Run crate tests for touched areas (examples):
-  - `cargo test -p rgbuilder-analysis`
-  - `cargo test -p rgbuilder-extraction`
-  - `cargo test -p rgbuilder-pipeline`
-  - `cargo test -p rgbuilder-incremental`
+  - `cargo test -p rgctl-analysis`
+  - `cargo test -p rgctl-extraction`
+  - `cargo test -p rgctl-pipeline`
+  - `cargo test -p rgctl-incremental`
 
 Evidence:
 
@@ -101,7 +101,7 @@ Evidence:
 - [ ] **Cold profile definition:** rebuild the release binary immediately before profiling:
   - `cargo build --release --bin rgctl`
   - Use the freshly built `target/release/rgctl` only; do not use debug/stale binaries.
-- [ ] Run cold profiles with clean `.rgbuilder` per run.
+- [ ] Run cold profiles with clean `.rgctl` per run.
 - [ ] Use at least 3 runs and compare **median**.
 - [ ] Capture:
   - wall time

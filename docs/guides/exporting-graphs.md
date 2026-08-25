@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `export` command serializes your code knowledge graph into standard file formats for use in external tools, visualization platforms, and documentation systems. rgBuilder supports six export formats: JSON, GraphML, Graphviz (DOT), Mermaid, Obsidian vault, and OKF (Open Knowledge Foundation).
+The `export` command serializes your code knowledge graph into standard file formats for use in external tools, visualization platforms, and documentation systems. rgctl supports six export formats: JSON, GraphML, Graphviz (DOT), Mermaid, Obsidian vault, and OKF (Open Knowledge Foundation).
 
 Whether you want to load your code graph into Neo4j, visualize it in Gephi, embed diagrams in documentation, or browse it as an Obsidian vault, `export` produces the right format.
 
@@ -46,7 +46,7 @@ Exported 7526 nodes, 21396 edges -> /tmp/coolstore.graphml
 
 **What happened:**
 
-- rgBuilder exported all 7,526 function nodes and 21,396 edges (calls, contains, imports) to a GraphML file.
+- rgctl exported all 7,526 function nodes and 21,396 edges (calls, contains, imports) to a GraphML file.
 - The file is 6.2 MB and can be opened in Gephi, yEd, or any GraphML-compatible tool.
 - The `--query "type:Function"` filter restricts the export to function nodes only.
 

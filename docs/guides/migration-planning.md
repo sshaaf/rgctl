@@ -2,7 +2,7 @@
 
 ## Introduction
 
-rgBuilder can generate a **dependency-aware migration roadmap** that tells you the optimal order for extracting modules from a monolith into separate services or packages. The roadmap is produced by combining community detection, blast-radius analysis, PageRank, and harmonic centrality into a prioritized, topologically-sorted extraction plan.
+rgctl can generate a **dependency-aware migration roadmap** that tells you the optimal order for extracting modules from a monolith into separate services or packages. The roadmap is produced by combining community detection, blast-radius analysis, PageRank, and harmonic centrality into a prioritized, topologically-sorted extraction plan.
 
 Migration planning answers the critical question: "In what order should we extract pieces of this monolith so that each step is safe and dependencies are respected?"
 
@@ -48,7 +48,7 @@ rgctl -r example/coolstore discover . \
 **What happened:**
 
 - `--with-harmonic` computed harmonic centrality for every node, measuring how "reachable" each module is from the rest of the graph. This feeds into the migration priority score.
-- `--export-migration-hints` generated `.rgbuilder/migration_plan.json` with the full roadmap.
+- `--export-migration-hints` generated `.rgctl/migration_plan.json` with the full roadmap.
 - `--with-cfg` provided deep analysis data for more accurate blast-radius scoring.
 
 ### 2. Read the Migration Plan
@@ -56,7 +56,7 @@ rgctl -r example/coolstore discover . \
 The migration plan is a JSON file with ordered extraction steps:
 
 ```bash
-cat example/coolstore/.rgbuilder/migration_plan.json
+cat example/coolstore/.rgctl/migration_plan.json
 ```
 
 **Output (truncated):**
@@ -110,7 +110,7 @@ cat example/coolstore/.rgbuilder/migration_plan.json
 
 ### 3. Migration Presets
 
-rgBuilder offers four migration strategy presets:
+rgctl offers four migration strategy presets:
 
 ```bash
 # Foundational-first: extract shared libraries and utilities first
@@ -175,7 +175,7 @@ Each step in the migration plan contains:
 
 ### 6. Exploring Migration Steps
 
-After reviewing the plan, use other rgBuilder commands to dig deeper:
+After reviewing the plan, use other rgctl commands to dig deeper:
 
 ```bash
 # See what functions are in the community being extracted

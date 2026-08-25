@@ -1,6 +1,6 @@
 # Installation
 
-Everything you need to install rgBuilder (`rgctl`), choose the right operating mode, and verify the setup works.
+Everything you need to install rgctl (`rgctl`), choose the right operating mode, and verify the setup works.
 
 **Already installed?** Jump to [Choose your operating mode](#choose-your-operating-mode) or the [User Guide](user-guide.md).
 
@@ -32,7 +32,7 @@ Everything you need to install rgBuilder (`rgctl`), choose the right operating m
 | **Git** | For cloning the repository (source builds) |
 | **Git LFS** | Optional. Only required if you use `semantic index --embedder code-daemon` (~206 MB ONNX weights). The default `vocab` embedder needs no LFS. |
 
-Disk space: the `.rgbuilder/` artifacts directory typically uses 50-500 MB depending on repository size and enabled features.
+Disk space: the `.rgctl/` artifacts directory typically uses 50-500 MB depending on repository size and enabled features.
 
 ---
 
@@ -42,37 +42,37 @@ Disk space: the `.rgbuilder/` artifacts directory typically uses 50-500 MB depen
 
 Pre-built binaries are published on the project **Releases** page:
 
-**https://github.com/sshaaf/rgBuilder/releases**
+**https://github.com/sshaaf/rgctl/releases**
 
 1. Open the latest release.
 2. Download the archive for your platform:
 
    | Platform | Asset name |
    |----------|------------|
-   | macOS (Apple Silicon) | `rgbuilder-*-aarch64-apple-darwin.tar.gz` |
-   | macOS (Intel) | `rgbuilder-*-x86_64-apple-darwin.tar.gz` |
-   | Linux (x86_64) | `rgbuilder-*-x86_64-unknown-linux-gnu.tar.gz` |
-   | Windows | `rgbuilder-*-x86_64-pc-windows-msvc.zip` |
+   | macOS (Apple Silicon) | `rgctl-*-aarch64-apple-darwin.tar.gz` |
+   | macOS (Intel) | `rgctl-*-x86_64-apple-darwin.tar.gz` |
+   | Linux (x86_64) | `rgctl-*-x86_64-unknown-linux-gnu.tar.gz` |
+   | Windows | `rgctl-*-x86_64-pc-windows-msvc.zip` |
 
 3. Extract the archive:
 
 ```bash
 # macOS / Linux
-tar -xzf rgbuilder-*-aarch64-apple-darwin.tar.gz
+tar -xzf rgctl-*-aarch64-apple-darwin.tar.gz
 ./rgctl --version
 ```
 
 ```powershell
 # Windows (PowerShell)
-Expand-Archive rgbuilder-*-x86_64-pc-windows-msvc.zip -DestinationPath .
+Expand-Archive rgctl-*-x86_64-pc-windows-msvc.zip -DestinationPath .
 .\rgctl.exe --version
 ```
 
 ### Option B -- Build from source
 
 ```bash
-git clone https://github.com/sshaaf/rgBuilder.git
-cd rgBuilder
+git clone https://github.com/sshaaf/rgctl.git
+cd rgctl
 cargo build --release --bin rgctl
 ./target/release/rgctl --version
 ```
@@ -150,7 +150,7 @@ If both commands produce output without errors, the installation is working.
 
 ## Choose your operating mode
 
-rgBuilder supports four operating modes. Pick the one that fits your workflow:
+rgctl supports four operating modes. Pick the one that fits your workflow:
 
 ### CLI (one-shot commands)
 
@@ -196,14 +196,14 @@ A stdio-based MCP (Model Context Protocol) server for Cursor, Claude Code, and o
 rgctl serve --mode mcp
 ```
 
-The MCP server provides **seven tools**: `rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`, `rgbuilder_status`. It auto-runs the full pipeline on start (basic graph, CFG, dashboard, semantic index) unless `--no-pipeline` is passed.
+The MCP server provides **seven tools**: `rgctl_query`, `rgctl_search`, `rgctl_impact`, `rgctl_metrics`, `rgctl_cpg`, `rgctl_check`, `rgctl_status`. It auto-runs the full pipeline on start (basic graph, CFG, dashboard, semantic index) unless `--no-pipeline` is passed.
 
 **Configure Cursor** (`.cursor/mcp.json`):
 
 ```json
 {
   "mcpServers": {
-    "rgbuilder": {
+    "rgctl": {
       "command": "rgctl",
       "args": ["-r", "/absolute/path/to/repo", "serve", "--mode", "mcp"]
     }
@@ -216,7 +216,7 @@ The MCP server provides **seven tools**: `rgbuilder_query`, `rgbuilder_search`, 
 ```json
 {
   "mcpServers": {
-    "rgbuilder": {
+    "rgctl": {
       "command": "rgctl",
       "args": ["-r", "/absolute/path/to/repo", "serve", "--mode", "mcp"]
     }
@@ -243,9 +243,9 @@ See the [MCP Server guide](guides/mcp-server.md) for the full tool catalog and c
 
 ## Daemon vs no-daemon
 
-By default, `rgctl` uses a background daemon. Indexed artifacts are cached under `~/.rgbuilder/` (override with `--daemon-home` or `RGCTL_HOME`).
+By default, `rgctl` uses a background daemon. Indexed artifacts are cached under `~/.rgctl/` (override with `--daemon-home` or `RGCTL_HOME`).
 
-Use `--no-daemon` to store artifacts in the repository itself at `{repo}/.rgbuilder/`:
+Use `--no-daemon` to store artifacts in the repository itself at `{repo}/.rgctl/`:
 
 ```bash
 rgctl --no-daemon discover .
@@ -253,11 +253,11 @@ rgctl --no-daemon discover .
 
 | | Default (daemon) | `--no-daemon` |
 |---|---|---|
-| **Artifact location** | `~/.rgbuilder/cache/{reponame}/` | `{repo}/.rgbuilder/` |
+| **Artifact location** | `~/.rgctl/cache/{reponame}/` | `{repo}/.rgctl/` |
 | **Shared across sessions** | Yes | No (repo-local) |
 | **Best for** | Interactive development | CI, containers, cold profiles, reproducible builds |
 
-Add `.rgbuilder/` to your `.gitignore` when using `--no-daemon`.
+Add `.rgctl/` to your `.gitignore` when using `--no-daemon`.
 
 ---
 
@@ -272,8 +272,8 @@ rgctl -r /path/to/repo install --skill   # specific repo
 
 This writes skill files to:
 
-- `<repo>/.claude/skills/rgbuilder/` (Claude Code) — `SKILL.md`, `references/`, …
-- `<repo>/.cursor/skills/rgbuilder/` (Cursor)
+- `<repo>/.claude/skills/rgctl/` (Claude Code) — `SKILL.md`, `references/`, …
+- `<repo>/.cursor/skills/rgctl/` (Cursor)
 
 Limit to one host with `--host claude` or `--host cursor`. Use `--force` to overwrite after upgrading `rgctl`.
 
@@ -308,7 +308,7 @@ See the [Semantic Search guide](guides/semantic-search.md).
 
 ### From a release binary
 
-Download the new release from [GitHub Releases](https://github.com/sshaaf/rgBuilder/releases) and replace the old binary:
+Download the new release from [GitHub Releases](https://github.com/sshaaf/rgctl/releases) and replace the old binary:
 
 ```bash
 cp /path/to/new/rgctl ~/.local/bin/rgctl
@@ -331,7 +331,7 @@ cargo build --release --bin rgctl
 
 ### Re-index after upgrading
 
-The `.rgbuilder/` snapshot format may change between versions. Re-run `discover` after upgrading:
+The `.rgctl/` snapshot format may change between versions. Re-run `discover` after upgrading:
 
 ```bash
 rgctl discover .
@@ -351,16 +351,16 @@ rm ~/.local/bin/rgctl          # or wherever you placed it
 2. Remove cached artifacts (optional):
 
 ```bash
-rm -rf ~/.rgbuilder            # daemon cache
+rm -rf ~/.rgctl            # daemon cache
 # Per-repo artifacts (if --no-daemon was used):
-rm -rf /path/to/repo/.rgbuilder
+rm -rf /path/to/repo/.rgctl
 ```
 
 3. Remove agent skill files (optional):
 
 ```bash
-rm -rf /path/to/repo/.claude/skills/rgbuilder
-rm -rf /path/to/repo/.cursor/skills/rgbuilder
+rm -rf /path/to/repo/.claude/skills/rgctl
+rm -rf /path/to/repo/.cursor/skills/rgctl
 ```
 
 4. Remove the PATH entry from your shell profile if you added one.
@@ -393,7 +393,7 @@ Run `discover` first. All query commands (`gql`, `blast-radius`, `metrics`, etc.
 
 ### MCP tools return pipeline status instead of results
 
-The pipeline is still running. Wait for it to complete. Check status with the `rgbuilder_status` tool or look at stderr output.
+The pipeline is still running. Wait for it to complete. Check status with the `rgctl_status` tool or look at stderr output.
 
 ### Slow `discover` on large repositories
 

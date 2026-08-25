@@ -1,10 +1,10 @@
-# rgBuilder JSON API
+# rgctl JSON API
 
-Programmatic reference for parsing rgBuilder output. Every structured CLI command emits **one JSON document on stdout** when invoked with `-f json` / `--format json`.
+Programmatic reference for parsing rgctl output. Every structured CLI command emits **one JSON document on stdout** when invoked with `-f json` / `--format json`.
 
 **Canonical JSON reference** (includes field catalogs formerly in `cli-output-schemas.md`).
 
-**Source of truth (Rust types):** `crates/rgbuilder-service` JSON modules (CLI `src/cli/*_output.rs` re-exports). MCP tools return the same `schema_version` payloads via `structuredContent`.
+**Source of truth (Rust types):** `crates/rgctl-service` JSON modules (CLI `src/cli/*_output.rs` re-exports). MCP tools return the same `schema_version` payloads via `structuredContent`.
 
 ---
 
@@ -59,17 +59,17 @@ rgctl -r "$REPO" -f json blast-radius ShoppingCartService -o /tmp/blast.json
 
 ### MCP (`serve --mode mcp`)
 
-Stdio JSON-RPC; no HTTP. Tools: `rgbuilder_status`, `rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`. Successful `tools/call` results use the same documents as CLI `-f json` (pretty text plus `structuredContent`).
+Stdio JSON-RPC; no HTTP. Tools: `rgctl_status`, `rgctl_query`, `rgctl_search`, `rgctl_impact`, `rgctl_metrics`, `rgctl_cpg`, `rgctl_check`. Successful `tools/call` results use the same documents as CLI `-f json` (pretty text plus `structuredContent`).
 
-`rgbuilder_query` and `rgbuilder_search` apply **`limit` 20** when the client omits `limit`. CLI `-f json gql` / `semantic query` do **not** add that default.
+`rgctl_query` and `rgctl_search` apply **`limit` 20** when the client omits `limit`. CLI `-f json gql` / `semantic query` do **not** add that default.
 
-If the graph, CFG archive, or semantic index is missing, those tools return pipeline status (`command`: `pipeline_status`, `schema_version` 1) as the **tool result**, not a JSON-RPC error. `cpg export` is CLI-only (`rgbuilder_cpg` `op` `export` is unknown).
+If the graph, CFG archive, or semantic index is missing, those tools return pipeline status (`command`: `pipeline_status`, `schema_version` 1) as the **tool result**, not a JSON-RPC error. `cpg export` is CLI-only (`rgctl_cpg` `op` `export` is unknown).
 
-Resources: `rgbuilder://status`, `rgbuilder://manifest`, `rgbuilder://migration-plan`. Walkthrough: [MCP Server](guides/mcp-server.md).
+Resources: `rgctl://status`, `rgctl://manifest`, `rgctl://migration-plan`. Walkthrough: [MCP Server](guides/mcp-server.md).
 
 ### Prerequisites
 
-All query commands require a prior successful `discover` (creates `.rgbuilder/graph.snapshot.bin` and related caches). See [user-guide.md](user-guide.md).
+All query commands require a prior successful `discover` (creates `.rgctl/graph.snapshot.bin` and related caches). See [user-guide.md](user-guide.md).
 
 ---
 
@@ -151,7 +151,7 @@ interface DiscoverResponse {
 }
 ```
 
-With `--full`, stdout is still **one** JSON object (`full: true` + `plan`). Live stage updates go to `.rgbuilder/pipeline_status.json` (`schema_version` 1, `command: "pipeline_status"`). `GET /api/status` on HTTP `serve` and MCP `rgbuilder_status` (`structuredContent`) return the same document. See [MCP Server](guides/mcp-server.md).
+With `--full`, stdout is still **one** JSON object (`full: true` + `plan`). Live stage updates go to `.rgctl/pipeline_status.json` (`schema_version` 1, `command: "pipeline_status"`). `GET /api/status` on HTTP `serve` and MCP `rgctl_status` (`structuredContent`) return the same document. See [MCP Server](guides/mcp-server.md).
 
 ### Example
 
@@ -184,7 +184,7 @@ rgctl -f json discover . | jq '.metrics | {nodes: .nodes_generated, ms: .duratio
 rgctl -f json gql "<QUERY>" [--macro-name NAME] [--explain]
 ```
 
-CLI JSON does not default-limit rows. MCP `rgbuilder_query` applies `limit` 20 when omitted.
+CLI JSON does not default-limit rows. MCP `rgctl_query` applies `limit` 20 when omitted.
 
 ### TypeScript shape
 
@@ -209,7 +209,7 @@ interface GqlRow {
 
 Each `rows[i]` is an **array** of bindings (one object per variable in the `RETURN` clause).
 
-Virtual `:Community` nodes and `f.community_id` filters join `.rgbuilder/analysis_results.bin`
+Virtual `:Community` nodes and `f.community_id` filters join `.rgctl/analysis_results.bin`
 (see [community-query-and-naming-plan.md](design/community-query-and-naming-plan.md)).
 
 ### Example
@@ -341,7 +341,7 @@ rgctl -f json blast-radius OrderService --policy-file policy.json \
 
 ### Migration from legacy flat JSON
 
-Older rgBuilder emitted a flat object (`symbol`, `score`, `direct_callers[]`, `impact_zone[]` at the root). Current output is **nested** with `schema_version: 2`. See the blast-radius field catalog in this document for the full table and jq path mapping.
+Older rgctl emitted a flat object (`symbol`, `score`, `direct_callers[]`, `impact_zone[]` at the root). Current output is **nested** with `schema_version: 2`. See the blast-radius field catalog in this document for the full table and jq path mapping.
 
 ```bash
 # Was: jq '.score'  →  Now:
@@ -617,7 +617,7 @@ rgctl export --export-format mermaid --export-output clearCart.mmd --query 'name
 
 ## 12. On-disk JSON after `discover`
 
-These files are written under `.rgbuilder/` (and copied into `.rgbuilder/dashboard/` for the UI). They are **not** emitted on stdout but are stable inputs for custom tooling.
+These files are written under `.rgctl/` (and copied into `.rgctl/dashboard/` for the UI). They are **not** emitted on stdout but are stable inputs for custom tooling.
 
 | Path | `schema_version` | Purpose |
 |------|------------------:|---------|
@@ -732,12 +732,12 @@ exit "${ec:-0}"
 ```python
 import json, subprocess
 
-def rgbuilder_json(repo: str, *args: str) -> dict:
+def rgctl_json(repo: str, *args: str) -> dict:
     cmd = ["rgctl", "-r", repo, "-f", "json", *args]
     out = subprocess.check_output(cmd, text=True)
     return json.loads(out)
 
-doc = rgbuilder_json("/path/to/coolstore", "blast-radius", "CartEndpoint")
+doc = rgctl_json("/path/to/coolstore", "blast-radius", "CartEndpoint")
 assert doc["schema_version"] == 2
 for caller in doc["topology"]["direct_callers"]:
     print(caller["id"], caller["fqn"])
@@ -748,14 +748,14 @@ for caller in doc["topology"]["direct_callers"]:
 ```javascript
 import { execFileSync } from "node:child_process";
 
-function rgbuilderJson(repo, ...args) {
+function rgctlJson(repo, ...args) {
   const out = execFileSync("rgctl", ["-r", repo, "-f", "json", ...args], {
     encoding: "utf8",
   });
   return JSON.parse(out);
 }
 
-const gql = rgbuilderJson(process.env.REPO, "gql", "MATCH (n:Function) RETURN n");
+const gql = rgctlJson(process.env.REPO, "gql", "MATCH (n:Function) RETURN n");
 const names = gql.rows.flat().map((b) => b.node);
 ```
 
@@ -796,7 +796,7 @@ type SemanticIndexJsonResponse = {
   model_id: string;            // e.g. vocab-accumulate-v1; +bodies when --embed-bodies
   dimensions: number;          // default 256
   functions_indexed: number;   // entry count (doc sections when --scope docs; field name is legacy)
-  path: string;                // .rgbuilder/semantic_index.bin
+  path: string;                // .rgctl/semantic_index.bin
   graph_digest?: string;
   build_stats?: {
     total: number;
@@ -815,11 +815,11 @@ rgctl -r "$REPO" -f json semantic index | jq '{model_id, dimensions, functions_i
 
 ### `semantic distill`
 
-Teacher-embed `vocab_tokens.txt` into an RBVK blob. Copy the file to `crates/rgbuilder-analysis/assets/vocab_matrix.bin` and rebuild to compile `vocab-accumulate-v2`. Teacher cannot be `vocab` (that would distill the table from itself). Default teacher is `code-daemon`; `--embedder hash` is for tests / offline CI.
+Teacher-embed `vocab_tokens.txt` into an RBVK blob. Copy the file to `crates/rgctl-analysis/assets/vocab_matrix.bin` and rebuild to compile `vocab-accumulate-v2`. Teacher cannot be `vocab` (that would distill the table from itself). Default teacher is `code-daemon`; `--embedder hash` is for tests / offline CI.
 
 ```bash
 rgctl -r "$REPO" -f json semantic distill --matrix vocab_matrix.bin --embedder hash
-rgctl -r "$REPO" semantic distill --matrix crates/rgbuilder-analysis/assets/vocab_matrix.bin --embedder code-daemon
+rgctl -r "$REPO" semantic distill --matrix crates/rgctl-analysis/assets/vocab_matrix.bin --embedder code-daemon
 ```
 
 ```typescript
@@ -906,7 +906,7 @@ GQL alternative: `--macro-name all_communities` (see User Guide §6).
 
 ## 17. `cpg`
 
-Hybrid CPG façade (needs `discover --with-cfg`). Types: `crates/rgbuilder-analysis/src/cpg.rs` + `src/cli/cpg.rs`. All JSON payloads use `schema_version: 1`.
+Hybrid CPG façade (needs `discover --with-cfg`). Types: `crates/rgctl-analysis/src/cpg.rs` + `src/cli/cpg.rs`. All JSON payloads use `schema_version: 1`.
 
 ### `cpg status`
 
@@ -975,7 +975,7 @@ rgctl -r "$REPO" -f json cpg calls priceShoppingCart | jq '.edges[:10]'
 
 ## 18. `install`
 
-Copy the bundled rgBuilder agent skill into project skill directories. Does **not** require a prior `discover`. Types: `src/cli/install_output.rs`. `schema_version` is **1**.
+Copy the bundled rgctl agent skill into project skill directories. Does **not** require a prior `discover`. Types: `src/cli/install_output.rs`. `schema_version` is **1**.
 
 ```bash
 rgctl -r "$REPO" -f json install --skill [--host all|claude|cursor] [--force]
@@ -987,7 +987,7 @@ type InstallWriteStatus = "created" | "unchanged" | "overwritten" | "skipped_exi
 type InstallResponse = {
   schema_version: 1;
   command: "install";
-  skill: "rgbuilder";
+  skill: "rgctl";
   repo: string; // absolute repository root
   force: boolean;
   writes: Array<{
@@ -1077,7 +1077,7 @@ rgctl -f json blast-radius <SYMBOL> [--depth N] [--policy-file PATH] [--with-sli
 **Optional warm path:** foreground `rgctl serve` is `POST /api/query` on `127.0.0.1:8080`. Daemon HTTP uses `/{reponame}/api/query`. See [http-api.md](http-api.md).
 
 **Source:** `src/cli/blast_radius_output.rs`  
-**Cache enrichment:** `crates/rgbuilder-analysis/src/macro_call_index.rs`, `macro_call_lookup.rs`
+**Cache enrichment:** `crates/rgctl-analysis/src/macro_call_index.rs`, `macro_call_lookup.rs`
 
 ### Top-level
 
@@ -1187,7 +1187,7 @@ rgctl -f json blast-radius <SYMBOL> [--depth N] [--policy-file PATH] [--with-sli
 
 **FQN policy:** route on `target.canonical_fqn` (`Class::method`) and `topology.*.id` (UUID). Treat `topology.*.fqn` as language-native display text only.
 
-**Cache:** target metadata is written at `discover` into `macro_call_index.db` / `.bin`. Re-run `discover` after upgrading rgBuilder to populate v2 fields on cache hits.
+**Cache:** target metadata is written at `discover` into `macro_call_index.db` / `.bin`. Re-run `discover` after upgrading rgctl to populate v2 fields on cache hits.
 
 ### Example (Java, cache path)
 
@@ -1251,9 +1251,9 @@ rgctl daemon start [--host HOST] [--port PORT]
 rgctl serve -r REPO --daemon [--idle-secs SECS]
 ```
 
-Default bind `0.0.0.0:8080`; catalog at `/`, per-repo routes under `/{reponame}/`, MCP at `/mcp`. Cache lives under `~/.rgbuilder/cache/{reponame}/` unless `--daemon-home` / storage override is set.
+Default bind `0.0.0.0:8080`; catalog at `/`, per-repo routes under `/{reponame}/`, MCP at `/mcp`. Cache lives under `~/.rgctl/cache/{reponame}/` unless `--daemon-home` / storage override is set.
 
-**Role:** Shared in-memory graph + command service for CLI routing, HTTP, and MCP. Opt out with **`--no-daemon`** (in-process, `{repo}/.rgbuilder/`).
+**Role:** Shared in-memory graph + command service for CLI routing, HTTP, and MCP. Opt out with **`--no-daemon`** (in-process, `{repo}/.rgctl/`).
 
 **Requires:** prior `discover` (via daemon or `--no-daemon`) producing `graph.snapshot.bin`.
 
@@ -1269,7 +1269,7 @@ rgctl -f json discover PATH [--languages LANGS] [--exclude PATTERNS] [--with-sec
 
 **Source:** `src/cli/discover_output.rs`, `src/cli/discover_impl.rs`
 
-With `-f json`, discover **suppresses** progress bars and human status lines on stderr (logging quiet unless `-v`). **Stdout** receives a single telemetry object after ingestion completes. Artifacts under `.rgbuilder/` are still written.
+With `-f json`, discover **suppresses** progress bars and human status lines on stderr (logging quiet unless `-v`). **Stdout** receives a single telemetry object after ingestion completes. Artifacts under `.rgctl/` are still written.
 
 ```json
 {
@@ -1301,16 +1301,16 @@ Without `-f json`, discover remains human-readable text progress (unchanged).
 
 | Path | When | Format |
 |------|------|--------|
-| `.rgbuilder/graph.snapshot.bin` | Always (default canonical graph) | Binary graph snapshot |
-| `.rgbuilder/blast_engine.snapshot.bin` | Always | Binary blast engine snapshot |
-| `.rgbuilder/macro_call_index.db` | Always | SQLite **blast-radius lookup cache** only (+ UUID + v2 target columns) |
-| `.rgbuilder/macro_call_index.bin` | Always | Bincode companion index (same data family as `.db`) |
-| `.rgbuilder/analysis_results.bin` | Always | Columnar analysis tables |
-| `.rgbuilder/dashboard/` | When export succeeds | Static dashboard bundle (`index.html`, `manifest.json`, …) |
-| `.rgbuilder/graph.db` / `.rgbuilder/graph.json` | `--write-json-graph` only | Legacy full graph JSON |
-| `.rgbuilder/analysis/cfg_pdg.archive.bin` | `--with-cfg` or `--with-taint` | CFG + PDG for `--with-slices` |
-| `.rgbuilder/analysis/*.json` | `--with-cfg` or `--with-taint` | Per-function analysis storage (taint, CFG, PDG) |
-| `.rgbuilder/dashboard/taint_index.json` | `--with-cfg` or `--with-taint` | Dashboard taint catalog (see [json-api.md](json-api.md) §12) |
+| `.rgctl/graph.snapshot.bin` | Always (default canonical graph) | Binary graph snapshot |
+| `.rgctl/blast_engine.snapshot.bin` | Always | Binary blast engine snapshot |
+| `.rgctl/macro_call_index.db` | Always | SQLite **blast-radius lookup cache** only (+ UUID + v2 target columns) |
+| `.rgctl/macro_call_index.bin` | Always | Bincode companion index (same data family as `.db`) |
+| `.rgctl/analysis_results.bin` | Always | Columnar analysis tables |
+| `.rgctl/dashboard/` | When export succeeds | Static dashboard bundle (`index.html`, `manifest.json`, …) |
+| `.rgctl/graph.db` / `.rgctl/graph.json` | `--write-json-graph` only | Legacy full graph JSON |
+| `.rgctl/analysis/cfg_pdg.archive.bin` | `--with-cfg` or `--with-taint` | CFG + PDG for `--with-slices` |
+| `.rgctl/analysis/*.json` | `--with-cfg` or `--with-taint` | Per-function analysis storage (taint, CFG, PDG) |
+| `.rgctl/dashboard/taint_index.json` | `--with-cfg` or `--with-taint` | Dashboard taint catalog (see [json-api.md](json-api.md) §12) |
 
 ---
 
@@ -1362,7 +1362,7 @@ rgctl -f json gql "<QUERY>" [--explain] [--macro NAME]
 | `member_count` | number \| omitted | Community size |
 | `properties` | object \| omitted | Allowlisted extract properties (`is_lambda`, `throws`, …) |
 
-**Note:** The explain **plan** is not included in JSON; it prints to text mode only. Virtual `:Community` / `community_id` require `.rgbuilder/analysis_results.bin` after `discover`.
+**Note:** The explain **plan** is not included in JSON; it prints to text mode only. Virtual `:Community` / `community_id` require `.rgctl/analysis_results.bin` after `discover`.
 
 ---
 
@@ -1691,7 +1691,7 @@ See [json-api.md §18](json-api.md#18-install). Source: `src/cli/install_output.
 |-------|------|-------|
 | `schema_version` | number | **1** |
 | `command` | string | Always `"install"` |
-| `skill` | string | Always `"rgbuilder"` |
+| `skill` | string | Always `"rgctl"` |
 | `repo` | string | Absolute repository root |
 | `force` | bool | Whether `--force` was set |
 | `writes[].host` | string | `"claude"` or `"cursor"` |

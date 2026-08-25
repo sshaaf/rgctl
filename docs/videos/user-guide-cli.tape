@@ -1,4 +1,4 @@
-# rgBuilder CLI demo — user-guide walkthrough (no captions)
+# rgctl CLI demo — user-guide walkthrough (no captions)
 #
 # Commands follow docs/user-guide.md §16 + CoolStore dual API / hybrid CPG.
 # Record: ./docs/videos/record-user-guide-cli.sh
@@ -31,7 +31,7 @@ Set CursorBlink true
 
 # --- silent setup ---
 Hide
-Type "cd rgbuilder-tests/ecommerce-java"
+Type "cd rgctl-tests/ecommerce-java"
 Enter
 Sleep 200ms
 Type "clear"
@@ -138,7 +138,7 @@ Enter
 Sleep 2.5s
 
 # 12. check
-Type "rgctl -f json check --policy-file ../../rgbuilder-tests/rgbuilder-policy.json | jq '{schema_version, violations: (.violations|length)}'"
+Type "rgctl -f json check --policy-file ../../rgctl-tests/rgctl-policy.json | jq '{schema_version, violations: (.violations|length)}'"
 Enter
 Sleep 3s
 

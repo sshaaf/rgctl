@@ -1,0 +1,16 @@
+[package]
+name = "rgctl-macros"
+version = "0.4.6"
+edition.workspace = true
+rust-version.workspace = true
+description = "Procedural macros for rgctl language plugins"
+license = "MIT OR Apache-2.0"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+rgctl-plugin-api = { path = "../crates/rgctl-plugin-api" }
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }

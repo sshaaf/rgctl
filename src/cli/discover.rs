@@ -22,7 +22,7 @@ pub struct DiscoverArgs {
     pub with_ast_skeleton: bool,
     /// Also write legacy JSON graph files (`graph.db` / `graph.json`).
     pub write_json_graph: bool,
-    /// Export `.rgbuilder/dashboard/` bundle. Default off.
+    /// Export `.rgctl/dashboard/` bundle. Default off.
     pub with_dashboard: bool,
     /// Write a migration roadmap JSON after analysis completes.
     pub export_migration_hints: bool,

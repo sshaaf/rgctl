@@ -1,15 +1,15 @@
 //! Phase 12.0 — graph schema enrichment integration tests
 
-use rgbuilder::extraction::extractor::Extractor;
-use rgbuilder::extraction::graph_builder::GraphBuilder;
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::code_index::CodeIndex;
-use rgbuilder::graph::export::{export_json, import_json};
-use rgbuilder::graph::migration::migrate_v1_to_v2;
-use rgbuilder::graph::query;
-use rgbuilder::graph::schema::{CallType, Edge, EdgeType, GRAPH_SCHEMA_VERSION, Node, NodeType};
-use rgbuilder::languages::registry::LanguageRegistry;
-use rgbuilder::semantic::signature::SignatureExtractor;
+use rgctl::extraction::extractor::Extractor;
+use rgctl::extraction::graph_builder::GraphBuilder;
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::code_index::CodeIndex;
+use rgctl::graph::export::{export_json, import_json};
+use rgctl::graph::migration::migrate_v1_to_v2;
+use rgctl::graph::query;
+use rgctl::graph::schema::{CallType, Edge, EdgeType, GRAPH_SCHEMA_VERSION, Node, NodeType};
+use rgctl::languages::registry::LanguageRegistry;
+use rgctl::semantic::signature::SignatureExtractor;
 use tempfile::TempDir;
 use uuid::Uuid;
 
@@ -41,7 +41,7 @@ fn test_rust_signature_populates_first_class_fields() {
 
 #[test]
 fn test_query_signature_and_return_type_filters() {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     backend
         .insert_node(
             Node::new(NodeType::Function, "process".to_string())
@@ -63,7 +63,7 @@ fn test_query_signature_and_return_type_filters() {
 
 #[test]
 fn test_graph_export_import_schema_version() {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     backend
         .insert_node(Node::new(NodeType::Function, "main".to_string()))
         .unwrap();
@@ -86,7 +86,7 @@ fn test_migration_promotes_legacy_properties() {
 #[test]
 fn test_code_index_change_detection() {
     let mut index = CodeIndex::new();
-    let loc = rgbuilder::languages::plugin_trait::SourceLocation {
+    let loc = rgctl::languages::plugin_trait::SourceLocation {
         file: "main.rs".into(),
         start_line: 1,
         end_line: 1,

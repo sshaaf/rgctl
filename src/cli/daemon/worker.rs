@@ -16,9 +16,9 @@ use axum::http::{Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use rgbuilder_graph::snapshot::SNAPSHOT_FILE;
-use rgbuilder_service::command::{CheckArgs, Command, ImpactArgs, MetricsArgs, QueryArgs};
-use rgbuilder_service::{Session, execute};
+use rgctl_graph::snapshot::SNAPSHOT_FILE;
+use rgctl_service::command::{CheckArgs, Command, ImpactArgs, MetricsArgs, QueryArgs};
+use rgctl_service::{Session, execute};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
@@ -236,7 +236,7 @@ fn handle_mcp_rpc(state: &WorkerState, msg: Value) -> Result<Value> {
         resolve_repo_cache(state, repo_arg).unwrap_or_else(|_| state.home.root().to_path_buf())
     };
     let mut session = Session::new(&cache);
-    rgbuilder_mcp::handle_rpc(&mut session, &msg).context("MCP returned no response")
+    rgctl_mcp::handle_rpc(&mut session, &msg).context("MCP returned no response")
 }
 
 fn resolve_repo_cache(state: &WorkerState, repo: Option<&str>) -> Result<PathBuf> {
@@ -434,7 +434,7 @@ fn list_repos(state: &WorkerState) -> Result<Vec<RepoListEntry>> {
     let g = state.catalog.lock().expect("catalog");
     Ok(g.values()
         .map(|r| {
-            let snap = rgbuilder_graph::paths::artifact_path(&r.cache, SNAPSHOT_FILE);
+            let snap = rgctl_graph::paths::artifact_path(&r.cache, SNAPSHOT_FILE);
             RepoListEntry {
                 name: r.name.clone(),
                 source: r.source.display().to_string(),

@@ -3,7 +3,7 @@
 #
 # Usage:
 #   ./scripts/validate-golden-repos.sh
-#   RGBUILDER_DASHBOARD_GOLDEN_REPO=/path/to/gbuilder ./scripts/validate-golden-repos.sh
+#   RGCTL_DASHBOARD_GOLDEN_REPO=/path/to/gbuilder ./scripts/validate-golden-repos.sh
 #
 # Requires: Node.js + Playwright (dashboard/), golden repo checkouts, embedded dashboard dist.
 
@@ -12,16 +12,16 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-GBUILDER="${RGBUILDER_DASHBOARD_GOLDEN_REPO:-/Users/sshaaf/git/java/gbuilder}"
-METASFRESH="${RGBUILDER_METASFRESH_REPO:-$ROOT/example/metasfresh-4.9.8b}"
-SERVE_PORT="${RGBUILDER_SERVE_PORT:-8080}"
+GBUILDER="${RGCTL_DASHBOARD_GOLDEN_REPO:-/Users/sshaaf/git/java/gbuilder}"
+METASFRESH="${RGCTL_METASFRESH_REPO:-$ROOT/example/metasfresh-4.9.8b}"
+SERVE_PORT="${RGCTL_SERVE_PORT:-8080}"
 DASHBOARD_URL="http://127.0.0.1:${SERVE_PORT}/"
 
 log() { echo "[validate-golden-repos] $*"; }
 
 resolve_rgctl() {
-  if [[ -n "${RGBUILDER_RGCTL:-}" && -x "${RGBUILDER_RGCTL}" ]]; then
-    printf '%s' "${RGBUILDER_RGCTL}"
+  if [[ -n "${RGCTL_RGCTL:-}" && -x "${RGCTL_RGCTL}" ]]; then
+    printf '%s' "${RGCTL_RGCTL}"
     return
   fi
   if command -v rgctl >/dev/null 2>&1; then
@@ -89,11 +89,11 @@ if require_dir "$METASFRESH"; then
 fi
 
 serve_repo="${GBUILDER}"
-if [[ ! -d "$serve_repo/.rgbuilder/dashboard" && -d "$METASFRESH/.rgbuilder/dashboard" ]]; then
+if [[ ! -d "$serve_repo/.rgctl/dashboard" && -d "$METASFRESH/.rgctl/dashboard" ]]; then
   serve_repo="$METASFRESH"
 fi
 
-if [[ -d "$serve_repo/.rgbuilder/dashboard" ]]; then
+if [[ -d "$serve_repo/.rgctl/dashboard" ]]; then
   log "Starting rgctl serve on port ${SERVE_PORT} for ${serve_repo}"
   "$RGCTL" -r "$serve_repo" serve --port "$SERVE_PORT" &
   SERVE_PID=$!

@@ -12,6 +12,6 @@ export function withBase(path: string): string {
   return `${base}${path}`;
 }
 
-export const GITHUB_REPO = "https://github.com/sshaaf/rgBuilder";
+export const GITHUB_REPO = "https://github.com/sshaaf/rgctl";
 export const GITHUB_RELEASES = `${GITHUB_REPO}/releases/latest`;
 export const GITHUB_DISCUSSIONS = `${GITHUB_REPO}/discussions`;

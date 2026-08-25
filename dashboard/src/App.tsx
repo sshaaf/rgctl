@@ -68,7 +68,7 @@ export function App() {
                 ⎇
               </span>
               <h1 class={`mb-0 fw-semibold text-primary ${tab === "graph" ? "h5" : "h4"}`}>
-                rgBuilder Analysis Dashboard
+                rgctl Analysis Dashboard
               </h1>
             </div>
             {tab !== "graph" && (

@@ -1,4 +1,4 @@
-/* @ts-self-types="./rgbuilder_wasm.d.ts" */
+/* @ts-self-types="./rgctl_wasm.d.ts" */
 
 export class EngineContext {
     __destroy_into_raw() {
@@ -214,7 +214,7 @@ function __wbg_get_imports() {
     };
     return {
         __proto__: null,
-        "./rgbuilder_wasm_bg.js": import0,
+        "./rgctl_wasm_bg.js": import0,
     };
 }
 
@@ -387,7 +387,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (module_or_path === undefined) {
-        module_or_path = new URL('rgbuilder_wasm_bg.wasm', import.meta.url);
+        module_or_path = new URL('rgctl_wasm_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 

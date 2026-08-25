@@ -8,7 +8,7 @@ use analysis_helpers::{
     analyze_taint, analyze_taint_with_types, analyze_vulnerable_taint, assert_flow_kind,
     pdg_statement_texts,
 };
-use rgbuilder::analysis::{TaintFlow, TaintSink, TaintSource};
+use rgctl::analysis::{TaintFlow, TaintSink, TaintSource};
 
 macro_rules! taint_test {
     ($(#[$attr:meta])* $name:ident, $lang:expr, $code:expr, $fn:expr, $check:expr) => {
@@ -253,7 +253,7 @@ def run(request):
         assert!(flows.iter().any(|f| {
             f.sanitizers
                 .iter()
-                .any(|s| matches!(s, rgbuilder::analysis::Sanitizer::ShellEscape))
+                .any(|s| matches!(s, rgctl::analysis::Sanitizer::ShellEscape))
         }));
     }
 );
@@ -497,7 +497,7 @@ def run(request):
 );
 #[test]
 fn test_partial_dominance_bypass() {
-    use rgbuilder::analysis::{
+    use rgctl::analysis::{
         PolicyViolation, ProgramDependenceGraph, TaintAnalyzer, build_cfg_for_function,
     };
 
@@ -520,7 +520,7 @@ def handle(request):
 }
 #[test]
 fn test_sanitizer_after_sink_trap() {
-    use rgbuilder::analysis::{
+    use rgctl::analysis::{
         PolicyViolation, ProgramDependenceGraph, TaintAnalyzer, build_cfg_for_function,
     };
 
@@ -542,7 +542,7 @@ def handle(request):
 }
 #[test]
 fn test_dominating_sanitizer_passes_policy() {
-    use rgbuilder::analysis::{ProgramDependenceGraph, TaintAnalyzer, build_cfg_for_function};
+    use rgctl::analysis::{ProgramDependenceGraph, TaintAnalyzer, build_cfg_for_function};
 
     let code = r#"
 def safe(request):

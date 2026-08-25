@@ -12,8 +12,8 @@ use crate::analysis::{
     expand_semantic_hits, query_communities, query_index_with_fusion,
 };
 use anyhow::{Context, Result, bail};
-use rgbuilder_graph::CodeGraph;
-use rgbuilder_graph::backend::GraphBackend;
+use rgctl_graph::CodeGraph;
+use rgctl_graph::backend::GraphBackend;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 
@@ -86,7 +86,7 @@ pub fn execute_semantic_query(
         tokenizer_path: args.tokenizer.clone(),
     };
 
-    let analysis_path = repo.join(".rgbuilder/analysis_results.bin");
+    let analysis_path = repo.join(".rgctl/analysis_results.bin");
     let analysis = if analysis_path.is_file() {
         Some(
             AnalysisResults::load(&analysis_path)

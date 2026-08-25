@@ -1,2 +1,2 @@
-//! Re-export check JSON types from `rgbuilder-service`.
-pub use rgbuilder_service::check_json::*;
+//! Re-export check JSON types from `rgctl-service`.
+pub use rgctl_service::check_json::*;

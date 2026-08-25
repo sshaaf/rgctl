@@ -1,6 +1,6 @@
 # Kantra Integration Exploration — `--with-kantra`
 
-Feasibility analysis for evaluating [Konveyor Kantra](https://github.com/konveyor/kantra) rules natively against the rgBuilder graph, without requiring an external LSP or container runtime.
+Feasibility analysis for evaluating [Konveyor Kantra](https://github.com/konveyor/kantra) rules natively against the rgctl graph, without requiring an external LSP or container runtime.
 
 ---
 
@@ -8,17 +8,17 @@ Feasibility analysis for evaluating [Konveyor Kantra](https://github.com/konveyo
 
 Kantra is the Konveyor CLI for static code analysis and transformation. It uses YAML-based rules with a `when` clause that dispatches to language providers (`java.referenced`, `go.referenced`, `builtin.filecontent`, etc.). Rules produce violations (issues) with severity, effort estimates, and remediation guidance.
 
-rgBuilder already performs line-level code traversal during CFG/PDG/taint analysis and maintains a rich graph of symbols, imports, call edges, and community structure. The question is: **can we evaluate Kantra rules against our graph and source cache?**
+rgctl already performs line-level code traversal during CFG/PDG/taint analysis and maintains a rich graph of symbols, imports, call edges, and community structure. The question is: **can we evaluate Kantra rules against our graph and source cache?**
 
 ---
 
-## 2. Current rgBuilder Rule/Security Systems
+## 2. Current rgctl Rule/Security Systems
 
-rgBuilder has four independent rule and security systems today. They do not share a rule format or cross-reference each other.
+rgctl has four independent rule and security systems today. They do not share a rule format or cross-reference each other.
 
 ### 2.1 Taint Analysis (hardcoded, per-language)
 
-- **Crate:** `rgbuilder-analysis`, `taint.rs`
+- **Crate:** `rgctl-analysis`, `taint.rs`
 - **Trigger:** `--with-taint` (implies `--with-cfg`)
 - Sources, sinks, and sanitizers are detected via `text.contains()` on PDG node statement text
 - 8 languages supported (Python, JS/TS, Rust, Go, Java, C#, C, C++)
@@ -27,14 +27,14 @@ rgBuilder has four independent rule and security systems today. They do not shar
 
 ### 2.2 CWE/Security Patterns (hardcoded)
 
-- **Crate:** `rgbuilder-security`, `cve_patterns.rs` / `analyzer.rs`
+- **Crate:** `rgctl-security`, `cve_patterns.rs` / `analyzer.rs`
 - 10 CWE patterns (SQL injection, XSS, command injection, path traversal, etc.)
 - Regex-based matching of taint flows against CWE source/sink patterns
 - `CwePattern` struct is `Serialize/Deserialize` but **always loaded from `default_cwe_patterns()`** — no file-loading path exists
 
 ### 2.3 Rule Engine (JSON config)
 
-- **Crate:** `rgbuilder-rules`, `schema.rs` / `matcher.rs` / `actions.rs`
+- **Crate:** `rgctl-rules`, `schema.rs` / `matcher.rs` / `actions.rs`
 - JSON-serializable rulesets with composite boolean conditions (`And`/`Or`/`Not`/`Leaf`)
 - Leaf conditions: `NodeType`, `NamePattern`, `HasLabel`, `ComplexityGt/Lt`, `HasProperty`, `CallsAny`, `NodeTypeField`
 - Actions: `AddLabel`, `SetMetadata`, `SetComplexityOverride`
@@ -43,7 +43,7 @@ rgBuilder has four independent rule and security systems today. They do not shar
 
 ### 2.4 Policy/Check (JSON config)
 
-- **Crate:** `rgbuilder-service`, `policy.rs` / `check.rs`
+- **Crate:** `rgctl-service`, `policy.rs` / `check.rs`
 - Blast-radius policy guardrails: `forbidden_crossings`, `max_impact_nodes`, `centrality_alert_threshold`
 - CI gate: `rgctl check --policy-file` exits 1 on violations
 - **Does not evaluate taint, security, or rule engine results** — only blast-radius impact
@@ -104,7 +104,7 @@ my-rules/
 
 ---
 
-## 4. What rgBuilder Already Has for Evaluation
+## 4. What rgctl Already Has for Evaluation
 
 ### 4.1 Source Text in Memory
 
@@ -165,7 +165,7 @@ The taint detection loop (`taint.rs:detect_*_patterns()`) already iterates every
 
 ### 5.1 Evaluation Coverage
 
-| Kantra Condition | rgBuilder Data | Feasibility | Cost |
+| Kantra Condition | rgctl Data | Feasibility | Cost |
 |-----------------|----------------|-------------|------|
 | `builtin.filecontent` | `FileSourceCache` (source text) | **Full** | Trivial — regex on cached source |
 | `builtin.file` | `File` nodes with `file_path` | **Full** | Trivial — glob match |
@@ -191,7 +191,7 @@ The taint detection loop (`taint.rs:detect_*_patterns()`) already iterates every
 
 Analysis of the [konveyor/rulesets](https://github.com/konveyor/rulesets) repository shows the distribution of condition types:
 
-| Pattern | Approximate Frequency | rgBuilder Coverage |
+| Pattern | Approximate Frequency | rgctl Coverage |
 |---------|----------------------|-------------------|
 | `*.referenced` with simple pattern (no location) | ~60% | Full |
 | `builtin.filecontent` (regex in source) | ~25% | Full |
@@ -201,7 +201,7 @@ Analysis of the [konveyor/rulesets](https://github.com/konveyor/rulesets) reposi
 | `builtin.xml`/`builtin.json` | ~1% | Not feasible |
 | `java.referenced` with `annotated.elements` | ~1% | Partial (regex on raw args string) |
 
-**Estimated coverage: ~90-95% of real-world Kantra rules are evaluable with existing rgBuilder data.** The annotation upgrade (from "not feasible" to "partial") comes from the fact that `AnnotatedWith` edges with raw argument strings already exist in the graph — no `--with-cfg` needed.
+**Estimated coverage: ~90-95% of real-world Kantra rules are evaluable with existing rgctl data.** The annotation upgrade (from "not feasible" to "partial") comes from the fact that `AnnotatedWith` edges with raw argument strings already exist in the graph — no `--with-cfg` needed.
 
 ---
 
@@ -209,7 +209,7 @@ Analysis of the [konveyor/rulesets](https://github.com/konveyor/rulesets) reposi
 
 ### 6.1 Option A: Translation Layer
 
-Parse Kantra YAML, translate to rgBuilder `MatchCondition` + actions, evaluate against the graph.
+Parse Kantra YAML, translate to rgctl `MatchCondition` + actions, evaluate against the graph.
 
 - Pro: No external dependency
 - Pro: Graph-enhanced evaluation
@@ -297,7 +297,7 @@ The existing CFG batch uses `code_hash`-based incremental caching. Kantra evalua
 
 ## 8. The Graph Advantage
 
-This is what differentiates rgBuilder from running Kantra directly. For every Kantra violation, rgBuilder can cross-reference with:
+This is what differentiates rgctl from running Kantra directly. For every Kantra violation, rgctl can cross-reference with:
 
 | Enrichment | What It Adds |
 |------------|-------------|
@@ -327,13 +327,13 @@ Items 2-4 are fundamental limitations of graph-based evaluation. Item 1 is a par
 
 1. **Rule loading path** — Kantra rules use a directory structure with `ruleset.yaml` + `*.yaml`. Does `--with-kantra` take `--kantra-rules ./my-rules/`? Or a path to individual YAML files?
 
-2. **Output format** — Should violations produce Kantra-compatible `output.yaml` (for Konveyor Hub ingestion)? Or rgBuilder's own JSON format with Kantra metadata attached? Or both?
+2. **Output format** — Should violations produce Kantra-compatible `output.yaml` (for Konveyor Hub ingestion)? Or rgctl's own JSON format with Kantra metadata attached? Or both?
 
 3. **`check` integration** — Could `rgctl check --kantra-rules ./rules/ --policy-file policy.json` gate CI on mandatory Kantra violations? This would unify the blast-radius policy engine with Kantra rule evaluation.
 
 4. **Rules create CLI** — The existing rule engine has no CLI for creating rules. Should `--with-kantra` also motivate `rgctl rules init` (scaffold a Kantra-compatible YAML ruleset)?
 
-5. **Fast Kantra substitute** — If rgBuilder can evaluate ~90% of Kantra rules without containers or LSP servers, it could serve as a fast pre-check in CI before a full Kantra run. Is that a valuable user story?
+5. **Fast Kantra substitute** — If rgctl can evaluate ~90% of Kantra rules without containers or LSP servers, it could serve as a fast pre-check in CI before a full Kantra run. Is that a valuable user story?
 
 ---
 

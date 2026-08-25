@@ -21,7 +21,7 @@ rgctl -r example/coolstore discover . --with-cfg --with-dashboard
 rgctl -r example/coolstore serve --no-pipeline --open
 ```
 
-The `--with-dashboard` flag exports the static dashboard bundle to `.rgbuilder/dashboard/`.
+The `--with-dashboard` flag exports the static dashboard bundle to `.rgctl/dashboard/`.
 
 ## Step-by-Step
 
@@ -37,7 +37,7 @@ rgctl -r example/coolstore serve --open
 
 - The server starts on `http://127.0.0.1:8080`.
 - The `--open` flag opens the dashboard in your default browser.
-- The dashboard serves from `.rgbuilder/dashboard/` and the query API is available at `/api/query`.
+- The dashboard serves from `.rgctl/dashboard/` and the query API is available at `/api/query`.
 
 ### 2. Custom Host and Port
 
@@ -109,7 +109,7 @@ curl -s http://127.0.0.1:8080/api/semantic/query \
 
 ### 7. Background daemon (HTTP + MCP)
 
-Start a shared background daemon (catalog, per-repo HTTP, MCP at `/mcp`). Default cache: `~/.rgbuilder/cache/{reponame}/` (override with `--daemon-home` / `RGCTL_HOME`).
+Start a shared background daemon (catalog, per-repo HTTP, MCP at `/mcp`). Default cache: `~/.rgctl/cache/{reponame}/` (override with `--daemon-home` / `RGCTL_HOME`).
 
 ```bash
 rgctl daemon start --host 127.0.0.1 --port 8080
@@ -167,7 +167,7 @@ See the [HTTP API Reference](../http-api.md) for complete endpoint documentation
 | `--dashboard-only` | off | Serve dashboard only, no API |
 | `--mode` | `standard` | `standard` (HTTP) or `mcp` (stdio, no HTTP) |
 | `--no-pipeline` | off | Fail fast if artifacts are missing (old `serve` behavior) |
-| `--dashboard-dir` | `.rgbuilder/dashboard` | Dashboard directory |
+| `--dashboard-dir` | `.rgctl/dashboard` | Dashboard directory |
 | `--daemon` | off | Legacy Unix socket mode |
 | `--daemon` | off | Background HTTP+MCP daemon (`daemon start`) |
 | `--idle-secs` | `300` | Auto-exit after N seconds idle |

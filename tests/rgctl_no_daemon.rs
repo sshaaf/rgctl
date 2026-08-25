@@ -11,8 +11,8 @@
 mod rgctl_harness;
 
 use rgctl_harness::{
-    assert_no_rgbuilder_under, assert_ok, assert_rgbuilder_snapshot, cli_json, discover_fixture,
-    linux_repo_path, materialize_fixture, remove_rgbuilder, rgctl, run_no_daemon_in_repo,
+    assert_no_rgctl_under, assert_ok, assert_rgctl_snapshot, cli_json, discover_fixture,
+    linux_repo_path, materialize_fixture, remove_rgctl, rgctl, run_no_daemon_in_repo,
     run_no_daemon_json,
 };
 use std::process::Command;
@@ -27,7 +27,7 @@ fn no_daemon_discover_writes_source_tree_snapshot() {
         &run_no_daemon_in_repo(&repo, &["discover", "."]),
         "discover",
     );
-    assert_rgbuilder_snapshot(&repo);
+    assert_rgctl_snapshot(&repo);
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn discover_dot_from_repo_cwd_indexes_that_repo() {
         &run_no_daemon_in_repo(&repo, &["discover", "."]),
         "discover from repo cwd",
     );
-    assert_rgbuilder_snapshot(&repo);
+    assert_rgctl_snapshot(&repo);
 }
 
 /// Regression: `-r OTHER discover .` from a different cwd indexes cwd, not `-r`.
@@ -76,10 +76,10 @@ fn discover_dot_ignores_dash_r_when_cwd_differs() {
         .unwrap();
     assert_ok(&out, "discover from outer cwd");
     assert!(
-        outer.path().join(".rgbuilder/graph.snapshot.bin").is_file(),
+        outer.path().join(".rgctl/graph.snapshot.bin").is_file(),
         "discover . should index cwd (outer temp), not -r target"
     );
-    assert_no_rgbuilder_under(&repo);
+    assert_no_rgctl_under(&repo);
 }
 
 #[test]
@@ -97,8 +97,8 @@ fn discover_absolute_path_works_from_any_cwd() {
         .output()
         .unwrap();
     assert_ok(&out, "discover absolute path");
-    assert_rgbuilder_snapshot(&repo);
-    assert_no_rgbuilder_under(outer.path());
+    assert_rgctl_snapshot(&repo);
+    assert_no_rgctl_under(outer.path());
 }
 
 #[test]
@@ -110,10 +110,10 @@ fn linux_no_daemon_discover_and_gql_smoke() {
         return;
     }
 
-    remove_rgbuilder(&repo);
+    remove_rgctl(&repo);
     let out = run_no_daemon_json(&repo, &["discover", ".", "-v"]);
     assert_ok(&out, "linux discover");
-    assert_rgbuilder_snapshot(&repo);
+    assert_rgctl_snapshot(&repo);
 
     let query = cli_json(
         &repo,

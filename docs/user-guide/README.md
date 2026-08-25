@@ -1,7 +1,7 @@
 # User-guide scenarios
 
 Each runnable command in [user-guide.md](../user-guide.md) should have a JSON scenario here.
-CI runs `scripts/user-guide-scenarios.py --check` against `rgbuilder-tests/ecommerce-java`.
+CI runs `scripts/user-guide-scenarios.py --check` against `rgctl-tests/ecommerce-java`.
 
 ## Scenario schema
 
@@ -21,7 +21,7 @@ CI runs `scripts/user-guide-scenarios.py --check` against `rgbuilder-tests/ecomm
 |-------|---------|
 | `id` | Unique id (filename stem) |
 | `args` | argv after binary (run with `-r` ecommerce-java) |
-| `is_discover` | If true, tears down `.rgbuilder` then runs |
+| `is_discover` | If true, tears down `.rgctl` then runs |
 | `needs_discover` | Default true for non-discover scenarios |
 | `require_json_keys` | Top-level JSON keys that must exist when stdout is JSON |
 | `stdout_contains` | Substrings that must appear in stdout or stderr |

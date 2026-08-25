@@ -52,7 +52,7 @@ flowchart TB
 
 **Query tiers** (`src/cli/blast_radius.rs`): T0 blast lookup cache hit → daemon-backed service (default) or in-process mmap path → full hydrate for `--with-slices` / `--policy-file`.
 
-> **Retired:** The per-repo **`query.sock`** blast-only daemon (`src/cli/query_daemon.rs`, `serve --daemon` as a Unix socket) is removed on current main. Use the shared **HTTP+MCP daemon** (`rgctl daemon start`, cache under `~/.rgbuilder/`) or **`--no-daemon`** for in-process queries. See [unreleased.md](../releases/unreleased.md).
+> **Retired:** The per-repo **`query.sock`** blast-only daemon (`src/cli/query_daemon.rs`, `serve --daemon` as a Unix socket) is removed on current main. Use the shared **HTTP+MCP daemon** (`rgctl daemon start`, cache under `~/.rgctl/`) or **`--no-daemon`** for in-process queries. See [unreleased.md](../releases/unreleased.md).
 
 ---
 
@@ -71,9 +71,9 @@ CLI JSON: [json-api.md](../json-api.md) (blast-radius + field catalogs).
 
 | Component | Path |
 |-----------|------|
-| Engine + reachability | `crates/rgbuilder-analysis/src/blast_radius_scc.rs` |
-| Engine snapshot | `crates/rgbuilder-analysis/src/blast_engine_snapshot.rs` |
-| T0 lookup cache | `crates/rgbuilder-analysis/src/macro_call_lookup.rs` |
+| Engine + reachability | `crates/rgctl-analysis/src/blast_radius_scc.rs` |
+| Engine snapshot | `crates/rgctl-analysis/src/blast_engine_snapshot.rs` |
+| T0 lookup cache | `crates/rgctl-analysis/src/macro_call_lookup.rs` |
 | CLI orchestration | `src/cli/blast_radius.rs` |
 | Daemon routing | `src/cli/daemon/` (HTTP+MCP; shared command service) |
 | Legacy socket client *(retired)* | `src/cli/query_daemon.rs` |

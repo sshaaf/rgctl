@@ -7,11 +7,11 @@ mod analysis_helpers;
 use analysis_helpers::{
     build_backend_with_parameters, build_sample_backend_with_chain, call_graph_from, sample_backend,
 };
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     InterproceduralCFG, InterproceduralSlicer, ProgramDependenceGraph, SliceCriterion,
 };
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::schema::{Edge, EdgeType, GraphParameter, Node, NodeType};
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::schema::{Edge, EdgeType, GraphParameter, Node, NodeType};
 use std::collections::HashMap;
 
 macro_rules! ip_test {
@@ -53,7 +53,7 @@ ip_test!(topological_order_chain, {
 });
 
 ip_test!(topological_order_diamond, {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     let a = Node::new(NodeType::Function, "a");
     let b = Node::new(NodeType::Function, "b");
     let c = Node::new(NodeType::Function, "c");
@@ -86,7 +86,7 @@ ip_test!(topological_order_diamond, {
 });
 
 ip_test!(recursive_self_loop_detected, {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     let f = Node::new(NodeType::Function, "fact");
     let id = f.id;
     backend.insert_node(f).unwrap();
@@ -99,7 +99,7 @@ ip_test!(recursive_self_loop_detected, {
 });
 
 ip_test!(recursive_mutual_pair, {
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     let a = Node::new(NodeType::Function, "a");
     let b = Node::new(NodeType::Function, "b");
     let id_a = a.id;
@@ -237,7 +237,7 @@ ip_test!(graph_parameter_stored_on_node, {
     assert_eq!(node.parameters[0].name, "x");
     let id = node.id;
     let cg = call_graph_from(&{
-        let mut b = rgbuilder::graph::backend::MemoryBackend::new();
+        let mut b = rgctl::graph::backend::MemoryBackend::new();
         b.insert_node(node).unwrap();
         b
     });
@@ -309,12 +309,12 @@ ip_test!(topological_order_preserves_edge_direction, {
     }
 });
 ip_test!(test_multi_argument_index_isolation, {
-    use rgbuilder::analysis::{
+    use rgctl::analysis::{
         BlastRadiusEngine, InterproceduralCFG, InterproceduralSlicer, criterion_for_parameter,
         filter_handoff_seeds_by_index, resolve_handoff_seeds,
     };
 
-    let mut backend = rgbuilder::graph::backend::MemoryBackend::new();
+    let mut backend = rgctl::graph::backend::MemoryBackend::new();
     let main = Node::new(NodeType::Function, "main").with_file_path("vars.rs");
     let foo = Node::new(NodeType::Function, "foo")
         .with_file_path("vars.rs")

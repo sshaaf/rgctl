@@ -5,13 +5,13 @@
 
 mod dashboard_harness;
 
-use dashboard_harness::{copy_dir_all, rgbuilder_bin};
-use rgbuilder::analysis::AnalysisResults;
+use dashboard_harness::{copy_dir_all, rgctl_bin};
+use rgctl::analysis::AnalysisResults;
 use std::path::Path;
 use std::process::Command;
 
 fn run_discover(repo: &Path, extra: &[&str]) -> std::process::Output {
-    let mut cmd = Command::new(rgbuilder_bin());
+    let mut cmd = Command::new(rgctl_bin());
     cmd.args([
         "-r",
         repo.to_str().unwrap(),
@@ -50,7 +50,7 @@ fn max_pagerank(analysis: &AnalysisResults) -> f32 {
 }
 
 fn load_analysis(repo: &Path) -> AnalysisResults {
-    let path = repo.join(".rgbuilder/analysis_results.bin");
+    let path = repo.join(".rgctl/analysis_results.bin");
     assert!(path.is_file(), "missing {}", path.display());
     AnalysisResults::load(&path).expect("load analysis_results")
 }
@@ -61,7 +61,7 @@ fn discover_default_skips_harmonic_columns() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let repo = tmp.path().join("repo");
     copy_dir_all(&fixture, &repo).expect("copy fixture");
-    let _ = std::fs::remove_dir_all(repo.join(".rgbuilder"));
+    let _ = std::fs::remove_dir_all(repo.join(".rgctl"));
 
     let output = run_discover(&repo, &[]);
     assert_ok(&output, "discover default");
@@ -88,7 +88,7 @@ fn discover_with_harmonic_fills_nonzero_scores() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let repo = tmp.path().join("repo");
     copy_dir_all(&fixture, &repo).expect("copy fixture");
-    let _ = std::fs::remove_dir_all(repo.join(".rgbuilder"));
+    let _ = std::fs::remove_dir_all(repo.join(".rgctl"));
 
     let output = run_discover(&repo, &["--with-harmonic"]);
     assert_ok(&output, "discover --with-harmonic");
@@ -106,7 +106,7 @@ fn discover_with_harmonic_fills_nonzero_scores() {
 
 #[test]
 fn discover_help_documents_with_harmonic() {
-    let output = Command::new(rgbuilder_bin())
+    let output = Command::new(rgctl_bin())
         .args(["discover", "--help"])
         .output()
         .expect("spawn help");

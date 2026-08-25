@@ -33,7 +33,7 @@ rgctl discover . -l java -e target \\
 rgctl semantic index --embedder vocab --dimensions 256`;
 
 /**
- * Examples target rgbuilder-tests/ecommerce-java (JWT /api/* + CoolStore /services/*).
+ * Examples target rgctl-tests/ecommerce-java (JWT /api/* + CoolStore /services/*).
  * Substitute symbols/paths for other repos.
  */
 export const CLI_WORKFLOWS: CliWorkflowSection[] = [
@@ -185,7 +185,7 @@ export const CLI_WORKFLOWS: CliWorkflowSection[] = [
     ],
     notes: [
       "`inspect` takes a **function** symbol only (no `--class`). Prefer unique names (`priceShoppingCart`) or `Class::method`.",
-      "Large repos: dashboard loads one function on demand from the CFG archive; CLI `inspect` reads `.rgbuilder/analysis/`.",
+      "Large repos: dashboard loads one function on demand from the CFG archive; CLI `inspect` reads `.rgctl/analysis/`.",
     ],
   },
   {
@@ -295,7 +295,7 @@ export const CLI_WORKFLOWS: CliWorkflowSection[] = [
       {
         comment: "CI policy gate on changed functions",
         commands: [
-          'rgctl -r "$REPO" -f json check --policy-file "$REPO/../rgbuilder-policy.json" \\',
+          'rgctl -r "$REPO" -f json check --policy-file "$REPO/../rgctl-policy.json" \\',
           "  | jq '{schema_version, violations: (.violations|length)}'",
         ],
       },
@@ -344,7 +344,7 @@ export const CLI_WORKFLOWS: CliWorkflowSection[] = [
         comment: "Default hybrid strategy",
         commands: [
           'rgctl discover . --with-cfg --with-dashboard --with-harmonic --export-migration-hints',
-          'jq ".packages[:5]" .rgbuilder/dashboard/migration_plan.json',
+          'jq ".packages[:5]" .rgctl/dashboard/migration_plan.json',
         ],
       },
       {

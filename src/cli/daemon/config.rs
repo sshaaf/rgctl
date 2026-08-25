@@ -12,7 +12,7 @@ pub struct DaemonHome {
 }
 
 /// Default daemon workspace root: `$HOME` (Unix) or `%USERPROFILE%` (Windows).
-/// Daemon state is stored under `{root}/.rgbuilder/`.
+/// Daemon state is stored under `{root}/.rgctl/`.
 pub fn default_home_root() -> Result<PathBuf> {
     #[cfg(windows)]
     {
@@ -44,19 +44,19 @@ impl DaemonHome {
         &self.root
     }
 
-    pub fn rgbuilder_dir(&self) -> PathBuf {
-        self.root.join(".rgbuilder")
+    pub fn rgctl_dir(&self) -> PathBuf {
+        self.root.join(".rgctl")
     }
 
     pub fn config_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join(".config").join("config.toml")
+        self.rgctl_dir().join(".config").join("config.toml")
     }
 
     pub fn cache_root(&self, cfg: &DaemonConfig) -> PathBuf {
         if let Some(storage) = &cfg.storage {
             PathBuf::from(storage).join("cache")
         } else {
-            self.rgbuilder_dir().join("cache")
+            self.rgctl_dir().join("cache")
         }
     }
 
@@ -65,7 +65,7 @@ impl DaemonHome {
     }
 
     pub fn pid_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rgctl.pid")
+        self.rgctl_dir().join("rgctl.pid")
     }
 
     pub fn pid_file(&self) -> PathBuf {
@@ -73,7 +73,7 @@ impl DaemonHome {
     }
 
     pub fn log_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rgctl.log")
+        self.rgctl_dir().join("rgctl.log")
     }
 
     pub fn log_file(&self) -> PathBuf {
@@ -81,7 +81,7 @@ impl DaemonHome {
     }
 
     pub fn lock_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rgctl.lock")
+        self.rgctl_dir().join("rgctl.lock")
     }
 
     pub fn lock_file(&self) -> PathBuf {
@@ -90,12 +90,12 @@ impl DaemonHome {
 
     #[cfg(unix)]
     pub fn control_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rgctl.sock")
+        self.rgctl_dir().join("rgctl.sock")
     }
 
     #[cfg(windows)]
     pub fn control_path(&self) -> PathBuf {
-        self.rgbuilder_dir().join("rgctl.pipe")
+        self.rgctl_dir().join("rgctl.pipe")
     }
 
     pub fn control_file(&self) -> PathBuf {
@@ -103,8 +103,9 @@ impl DaemonHome {
     }
 
     pub fn ensure_layout(&self) -> Result<()> {
-        fs::create_dir_all(self.rgbuilder_dir().join(".config"))?;
-        fs::create_dir_all(self.rgbuilder_dir().join("cache"))?;
+        migrate_legacy_daemon_home(&self.root)?;
+        fs::create_dir_all(self.rgctl_dir().join(".config"))?;
+        fs::create_dir_all(self.rgctl_dir().join("cache"))?;
         Ok(())
     }
 
@@ -206,6 +207,32 @@ pub struct McpClient {
 
 fn default_http() -> String {
     "http".into()
+}
+
+/// One-shot migrate `~/.rgbuilder/` → `~/.rgctl/` when the new dir is absent.
+fn migrate_legacy_daemon_home(home_root: &Path) -> Result<()> {
+    let neu = home_root.join(".rgctl");
+    let old = home_root.join(".rgbuilder");
+    if neu.exists() || !old.exists() {
+        return Ok(());
+    }
+    match std::fs::rename(&old, &neu) {
+        Ok(()) => {
+            eprintln!(
+                "[rgctl] migrated daemon home {} → {}",
+                old.display(),
+                neu.display()
+            );
+        }
+        Err(e) => {
+            eprintln!(
+                "[rgctl] warning: could not migrate daemon home {} → {}: {e}",
+                old.display(),
+                neu.display()
+            );
+        }
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -322,9 +349,9 @@ mod tests {
     }
 
     #[test]
-    fn rgbuilder_dir_under_default_home() {
+    fn rgctl_dir_under_default_home() {
         let home = default_home_root().unwrap();
         let dh = DaemonHome::from_path(&home).unwrap();
-        assert_eq!(dh.rgbuilder_dir(), home.join(".rgbuilder"));
+        assert_eq!(dh.rgctl_dir(), home.join(".rgctl"));
     }
 }

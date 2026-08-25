@@ -1,0 +1,16 @@
+[package]
+name = "rgctl-plugin-helpers"
+version = "0.4.6"
+edition.workspace = true
+rust-version.workspace = true
+description = "Tree-sitter extraction helpers for rgctl plugins"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-plugin-api = { path = "../rgctl-plugin-api" }
+serde_json = "1"
+tree-sitter = "0.25"
+
+[dev-dependencies]
+tree-sitter-c = "0.24"
+tree-sitter-rust = "0.24"

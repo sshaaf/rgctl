@@ -31,6 +31,6 @@ The fetch script now pulls all large profiling fixtures in one go:
 - `example/kubernetes`
 - `example/k8s-website` (sparse `content/en`)
 
-Override paths with `RGBUILDER_LINUX_REPO`, `RGBUILDER_KAFKA_REPO`, or `RGBUILDER_K8S_WEBSITE_REPO`.
+Override paths with `RGCTL_LINUX_REPO`, `RGCTL_KAFKA_REPO`, or `RGCTL_K8S_WEBSITE_REPO`.
 
-**Cold profile:** gates remove `example/<repo>/.rgbuilder/` before discover and require `target/release/rgctl` (`cargo build --release --bin rgctl`). Do not profile against a warm or partial cache — numbers will be wrong.
+**Cold profile:** gates remove `example/<repo>/.rgctl/` before discover and require `target/release/rgctl` (`cargo build --release --bin rgctl`). Do not profile against a warm or partial cache — numbers will be wrong.

@@ -5,7 +5,7 @@
 //!
 //! ```text
 //! cargo test --release --test opencode_mcp_smoke -- --ignored --nocapture
-//! RGBUILDER_REQUIRE_OPENCODE=1 ./scripts/integration/opencode-mcp-smoke.sh
+//! RGCTL_REQUIRE_OPENCODE=1 ./scripts/integration/opencode-mcp-smoke.sh
 //! ```
 
 use std::path::PathBuf;
@@ -28,7 +28,7 @@ fn run_smoke(extra_env: &[(&str, &str)]) -> (i32, String) {
         cmd.env(k, v);
     }
     if let Ok(bin) = std::env::var("CARGO_BIN_EXE_rgctl") {
-        cmd.env("RGBUILDER_RGCTL", bin);
+        cmd.env("RGCTL_RGCTL", bin);
     }
     let output = cmd.output().expect("run opencode smoke script");
     let combined = format!(
@@ -61,12 +61,12 @@ fn opencode_smoke_script_skips_when_cli_missing() {
 #[ignore = "manual: requires opencode CLI; runs full MCP connect smoke"]
 fn opencode_mcp_list_smoke_stdio() {
     let (code, out) = run_smoke(&[
-        ("RGBUILDER_REQUIRE_OPENCODE", "1"),
-        ("RGBUILDER_OPENCODE_MODE", "stdio"),
+        ("RGCTL_REQUIRE_OPENCODE", "1"),
+        ("RGCTL_OPENCODE_MODE", "stdio"),
     ]);
     assert_eq!(code, 0, "stdio smoke failed:\n{out}");
     assert!(
-        out.contains("OK") && out.contains("rgbuilder"),
+        out.contains("OK") && out.contains("rgctl"),
         "expected success marker:\n{out}"
     );
 }
@@ -75,12 +75,12 @@ fn opencode_mcp_list_smoke_stdio() {
 #[ignore = "manual: requires opencode CLI; daemon HTTP MCP remote mode"]
 fn opencode_mcp_list_smoke_daemon() {
     let (code, out) = run_smoke(&[
-        ("RGBUILDER_REQUIRE_OPENCODE", "1"),
-        ("RGBUILDER_OPENCODE_MODE", "daemon"),
+        ("RGCTL_REQUIRE_OPENCODE", "1"),
+        ("RGCTL_OPENCODE_MODE", "daemon"),
     ]);
     assert_eq!(code, 0, "daemon smoke failed:\n{out}");
     assert!(
-        out.contains("OK") && out.contains("rgbuilder"),
+        out.contains("OK") && out.contains("rgctl"),
         "expected success marker:\n{out}"
     );
 }

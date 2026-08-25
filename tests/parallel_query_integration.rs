@@ -1,13 +1,13 @@
 //! Phase 8 integration tests: parallel processing, batch APIs, query optimization
 #![allow(dead_code, unused_imports, unused_macros)]
 
-use rgbuilder::graph::CodeGraph;
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::query::{execute, execute_chunks};
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
-use rgbuilder::incremental::{FileTracker, IncrementalUpdater, UpdateOptions};
-use rgbuilder::languages::registry::LanguageRegistry;
-use rgbuilder::pipeline::{PipelineConfig, ProcessingPipeline};
+use rgctl::graph::CodeGraph;
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::query::{execute, execute_chunks};
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::incremental::{FileTracker, IncrementalUpdater, UpdateOptions};
+use rgctl::languages::registry::LanguageRegistry;
+use rgctl::pipeline::{PipelineConfig, ProcessingPipeline};
 use std::collections::HashSet;
 use std::fs;
 use std::sync::Arc;
@@ -139,7 +139,7 @@ fn test_parallel_incremental_update_many_files() {
     let (mut graph, _) = pipeline.process_repository(root).unwrap();
     graph.save_to_repo(root).unwrap();
 
-    let discoverer = rgbuilder::discovery::FileDiscoverer::new(Arc::clone(&registry));
+    let discoverer = rgctl::discovery::FileDiscoverer::new(Arc::clone(&registry));
     let files = discoverer.discover(root).unwrap();
     let mut tracker = FileTracker::new(root);
     tracker.index_files(&files, &graph).unwrap();

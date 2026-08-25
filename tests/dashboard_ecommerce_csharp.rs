@@ -2,15 +2,15 @@
 //!
 //!   cargo test --release --test dashboard_ecommerce_csharp
 //!
-//! Repo path: `/Users/sshaaf/git/rust/rgbuilder-tests/ecommerce-csharp`
-//! (override: `RGBUILDER_CSHARP_REPO`).
+//! Repo path: `/Users/sshaaf/git/rust/rgctl-tests/ecommerce-csharp`
+//! (override: `RGCTL_CSHARP_REPO`).
 
 mod dashboard_harness;
 
 use dashboard_harness::{
     assert_dashboard_bundle_all_analysis, ecommerce_csharp_repo_path, run_discover_all,
 };
-use rgbuilder_dashboard::dist_embedded;
+use rgctl_dashboard::dist_embedded;
 
 const CSHARP_MIN_NODES: u64 = 40;
 const CSHARP_MIN_FUNCTIONS: u64 = 20;
@@ -27,7 +27,7 @@ fn discover_all_writes_csharp_cfg_dashboard_bundle() {
     let repo = ecommerce_csharp_repo_path();
     if !repo.is_dir() {
         eprintln!(
-            "skip: csharp test repo not found at {} (set RGBUILDER_CSHARP_REPO)",
+            "skip: csharp test repo not found at {} (set RGCTL_CSHARP_REPO)",
             repo.display()
         );
         return;
@@ -44,7 +44,7 @@ fn discover_all_writes_csharp_cfg_dashboard_bundle() {
     assert_dashboard_bundle_all_analysis(&repo, CSHARP_MIN_NODES, CSHARP_MIN_METANODES);
 
     let manifest: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(repo.join(".rgbuilder/dashboard/manifest.json")).unwrap(),
+        &std::fs::read(repo.join(".rgctl/dashboard/manifest.json")).unwrap(),
     )
     .unwrap();
     let functions = manifest["metrics"]["function_count"].as_u64().unwrap_or(0);
@@ -54,7 +54,7 @@ fn discover_all_writes_csharp_cfg_dashboard_bundle() {
     );
 
     let cfg_index: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(repo.join(".rgbuilder/dashboard/cfg_index.json")).unwrap(),
+        &std::fs::read(repo.join(".rgctl/dashboard/cfg_index.json")).unwrap(),
     )
     .unwrap();
     assert_eq!(cfg_index["available"], true);

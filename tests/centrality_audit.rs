@@ -1,19 +1,19 @@
 //! Phase 14 centrality audit — edge isolation, bridge detection, convergence, policy.
 
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     BetweennessCentrality, BlastRadiusEngine, CentralityAnalyzer, CentralityScores, FastPageRank,
     FlatGraphIndex, PAGERANK_TOLERANCE, PetGraphView, PolicyRegistry, PolicyViolation,
     check_policies, default_behavioral_edges,
 };
-use rgbuilder::graph::CodeGraph;
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::graph::CodeGraph;
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
-fn insert_call(backend: &mut rgbuilder::graph::backend::MemoryBackend, from: Uuid, to: Uuid) {
+fn insert_call(backend: &mut rgctl::graph::backend::MemoryBackend, from: Uuid, to: Uuid) {
     backend
         .insert_edge(Edge::new(from, to, EdgeType::Calls))
         .unwrap();
@@ -272,8 +272,8 @@ fn kafka_module_behavioral_pagerank_isolated() {
         return;
     }
 
-    use rgbuilder_pipeline::{PipelineConfig, ProcessingPipeline};
-    use rgbuilder_registry::LanguageRegistry;
+    use rgctl_pipeline::{PipelineConfig, ProcessingPipeline};
+    use rgctl_registry::LanguageRegistry;
     use std::sync::Arc;
 
     let registry = Arc::new(LanguageRegistry::new());

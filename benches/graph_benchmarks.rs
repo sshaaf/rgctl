@@ -1,14 +1,14 @@
 //! Strategy 2 performance benchmarks — typed PetGraphView and blast-radius latency.
 //!
 //! Run: `cargo bench --bench graph_benchmarks`
-//! Large memory audit: `RGBUILDER_BENCH_LARGE=1 cargo bench --bench graph_benchmarks large`
+//! Large memory audit: `RGCTL_BENCH_LARGE=1 cargo bench --bench graph_benchmarks large`
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
-use rgbuilder::analysis::graph_utils::PetGraphView;
-use rgbuilder::analysis::{BlastRadiusEngine, PolicyRegistry};
-use rgbuilder::graph::CodeGraph;
-use rgbuilder::graph::backend::GraphBackend;
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::analysis::graph_utils::PetGraphView;
+use rgctl::analysis::{BlastRadiusEngine, PolicyRegistry};
+use rgctl::graph::CodeGraph;
+use rgctl::graph::backend::GraphBackend;
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
 use std::time::Duration;
 
 fn build_typed_graph(nodes: usize, edges: usize) -> CodeGraph {
@@ -159,7 +159,7 @@ fn bench_analyze_with_policy(c: &mut Criterion) {
 }
 
 fn bench_large_graph_optional(c: &mut Criterion) {
-    if std::env::var("RGBUILDER_BENCH_LARGE").is_err() {
+    if std::env::var("RGCTL_BENCH_LARGE").is_err() {
         return;
     }
     let mut group = c.benchmark_group("large");

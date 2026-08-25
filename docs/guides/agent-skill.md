@@ -2,11 +2,11 @@
 
 ## Introduction
 
-The rgBuilder **agent skill** is a structured instruction set that teaches AI coding agents (Claude Code, Cursor) how to use the rgBuilder CLI to answer structural questions about a codebase. When installed into a repository, the skill gives your agent the ability to automatically map natural-language questions to the right rgBuilder commands, interpret the results, and report findings -- all without the developer needing to know the CLI syntax.
+The rgctl **agent skill** is a structured instruction set that teaches AI coding agents (Claude Code, Cursor) how to use the rgctl CLI to answer structural questions about a codebase. When installed into a repository, the skill gives your agent the ability to automatically map natural-language questions to the right rgctl commands, interpret the results, and report findings -- all without the developer needing to know the CLI syntax.
 
-The skill works by embedding a `SKILL.md` file into your project's agent skill directories (`.claude/skills/rgbuilder/` and `.cursor/skills/rgbuilder/`). This file is compiled directly into the `rgctl` binary, so installing it is a single command with no external downloads. Once installed, the agent follows a structured loop: parse the user's natural-language question, route it to the appropriate rgBuilder command, execute it, and summarize the results.
+The skill works by embedding a `SKILL.md` file into your project's agent skill directories (`.claude/skills/rgctl/` and `.cursor/skills/rgctl/`). This file is compiled directly into the `rgctl` binary, so installing it is a single command with no external downloads. Once installed, the agent follows a structured loop: parse the user's natural-language question, route it to the appropriate rgctl command, execute it, and summarize the results.
 
-The skill turns rgBuilder from a CLI tool into an **always-available architectural advisor** inside your editor.
+The skill turns rgctl from a CLI tool into an **always-available architectural advisor** inside your editor.
 
 ## Use Cases
 
@@ -44,7 +44,7 @@ rgctl -r example/coolstore discover . --with-cfg
 
 ### 1. Install the Skill
 
-Install the rgBuilder agent skill into your repository:
+Install the rgctl agent skill into your repository:
 
 ```bash
 rgctl -r example/coolstore install --skill
@@ -54,17 +54,17 @@ rgctl -r example/coolstore install --skill
 
 ```
 [>] rgctl install
-Installed rgbuilder skill:
-  created  /path/to/example/coolstore/.claude/skills/rgbuilder/SKILL.md
-  created  /path/to/example/coolstore/.cursor/skills/rgbuilder/SKILL.md
+Installed rgctl skill:
+  created  /path/to/example/coolstore/.claude/skills/rgctl/SKILL.md
+  created  /path/to/example/coolstore/.cursor/skills/rgctl/SKILL.md
 [✓] rgctl install finished in 1ms
 ```
 
 **What happened:**
 
-- rgBuilder extracted the embedded skill bundle (`SKILL.md`, `references/*.md`, etc.) and wrote it under each host skill directory.
-- `.claude/skills/rgbuilder/` — for Claude Code
-- `.cursor/skills/rgbuilder/` — for Cursor
+- rgctl extracted the embedded skill bundle (`SKILL.md`, `references/*.md`, etc.) and wrote it under each host skill directory.
+- `.claude/skills/rgctl/` — for Claude Code
+- `.cursor/skills/rgctl/` — for Cursor
 - Subdirectories such as **`references/`** are preserved (GQL patterns, workflows, command encyclopedia).
 - No network requests, no model downloads — the skill content is baked into the `rgctl` binary.
 
@@ -84,16 +84,16 @@ rgctl -r example/coolstore -f json install --skill
   "force": false,
   "repo": "/path/to/example/coolstore",
   "schema_version": 1,
-  "skill": "rgbuilder",
+  "skill": "rgctl",
   "writes": [
     {
       "host": "claude",
-      "path": "/path/to/.claude/skills/rgbuilder/SKILL.md",
+      "path": "/path/to/.claude/skills/rgctl/SKILL.md",
       "status": "unchanged"
     },
     {
       "host": "cursor",
-      "path": "/path/to/.cursor/skills/rgbuilder/SKILL.md",
+      "path": "/path/to/.cursor/skills/rgctl/SKILL.md",
       "status": "unchanged"
     }
   ]
@@ -118,9 +118,9 @@ rgctl -r example/coolstore install --skill --host claude
 rgctl -r example/coolstore install --skill --host cursor
 ```
 
-### 4. Update After Upgrading rgBuilder
+### 4. Update After Upgrading rgctl
 
-When you upgrade rgBuilder, the embedded skill may have changed. Update it with `--force`:
+When you upgrade rgctl, the embedded skill may have changed. Update it with `--force`:
 
 ```bash
 rgctl -r example/coolstore install --skill --force
@@ -140,7 +140,7 @@ Once installed, the agent follows a 5-step loop for every structural question:
 5. ACTION          Report findings, suggest next steps
 ```
 
-The skill includes a **decision table** that maps 19 categories of natural-language questions to the right rgBuilder command. The agent does not need to be told which command to use -- it matches the user's intent automatically.
+The skill includes a **decision table** that maps 19 categories of natural-language questions to the right rgctl command. The agent does not need to be told which command to use -- it matches the user's intent automatically.
 
 ---
 
@@ -489,7 +489,7 @@ The agent handles disambiguation (e.g., adding `--class` or `--file` when a symb
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--skill` | (required) | Install the rgBuilder agent skill |
+| `--skill` | (required) | Install the rgctl agent skill |
 | `--host` | `all` | Target: `all` (both), `claude`, or `cursor` |
 | `--force` | off | Overwrite existing files that differ from the bundle |
 | `-f json` | text | Structured JSON output with per-file status |

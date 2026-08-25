@@ -1,6 +1,6 @@
 //! Real-world integration tests using Ansible AWX
 //!
-//! These tests validate rgBuilder against a production-quality
+//! These tests validate rgctl against a production-quality
 //! DevOps automation platform with heavy Ansible usage.
 //!
 //! To run these tests:
@@ -46,13 +46,13 @@ fn get_awx_repo() -> PathBuf {
     awx_path
 }
 
-/// Build rgBuilder graph for AWX
-fn build_awx_graph(repo_path: &Path) -> rgbuilder_graph::backend::MemoryBackend {
-    use rgbuilder_extraction::graph_builder::GraphBuilder;
-    use rgbuilder_extraction::extractor::Extractor;
-    use rgbuilder_pipeline::discovery::DiscoveryConfig;
-    use rgbuilder_registry::registry::LanguageRegistry;
-    use rgbuilder_graph::backend::{GraphBackend, MemoryBackend};
+/// Build rgctl graph for AWX
+fn build_awx_graph(repo_path: &Path) -> rgctl_graph::backend::MemoryBackend {
+    use rgctl_extraction::graph_builder::GraphBuilder;
+    use rgctl_extraction::extractor::Extractor;
+    use rgctl_pipeline::discovery::DiscoveryConfig;
+    use rgctl_registry::registry::LanguageRegistry;
+    use rgctl_graph::backend::{GraphBackend, MemoryBackend};
     use std::sync::Arc;
 
     println!("Building graph for AWX at {:?}", repo_path);
@@ -126,8 +126,8 @@ fn test_awx_python_functions() {
     let backend = build_awx_graph(&awx);
 
     // Query for Python functions
-    use rgbuilder_gql::executor::execute;
-    use rgbuilder_gql::parser::parse;
+    use rgctl_gql::executor::execute;
+    use rgctl_gql::parser::parse;
 
     let query = "type:function WHERE language = 'python' RETURN name LIMIT 100";
     let parsed = parse(query).expect("Failed to parse query");
@@ -145,8 +145,8 @@ fn test_awx_ansible_playbooks() {
     let awx = get_awx_repo();
     let backend = build_awx_graph(&awx);
 
-    use rgbuilder_gql::executor::execute;
-    use rgbuilder_gql::parser::parse;
+    use rgctl_gql::executor::execute;
+    use rgctl_gql::parser::parse;
 
     // Find Ansible playbooks
     let query = "type:playbook RETURN name, file";
@@ -165,8 +165,8 @@ fn test_awx_ansible_roles() {
     let awx = get_awx_repo();
     let backend = build_awx_graph(&awx);
 
-    use rgbuilder_gql::executor::execute;
-    use rgbuilder_gql::parser::parse;
+    use rgctl_gql::executor::execute;
+    use rgctl_gql::parser::parse;
 
     let query = "type:role RETURN name";
     let parsed = parse(query).expect("Failed to parse query");
@@ -186,8 +186,8 @@ fn test_awx_api_views() {
     let awx = get_awx_repo();
     let backend = build_awx_graph(&awx);
 
-    use rgbuilder_gql::executor::execute;
-    use rgbuilder_gql::parser::parse;
+    use rgctl_gql::executor::execute;
+    use rgctl_gql::parser::parse;
 
     // Find Django REST framework views
     let query = "type:class WHERE name =~ '.*View.*|.*Serializer.*' RETURN name, file LIMIT 50";
@@ -204,7 +204,7 @@ fn test_awx_complexity_analysis() {
     let awx = get_awx_repo();
     let backend = build_awx_graph(&awx);
 
-    use rgbuilder_analysis::complexity::ComplexityAnalyzer;
+    use rgctl_analysis::complexity::ComplexityAnalyzer;
 
     let analyzer = ComplexityAnalyzer::new(&backend);
     let report = analyzer.analyze().expect("Complexity analysis failed");
@@ -223,7 +223,7 @@ fn test_awx_security_scan() {
     let awx = get_awx_repo();
     let backend = build_awx_graph(&awx);
 
-    use rgbuilder_security::scanner::SecurityAnalyzer;
+    use rgctl_security::scanner::SecurityAnalyzer;
 
     let analyzer = SecurityAnalyzer::new(&backend);
     let vulnerabilities = analyzer.scan().expect("Security scan failed");
@@ -247,7 +247,7 @@ fn test_awx_call_graph_depth() {
     let awx = get_awx_repo();
     let backend = build_awx_graph(&awx);
 
-    use rgbuilder_analysis::callgraph::CallGraph;
+    use rgctl_analysis::callgraph::CallGraph;
 
     let callgraph = CallGraph::from_backend(&backend).expect("Failed to build call graph");
 
@@ -268,8 +268,8 @@ fn test_awx_module_dependencies() {
     let awx = get_awx_repo();
     let backend = build_awx_graph(&awx);
 
-    use rgbuilder_gql::executor::execute;
-    use rgbuilder_gql::parser::parse;
+    use rgctl_gql::executor::execute;
+    use rgctl_gql::parser::parse;
 
     // Find Python imports
     let query = "type:file WHERE language = 'python' -imports-> type:file RETURN name LIMIT 20";
@@ -288,8 +288,8 @@ fn test_awx_database_models() {
     let awx = get_awx_repo();
     let backend = build_awx_graph(&awx);
 
-    use rgbuilder_gql::executor::execute;
-    use rgbuilder_gql::parser::parse;
+    use rgctl_gql::executor::execute;
+    use rgctl_gql::parser::parse;
 
     // Find Django models
     let query = "type:class WHERE name =~ '.*Model' AND file =~ '.*models.*' RETURN name LIMIT 50";
@@ -304,7 +304,7 @@ fn test_awx_database_models() {
 #[test]
 fn print_test_instructions() {
     println!("\n=== AWX Real-World Tests ===\n");
-    println!("These tests validate rgBuilder against Ansible AWX.");
+    println!("These tests validate rgctl against Ansible AWX.");
     println!("\nTo run all AWX tests:");
     println!("  cargo test --test real_world_awx -- --ignored --nocapture\n");
     println!("To run a specific test:");

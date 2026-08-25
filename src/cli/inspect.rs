@@ -121,8 +121,8 @@ fn dom_to_mermaid(dom: &DominatorTree) -> String {
 fn resolve_symbol_function(
     ctx: &CliContext,
     symbol: &str,
-) -> Result<(rgbuilder_graph::schema::Node, String)> {
-    use rgbuilder_graph::schema::NodeType;
+) -> Result<(rgctl_graph::schema::Node, String)> {
+    use rgctl_graph::schema::NodeType;
     use std::fs;
 
     let graph = ctx.load_graph()?;

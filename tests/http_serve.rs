@@ -12,7 +12,7 @@ fn pick_port() -> u16 {
         .port()
 }
 
-fn rgbuilder_bin() -> std::path::PathBuf {
+fn rgctl_bin() -> std::path::PathBuf {
     std::env::var_os("CARGO_BIN_EXE_rgctl")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| {
@@ -22,7 +22,7 @@ fn rgbuilder_bin() -> std::path::PathBuf {
 
 fn repo_with_dashboard() -> Option<std::path::PathBuf> {
     let repo = std::path::PathBuf::from("/Users/sshaaf/git/java/gbuilder");
-    if repo.join(".rgbuilder/dashboard/index.html").is_file() {
+    if repo.join(".rgctl/dashboard/index.html").is_file() {
         return Some(repo);
     }
     None
@@ -59,7 +59,7 @@ fn http_serve_serves_dashboard_and_query_api() {
         eprintln!("skip: gbuilder dashboard bundle not present");
         return;
     };
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     assert!(
         bin.is_file(),
         "missing rgctl binary at {}",
@@ -100,7 +100,7 @@ fn http_serve_serves_dashboard_and_query_api() {
         .text()
         .expect("dashboard body");
     assert!(
-        dashboard.contains("rgBuilder")
+        dashboard.contains("rgctl")
             || dashboard.contains("rb-app")
             || dashboard.contains("<!doctype html")
     );
@@ -125,7 +125,7 @@ fn http_serve_serves_dashboard_and_query_api() {
         .status();
     assert!(gql_alias.is_success());
 
-    if let Ok(entries) = std::fs::read_dir(repo.join(".rgbuilder/dashboard/assets")) {
+    if let Ok(entries) = std::fs::read_dir(repo.join(".rgctl/dashboard/assets")) {
         if let Some(wasm) = entries.flatten().find(|e| {
             e.path()
                 .extension()

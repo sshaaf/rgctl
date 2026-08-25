@@ -6,7 +6,7 @@
 mod dashboard_harness;
 
 use dashboard_harness::{assert_dashboard_bundle, copy_dir_all, run_discover};
-use rgbuilder_dashboard::dist_embedded;
+use rgctl_dashboard::dist_embedded;
 use std::path::Path;
 
 #[test]

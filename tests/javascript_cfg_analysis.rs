@@ -1,14 +1,14 @@
 //! JavaScript CFG analysis against the ecommerce-javascript fixture.
 
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     ProgramDependenceGraph, build_cfg_for_function, cfg_language_id_from_path,
 };
 use std::path::Path;
 
-const JS_REPO: &str = "/Users/sshaaf/git/rust/rgbuilder-tests/ecommerce-javascript";
+const JS_REPO: &str = "/Users/sshaaf/git/rust/rgctl-tests/ecommerce-javascript";
 
 fn js_repo() -> std::path::PathBuf {
-    std::env::var("RGBUILDER_JAVASCRIPT_REPO")
+    std::env::var("RGCTL_JAVASCRIPT_REPO")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| std::path::PathBuf::from(JS_REPO))
 }

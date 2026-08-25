@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-declare module "../wasm/rgbuilder_wasm.js" {
+declare module "../wasm/rgctl_wasm.js" {
   export default function init(): Promise<void>;
   export class EngineContext {
     constructor(bytes: Uint8Array);

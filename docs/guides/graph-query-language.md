@@ -26,7 +26,7 @@ rgctl -r example/coolstore discover .
 
 ### 1. List All Functions (Macro)
 
-rgBuilder ships built-in macros for common queries. The `all_functions` macro returns every function in the graph:
+rgctl ships built-in macros for common queries. The `all_functions` macro returns every function in the graph:
 
 ```bash
 rgctl -r example/coolstore gql --macro-name all_functions unused
@@ -257,4 +257,4 @@ rgctl -r example/coolstore -f json gql --explain \
 - [Blast Radius Analysis](blast-radius-analysis.md) -- higher-level impact analysis built on the same graph
 - [Community Detection](community-detection.md) -- understand the communities that GQL can query
 - [HTTP Server and Dashboard](http-server-and-dashboard.md) -- run GQL queries via HTTP API
-- [MCP Server](mcp-server.md) -- IDE session; `rgbuilder_query` for MATCH / macros
+- [MCP Server](mcp-server.md) -- IDE session; `rgctl_query` for MATCH / macros

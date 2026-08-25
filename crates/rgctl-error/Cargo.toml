@@ -1,0 +1,17 @@
+[package]
+name = "rgctl-error"
+version = "0.4.6"
+edition.workspace = true
+rust-version.workspace = true
+description = "Error types for rgctl"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-plugin-api = { path = "../rgctl-plugin-api" }
+serde_json = "1"
+serde_yaml = "0.9"
+thiserror = "1"
+toml = "0.8"
+
+[features]
+default = []

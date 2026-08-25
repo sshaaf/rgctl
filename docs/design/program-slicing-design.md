@@ -65,11 +65,11 @@ flowchart LR
 
 | Component | Path |
 |-----------|------|
-| CFG construction | `crates/rgbuilder-analysis/src/cfg.rs` |
-| PDG + slicing | `crates/rgbuilder-analysis/src/pdg.rs`, `slicing.rs` |
+| CFG construction | `crates/rgctl-analysis/src/cfg.rs` |
+| PDG + slicing | `crates/rgctl-analysis/src/pdg.rs`, `slicing.rs` |
 | CLI | `src/cli/slice.rs` |
-| Archive storage | `crates/rgbuilder-analysis/src/storage.rs` |
-| Dashboard export | `crates/rgbuilder-dashboard/src/slice_export.rs` |
+| Archive storage | `crates/rgctl-analysis/src/storage.rs` |
+| Dashboard export | `crates/rgctl-dashboard/src/slice_export.rs` |
 
 ---
 
@@ -99,7 +99,7 @@ rgctl slice src/Foo.java --line 8 --variable input --taint
 
 | Layer | Location |
 |-------|----------|
-| Analysis unit tests | `crates/rgbuilder-analysis/src/slicing.rs` |
+| Analysis unit tests | `crates/rgctl-analysis/src/slicing.rs` |
 | CLI subprocess | `tests/cli_output/all_commands_sanity.rs` |
 | Dashboard harness | `tests/dashboard_harness.rs` (`slice_index.json`) |
 

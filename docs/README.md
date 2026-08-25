@@ -1,4 +1,4 @@
-# rgBuilder documentation
+# rgctl documentation
 
 Agent-first docs: index once, query with `-f json`, deepen in the User Guide when a human needs the full walkthrough.
 

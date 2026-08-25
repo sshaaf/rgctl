@@ -142,7 +142,7 @@ export const TAB_DOCS: Record<TabId, TabDocContent> = {
     title: "Program slicing",
     goal: "Find which lines in a function actually affect a variable at a chosen line.",
     description:
-      "Slicing computes the minimal set of statements that influence (backward) or are influenced by (forward) a program point. Point at a line and variable; rgBuilder highlights the slice using control-flow and dependence structure inside the function.",
+      "Slicing computes the minimal set of statements that influence (backward) or are influenced by (forward) a program point. Point at a line and variable; rgctl highlights the slice using control-flow and dependence structure inside the function.",
     benefits: [
       "Narrow focus during incident response",
       "Less noise than reading the entire file",

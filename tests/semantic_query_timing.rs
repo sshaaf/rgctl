@@ -3,7 +3,7 @@
 //! Run:
 //! ```text
 //! cargo test --test semantic_query_timing -- --nocapture
-//! RGBUILDER_LINUX_SEMANTIC=1 cargo test --test semantic_query_timing linux -- --nocapture --ignored
+//! RGCTL_LINUX_SEMANTIC=1 cargo test --test semantic_query_timing linux -- --nocapture --ignored
 //! ```
 
 use serde::Deserialize;
@@ -22,7 +22,7 @@ fn timing_queries_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/semantic_query_timing.json")
 }
 
-fn rgbuilder_bin() -> PathBuf {
+fn rgctl_bin() -> PathBuf {
     option_env!("CARGO_BIN_EXE_rgctl")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -78,7 +78,7 @@ impl Sandbox {
     }
 
     fn run(&self, args: &[&str]) -> Output {
-        let mut cmd = Command::new(rgbuilder_bin());
+        let mut cmd = Command::new(rgctl_bin());
         cmd.arg("-r").arg(&self.repo);
         cmd.args(args);
         cmd.output().expect("spawn rgctl")
@@ -248,17 +248,17 @@ fn vocab_multi_query_timing_polyglot() {
 /// Loads the index once (amortizes mmap), then times Hamming queries only.
 ///
 /// ```text
-/// RGBUILDER_LINUX_SEMANTIC=1 cargo test --test semantic_query_timing linux_vocab -- --nocapture --ignored
+/// RGCTL_LINUX_SEMANTIC=1 cargo test --test semantic_query_timing linux_vocab -- --nocapture --ignored
 /// ```
 #[test]
 #[ignore = "manual: requires example/linux with semantic_index.bin (vocab)"]
 fn linux_vocab_multi_query_timing() {
-    if std::env::var_os("RGBUILDER_LINUX_SEMANTIC").is_none() {
-        eprintln!("set RGBUILDER_LINUX_SEMANTIC=1 to run linux timing");
+    if std::env::var_os("RGCTL_LINUX_SEMANTIC").is_none() {
+        eprintln!("set RGCTL_LINUX_SEMANTIC=1 to run linux timing");
         return;
     }
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/linux");
-    let index_path = repo.join(".rgbuilder/semantic_index.bin");
+    let index_path = repo.join(".rgctl/semantic_index.bin");
     assert!(
         index_path.is_file(),
         "missing {} — run discover + `semantic index --embedder vocab` first",
@@ -266,7 +266,7 @@ fn linux_vocab_multi_query_timing() {
     );
 
     let load_start = Instant::now();
-    let index = rgbuilder_analysis::SemanticIndex::load(&index_path).expect("load semantic index");
+    let index = rgctl_analysis::SemanticIndex::load(&index_path).expect("load semantic index");
     let load_ms = load_start.elapsed().as_secs_f64() * 1000.0;
     assert!(
         index.model_id.contains("vocab-accumulate"),
@@ -291,15 +291,15 @@ fn linux_vocab_multi_query_timing() {
         ("page_fault", "page fault memory handler"),
     ];
 
-    let reload = rgbuilder_analysis::OnnxReloadOptions::default();
+    let reload = rgctl_analysis::OnnxReloadOptions::default();
     // Warm embedder + first scan.
-    let _ = rgbuilder_analysis::query_index_with_embedder(&index, "warmup", 5, &reload)
+    let _ = rgctl_analysis::query_index_with_embedder(&index, "warmup", 5, &reload)
         .expect("warmup");
 
     let mut timings = Vec::new();
     for (id, text) in queries {
         let started = Instant::now();
-        let hits = rgbuilder_analysis::query_index_with_embedder(&index, text, 10, &reload)
+        let hits = rgctl_analysis::query_index_with_embedder(&index, text, 10, &reload)
             .expect("query");
         let wall = started.elapsed();
         timings.push(QueryTiming {

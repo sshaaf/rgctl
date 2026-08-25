@@ -2,7 +2,7 @@
 //!
 //! Spawns `CARGO_BIN_EXE_rgctl` against a temp copy of
 //! `tests/fixtures/tiny_polyglot_repo`. Uses default graph storage under
-//! `{repo}/.rgbuilder/` (unlike `all_commands_sanity.rs`, which forces `-d sandbox_graph.db`).
+//! `{repo}/.rgctl/` (unlike `all_commands_sanity.rs`, which forces `-d sandbox_graph.db`).
 //!
 //! | Test | Regression guarded |
 //! |------|-------------------|
@@ -21,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-fn rgbuilder_bin() -> PathBuf {
+fn rgctl_bin() -> PathBuf {
     option_env!("CARGO_BIN_EXE_rgctl")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
@@ -54,8 +54,8 @@ fn materialize_fixture() -> tempfile::TempDir {
     dir
 }
 
-fn run_rgbuilder(repo: &Path, args: &[&str]) -> std::process::Output {
-    let mut cmd = Command::new(rgbuilder_bin());
+fn run_rgctl(repo: &Path, args: &[&str]) -> std::process::Output {
+    let mut cmd = Command::new(rgctl_bin());
     cmd.arg("-r").arg(repo);
     cmd.args(args);
     cmd.output().expect("spawn rgctl")
@@ -66,7 +66,7 @@ fn discover_json_emits_telemetry_on_stdout() {
     let dir = materialize_fixture();
     let repo = dir.path();
 
-    let output = run_rgbuilder(
+    let output = run_rgctl(
         repo,
         &["-f", "json", "discover", ".", "--languages", "java,rust"],
     );
@@ -133,7 +133,7 @@ fn discover_initializes_tiny_polyglot_repo() {
     let dir = materialize_fixture();
     let repo = dir.path();
 
-    let output = run_rgbuilder(repo, &["discover", ".", "--languages", "java,rust"]);
+    let output = run_rgctl(repo, &["discover", ".", "--languages", "java,rust"]);
 
     assert!(
         output.status.success(),
@@ -142,11 +142,11 @@ fn discover_initializes_tiny_polyglot_repo() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let graph_db = repo.join(".rgbuilder/graph.db");
-    let snapshot = repo.join(".rgbuilder/graph.snapshot.bin");
+    let graph_db = repo.join(".rgctl/graph.db");
+    let snapshot = repo.join(".rgctl/graph.snapshot.bin");
     assert!(
         graph_db.exists() || snapshot.exists(),
-        "discover should materialize graph artifacts under .rgbuilder/"
+        "discover should materialize graph artifacts under .rgctl/"
     );
 }
 
@@ -155,10 +155,10 @@ fn blast_radius_json_exit_zero_after_discover() {
     let dir = materialize_fixture();
     let repo = dir.path();
 
-    let discover = run_rgbuilder(repo, &["discover", ".", "--languages", "java,rust"]);
+    let discover = run_rgctl(repo, &["discover", ".", "--languages", "java,rust"]);
     assert!(discover.status.success(), "discover setup failed");
 
-    let output = run_rgbuilder(
+    let output = run_rgctl(
         repo,
         &[
             "-f",
@@ -206,13 +206,13 @@ fn blast_radius_policy_violation_fails_closed_with_exit_one() {
     let dir = materialize_fixture();
     let repo = dir.path();
 
-    let discover = run_rgbuilder(repo, &["discover", ".", "--languages", "java,rust"]);
+    let discover = run_rgctl(repo, &["discover", ".", "--languages", "java,rust"]);
     assert!(discover.status.success(), "discover setup failed");
 
     let policy_path = repo.join("strict_policy.json");
     fs::write(&policy_path, r#"{"max_impact_nodes": 0}"#).expect("write policy file");
 
-    let output = run_rgbuilder(
+    let output = run_rgctl(
         repo,
         &[
             "-f",
@@ -247,10 +247,10 @@ fn blast_radius_with_slices_populates_handoffs() {
     let dir = materialize_fixture();
     let repo = dir.path();
 
-    let discover = run_rgbuilder(repo, &["discover", ".", "--languages", "java,rust"]);
+    let discover = run_rgctl(repo, &["discover", ".", "--languages", "java,rust"]);
     assert!(discover.status.success(), "discover setup failed");
 
-    let output = run_rgbuilder(
+    let output = run_rgctl(
         repo,
         &[
             "-f",
@@ -282,7 +282,7 @@ fn blast_radius_with_slices_under_30s_after_cfg_discover() {
     let dir = materialize_fixture();
     let repo = dir.path();
 
-    let discover = run_rgbuilder(
+    let discover = run_rgctl(
         repo,
         &["discover", ".", "--languages", "java,rust", "--cfg"],
     );
@@ -292,13 +292,13 @@ fn blast_radius_with_slices_under_30s_after_cfg_discover() {
         String::from_utf8_lossy(&discover.stderr)
     );
     assert!(
-        repo.join(".rgbuilder/analysis/cfg_pdg.archive.bin")
+        repo.join(".rgctl/analysis/cfg_pdg.archive.bin")
             .exists(),
         "discover --cfg should write cfg_pdg archive"
     );
 
     let start = Instant::now();
-    let output = run_rgbuilder(
+    let output = run_rgctl(
         repo,
         &[
             "-f",
@@ -334,11 +334,11 @@ fn blast_radius_fast_path_under_150ms() {
     let dir = materialize_fixture();
     let repo = dir.path();
 
-    let discover = run_rgbuilder(repo, &["discover", ".", "--languages", "java,rust"]);
+    let discover = run_rgctl(repo, &["discover", ".", "--languages", "java,rust"]);
     assert!(discover.status.success(), "discover setup failed");
 
     let start = Instant::now();
-    let output = run_rgbuilder(repo, &["-f", "json", "blast-radius", "publishEvent"]);
+    let output = run_rgctl(repo, &["-f", "json", "blast-radius", "publishEvent"]);
     let latency = start.elapsed();
 
     assert!(
@@ -363,13 +363,13 @@ fn check_policy_violation_fails_closed_with_exit_one() {
     let dir = materialize_fixture();
     let repo = dir.path();
 
-    let discover = run_rgbuilder(repo, &["discover", ".", "--languages", "java,rust"]);
+    let discover = run_rgctl(repo, &["discover", ".", "--languages", "java,rust"]);
     assert!(discover.status.success(), "discover setup failed");
 
     let policy_path = repo.join("strict_policy.json");
     fs::write(&policy_path, r#"{"max_impact_nodes": 0}"#).expect("write policy file");
 
-    let output = run_rgbuilder(
+    let output = run_rgctl(
         repo,
         &[
             "-f",

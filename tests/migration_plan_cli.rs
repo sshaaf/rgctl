@@ -2,13 +2,13 @@
 
 mod dashboard_harness;
 
-use dashboard_harness::{copy_dir_all, rgbuilder_bin};
+use dashboard_harness::{copy_dir_all, rgctl_bin};
 use serde_json::Value;
 use std::path::Path;
 use std::process::Command;
 
 fn run_discover_migration(repo: &Path, extra_args: &[&str]) -> std::process::Output {
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     let mut cmd = Command::new(&bin);
     cmd.args([
         "-r",

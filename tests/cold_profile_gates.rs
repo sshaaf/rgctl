@@ -14,7 +14,7 @@
 
 mod dashboard_harness;
 
-use dashboard_harness::{metasfresh_repo_path, rgbuilder_bin};
+use dashboard_harness::{metasfresh_repo_path, rgctl_bin};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -27,7 +27,7 @@ const LINUX_COLD_MAX_NODES: u64 = 2_800_000;
 /// metasfresh `discover --full` cold wall (basic + deep + semantic).
 /// Baseline: **74 s** on same reference machine (2026-08-25, `--no-daemon`).
 const METASFRESH_COLD_WALL_BASELINE_SECS: f64 = 74.0;
-/// Establish on maintainer machine; override via `RGBUILDER_KAFKA_COLD_BASELINE_SECS`.
+/// Establish on maintainer machine; override via `RGCTL_KAFKA_COLD_BASELINE_SECS`.
 const KAFKA_COLD_WALL_BASELINE_SECS: f64 = 600.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
 const K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS: f64 = 3.0;
@@ -47,19 +47,19 @@ pub struct ProfileSummary {
 }
 
 pub fn linux_repo_path() -> PathBuf {
-    std::env::var("RGBUILDER_LINUX_REPO")
+    std::env::var("RGCTL_LINUX_REPO")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/linux"))
 }
 
 pub fn kafka_repo_path() -> PathBuf {
-    std::env::var("RGBUILDER_KAFKA_REPO")
+    std::env::var("RGCTL_KAFKA_REPO")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/kafka"))
 }
 
 pub fn k8s_website_repo_path() -> PathBuf {
-    std::env::var("RGBUILDER_K8S_WEBSITE_REPO")
+    std::env::var("RGCTL_K8S_WEBSITE_REPO")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/k8s-website"))
 }
@@ -161,7 +161,7 @@ fn resolve_profile_summary(stdout: &str, stderr: &str, elapsed: Duration) -> Pro
          stdout_bytes={} stderr_bytes={}\n\
          stdout_tail:\n{stdout_tail}\n\
          stderr:\n{stderr}",
-        rgbuilder_bin().display(),
+        rgctl_bin().display(),
         stdout.len(),
         stderr.len(),
     );
@@ -180,11 +180,11 @@ fn parse_field_u64(line: &str, key: &str) -> Option<u64> {
 }
 
 pub fn run_cold_discover_timed(repo: &Path, extra_args: &[&str]) -> (Output, Duration) {
-    let rb = repo.join(".rgbuilder");
+    let rb = repo.join(".rgctl");
     if rb.exists() {
-        std::fs::remove_dir_all(&rb).expect("remove stale .rgbuilder for cold discover");
+        std::fs::remove_dir_all(&rb).expect("remove stale .rgctl for cold discover");
     }
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     assert!(
         bin.is_file(),
         "rgctl binary not found at {} — run cargo build --release --bin rgctl",
@@ -334,7 +334,7 @@ fn kafka_cold_discover_within_baseline() {
         return;
     }
 
-    let baseline = std::env::var("RGBUILDER_KAFKA_COLD_BASELINE_SECS")
+    let baseline = std::env::var("RGCTL_KAFKA_COLD_BASELINE_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(KAFKA_COLD_WALL_BASELINE_SECS);
@@ -370,7 +370,7 @@ fn parse_gql_json(stdout: &[u8]) -> Option<Value> {
 }
 
 fn run_json_gql(repo: &Path, query: &str) -> Value {
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     let output = Command::new(&bin)
         .args(["-r", repo.to_str().unwrap(), "-f", "json", "gql", query])
         .output()
@@ -395,7 +395,7 @@ fn k8s_website_markdown_cold_discover_within_baseline() {
         return;
     }
 
-    let baseline = std::env::var("RGBUILDER_K8S_WEBSITE_DISCOVER_BASELINE_SECS")
+    let baseline = std::env::var("RGCTL_K8S_WEBSITE_DISCOVER_BASELINE_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS);
@@ -454,16 +454,16 @@ fn k8s_website_obsidian_export_to_vault() {
         );
         return;
     }
-    if !repo.join(".rgbuilder/graph.snapshot.bin").is_file() {
+    if !repo.join(".rgctl/graph.snapshot.bin").is_file() {
         eprintln!(
             "skip: no graph at {} (run rgctl -r \"{}\" discover . -l markdown)",
-            repo.join(".rgbuilder").display(),
+            repo.join(".rgctl").display(),
             repo.display()
         );
         return;
     }
 
-    let baseline = std::env::var("RGBUILDER_K8S_WEBSITE_OBSIDIAN_EXPORT_BASELINE_SECS")
+    let baseline = std::env::var("RGCTL_K8S_WEBSITE_OBSIDIAN_EXPORT_BASELINE_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(K8S_WEBSITE_OBSIDIAN_EXPORT_BASELINE_SECS);
@@ -473,7 +473,7 @@ fn k8s_website_obsidian_export_to_vault() {
         std::fs::remove_dir_all(&vault).expect("remove stale vault");
     }
 
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     let start = Instant::now();
     let output = Command::new(&bin)
         .args([
@@ -552,7 +552,7 @@ INFO profile: [profile] discover summary wall_secs=1.25 peak_rss_mb=80.0 functio
 #[ignore]
 fn daemon_start_within_baseline() {
     let home = tempfile::tempdir().expect("tmp home");
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     let start = Instant::now();
     let output = Command::new(&bin)
         .env("RUST_LOG", "info,profile=info")
@@ -573,7 +573,7 @@ fn daemon_start_within_baseline() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     eprintln!("daemon start wall={:.3}s stderr={stderr}", elapsed.as_secs_f64());
     assert!(output.status.success(), "{stderr}");
-    let baseline = std::env::var("RGBUILDER_DAEMON_START_BASELINE_SECS")
+    let baseline = std::env::var("RGCTL_DAEMON_START_BASELINE_SECS")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(2.0);
@@ -585,11 +585,11 @@ fn daemon_start_within_baseline() {
 fn daemon_cold_discover_tiny_polyglot() {
     let home = tempfile::tempdir().expect("tmp home");
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo");
-    let cache = home.path().join(".rgbuilder/cache");
+    let cache = home.path().join(".rgctl/cache");
     if cache.exists() {
         std::fs::remove_dir_all(&cache).ok();
     }
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     let _ = Command::new(&bin)
         .args([
             "--daemon-home",
@@ -634,7 +634,7 @@ fn daemon_cold_discover_tiny_polyglot() {
 fn daemon_warm_gql_and_http_query() {
     let home = tempfile::tempdir().expect("tmp home");
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo");
-    let bin = rgbuilder_bin();
+    let bin = rgctl_bin();
     let _ = Command::new(&bin)
         .args([
             "--daemon-home",

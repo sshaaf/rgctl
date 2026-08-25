@@ -52,9 +52,9 @@ JSON includes `nodes[]` with `idom`, `frontier_size` when `--frontiers` is set.
 
 | Component | Path |
 |-----------|------|
-| Dominator algorithm | `crates/rgbuilder-analysis/src/dominance.rs` |
-| CFG integration | `crates/rgbuilder-analysis/src/cfg.rs` |
-| PDG control edges | `crates/rgbuilder-analysis/src/pdg.rs` |
+| Dominator algorithm | `crates/rgctl-analysis/src/dominance.rs` |
+| CFG integration | `crates/rgctl-analysis/src/cfg.rs` |
+| PDG control edges | `crates/rgctl-analysis/src/pdg.rs` |
 | CLI inspect | `src/cli/inspect.rs` |
 
 ---
@@ -74,7 +74,7 @@ JSON includes `nodes[]` with `idom`, `frontier_size` when `--frontiers` is set.
 
 | Layer | Location |
 |-------|----------|
-| Dominance tests | `crates/rgbuilder-analysis/src/dominance.rs` |
+| Dominance tests | `crates/rgctl-analysis/src/dominance.rs` |
 | Semantic verification | `scripts/semantic-verification.sh` |
 
 Screenshots: `capture-design-screenshots.mjs` → `docs/images/design/dominance/`.

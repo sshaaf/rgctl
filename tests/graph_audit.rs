@@ -1,8 +1,8 @@
 //! Synthetic graph builders for Strategy 2 audit tests.
 #![allow(dead_code, unused_imports, unused_macros)]
 
-use rgbuilder::graph::backend::{GraphBackend, MemoryBackend};
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::graph::backend::{GraphBackend, MemoryBackend};
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
 
 /// Linear call chain of `n` functions: f0 → f1 → … → f{n-1}.
 pub fn deep_chain(n: usize) -> MemoryBackend {
@@ -64,7 +64,7 @@ pub fn mesh_cycle(size: usize) -> MemoryBackend {
 
 pub fn structural_topology() -> (MemoryBackend, uuid::Uuid, uuid::Uuid, uuid::Uuid) {
     let mut backend = MemoryBackend::new();
-    let module = Node::new(NodeType::Module, "rgbuilder-analysis".to_string());
+    let module = Node::new(NodeType::Module, "rgctl-analysis".to_string());
     let main_fn = Node::new(NodeType::Function, "main".to_string());
     let init_fn = Node::new(NodeType::Function, "init".to_string());
     let module_id = module.id;

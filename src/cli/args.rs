@@ -53,9 +53,9 @@ pub enum SkillHost {
     /// Claude Code and Cursor project skill dirs.
     #[default]
     All,
-    /// `<repo>/.claude/skills/rgbuilder/`
+    /// `<repo>/.claude/skills/rgctl/`
     Claude,
-    /// `<repo>/.cursor/skills/rgbuilder/`
+    /// `<repo>/.cursor/skills/rgctl/`
     Cursor,
 }
 

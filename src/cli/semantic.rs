@@ -283,7 +283,7 @@ pub fn run_distill(ctx: &CliContext, args: SemanticDistillArgs) -> Result<()> {
             embedder.model_id()
         );
         println!(
-            "Copy to crates/rgbuilder-analysis/assets/vocab_matrix.bin and rebuild to activate {VOCAB_ACCUMULATE_DISTILLED_ID}"
+            "Copy to crates/rgctl-analysis/assets/vocab_matrix.bin and rebuild to activate {VOCAB_ACCUMULATE_DISTILLED_ID}"
         );
     }
     Ok(())
@@ -303,16 +303,16 @@ pub fn run_query(ctx: &CliContext, args: SemanticQueryArgs) -> Result<()> {
 
     let graph = ctx.load_graph()?;
     let response = if ctx.format == OutputFormat::Json && args.expand.is_none() {
-        let mut session = rgbuilder_service::Session::new(&ctx.repo);
-        let value = rgbuilder_service::execute(
+        let mut session = rgctl_service::Session::new(&ctx.repo);
+        let value = rgctl_service::execute(
             &mut session,
-            rgbuilder_service::Command::Search(rgbuilder_service::SearchArgs {
+            rgctl_service::Command::Search(rgctl_service::SearchArgs {
                 text: args.query.clone(),
                 scope: match args.scope {
-                    CliSemanticScope::Function => rgbuilder_service::SearchScope::Function,
-                    CliSemanticScope::Docs => rgbuilder_service::SearchScope::Docs,
-                    CliSemanticScope::Community => rgbuilder_service::SearchScope::Community,
-                    CliSemanticScope::All => rgbuilder_service::SearchScope::All,
+                    CliSemanticScope::Function => rgctl_service::SearchScope::Function,
+                    CliSemanticScope::Docs => rgctl_service::SearchScope::Docs,
+                    CliSemanticScope::Community => rgctl_service::SearchScope::Community,
+                    CliSemanticScope::All => rgctl_service::SearchScope::All,
                 },
                 limit: Some(args.limit),
             }),
@@ -440,7 +440,7 @@ impl BlastSummaryProvider for EngineBlastProvider<'_> {
     fn summarize(
         &self,
         anchor_id: Uuid,
-    ) -> rgbuilder_error::Result<Option<crate::analysis::SemanticBlastSummary>> {
+    ) -> rgctl_error::Result<Option<crate::analysis::SemanticBlastSummary>> {
         let result = if let Some(digest) = self.graph_digest.as_deref() {
             if let Some(engine) = try_load_engine(self.repo, digest)? {
                 engine.analyze(anchor_id)?
@@ -454,7 +454,7 @@ impl BlastSummaryProvider for EngineBlastProvider<'_> {
         let node = self
             .backend
             .get_node(anchor_id)?
-            .ok_or_else(|| rgbuilder_error::Error::NodeNotFound(anchor_id.to_string()))?;
+            .ok_or_else(|| rgctl_error::Error::NodeNotFound(anchor_id.to_string()))?;
 
         Ok(Some(blast_summary_from_result(
             &crate::analysis::SemanticEntry {

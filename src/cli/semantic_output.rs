@@ -1,2 +1,2 @@
-//! Re-export semantic JSON types from `rgbuilder-service`.
-pub use rgbuilder_service::semantic_json::*;
+//! Re-export semantic JSON types from `rgctl-service`.
+pub use rgctl_service::semantic_json::*;

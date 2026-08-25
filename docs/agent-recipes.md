@@ -3,7 +3,7 @@
 Copy-paste workflows for LLM agents and automation. All commands assume:
 
 ```bash
-export REPO=/path/to/repo   # contains .rgbuilder/ after discover
+export REPO=/path/to/repo   # contains .rgctl/ after discover
 ```
 
 **JSON shapes / field tables:** [json-api.md](json-api.md)
@@ -132,7 +132,7 @@ rgctl -r "$REPO" -f json slice src/.../Controller.java \
 ```bash
 rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints
 # Prefer root plan from --export-migration-hints; dashboard copy exists when --with-dashboard ran
-jq '.packages[:10]' "$REPO/.rgbuilder/migration_plan.json"
+jq '.packages[:10]' "$REPO/.rgctl/migration_plan.json"
 rgctl serve --open   # Migration tab for interactive tuning
 ```
 
@@ -200,7 +200,7 @@ rgctl -r "$REPO" semantic index --scope docs --embedder hash
 rgctl -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 10
 ```
 
-**Use when:** browsing or editing docs in Obsidian while keeping rgBuilder as the structural index. Large corpora: `./scripts/fetch-profile-repos.sh` + `example/k8s-website` (~17k Obsidian notes). Doc semantic index includes heading + `code_block` modules; re-run index after doc changes. See [markdown-context.md](markdown-context.md#semantic-search-doc-sections).
+**Use when:** browsing or editing docs in Obsidian while keeping rgctl as the structural index. Large corpora: `./scripts/fetch-profile-repos.sh` + `example/k8s-website` (~17k Obsidian notes). Doc semantic index includes heading + `code_block` modules; re-run index after doc changes. See [markdown-context.md](markdown-context.md#semantic-search-doc-sections).
 
 ---
 

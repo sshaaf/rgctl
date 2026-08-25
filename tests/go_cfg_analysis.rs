@@ -1,14 +1,14 @@
 //! Go CFG analysis against the ecommerce-go fixture (no embedded dashboard required).
 
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     ProgramDependenceGraph, build_cfg_for_function, cfg_language_id_from_path,
 };
 use std::path::Path;
 
-const GO_REPO: &str = "/Users/sshaaf/git/rust/rgbuilder-tests/ecommerce-go";
+const GO_REPO: &str = "/Users/sshaaf/git/rust/rgctl-tests/ecommerce-go";
 
 fn go_repo() -> std::path::PathBuf {
-    std::env::var("RGBUILDER_GO_REPO")
+    std::env::var("RGCTL_GO_REPO")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|_| std::path::PathBuf::from(GO_REPO))
 }

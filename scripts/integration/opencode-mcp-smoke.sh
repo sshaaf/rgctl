@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Smoke-test rgbuilder MCP through the OpenCode CLI (Tier C host integration).
+# Smoke-test rgctl MCP through the OpenCode CLI (Tier C host integration).
 #
 # Requires: opencode on PATH, built rgctl, tests/fixtures/tiny_polyglot_repo
 #
 # Usage:
 #   ./scripts/integration/opencode-mcp-smoke.sh
-#   RGBUILDER_OPENCODE_MODE=daemon ./scripts/integration/opencode-mcp-smoke.sh
-#   RGBUILDER_REQUIRE_OPENCODE=1 ./scripts/integration/opencode-mcp-smoke.sh  # fail if opencode missing
+#   RGCTL_OPENCODE_MODE=daemon ./scripts/integration/opencode-mcp-smoke.sh
+#   RGCTL_REQUIRE_OPENCODE=1 ./scripts/integration/opencode-mcp-smoke.sh  # fail if opencode missing
 #
 # See docs/internal/integration-tests.md for full Tier A/B/C matrix.
 
@@ -14,10 +14,10 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FIXTURE="$REPO_ROOT/tests/fixtures/tiny_polyglot_repo"
-MODE="${RGBUILDER_OPENCODE_MODE:-stdio}"
-REQUIRE_OPENCODE="${RGBUILDER_REQUIRE_OPENCODE:-0}"
+MODE="${RGCTL_OPENCODE_MODE:-stdio}"
+REQUIRE_OPENCODE="${RGCTL_REQUIRE_OPENCODE:-0}"
 
-RGCTL="${RGBUILDER_RGCTL:-$REPO_ROOT/target/debug/rgctl}"
+RGCTL="${RGCTL_RGCTL:-$REPO_ROOT/target/debug/rgctl}"
 if [[ ! -x "$RGCTL" ]]; then
   echo "[opencode-smoke] building rgctl…" >&2
   cargo build --bin rgctl -q --manifest-path "$REPO_ROOT/Cargo.toml"
@@ -38,7 +38,7 @@ if ! command -v opencode >/dev/null 2>&1; then
   exit 0
 fi
 
-SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/rgbuilder-opencode-smoke.XXXXXX")"
+SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/rgctl-opencode-smoke.XXXXXX")"
 DAEMON_HOME=""
 PORT=""
 
@@ -52,7 +52,7 @@ trap cleanup EXIT
 
 mkdir -p "$SCRATCH/repo"
 cp -R "$FIXTURE/." "$SCRATCH/repo/"
-rm -rf "$SCRATCH/repo/.rgbuilder" "$SCRATCH/repo/.rbuilder"
+rm -rf "$SCRATCH/repo/.rgctl" "$SCRATCH/repo/.rbuilder"
 
 echo "[opencode-smoke] indexing tiny fixture (no-daemon)…" >&2
 (
@@ -65,7 +65,7 @@ write_stdio_config() {
 {
   "\$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "rgbuilder": {
+    "rgctl": {
       "type": "local",
       "command": ["${RGCTL}", "--no-daemon", "serve", "--mode", "mcp", "--no-pipeline"],
       "cwd": "repo",
@@ -95,7 +95,7 @@ write_daemon_config() {
 {
   "\$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "rgbuilder": {
+    "rgctl": {
       "type": "remote",
       "url": "http://127.0.0.1:${PORT}/mcp",
       "oauth": false,
@@ -111,7 +111,7 @@ case "$MODE" in
   stdio) write_stdio_config ;;
   daemon) write_daemon_config ;;
   *)
-    echo "error: unknown RGBUILDER_OPENCODE_MODE=$MODE (use stdio or daemon)" >&2
+    echo "error: unknown RGCTL_OPENCODE_MODE=$MODE (use stdio or daemon)" >&2
     exit 1
     ;;
 esac
@@ -129,15 +129,15 @@ if [[ $STATUS -ne 0 ]]; then
   exit 1
 fi
 
-if printf '%s\n' "$OUTPUT" | grep -Eiq 'rgbuilder.*connected|✓[^|]*rgbuilder'; then
-  echo "[opencode-smoke] OK — rgbuilder connected" >&2
+if printf '%s\n' "$OUTPUT" | grep -Eiq 'rgctl.*connected|✓[^|]*rgctl'; then
+  echo "[opencode-smoke] OK — rgctl connected" >&2
   exit 0
 fi
 
-if printf '%s\n' "$OUTPUT" | grep -Eiq 'rgbuilder.*failed|✗[^|]*rgbuilder'; then
-  echo "error: opencode reports rgbuilder MCP failed" >&2
+if printf '%s\n' "$OUTPUT" | grep -Eiq 'rgctl.*failed|✗[^|]*rgctl'; then
+  echo "error: opencode reports rgctl MCP failed" >&2
   exit 1
 fi
 
-echo "error: could not confirm rgbuilder MCP status in opencode output" >&2
+echo "error: could not confirm rgctl MCP status in opencode output" >&2
 exit 1

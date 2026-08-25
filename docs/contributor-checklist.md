@@ -27,7 +27,7 @@ This doc **does not replace** the deep guides it links to. Use it to pick a path
 | **Tier 1 language** | Custom `LanguagePlugin`, full CFG/PDG/taint + Layer F CPG | [tier-1-language-support.md](tier-1-language-support.md) |
 | **Tier 2 language** | Generic tree-sitter + `LanguageConfig` | [languages.md](languages.md) · scaffold in [tier-1 §3–4](tier-1-language-support.md#3-repository-layout) (Tier 2 uses `config.rs`) |
 | **Tier 3 language** | Regex patterns only | [languages.md](languages.md) |
-| **Config formats** | JSON, YAML, TOML, properties, … | `crates/rgbuilder-config-formats` |
+| **Config formats** | JSON, YAML, TOML, properties, … | `crates/rgctl-config-formats` |
 | **Markup (Markdown)** | Doc context graph (not Tier 1/2) | [markdown-context.md](markdown-context.md) |
 | **Feature change** | CLI, analysis, graph, dashboard, semantic, … | [§4](#4-feature-updates) + matching [design/](design/README.md) doc |
 
@@ -37,7 +37,7 @@ This doc **does not replace** the deep guides it links to. Use it to pick a path
 
 ### Scaffold (all tiers)
 
-1. Add `crates/rgbuilder-lang-{id}/` and register in `crates/rgbuilder-languages/`.
+1. Add `crates/rgctl-lang-{id}/` and register in `crates/rgctl-languages/`.
 2. Update [`languages.toml`](../languages.toml) (extensions, `handler`, kinds).
 3. Wire workspace `Cargo.toml`.
 
@@ -47,7 +47,7 @@ Full layout and naming: [tier-1-language-support.md §3–4](tier-1-language-sup
 
 | Tier | Run before PR |
 |------|----------------|
-| **Tier 2** | Plugin unit tests in `crates/rgbuilder-lang-{id}/`; `cargo test` on touched crates; optional fixture under `tests/fixtures/` |
+| **Tier 2** | Plugin unit tests in `crates/rgctl-lang-{id}/`; `cargo test` on touched crates; optional fixture under `tests/fixtures/` |
 | **Tier 3** | Same as Tier 2; no CFG/taint/dashboard gates |
 
 Promoting Tier 2 → Tier 1: [tier-1 §5](tier-1-language-support.md#5-promoting-tier-2--tier-1).
@@ -59,16 +59,16 @@ Copy-paste **PR checklist** block: [tier-1 §7](tier-1-language-support.md#7-pr-
 
 | Gate | Layer | Command / location |
 |------|-------|-------------------|
-| E1 Plugin symbols + `Calls` | E | `cargo test -p rgbuilder-lang-{id}` |
-| E2 CFG branching + loop | E | `cargo test -p rgbuilder-analysis cfg_builder` |
+| E1 Plugin symbols + `Calls` | E | `cargo test -p rgctl-lang-{id}` |
+| E2 CFG branching + loop | E | `cargo test -p rgctl-analysis cfg_builder` |
 | E3 Taint source→sink | E | `cargo test --test taint_analysis` or `tests/{lang}_taint.rs` |
 | E4 Fixture integration | E | e.g. `cargo test --test go_cfg_analysis` |
 | E5 Dashboard bundle | E | `cargo test --release --test dashboard_ecommerce_{lang}` + shared [dashboard_harness.rs](../tests/dashboard_harness.rs) |
 | E6 Workspace clean | E | [§5 standard test workflow](#5-standard-test-workflow) |
-| F6 Field-write golden | F | `crates/rgbuilder-analysis/src/field_write.rs` — `{id}_cfg_captures_field_write_and_query` |
+| F6 Field-write golden | F | `crates/rgctl-analysis/src/field_write.rs` — `{id}_cfg_captures_field_write_and_query` |
 | Langfeature GQL probes | E/F | `cargo test --test java_langfeatures` · `cargo test --test go_langfeatures` (see [go-language-coverage.md](design/go-language-coverage.md)) |
 
-**Dashboard gates by language** (release mode; external fixture repos — set `RGBUILDER_*_REPO` if needed):
+**Dashboard gates by language** (release mode; external fixture repos — set `RGCTL_*_REPO` if needed):
 
 | Language | Test target |
 |----------|-------------|
@@ -92,7 +92,7 @@ Parity snapshot: [tier-1 §8](tier-1-language-support.md#8-current-parity-snapsh
 
 ### Config format plugins
 
-- Code: `crates/rgbuilder-config-formats`
+- Code: `crates/rgctl-config-formats`
 - Tier table: [languages.md](languages.md) (config formats do not run CFG/PDG)
 
 Run workspace tests touching the format crate; add fixture tests if you change extraction behavior.
@@ -104,8 +104,8 @@ Deep guide: [markdown-context.md](markdown-context.md). Fixture: `tests/fixtures
 | Gate | Command |
 |------|---------|
 | CLI discover + GQL | `cargo test --test markdown_context_cli` |
-| In-memory spec matrix | `cargo test -p rgbuilder-extraction markdown_spec_coverage` |
-| Extraction unit tests | `cargo test -p rgbuilder-lang-markdown` · `cargo test -p rgbuilder-extraction markdown_context_gql` |
+| In-memory spec matrix | `cargo test -p rgctl-extraction markdown_spec_coverage` |
+| Extraction unit tests | `cargo test -p rgctl-lang-markdown` · `cargo test -p rgctl-extraction markdown_context_gql` |
 
 Optional cold profile (large corpus): [markdown-context.md § Cold profile](markdown-context.md#cold-profile-kuberneteswebsite).
 
@@ -135,7 +135,7 @@ Map **what you touched** → **tests to run**. Design detail lives in [design/RE
 
 ### Dashboard PR checklist
 
-When changing `dashboard/` or `crates/rgbuilder-dashboard/`:
+When changing `dashboard/` or `crates/rgctl-dashboard/`:
 
 - [ ] Update [dashboard-design.md](dashboard-design.md) implementation status
 - [ ] `./scripts/test-dashboard-golden.sh` passes
@@ -151,12 +151,12 @@ Run before opening a PR (add path-specific targets from [§2](#2-programming-lan
 cargo fmt --all -- --check
 
 cargo clippy --lib --bins -- -D warnings
-cargo clippy -p rgbuilder-analysis -- -D warnings
-cargo clippy -p rgbuilder-graph -p rgbuilder-core -- -D warnings
+cargo clippy -p rgctl-analysis -- -D warnings
+cargo clippy -p rgctl-graph -p rgctl-core -- -D warnings
 
 cargo test --workspace --lib --bins --tests
 
-cargo build --release -p rgbuilder
+cargo build --release -p rgctl
 CARGO_BIN_EXE_rgctl="$PWD/target/release/rgctl" \
   python3 scripts/user-guide-scenarios.py --check
 

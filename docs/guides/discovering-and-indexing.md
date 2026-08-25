@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `discover` command is the foundation of every rgBuilder workflow. It parses your source code, builds a **code knowledge graph** of functions, classes, modules, and their relationships (calls, contains, imports), and runs configurable analytics on the result. Every other rgBuilder command -- `gql`, `blast-radius`, `metrics`, and the rest -- reads from the graph that `discover` produces.
+The `discover` command is the foundation of every rgctl workflow. It parses your source code, builds a **code knowledge graph** of functions, classes, modules, and their relationships (calls, contains, imports), and runs configurable analytics on the result. Every other rgctl command -- `gql`, `blast-radius`, `metrics`, and the rest -- reads from the graph that `discover` produces.
 
 Think of `discover` as the indexing step: you run it once (or after significant code changes), and then query the graph as many times as you like without re-parsing.
 
@@ -45,10 +45,10 @@ This prints a plan, finishes a basic (queryable) index, then runs CFG + dashboar
 
 **What happened:**
 
-- rgBuilder scanned every supported source file (Java, JavaScript, and others) under the repository root.
+- rgctl scanned every supported source file (Java, JavaScript, and others) under the repository root.
 - It built a graph of 14,763 nodes (functions, classes, modules) and their call/containment/import edges.
 - It detected 186 circular dependency cycles in the codebase.
-- The graph snapshot was written to `example/coolstore/.rgbuilder/graph.snapshot.bin`.
+- The graph snapshot was written to `example/coolstore/.rgctl/graph.snapshot.bin`.
 - The entire process completed in under one second.
 
 ### 2. Discovery with Deep Analysis
@@ -77,9 +77,9 @@ Skipped files due to errors failed=1
 
 **What happened:**
 
-- In addition to the basic graph, rgBuilder built a CFG (control-flow graph), PDG (program dependence graph), and dominator tree for each of the 6,585 parseable functions.
+- In addition to the basic graph, rgctl built a CFG (control-flow graph), PDG (program dependence graph), and dominator tree for each of the 6,585 parseable functions.
 - It indexed 3,299 field-write sites, enabling the `cpg mutations` command.
-- The analysis archive was written to `.rgbuilder/analysis/cfg_pdg.archive.bin`.
+- The analysis archive was written to `.rgctl/analysis/cfg_pdg.archive.bin`.
 - 941 functions were skipped because they were in unsupported languages or had parse errors.
 
 ### 3. Full Analysis with Dashboard and Migration
@@ -99,9 +99,9 @@ This enables:
 | Flag | Purpose |
 |------|---------|
 | `--with-cfg` | Build CFG, PDG, and dominator trees for every function |
-| `--with-dashboard` | Export a static dashboard bundle to `.rgbuilder/dashboard/` |
+| `--with-dashboard` | Export a static dashboard bundle to `.rgctl/dashboard/` |
 | `--with-harmonic` | Compute harmonic centrality (needed for migration ranking) |
-| `--export-migration-hints` | Write a migration roadmap to `.rgbuilder/migration_plan.json` |
+| `--export-migration-hints` | Write a migration roadmap to `.rgctl/migration_plan.json` |
 
 ### 4. Filtering by Language
 
@@ -123,14 +123,14 @@ rgctl -r example/coolstore discover . --exclude bower_components
 
 ### 6. Inspecting Artifacts
 
-After discovery, the `.rgbuilder/` directory contains all generated artifacts:
+After discovery, the `.rgctl/` directory contains all generated artifacts:
 
 | Path | Content |
 |------|---------|
-| `.rgbuilder/graph.snapshot.bin` | Columnar graph snapshot |
-| `.rgbuilder/analysis/cfg_pdg.archive.bin` | CFG/PDG/dominance archive (with `--with-cfg`) |
-| `.rgbuilder/dashboard/manifest.json` | Dashboard metadata (with `--with-dashboard`) |
-| `.rgbuilder/migration_plan.json` | Migration roadmap (with `--export-migration-hints`) |
+| `.rgctl/graph.snapshot.bin` | Columnar graph snapshot |
+| `.rgctl/analysis/cfg_pdg.archive.bin` | CFG/PDG/dominance archive (with `--with-cfg`) |
+| `.rgctl/dashboard/manifest.json` | Dashboard metadata (with `--with-dashboard`) |
+| `.rgctl/migration_plan.json` | Migration roadmap (with `--export-migration-hints`) |
 
 ## Discover Options Reference
 
@@ -151,7 +151,7 @@ After discovery, the `.rgbuilder/` directory contains all generated artifacts:
 
 ## Benefits
 
-- **Single command to index an entire codebase.** No build system integration, no compilation required -- rgBuilder works directly on source files.
+- **Single command to index an entire codebase.** No build system integration, no compilation required -- rgctl works directly on source files.
 - **Incremental depth.** Start with basic discovery in under a second, then opt into deeper analysis (`--with-cfg`, `--with-taint`) only when you need it.
 - **Multi-language support.** Nine Tier 1 languages (Java, Go, Rust, Python, JavaScript, TypeScript, C#, C, C++) plus markdown and config formats.
 - **Foundation for all other commands.** Every query, metric, and analysis reads from the graph `discover` produces.

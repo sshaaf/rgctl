@@ -2,15 +2,15 @@
 //!
 //!   cargo test --release --test dashboard_ecommerce_javascript
 //!
-//! Repo path: `/Users/sshaaf/git/rust/rgbuilder-tests/ecommerce-javascript`
-//! (override: `RGBUILDER_JAVASCRIPT_REPO`).
+//! Repo path: `/Users/sshaaf/git/rust/rgctl-tests/ecommerce-javascript`
+//! (override: `RGCTL_JAVASCRIPT_REPO`).
 
 mod dashboard_harness;
 
 use dashboard_harness::{
     assert_dashboard_bundle_all_analysis, ecommerce_javascript_repo_path, run_discover_all,
 };
-use rgbuilder_dashboard::dist_embedded;
+use rgctl_dashboard::dist_embedded;
 
 const JS_MIN_NODES: u64 = 40;
 const JS_MIN_FUNCTIONS: u64 = 20;
@@ -27,7 +27,7 @@ fn discover_all_writes_javascript_cfg_dashboard_bundle() {
     let repo = ecommerce_javascript_repo_path();
     if !repo.is_dir() {
         eprintln!(
-            "skip: javascript test repo not found at {} (set RGBUILDER_JAVASCRIPT_REPO)",
+            "skip: javascript test repo not found at {} (set RGCTL_JAVASCRIPT_REPO)",
             repo.display()
         );
         return;
@@ -44,7 +44,7 @@ fn discover_all_writes_javascript_cfg_dashboard_bundle() {
     assert_dashboard_bundle_all_analysis(&repo, JS_MIN_NODES, JS_MIN_METANODES);
 
     let manifest: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(repo.join(".rgbuilder/dashboard/manifest.json")).unwrap(),
+        &std::fs::read(repo.join(".rgctl/dashboard/manifest.json")).unwrap(),
     )
     .unwrap();
     let functions = manifest["metrics"]["function_count"].as_u64().unwrap_or(0);
@@ -54,7 +54,7 @@ fn discover_all_writes_javascript_cfg_dashboard_bundle() {
     );
 
     let cfg_index: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(repo.join(".rgbuilder/dashboard/cfg_index.json")).unwrap(),
+        &std::fs::read(repo.join(".rgctl/dashboard/cfg_index.json")).unwrap(),
     )
     .unwrap();
     assert_eq!(cfg_index["available"], true);

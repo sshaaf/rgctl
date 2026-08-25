@@ -14,7 +14,7 @@ export default function InstallPage() {
     <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6">
       <Badge className="mb-4">Get started</Badge>
       <h1 className="font-[family-name:var(--font-serif)] text-3xl font-semibold tracking-tight text-[var(--ink)] sm:text-4xl">
-        Install rgBuilder
+        Install rgctl
       </h1>
       <p className="mt-3 text-[var(--body)]">
         Prefer a release binary for day-to-day use. Build from source when you
@@ -46,8 +46,8 @@ export default function InstallPage() {
         />
         <p className="text-sm text-[var(--mute)]">
           That writes{" "}
-          <code className="font-mono">.claude/skills/rgbuilder/</code> and{" "}
-          <code className="font-mono">.cursor/skills/rgbuilder/</code>. See the{" "}
+          <code className="font-mono">.claude/skills/rgctl/</code> and{" "}
+          <code className="font-mono">.cursor/skills/rgctl/</code>. See the{" "}
           <Link href="/docs/guides/agent-skill/" className="underline">
             agent skill guide
           </Link>
@@ -64,8 +64,8 @@ export default function InstallPage() {
         <h2 className="text-lg text-[var(--ink)]">Option B — Build from source</h2>
         <TerminalBlock
           lines={[
-            "git clone https://github.com/sshaaf/rgBuilder.git",
-            "cd rgBuilder",
+            "git clone https://github.com/sshaaf/rgctl.git",
+            "cd rgctl",
             "# Optional: only if you use `semantic index --embedder code-daemon` (~206 MB)",
             "git lfs pull",
             "cargo build --release --bin rgctl",
@@ -79,13 +79,13 @@ export default function InstallPage() {
         <p className="text-sm text-[var(--body)]">
           Use the in-tree{" "}
           <code className="font-mono text-[var(--body-strong)]">
-            rgbuilder-tests/ecommerce-java
+            rgctl-tests/ecommerce-java
           </code>{" "}
           fixture (canonical walkthrough in the User Guide).
         </p>
         <TerminalBlock
           lines={[
-            "cd rgbuilder-tests/ecommerce-java",
+            "cd rgctl-tests/ecommerce-java",
             "rgctl discover .",
             "rgctl -f json gql --macro-name all_functions unused | jq '.count'",
             'rgctl -f json blast-radius "priceShoppingCart" --depth 2',

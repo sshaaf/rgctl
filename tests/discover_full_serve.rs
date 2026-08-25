@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
-fn rgbuilder_bin() -> PathBuf {
+fn rgctl_bin() -> PathBuf {
     if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
         return PathBuf::from(bin);
     }
@@ -39,7 +39,7 @@ fn materialize() -> (tempfile::TempDir, PathBuf) {
     let tmp = tempfile::tempdir().expect("tempdir");
     let repo = tmp.path().join("repo");
     copy_dir_all(&fixture, &repo).expect("copy fixture");
-    let _ = fs::remove_dir_all(repo.join(".rgbuilder"));
+    let _ = fs::remove_dir_all(repo.join(".rgctl"));
     let _ = fs::remove_dir_all(repo.join(".rbuilder"));
     fs::write(
         repo.join("java/com/example/Cart.java"),
@@ -50,7 +50,7 @@ fn materialize() -> (tempfile::TempDir, PathBuf) {
 }
 
 fn run_in(repo: &Path, args: &[&str]) -> Output {
-    Command::new(rgbuilder_bin())
+    Command::new(rgctl_bin())
         .args(args)
         .current_dir(repo)
         .output()
@@ -69,7 +69,7 @@ fn assert_ok(output: &Output, label: &str) {
 
 #[test]
 fn discover_help_mentions_full() {
-    let output = Command::new(rgbuilder_bin())
+    let output = Command::new(rgctl_bin())
         .args(["discover", "--help"])
         .output()
         .expect("help");
@@ -99,11 +99,11 @@ fn discover_full_writes_snapshot_dashboard_semantic_and_status() {
     );
     assert_ok(&output, "discover --full");
 
-    assert!(repo.join(".rgbuilder/graph.snapshot.bin").is_file());
-    assert!(repo.join(".rgbuilder/dashboard/index.html").is_file());
-    assert!(repo.join(".rgbuilder/semantic_index.bin").is_file());
+    assert!(repo.join(".rgctl/graph.snapshot.bin").is_file());
+    assert!(repo.join(".rgctl/dashboard/index.html").is_file());
+    assert!(repo.join(".rgctl/semantic_index.bin").is_file());
     let status: Value = serde_json::from_slice(
-        &fs::read(repo.join(".rgbuilder/pipeline_status.json")).expect("status file"),
+        &fs::read(repo.join(".rgctl/pipeline_status.json")).expect("status file"),
     )
     .expect("status json");
     let ids: Vec<&str> = status["plan"]
@@ -163,7 +163,7 @@ fn discover_full_does_not_require_taint() {
         ],
     );
     assert_ok(&output, "discover --full without taint");
-    let taint = repo.join(".rgbuilder/dashboard/taint_index.json");
+    let taint = repo.join(".rgctl/dashboard/taint_index.json");
     if taint.is_file() {
         let doc: Value = serde_json::from_slice(&fs::read(taint).unwrap()).unwrap();
         assert_ne!(doc["available"].as_bool(), Some(true));
@@ -194,7 +194,7 @@ fn discover_full_second_run_and_missing_dashboard() {
         .unwrap_or("");
     assert!(status == "skipped" || status == "complete");
 
-    fs::remove_file(repo.join(".rgbuilder/dashboard/index.html")).ok();
+    fs::remove_file(repo.join(".rgctl/dashboard/index.html")).ok();
     let third = run_in(&repo, &args);
     assert_ok(&third, "third --full after deleting dashboard");
     let doc: Value = serde_json::from_slice(&third.stdout).expect("json");
@@ -202,14 +202,14 @@ fn discover_full_second_run_and_missing_dashboard() {
         doc["plan"].as_array().unwrap()[1]["status"].as_str(),
         Some("skipped")
     );
-    assert!(repo.join(".rgbuilder/dashboard/index.html").is_file());
+    assert!(repo.join(".rgctl/dashboard/index.html").is_file());
 }
 
 #[test]
 fn discover_full_overlapping_lock_fails() {
     let (_tmp, repo) = materialize();
-    fs::create_dir_all(repo.join(".rgbuilder")).unwrap();
-    fs::write(repo.join(".rgbuilder/pipeline.lock"), b"99999\n").unwrap();
+    fs::create_dir_all(repo.join(".rgctl")).unwrap();
+    fs::write(repo.join(".rgctl/pipeline.lock"), b"99999\n").unwrap();
     let repo_s = repo.to_str().unwrap();
     let output = run_in(
         &repo,
@@ -258,7 +258,7 @@ fn serve_without_dashboard_binds_preparing_and_status() {
     let (_tmp, repo) = materialize();
     let port = pick_port();
     let base = format!("http://127.0.0.1:{port}");
-    let mut child = Command::new(rgbuilder_bin())
+    let mut child = Command::new(rgctl_bin())
         .args([
             "-r",
             repo.to_str().unwrap(),
@@ -293,7 +293,7 @@ fn serve_without_dashboard_binds_preparing_and_status() {
     );
     let body = home.expect("GET /").text().unwrap_or_default();
     assert!(
-        body.to_ascii_lowercase().contains("prepar") || body.contains("rgBuilder"),
+        body.to_ascii_lowercase().contains("prepar") || body.contains("rgctl"),
         "GET / unexpected: {body}"
     );
     let status = status.expect("GET /api/status");
@@ -327,7 +327,7 @@ fn serve_no_pipeline_without_dashboard_exits() {
 
 #[test]
 fn serve_help_mode_and_unknown_mode() {
-    let help = Command::new(rgbuilder_bin())
+    let help = Command::new(rgctl_bin())
         .args(["serve", "--help"])
         .output()
         .expect("help");
@@ -336,7 +336,7 @@ fn serve_help_mode_and_unknown_mode() {
     assert!(text.contains("--mode"), "{text}");
     assert!(text.contains("mcp") && text.contains("standard"), "{text}");
 
-    let bad = Command::new(rgbuilder_bin())
+    let bad = Command::new(rgctl_bin())
         .args(["serve", "--mode", "ftp"])
         .output()
         .expect("bad mode");
@@ -346,7 +346,7 @@ fn serve_help_mode_and_unknown_mode() {
 #[test]
 fn mcp_initialize_and_status_tool() {
     let (_tmp, repo) = materialize();
-    let mut child = Command::new(rgbuilder_bin())
+    let mut child = Command::new(rgctl_bin())
         .args(["-r", repo.to_str().unwrap(), "serve", "--mode", "mcp"])
         .current_dir(&repo)
         .stdin(Stdio::piped())
@@ -377,7 +377,7 @@ fn mcp_initialize_and_status_tool() {
         "jsonrpc": "2.0",
         "id": 2,
         "method": "tools/call",
-        "params": { "name": "rgbuilder_status", "arguments": {} }
+        "params": { "name": "rgctl_status", "arguments": {} }
     });
     writeln!(stdin, "{call}").expect("write tools/call");
     let call_resp = read_mcp_json(&mut reader).expect("tools/call response");
@@ -463,7 +463,7 @@ impl McpProc {
 }
 
 fn mcp_connect(repo: &Path) -> McpProc {
-    let mut child = Command::new(rgbuilder_bin())
+    let mut child = Command::new(rgctl_bin())
         .args([
             "-r",
             repo.to_str().unwrap(),
@@ -531,19 +531,19 @@ fn mcp_tools_list_unreadiness_resources_and_unknown() {
         .collect();
     names.sort_unstable();
     let mut expected = vec![
-        "rgbuilder_check",
-        "rgbuilder_cpg",
-        "rgbuilder_impact",
-        "rgbuilder_metrics",
-        "rgbuilder_query",
-        "rgbuilder_search",
-        "rgbuilder_status",
+        "rgctl_check",
+        "rgctl_cpg",
+        "rgctl_impact",
+        "rgctl_metrics",
+        "rgctl_query",
+        "rgctl_search",
+        "rgctl_status",
     ];
     expected.sort_unstable();
     assert_eq!(names, expected, "{listed}");
 
     let search = mcp.call(
-        "rgbuilder_search",
+        "rgctl_search",
         serde_json::json!({ "text": "checkout" }),
     );
     assert!(search.get("error").is_none(), "{search}");
@@ -551,13 +551,13 @@ fn mcp_tools_list_unreadiness_resources_and_unknown() {
     assert_eq!(search_doc["command"], "pipeline_status");
     assert_eq!(search_doc["semantic_ready"], false);
 
-    let slice = mcp.call("rgbuilder_cpg", serde_json::json!({ "op": "slice" }));
+    let slice = mcp.call("rgctl_cpg", serde_json::json!({ "op": "slice" }));
     assert!(slice.get("error").is_none(), "{slice}");
     let slice_doc = mcp_structured(&slice);
     assert_eq!(slice_doc["command"], "pipeline_status");
     assert_eq!(slice_doc["cfg_ready"], false);
 
-    let export = mcp.call("rgbuilder_cpg", serde_json::json!({ "op": "export" }));
+    let export = mcp.call("rgctl_cpg", serde_json::json!({ "op": "export" }));
     assert!(export.get("error").is_some(), "{export}");
     let export_msg = export["error"]["message"].as_str().unwrap_or("");
     assert!(export_msg.contains("unknown op"), "{export_msg}");
@@ -566,11 +566,11 @@ fn mcp_tools_list_unreadiness_resources_and_unknown() {
         "export must not write cpg.json"
     );
 
-    let unknown = mcp.call("rgbuilder_discover", serde_json::json!({}));
+    let unknown = mcp.call("rgctl_discover", serde_json::json!({}));
     assert!(unknown.get("error").is_some(), "{unknown}");
 
     let both = mcp.call(
-        "rgbuilder_query",
+        "rgctl_query",
         serde_json::json!({
             "query": "MATCH (n:Function) RETURN n",
             "macro": "all_functions"
@@ -578,7 +578,7 @@ fn mcp_tools_list_unreadiness_resources_and_unknown() {
     );
     assert!(both.get("error").is_some(), "{both}");
 
-    let status_res = mcp.resources_read("rgbuilder://status");
+    let status_res = mcp.resources_read("rgctl://status");
     let status_text = status_res["result"]["contents"][0]["text"]
         .as_str()
         .expect("status text");
@@ -586,7 +586,7 @@ fn mcp_tools_list_unreadiness_resources_and_unknown() {
     assert_eq!(status_doc["schema_version"], 1);
     assert_eq!(status_doc["command"], "pipeline_status");
 
-    let plan = mcp.resources_read("rgbuilder://migration-plan");
+    let plan = mcp.resources_read("rgctl://migration-plan");
     assert!(plan.get("error").is_none(), "{plan}");
     let plan_text = plan["result"]["contents"][0]["text"]
         .as_str()
@@ -631,7 +631,7 @@ fn mcp_query_all_functions_default_limit() {
 
     let mut mcp = mcp_connect(&repo);
     let call = mcp.call(
-        "rgbuilder_query",
+        "rgctl_query",
         serde_json::json!({ "macro": "all_functions" }),
     );
     assert!(call.get("error").is_none(), "{call}");
@@ -657,7 +657,7 @@ fn mcp_impact_on_ready_fixture() {
     );
     let mut mcp = mcp_connect(&repo);
     let call = mcp.call(
-        "rgbuilder_impact",
+        "rgctl_impact",
         serde_json::json!({ "symbol": "OrderService::process" }),
     );
     assert!(call.get("error").is_none(), "{call}");
@@ -669,14 +669,14 @@ fn mcp_impact_on_ready_fixture() {
 }
 
 #[test]
-fn mcp_and_service_crates_do_not_depend_on_package_rgbuilder() {
+fn mcp_and_service_crates_do_not_depend_on_package_rgctl() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    for name in ["rgbuilder-service", "rgbuilder-mcp"] {
+    for name in ["rgctl-service", "rgctl-mcp"] {
         let toml = fs::read_to_string(root.join("crates").join(name).join("Cargo.toml"))
             .unwrap_or_else(|err| panic!("read {name} Cargo.toml: {err}"));
         assert!(
-            !toml.contains("\nrgbuilder =") && !toml.contains("\nrgbuilder={"),
-            "{name} must not depend on package rgbuilder:\n{toml}"
+            !toml.contains("\nrgctl =") && !toml.contains("\nrgctl={"),
+            "{name} must not depend on package rgctl:\n{toml}"
         );
     }
 }

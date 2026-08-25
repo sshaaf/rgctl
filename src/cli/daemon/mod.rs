@@ -24,7 +24,7 @@ pub fn emit_stage(name: &str, secs: f64) {
     tracing::info!(target: "profile", stage = name, secs, "[profile] stage");
 }
 
-/// Resolve daemon home: `--daemon-home`, else `RGCTL_HOME`, else `$HOME` (`~/.rgbuilder/`).
+/// Resolve daemon home: `--daemon-home`, else `RGCTL_HOME`, else `$HOME` (`~/.rgctl/`).
 pub fn resolve_home(explicit: Option<&Path>) -> Result<DaemonHome> {
     if let Some(p) = explicit {
         return DaemonHome::from_path(p);
@@ -214,9 +214,9 @@ pub fn list_text(home: &DaemonHome) -> Result<String> {
             any = true;
             let name = e.file_name().to_string_lossy().into_owned();
             let src = std::fs::read_to_string(e.path().join("SOURCE")).unwrap_or_else(|_| "-".into());
-            let snap = rgbuilder_graph::paths::artifact_path(
+            let snap = rgctl_graph::paths::artifact_path(
                 &e.path(),
-                rgbuilder_graph::snapshot::SNAPSHOT_FILE,
+                rgctl_graph::snapshot::SNAPSHOT_FILE,
             );
             out.push_str(&format!(
                 "{name}\t{}\t{}\n",
@@ -469,7 +469,7 @@ pub fn stdio_mcp_bridge(ctx: &CliContext) -> Result<()> {
     if !cfg.mcp.enabled {
         bail!("MCP is disabled in daemon config");
     }
-    rgbuilder_mcp::serve_proxy(|msg| match call(
+    rgctl_mcp::serve_proxy(|msg| match call(
         &home,
         &ControlRequest::McpRpc {
             message: msg.clone(),

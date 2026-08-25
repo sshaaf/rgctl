@@ -15,14 +15,14 @@ const assets = {
     label: "CLI walkthrough (VHS)",
     blurb:
       "Recorded from docs/videos/user-guide-cli.tape — discover, GQL, blast-radius, CPG, semantic.",
-    alt: "rgBuilder CLI demo: discover, query, blast-radius, and semantic search",
+    alt: "rgctl CLI demo: discover, query, blast-radius, and semantic search",
   },
   dashboard: {
     mp4: "/demos/feature-demo.mp4",
     gif: null as string | null,
     label: "Dashboard tour",
     blurb: "Tab montage over ecommerce-java after discover --with-dashboard.",
-    alt: "rgBuilder dashboard feature demo across main tabs",
+    alt: "rgctl dashboard feature demo across main tabs",
   },
 } as const;
 

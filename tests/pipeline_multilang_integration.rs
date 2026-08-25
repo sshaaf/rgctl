@@ -1,10 +1,10 @@
 //! Phase 1 end-to-end integration tests
 #![allow(dead_code, unused_imports, unused_macros)]
 
-use rgbuilder::graph::CodeGraph;
-use rgbuilder::graph::schema::NodeType;
-use rgbuilder::languages::registry::LanguageRegistry;
-use rgbuilder::pipeline::{PipelineConfig, ProcessingPipeline};
+use rgctl::graph::CodeGraph;
+use rgctl::graph::schema::NodeType;
+use rgctl::languages::registry::LanguageRegistry;
+use rgctl::pipeline::{PipelineConfig, ProcessingPipeline};
 use std::fs;
 use tempfile::TempDir;
 
@@ -56,7 +56,7 @@ fn test_init_save_and_query() {
         "pub fn add(a: i32, b: i32) -> i32 { a + b }\n",
     );
 
-    let graph = rgbuilder::code_graph_from_repository(root).unwrap();
+    let graph = rgctl::code_graph_from_repository(root).unwrap();
     graph.save_to_repo(root).unwrap();
 
     let loaded = CodeGraph::load_from_repo(root).unwrap();
@@ -72,7 +72,7 @@ fn test_gitignore_excluded_from_graph() {
     write(&root.join("target/generated.rs"), "pub fn skipped() {}\n");
     write(&root.join(".gitignore"), "target/\n");
 
-    let graph = rgbuilder::code_graph_from_repository(root).unwrap();
+    let graph = rgctl::code_graph_from_repository(root).unwrap();
     let functions: Vec<_> = graph
         .find_by_type(NodeType::Function)
         .unwrap()

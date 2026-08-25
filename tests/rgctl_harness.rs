@@ -44,7 +44,7 @@ pub fn fixture_src() -> PathBuf {
 }
 
 pub fn linux_repo_path() -> PathBuf {
-    std::env::var("RGBUILDER_LINUX_REPO")
+    std::env::var("RGCTL_LINUX_REPO")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/linux"))
 }
@@ -54,7 +54,7 @@ pub fn copy_tree(src: &Path, dst: &Path) {
     for ent in fs::read_dir(src).unwrap() {
         let ent = ent.unwrap();
         let name = ent.file_name();
-        if name == ".rgbuilder" || name == ".rbuilder" {
+        if name == ".rgctl" || name == ".rbuilder" {
             continue;
         }
         let from = ent.path();
@@ -72,7 +72,7 @@ pub fn materialize_fixture() -> (tempfile::TempDir, PathBuf) {
     let tmp = tempfile::tempdir().expect("tempdir");
     let repo = tmp.path().join("repo");
     copy_tree(&fixture_src(), &repo);
-    let _ = fs::remove_dir_all(repo.join(".rgbuilder"));
+    let _ = fs::remove_dir_all(repo.join(".rgctl"));
     let _ = fs::remove_dir_all(repo.join(".rbuilder"));
     (tmp, repo)
 }
@@ -124,26 +124,26 @@ pub fn discover_fixture(repo: &Path) {
     );
 }
 
-pub fn assert_no_rgbuilder_under(path: &Path) {
+pub fn assert_no_rgctl_under(path: &Path) {
     assert!(
-        !path.join(".rgbuilder").exists(),
-        "unexpected .rgbuilder under {}",
+        !path.join(".rgctl").exists(),
+        "unexpected .rgctl under {}",
         path.display()
     );
 }
 
-pub fn assert_rgbuilder_snapshot(repo: &Path) {
+pub fn assert_rgctl_snapshot(repo: &Path) {
     assert!(
-        repo.join(".rgbuilder/graph.snapshot.bin").is_file(),
+        repo.join(".rgctl/graph.snapshot.bin").is_file(),
         "expected snapshot under {}",
-        repo.join(".rgbuilder").display()
+        repo.join(".rgctl").display()
     );
 }
 
-pub fn remove_rgbuilder(repo: &Path) {
-    let rb = repo.join(".rgbuilder");
+pub fn remove_rgctl(repo: &Path) {
+    let rb = repo.join(".rgctl");
     if rb.exists() {
-        fs::remove_dir_all(&rb).expect("remove .rgbuilder");
+        fs::remove_dir_all(&rb).expect("remove .rgctl");
     }
 }
 
@@ -216,8 +216,8 @@ impl DaemonGuard {
             "expected daemon stopped, got: {st}"
         );
         assert!(
-            !self.home.join(".rgbuilder/rgctl.pid").exists()
-                || fs::read_to_string(self.home.join(".rgbuilder/rgctl.pid"))
+            !self.home.join(".rgctl/rgctl.pid").exists()
+                || fs::read_to_string(self.home.join(".rgctl/rgctl.pid"))
                     .map(|s| s.trim().is_empty())
                     .unwrap_or(true),
             "stale pid file under {}",
@@ -271,7 +271,7 @@ pub fn daemon_discover(home: &Path, repo: &Path) -> Output {
 }
 
 pub fn cache_entry_for_repo(home: &Path) -> PathBuf {
-    let cache = home.join(".rgbuilder/cache");
+    let cache = home.join(".rgctl/cache");
     fs::read_dir(&cache)
         .unwrap()
         .flatten()

@@ -15,7 +15,7 @@ use crate::discovery::{DiscoveryConfig, FileDiscoverer};
 use crate::incremental::FileTracker;
 use crate::languages::registry::LanguageRegistry;
 use anyhow::{Context, Result};
-use rgbuilder_graph::snapshot::MmappedGraphSnapshot;
+use rgctl_graph::snapshot::MmappedGraphSnapshot;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tracing::info;
@@ -289,7 +289,7 @@ fn snapshot_digest(store: &Path) -> Option<String> {
     if !path.is_file() {
         return None;
     }
-    let store = rgbuilder_graph::SnapshotNodeStore::open(&path).ok()?;
+    let store = rgctl_graph::SnapshotNodeStore::open(&path).ok()?;
     store.content_digest().ok().map(str::to_string)
 }
 
@@ -340,7 +340,7 @@ fn should_skip_deep(store: &Path) -> bool {
     let Some(digest) = snapshot_digest(store) else {
         return false;
     };
-    let dash = rgbuilder_graph::paths::artifact_path(store, "dashboard/index.html");
+    let dash = rgctl_graph::paths::artifact_path(store, "dashboard/index.html");
     if !dash.is_file() {
         return false;
     }

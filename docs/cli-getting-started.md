@@ -1,4 +1,4 @@
-# rgBuilder CLI Getting Started
+# rgctl CLI Getting Started
 
 > **Moved.** Use the [Installation guide](installation.md) for setup, then the [User Guide](user-guide.md) (§3–4 on **ecommerce-java**) for your first queries.
 

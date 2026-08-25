@@ -1,6 +1,6 @@
 //! Phase 4 integration tests: IDL generation
 
-use rgbuilder::semantic::{IdlFormat, IdlGenerator, SignatureExtractor};
+use rgctl::semantic::{IdlFormat, IdlGenerator, SignatureExtractor};
 use std::fs;
 use tempfile::TempDir;
 
@@ -13,7 +13,7 @@ fn test_idl_generation_pipeline() {
     )
     .unwrap();
 
-    let graph = rgbuilder::code_graph_from_repository(temp.path()).unwrap();
+    let graph = rgctl::code_graph_from_repository(temp.path()).unwrap();
     let generator = IdlGenerator::new();
     let output_dir = temp.path().join("idl");
     let path = generator

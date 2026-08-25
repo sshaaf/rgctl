@@ -3,7 +3,7 @@
 //! Fixture: `tests/fixtures/java/langfeatures`
 //!
 //! ```bash
-//! cargo build --release -p rgbuilder
+//! cargo build --release -p rgctl
 //! cargo test --test java_langfeatures -- --nocapture
 //! ```
 
@@ -28,7 +28,7 @@ fn ensure_discovered() {
     ONCE.call_once(|| {
         let repo = repo();
         assert!(repo.is_dir(), "missing fixture {}", repo.display());
-        let _ = std::fs::remove_dir_all(repo.join(".rgbuilder"));
+        let _ = std::fs::remove_dir_all(repo.join(".rgctl"));
         let out = Command::new(bin())
             .args(["discover", ".", "-l", "java", "--with-cfg"])
             .current_dir(&repo)

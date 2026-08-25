@@ -1,4 +1,4 @@
-# Releasing rgBuilder
+# Releasing rgctl
 
 How maintainers publish versioned binaries and GitHub Releases.
 
@@ -23,7 +23,7 @@ Pushing a tag matching `v*` triggers [`.github/workflows/release.yml`](../.githu
    - `aarch64-apple-darwin`
    - `x86_64-apple-darwin`
    - `x86_64-pc-windows-msvc`
-2. **Package** as `rgbuilder-<version>-<target>.tar.gz` (or `.zip` on Windows).
+2. **Package** as `rgctl-<version>-<target>.tar.gz` (or `.zip` on Windows).
 3. **Publish** a GitHub Release with notes from `docs/releases/<tag>.md` (if present) plus GitHub-generated PR/commit notes, and `SHA256SUMS.txt`.
 
 Curated notes live under [`docs/releases/`](releases/) (`v0.4.6.md`, …). If that file is missing, the workflow still publishes auto-generated notes.
@@ -66,14 +66,14 @@ cd dashboard && npm ci && npm run build && cd ..
 
 ## Assets users download
 
-From [GitHub Releases](https://github.com/sshaaf/rgBuilder/releases):
+From [GitHub Releases](https://github.com/sshaaf/rgctl/releases):
 
 | Platform | Asset pattern |
 |----------|----------------|
-| macOS Apple Silicon | `rgbuilder-*-aarch64-apple-darwin.tar.gz` |
-| macOS Intel | `rgbuilder-*-x86_64-apple-darwin.tar.gz` |
-| Linux x86_64 | `rgbuilder-*-x86_64-unknown-linux-gnu.tar.gz` |
-| Windows | `rgbuilder-*-x86_64-pc-windows-msvc.zip` |
+| macOS Apple Silicon | `rgctl-*-aarch64-apple-darwin.tar.gz` |
+| macOS Intel | `rgctl-*-x86_64-apple-darwin.tar.gz` |
+| Linux x86_64 | `rgctl-*-x86_64-unknown-linux-gnu.tar.gz` |
+| Windows | `rgctl-*-x86_64-pc-windows-msvc.zip` |
 
 Extract and run `rgctl --version`. See [User Guide §1](user-guide.md#1-installation).
 
@@ -83,7 +83,7 @@ Extract and run `rgctl --version`. See [User Guide §1](user-guide.md#1-installa
 
 - Verify the Release page lists all four platform archives and checksums.
 - Smoke-test `discover` + `gql` on a small repo with the downloaded binary.
-- If `RGBUILDER_TESTS_DISPATCH_TOKEN` is configured, CI dispatches `rgbuilder-released` to the external test repo (see workflow comments).
+- If `RGCTL_TESTS_DISPATCH_TOKEN` is configured, CI dispatches `rgctl-released` to the external test repo (see workflow comments).
 
 ---
 
@@ -91,11 +91,11 @@ Extract and run `rgctl --version`. See [User Guide §1](user-guide.md#1-installa
 
 | Thing | Name |
 |-------|------|
-| Project / crates / GitHub repo | **rgbuilder** / **rgBuilder** (`sshaaf/rgBuilder`) |
+| Project / crates / GitHub repo | **rgctl** / **rgctl** (`sshaaf/rgctl`) |
 | CLI binary users run | **`rgctl`** |
-| On-disk index directory | **`.rgbuilder/`** |
+| On-disk index directory | **`.rgctl/`** |
 
-Release archives stay `rgbuilder-${VERSION}-${target}.tar.gz` (project name) and contain the `rgctl` binary.
+Release archives stay `rgctl-${VERSION}-${target}.tar.gz` (project name) and contain the `rgctl` binary.
 
 ---
 

@@ -4,9 +4,9 @@
 mod analysis_helpers;
 
 use analysis_helpers::large_graph;
-use rgbuilder::gql::{QueryExecutor, QueryOptimizer, execute, execute_explain, parse};
-use rgbuilder::graph::backend::{GraphBackend, MemoryBackend};
-use rgbuilder::graph::schema::{Edge, EdgeType, Node, NodeType};
+use rgctl::gql::{QueryExecutor, QueryOptimizer, execute, execute_explain, parse};
+use rgctl::graph::backend::{GraphBackend, MemoryBackend};
+use rgctl::graph::schema::{Edge, EdgeType, Node, NodeType};
 use std::collections::HashSet;
 
 macro_rules! gql_test {

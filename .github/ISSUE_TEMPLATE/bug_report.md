@@ -32,7 +32,7 @@ Paste error output here
 
 ## Environment
 
-- **rgBuilder version**: (run `rgctl --version`)
+- **rgctl version**: (run `rgctl --version`)
 - **OS**: (e.g., macOS 13.4, Ubuntu 22.04, Windows 11)
 - **Rust version**: (run `rustc --version`)
 - **Feature flags**: (e.g., `proc-macros`, custom)

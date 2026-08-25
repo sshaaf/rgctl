@@ -24,7 +24,7 @@ rgctl discover . --with-cfg --with-security --with-taint --with-dashboard    # C
 rgctl serve --open
 
 # Option B — static files only
-cd .rgbuilder/dashboard && python3 -m http.server 8765
+cd .rgctl/dashboard && python3 -m http.server 8765
 # open http://localhost:8765/
 ```
 

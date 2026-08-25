@@ -1,9 +1,9 @@
-//! rgBuilder CLI entry point (`rgctl`).
+//! rgctl CLI entry point (`rgctl`).
 
 use clap::Parser;
-use rgbuilder::cli::Cli;
+use rgctl::cli::Cli;
 
 fn main() -> anyhow::Result<()> {
-    rgbuilder::init();
+    rgctl::init();
     Cli::parse().run()
 }

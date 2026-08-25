@@ -1,6 +1,6 @@
-# rgBuilder User Guide
+# rgctl User Guide
 
-End-to-end guide for installing rgBuilder, indexing an in-tree example, and querying a codebase from the **command line**. Sample outputs target **`rgbuilder-tests/ecommerce-java`**. Runnable examples are backed by scenarios under [`user-guide/scenarios/`](user-guide/scenarios/) (see change `docs-agent-first-diataxis`).
+End-to-end guide for installing rgctl, indexing an in-tree example, and querying a codebase from the **command line**. Sample outputs target **`rgctl-tests/ecommerce-java`**. Runnable examples are backed by scenarios under [`user-guide/scenarios/`](user-guide/scenarios/) (see change `docs-agent-first-diataxis`).
 
 **Concepts:** [Introduction](Introduction.md). **Agents:** [AGENTS.md](../AGENTS.md). **JSON fields:** [json-api.md](json-api.md).
 
@@ -18,7 +18,7 @@ End-to-end guide for installing rgBuilder, indexing an in-tree example, and quer
 ## Table of contents
 
 1. [Installation](#1-installation)
-2. [Add rgBuilder to your PATH](#2-add-rgbuilder-to-your-path)
+2. [Add rgctl to your PATH](#2-add-rgctl-to-your-path)
 3. [Example project: ecommerce-java](#3-example-project-ecommerce-java)
 4. [Index with `discover`](#4-index-with-discover)
 5. [Global CLI flags](#5-global-cli-flags)
@@ -46,29 +46,29 @@ End-to-end guide for installing rgBuilder, indexing an in-tree example, and quer
 
 Pre-built binaries are published on the project **Releases** page:
 
-**https://github.com/sshaaf/rgBuilder/releases**
+**https://github.com/sshaaf/rgctl/releases**
 
 1. Open the latest release.
 2. Download the archive for your platform:
 
    | Platform | Typical asset name |
    |----------|-------------------|
-   | macOS (Apple Silicon) | `rgbuilder-*-aarch64-apple-darwin.tar.gz` |
-   | macOS (Intel) | `rgbuilder-*-x86_64-apple-darwin.tar.gz` |
-   | Linux (x86_64) | `rgbuilder-*-x86_64-unknown-linux-gnu.tar.gz` |
-   | Windows | `rgbuilder-*-x86_64-pc-windows-msvc.zip` |
+   | macOS (Apple Silicon) | `rgctl-*-aarch64-apple-darwin.tar.gz` |
+   | macOS (Intel) | `rgctl-*-x86_64-apple-darwin.tar.gz` |
+   | Linux (x86_64) | `rgctl-*-x86_64-unknown-linux-gnu.tar.gz` |
+   | Windows | `rgctl-*-x86_64-pc-windows-msvc.zip` |
 
 3. Extract the archive. You should get a single `rgctl` executable (plus `rgctl.exe` on Windows).
 
 ```bash
 # macOS / Linux example
-tar -xzf rgbuilder-*-aarch64-apple-darwin.tar.gz
+tar -xzf rgctl-*-aarch64-apple-darwin.tar.gz
 ./rgctl --version
 ```
 
 ```powershell
 # Windows example (PowerShell)
-Expand-Archive rgbuilder-*-x86_64-pc-windows-msvc.zip -DestinationPath .
+Expand-Archive rgctl-*-x86_64-pc-windows-msvc.zip -DestinationPath .
 .\rgctl.exe --version
 ```
 
@@ -79,8 +79,8 @@ If no release is published yet for your platform, use [Option B](#option-b--buil
 Requires **Rust 1.88+** (Edition 2024; [rustup.rs](https://rustup.rs/)).
 
 ```bash
-git clone https://github.com/sshaaf/rgBuilder.git
-cd rgBuilder
+git clone https://github.com/sshaaf/rgctl.git
+cd rgctl
 # Optional: code-daemon ONNX weights (~206 MB via Git LFS) if you use
 # `semantic index --embedder code-daemon`. Skip for the default vocab embedder.
 git lfs pull
@@ -92,7 +92,7 @@ All **nine** Tier 1 languages (Rust, Python, JavaScript, TypeScript, Go, Java, C
 
 ### Install the agent skill
 
-After `rgctl` is on your `PATH`, install the bundled rgBuilder skill into the **target repository** (the same root you pass to `discover` via `-r` / `--repo`, or the current directory):
+After `rgctl` is on your `PATH`, install the bundled rgctl skill into the **target repository** (the same root you pass to `discover` via `-r` / `--repo`, or the current directory):
 
 ```bash
 rgctl install --skill
@@ -102,14 +102,14 @@ rgctl -r /path/to/repo install --skill
 
 That writes:
 
-- `<repo>/.claude/skills/rgbuilder/` (Claude Code)
-- `<repo>/.cursor/skills/rgbuilder/` (Cursor)
+- `<repo>/.claude/skills/rgctl/` (Claude Code)
+- `<repo>/.cursor/skills/rgctl/` (Cursor)
 
-Limit hosts with `--host claude` or `--host cursor` (default is `all`). Identical files are left unchanged. If a dest file differs, the command exits 1 unless you pass `--force`. Re-run `install --skill --force` after upgrading `rgctl` to refresh the project copy. Manual copy of `skills/rgbuilder/` remains a fallback if you have a git checkout.
+Limit hosts with `--host claude` or `--host cursor` (default is `all`). Identical files are left unchanged. If a dest file differs, the command exits 1 unless you pass `--force`. Re-run `install --skill --force` after upgrading `rgctl` to refresh the project copy. Manual copy of `skills/rgctl/` remains a fallback if you have a git checkout.
 
 ---
 
-## 2. Add rgBuilder to your PATH
+## 2. Add rgctl to your PATH
 
 Pick one approach for your shell.
 
@@ -164,15 +164,15 @@ alias rgctl='/path/to/rgctl'
 
 ## 3. Example project: ecommerce-java
 
-This guide uses the in-tree Spring Boot fixture shipped with rgBuilder:
+This guide uses the in-tree Spring Boot fixture shipped with rgctl:
 
-**[`rgbuilder-tests/ecommerce-java`](../rgbuilder-tests/ecommerce-java)**
+**[`rgctl-tests/ecommerce-java`](../rgctl-tests/ecommerce-java)**
 
-It implements the same e-commerce domain as the other `ecommerce-*` fixtures (cart, orders, products, auth), plus a **CoolStore-compatible dual API** under `/services/*` (additive next to `/api/*`). No separate clone is required when you have the rgBuilder repo.
+It implements the same e-commerce domain as the other `ecommerce-*` fixtures (cart, orders, products, auth), plus a **CoolStore-compatible dual API** under `/services/*` (additive next to `/api/*`). No separate clone is required when you have the rgctl repo.
 
 ```bash
-# From the rgBuilder repository root
-export REPO="$PWD/rgbuilder-tests/ecommerce-java"
+# From the rgctl repository root
+export REPO="$PWD/rgctl-tests/ecommerce-java"
 cd "$REPO"
 ```
 
@@ -200,7 +200,7 @@ ecommerce-java/
 | `/api/*` | JWT e-commerce API (auth, categories, cart ownership, reviews, …) |
 | `/services/*` | CoolStore-style products / cart / checkout / orders (`cartId` session carts) |
 
-`ShoppingCartService.priceShoppingCart` mutates cart totals (promo + shipping) — the Layer F target for `cpg mutations --type ShoppingCart`. Full route table: [`rgbuilder-tests/README.md`](../rgbuilder-tests/README.md).
+`ShoppingCartService.priceShoppingCart` mutates cart totals (promo + shipping) — the Layer F target for `cpg mutations --type ShoppingCart`. Full route table: [`rgctl-tests/README.md`](../rgctl-tests/README.md).
 
 Sibling fixtures (`ecommerce-python`, `ecommerce-rust`, `ecommerce-c`, …) share both REST shapes.
 
@@ -212,9 +212,9 @@ All commands below assume `REPO` points at `ecommerce-java`, or that you run fro
 
 ## 4. Index with `discover`
 
-`discover` scans source files, builds the knowledge graph, runs analytics (complexity, communities, centrality, blast-radius scoring), and writes artifacts under `.rgbuilder/`.
+`discover` scans source files, builds the knowledge graph, runs analytics (complexity, communities, centrality, blast-radius scoring), and writes artifacts under `.rgctl/`.
 
-Built-in registry includes **markdown** (`rgbuilder-lang-markdown`): `.md` and `.mdx` are indexed by default (headings, links, code blocks, frontmatter). See [markdown-context.md](markdown-context.md). Use `-l markdown` or `-l markdown,java` to limit languages.
+Built-in registry includes **markdown** (`rgctl-lang-markdown`): `.md` and `.mdx` are indexed by default (headings, links, code blocks, frontmatter). See [markdown-context.md](markdown-context.md). Use `-l markdown` or `-l markdown,java` to limit languages.
 
 ### Full pipeline (`--full`)
 
@@ -224,7 +224,7 @@ Built-in registry includes **markdown** (`rgbuilder-lang-markdown`): `.md` and `
 rgctl discover . --full
 ```
 
-Status is written to `.rgbuilder/pipeline_status.json`. A second `--full` on unchanged sources skips fresh stages.
+Status is written to `.rgctl/pipeline_status.json`. A second `--full` on unchanged sources skips fresh stages.
 
 ### Fast index (default)
 
@@ -243,7 +243,7 @@ Example output:
 [*] Top hotspot: findAll (PageRank: 0.0177)
 [!] Found 48 circular dependencies
 [✓] Analysis complete
-[✓] Saved to .rgbuilder/ (0.1 MB total)
+[✓] Saved to .rgctl/ (0.1 MB total)
 [✓] Completed in 0.0s (peak memory: 21 MB)
 
 [i] Next steps:
@@ -300,10 +300,10 @@ Harmonic, dashboard, migration export, security, CFG/PDG, and discover-time tain
 | Flag | What it adds |
 |------|----------------|
 | `--with-security` | Secret scanning |
-| `--with-cfg` | Per-function CFG, dominators, PDG (archive under `.rgbuilder/analysis/`) |
+| `--with-cfg` | Per-function CFG, dominators, PDG (archive under `.rgctl/analysis/`) |
 | `--with-taint` | Discover-time taint into archive (implies CFG/PDG pass) |
 | `--with-harmonic` | Harmonic centrality (migration ranking) |
-| `--with-dashboard` | Static dashboard bundle under `.rgbuilder/dashboard/` |
+| `--with-dashboard` | Static dashboard bundle under `.rgctl/dashboard/` |
 | `--export-migration-hints` | Migration roadmap JSON (alias: `--export-migration-plan`) |
 
 ```bash
@@ -322,8 +322,8 @@ Example lines from that richer run:
 ✓ Control flow analysis:
   CFG/PDG/Dominance: 178 functions analyzed
   Skipped: 9 functions (unsupported language or parse error)
-[✓] Migration plan (Hybrid Default): 9 steps → …/ecommerce-java/./.rgbuilder/migration_plan.json
-[✓] Dashboard: …/ecommerce-java/./.rgbuilder/dashboard/index.html
+[✓] Migration plan (Hybrid Default): 9 steps → …/ecommerce-java/./.rgctl/migration_plan.json
+[✓] Dashboard: …/ecommerce-java/./.rgctl/dashboard/index.html
 ```
 
 Use `--with-cfg` when you need `inspect` / slice overlays; add `--with-taint` for discover-time taint flows. On large monorepos (100k+ functions) expect minutes to hours.
@@ -360,7 +360,7 @@ See [analysis-architecture.md](analysis-architecture.md) and [internal/profile.m
 
 ### Legacy JSON graph (optional)
 
-By default, rgBuilder writes a **binary snapshot** (`graph.snapshot.bin`). Legacy `graph.db` / `graph.json` are only written when requested:
+By default, rgctl writes a **binary snapshot** (`graph.snapshot.bin`). Legacy `graph.db` / `graph.json` are only written when requested:
 
 ```bash
 rgctl discover . --write-json-graph
@@ -371,7 +371,7 @@ rgctl discover . --write-json-graph
 After a successful run:
 
 ```
-ecommerce-java/.rgbuilder/
+ecommerce-java/.rgctl/
 ├── graph.snapshot.bin          # Columnar mmap graph (primary cache for queries)
 ├── content_store.bin           # Large markdown bodies / files (body_ref / blob_ref; Obsidian + doc semantic)
 ├── blast_engine.snapshot.bin   # Pre-built blast-radius engine
@@ -408,7 +408,7 @@ These apply to **every** subcommand:
 | Flag | Purpose |
 |------|---------|
 | `-r, --repo PATH` | Repository root (default: current directory) |
-| `-d, --db PATH` | Legacy graph JSON path (default: `.rgbuilder/graph.db`) |
+| `-d, --db PATH` | Legacy graph JSON path (default: `.rgctl/graph.db`) |
 | `-f, --format FORMAT` | Output: `text`, `json`, `graphviz`, `mermaid` |
 | `-o, --output FILE` | Write command output to a file instead of stdout |
 
@@ -543,7 +543,7 @@ JSON (trimmed):
 ### Named communities (analysis overlay)
 
 `discover` runs label-propagation community detection and stores assignments in
-`.rgbuilder/analysis_results.bin` — **not** as edges in the topology graph.
+`.rgctl/analysis_results.bin` — **not** as edges in the topology graph.
 `gql` joins that sidecar so you can list and filter communities:
 
 Community detection uses behavioral edges (`Calls`, `Uses`, `References`) by default.  
@@ -911,7 +911,7 @@ rgctl -r "$REPO" -f json metrics --communities | jq .
 ```
 
 That summary is counts only. For **named** communities and membership, use GQL / `communities list`
-([§6](#6-query-the-graph-with-gql)) or `.rgbuilder/dashboard/communities.json` after `--with-dashboard`.
+([§6](#6-query-the-graph-with-gql)) or `.rgctl/dashboard/communities.json` after `--with-dashboard`.
 
 ```bash
 rgctl -r "$REPO" -f json metrics --pagerank | jq '.pagerank | {iterations, converged, top: .top[:3]}'
@@ -975,7 +975,7 @@ rgctl -r "$REPO" semantic index --diffuse \
 rgctl -r "$REPO" semantic index --embed-bodies
 
 # Distill our token list through a teacher (rebuild after copying to assets/vocab_matrix.bin)
-rgctl -r "$REPO" semantic distill --matrix crates/rgbuilder-analysis/assets/vocab_matrix.bin --embedder code-daemon
+rgctl -r "$REPO" semantic distill --matrix crates/rgctl-analysis/assets/vocab_matrix.bin --embedder code-daemon
 
 # Neural code retriever (ONNX)
 rgctl -r "$REPO" semantic index --embedder code-daemon
@@ -1003,7 +1003,7 @@ Passing `--diffuse` recomputes dense vectors and mixes call-graph neighbors **be
 
 **Dashboard:** `rgctl serve --open` → **Search** tab uses the same index via `/api/semantic/*`. The UI does not choose the embedder — build the index with CLI first, then restart `serve`. Status shows `model_id` (e.g. `vocab-accumulate-v1`).
 
-**Perf note (linux-scale):** time queries with a **release** binary (`cargo build --release`). Debug builds can be ~100× slower on Hamming scan. Index load of `.rgbuilder/semantic_index.bin` is bincode into owned strings (~tens of seconds at ~1.8M functions); query itself is ~few ms in release.
+**Perf note (linux-scale):** time queries with a **release** binary (`cargo build --release`). Debug builds can be ~100× slower on Hamming scan. Index load of `.rgctl/semantic_index.bin` is bincode into owned strings (~tens of seconds at ~1.8M functions); query itself is ~few ms in release.
 
 Design → **[Semantic search design](design/semantic-search-design.md)** · timing tests → `cargo test --test semantic_query_timing -- --nocapture`
 
@@ -1049,7 +1049,7 @@ rgctl -r "$REPO" export --export-format graphviz --export-output calls.dot --que
 
 ### Markdown → Obsidian vault
 
-For documentation repos (or `-l markdown` discover), export heading sections as an Obsidian vault. Requires prior `discover` (creates `.rgbuilder/` and `content_store.bin` for large bodies).
+For documentation repos (or `-l markdown` discover), export heading sections as an Obsidian vault. Requires prior `discover` (creates `.rgctl/` and `content_store.bin` for large bodies).
 
 ```bash
 export REPO=/path/to/docs-repo
@@ -1080,7 +1080,7 @@ rgctl -r "$REPO" check --policy-file policy.json
 
 Exit code **1** when violations are found — suitable for CI pipelines.
 
-The fixture also ships a shared policy at [`rgbuilder-tests/rgbuilder-policy.json`](../rgbuilder-tests/rgbuilder-policy.json).
+The fixture also ships a shared policy at [`rgctl-tests/rgctl-policy.json`](../rgctl-tests/rgctl-policy.json).
 
 ---
 
@@ -1115,7 +1115,7 @@ Full reference: [http-api.md](http-api.md). CoolStore walkthrough: [HTTP Server 
 
 ### MCP stdio (`--mode mcp`)
 
-No HTTP bind. The host (Cursor, Claude Code) speaks JSON-RPC on stdin/stdout. Tools: `rgbuilder_status`, `rgbuilder_query`, `rgbuilder_search`, `rgbuilder_impact`, `rgbuilder_metrics`, `rgbuilder_cpg`, `rgbuilder_check`. Query/search default `limit` 20. Unready artifacts return pipeline status JSON as the tool result.
+No HTTP bind. The host (Cursor, Claude Code) speaks JSON-RPC on stdin/stdout. Tools: `rgctl_status`, `rgctl_query`, `rgctl_search`, `rgctl_impact`, `rgctl_metrics`, `rgctl_cpg`, `rgctl_check`. Query/search default `limit` 20. Unready artifacts return pipeline status JSON as the tool result.
 
 ```bash
 rgctl -r "$REPO" serve --mode mcp
@@ -1125,7 +1125,7 @@ Walkthrough (Cursor / Claude Code config): [MCP Server](guides/mcp-server.md).
 
 ### Background HTTP+MCP daemon
 
-Shared daemon for catalog, per-repo HTTP API, and `/mcp` (default cache under `~/.rgbuilder/`):
+Shared daemon for catalog, per-repo HTTP API, and `/mcp` (default cache under `~/.rgctl/`):
 
 ```bash
 rgctl daemon start --host 127.0.0.1 --port 8080
@@ -1134,7 +1134,7 @@ rgctl -r "$REPO" discover .
 rgctl -r "$REPO" -f json blast-radius 'CartService::clearCart'
 ```
 
-Foreground start: `rgctl serve --daemon`. Opt out: `--no-daemon` (in-process, `{repo}/.rgbuilder/`). See [HTTP Server and Dashboard](guides/http-server-and-dashboard.md) and [installation.md](installation.md#daemon-vs-no-daemon).
+Foreground start: `rgctl serve --daemon`. Opt out: `--no-daemon` (in-process, `{repo}/.rgctl/`). See [HTTP Server and Dashboard](guides/http-server-and-dashboard.md) and [installation.md](installation.md#daemon-vs-no-daemon).
 
 ---
 
@@ -1142,8 +1142,8 @@ Foreground start: `rgctl serve --daemon`. Opt out: `--no-daemon` (in-process, `{
 
 ```bash
 # 1. Point at the in-tree fixture
-cd /path/to/rgBuilder
-export REPO="$PWD/rgbuilder-tests/ecommerce-java"
+cd /path/to/rgctl
+export REPO="$PWD/rgctl-tests/ecommerce-java"
 cd "$REPO"
 
 # 2. Index (add CFG + dashboard for the rest of this walkthrough)
@@ -1182,7 +1182,7 @@ rgctl -r "$REPO" export --export-format mermaid \
 rgctl -r "$REPO" serve --open
 ```
 
-Migration hints (with `--export-migration-hints`) land under `.rgbuilder/migration_plan.json` and `.rgbuilder/dashboard/migration_plan.json` — package-level steps such as `com.example.ecommerce.service`, `…repository`, `…controller`, and CoolStore `…coolstore.*`.
+Migration hints (with `--export-migration-hints`) land under `.rgctl/migration_plan.json` and `.rgctl/dashboard/migration_plan.json` — package-level steps such as `com.example.ecommerce.service`, `…repository`, `…controller`, and CoolStore `…coolstore.*`.
 
 ---
 
@@ -1190,7 +1190,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgbuilder/migrati
 
 | Command | Purpose |
 |---------|---------|
-| `discover` | Index repo, build `.rgbuilder/` artifacts (`--full` = staged CFG/dashboard/harmonic + semantic) |
+| `discover` | Index repo, build `.rgctl/` artifacts (`--full` = staged CFG/dashboard/harmonic + semantic) |
 | `gql` | Graph query language (incl. virtual `:Community`) |
 | `communities` | List / refresh heuristic community labels |
 | `blast-radius` | Upstream call-graph impact for a symbol |
@@ -1278,7 +1278,7 @@ On **very large repos** (500k+ graph nodes), discover automatically:
 Profile a cold run:
 
 ```bash
-rm -rf .rgbuilder
+rm -rf .rgctl
 RUST_LOG=info,profile=info rgctl discover . -v 2>&1 | grep '\[profile\]'
 ```
 
@@ -1289,4 +1289,4 @@ RUST_LOG=info,profile=info rgctl discover . -v 2>&1 | grep '\[profile\]'
 - [http-api.md](http-api.md) — dashboard HTTP API
 - [json-api.md](json-api.md) — machine-readable output + field catalogs
 - [AGENTS.md](../AGENTS.md) — agent-oriented command recipes
-- [`rgbuilder-tests/README.md`](../rgbuilder-tests/README.md) — all language fixtures + correctness suite
+- [`rgctl-tests/README.md`](../rgctl-tests/README.md) — all language fixtures + correctness suite

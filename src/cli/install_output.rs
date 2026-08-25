@@ -47,7 +47,7 @@ pub struct InstallJsonResponse {
     pub schema_version: u32,
     /// Always `"install"`.
     pub command: String,
-    /// Bundled skill id (`rgbuilder`).
+    /// Bundled skill id (`rgctl`).
     pub skill: String,
     /// Absolute repository root used as install prefix.
     pub repo: String,
@@ -66,7 +66,7 @@ pub fn build_install_response(
     InstallJsonResponse {
         schema_version: INSTALL_SCHEMA_VERSION,
         command: "install".into(),
-        skill: "rgbuilder".into(),
+        skill: "rgctl".into(),
         repo: repo.to_string(),
         force,
         writes,

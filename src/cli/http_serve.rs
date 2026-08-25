@@ -16,13 +16,13 @@ use axum::{
     response::{Html, IntoResponse, Response},
     routing::{get, post},
 };
-use rgbuilder_analysis::{CommunityQueryContext, SemanticIndex};
-use rgbuilder_dashboard::default_dashboard_path;
-use rgbuilder_gql::QueryMacroRegistry;
-use rgbuilder_graph::CodeGraph;
-use rgbuilder_service::command::{QueryArgs, SearchArgs, SearchScope};
-use rgbuilder_service::query::run_query;
-use rgbuilder_service::search::run_search;
+use rgctl_analysis::{CommunityQueryContext, SemanticIndex};
+use rgctl_dashboard::default_dashboard_path;
+use rgctl_gql::QueryMacroRegistry;
+use rgctl_graph::CodeGraph;
+use rgctl_service::command::{QueryArgs, SearchArgs, SearchScope};
+use rgctl_service::query::run_query;
+use rgctl_service::search::run_search;
 use serde::Deserialize;
 use serde_json::Value;
 use std::net::SocketAddr;
@@ -324,7 +324,7 @@ fn reload_graph_if_needed(state: &AppState, last_digest: &mut Option<String>) {
     if status.graph_digest == *last_digest {
         return;
     }
-    let snapshot = rgbuilder_graph::snapshot::MmappedGraphSnapshot::default_path(&state.repo);
+    let snapshot = rgctl_graph::snapshot::MmappedGraphSnapshot::default_path(&state.repo);
     if !snapshot.is_file() {
         return;
     }
@@ -394,7 +394,7 @@ async fn dashboard_fallback(
 
 fn preparing_html(message: &str) -> String {
     format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>rgBuilder</title></head>\
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>rgctl</title></head>\
          <body><p>{message}</p><p>Poll <code>/api/status</code> for pipeline progress.</p></body></html>"
     )
 }

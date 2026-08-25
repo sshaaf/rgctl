@@ -1,2 +1,2 @@
-//! Re-export policy file loader from `rgbuilder-service`.
-pub use rgbuilder_service::policy::*;
+//! Re-export policy file loader from `rgctl-service`.
+pub use rgctl_service::policy::*;

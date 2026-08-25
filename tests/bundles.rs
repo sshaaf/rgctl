@@ -1,6 +1,6 @@
 //! Tier 1 language plugin integration tests
 
-use rgbuilder::languages::registry::LanguageRegistry;
+use rgctl::languages::registry::LanguageRegistry;
 use std::path::Path;
 
 #[test]

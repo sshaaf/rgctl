@@ -15,7 +15,7 @@ use crate::analysis::{
 };
 use crate::graph::backend::GraphBackend;
 use anyhow::Result;
-use rgbuilder_graph::SnapshotNodeStore;
+use rgctl_graph::SnapshotNodeStore;
 use std::path::Path;
 use uuid::Uuid;
 
@@ -273,7 +273,7 @@ fn resolve_target_uuid_impl(
         )?
     };
     if candidates.is_empty() {
-        return Err(rgbuilder_error::Error::NodeNotFound(parsed.target_name.clone()).into());
+        return Err(rgctl_error::Error::NodeNotFound(parsed.target_name.clone()).into());
     }
 
     if let Ok(Some(index)) = MacroCallIndex::load(&MacroCallIndex::default_path(&ctx.repo)) {
@@ -378,13 +378,13 @@ pub fn run(ctx: &CliContext, args: BlastRadiusArgs) -> Result<()> {
             return Ok(());
         }
 
-        let mut session = rgbuilder_service::Session::new(&ctx.repo);
+        let mut session = rgctl_service::Session::new(&ctx.repo);
         if !session.graph_ready() {
             anyhow::bail!("Graph not found (run `rgctl discover` first)");
         }
-        let value = rgbuilder_service::execute(
+        let value = rgctl_service::execute(
             &mut session,
-            rgbuilder_service::Command::Impact(rgbuilder_service::ImpactArgs {
+            rgctl_service::Command::Impact(rgctl_service::ImpactArgs {
                 symbol: args.symbol.clone(),
                 depth: args.depth,
                 class: args.class.clone(),

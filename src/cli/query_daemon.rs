@@ -4,15 +4,15 @@
 //! Ephemeral query daemon — keeps mmap graph + blast engine warm across CLI invocations.
 //!
 //! Protocol: newline-delimited JSON-RPC-like messages over a local transport:
-//! - Unix: domain socket at `<repo>/.rgbuilder/query.sock`
-//! - Windows: loopback TCP; port stored in `<repo>/.rgbuilder/query.port`
+//! - Unix: domain socket at `<repo>/.rgctl/query.sock`
+//! - Windows: loopback TCP; port stored in `<repo>/.rgctl/query.port`
 
 use super::blast_radius::{BlastRadiusArgs, build_lite_response};
 use super::blast_radius_output::BlastRadiusResponse;
 use super::context::CliContext;
 use crate::analysis::{BlastRadiusEngine, parse_fqn_symbol, try_load_engine};
 use anyhow::{Context, Result};
-use rgbuilder_graph::SnapshotNodeStore;
+use rgctl_graph::SnapshotNodeStore;
 use serde::{Deserialize, Serialize};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
@@ -25,17 +25,17 @@ const CONNECT_TIMEOUT: Duration = Duration::from_millis(200);
 /// Default local endpoint path under a repository root.
 #[cfg(unix)]
 pub fn default_socket_path(repo: &Path) -> PathBuf {
-    rgbuilder_graph::paths::artifact_path(repo, "query.sock")
+    rgctl_graph::paths::artifact_path(repo, "query.sock")
 }
 
 /// Default port-file path under a repository root (Windows loopback daemon).
 #[cfg(windows)]
 pub fn default_socket_path(repo: &Path) -> PathBuf {
-    rgbuilder_graph::paths::artifact_path(repo, "query.port")
+    rgctl_graph::paths::artifact_path(repo, "query.port")
 }
 
 fn daemon_disabled() -> bool {
-    rgbuilder_graph::paths::env_flag_set("NO_QUERY_DAEMON")
+    rgctl_graph::paths::env_flag_set("NO_QUERY_DAEMON")
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -229,7 +229,7 @@ mod transport {
             Err(err) if err.kind() == std::io::ErrorKind::InvalidInput => {
                 anyhow::bail!(
                     "query socket path is too long for AF_UNIX ({} bytes): {}. \
-                     Use a shorter repository path or `serve --socket /tmp/rgbuilder.sock`",
+                     Use a shorter repository path or `serve --socket /tmp/rgctl.sock`",
                     socket_path.as_os_str().len(),
                     socket_path.display()
                 );
@@ -489,7 +489,7 @@ mod tests {
         }
         let prepared = PreparedGraphSnapshot::from_backend(backend).unwrap();
         let digest = prepared.content_digest.clone();
-        let rb = dir.join(".rgbuilder");
+        let rb = dir.join(".rgctl");
         std::fs::create_dir_all(&rb).unwrap();
         prepared
             .write_to_path(&rb.join("graph.snapshot.bin"))

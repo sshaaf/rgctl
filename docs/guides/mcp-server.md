@@ -8,18 +8,18 @@ On start it detects the session root (`-r` / `--repo`, an optional PATH, or the 
 
 The catalog is **seven tools** (workflow families, not one CLI command per tool). `discover`, `semantic index`, `export`, `communities label --write`, and the dashboard are **not** MCP tools -- the pipeline already runs on serve, and those stay CLI. When a tool needs an artifact that is not ready, it returns **pipeline status JSON** as the tool result (not a JSON-RPC error).
 
-CLI `-f json gql` does **not** apply a default row cap. MCP `rgbuilder_query` and `rgbuilder_search` default `limit` to **20** when the client omits it.
+CLI `-f json gql` does **not** apply a default row cap. MCP `rgctl_query` and `rgctl_search` default `limit` to **20** when the client omits it.
 
 ## Use Cases
 
 - **IDE session.** Leave MCP connected in Cursor while you edit CoolStore; the graph warms in the background.
 - **Structural questions in the editor.** Query, semantic search, blast-radius, metrics, CPG, and policy check without spawning a new `rgctl` per turn.
-- **Pipeline readiness.** `rgbuilder_status` (and unreadiness results from other tools) report dashboard, CFG archive, and semantic index flags.
+- **Pipeline readiness.** `rgctl_status` (and unreadiness results from other tools) report dashboard, CFG archive, and semantic index flags.
 - **No stdout scraping.** Progress and logs go to **stderr**. stdout is JSON-RPC only, so the host never has to parse CLI banners.
 
 ## Example Project
 
-This guide uses the **CoolStore** (`example/coolstore`). You can start MCP with an empty `.rgbuilder/` -- the server will index for you.
+This guide uses the **CoolStore** (`example/coolstore`). You can start MCP with an empty `.rgctl/` -- the server will index for you.
 
 ```bash
 rgctl -r example/coolstore serve --mode mcp
@@ -46,9 +46,9 @@ Project `.cursor/mcp.json` (or your user MCP config). Use an **absolute** `-r` p
 ```json
 {
   "mcpServers": {
-    "rgbuilder": {
+    "rgctl": {
       "command": "rgctl",
-      "args": ["-r", "/absolute/path/to/rgBuilder/example/coolstore", "serve", "--mode", "mcp"]
+      "args": ["-r", "/absolute/path/to/rgctl/example/coolstore", "serve", "--mode", "mcp"]
     }
   }
 }
@@ -59,7 +59,7 @@ If the host already starts the process in the CoolStore directory, you can omit 
 ```json
 {
   "mcpServers": {
-    "rgbuilder": {
+    "rgctl": {
       "command": "rgctl",
       "args": ["serve", "--mode", "mcp"]
     }
@@ -76,9 +76,9 @@ Project `.claude/settings.json` (or your user MCP config):
 ```json
 {
   "mcpServers": {
-    "rgbuilder": {
+    "rgctl": {
       "command": "rgctl",
-      "args": ["-r", "/absolute/path/to/rgBuilder/example/coolstore", "serve", "--mode", "mcp"]
+      "args": ["-r", "/absolute/path/to/rgctl/example/coolstore", "serve", "--mode", "mcp"]
     }
   }
 }
@@ -89,23 +89,23 @@ Run Claude Code from the repository root so cwd is the session root.
 ### 4. What happens on initialize
 
 1. The host sends MCP `initialize`.
-2. rgBuilder advertises the seven tools, three resources, and server name `rgbuilder`.
+2. rgctl advertises the seven tools, three resources, and server name `rgctl`.
 3. A background thread starts **basic discover**, then CFG + dashboard + harmonic, then `semantic index` (vocab embedder).
-4. After stage 1, `.rgbuilder/graph.snapshot.bin` is on disk -- CLI `gql` / `blast-radius` work from another terminal while MCP stays up.
-5. Call `rgbuilder_status` (or any tool that needs artifacts) until `dashboard_ready`, `cfg_ready`, and `semantic_ready` are true for deep / semantic work.
+4. After stage 1, `.rgctl/graph.snapshot.bin` is on disk -- CLI `gql` / `blast-radius` work from another terminal while MCP stays up.
+5. Call `rgctl_status` (or any tool that needs artifacts) until `dashboard_ready`, `cfg_ready`, and `semantic_ready` are true for deep / semantic work.
 
 Logs such as `[!] full pipeline: ...` go to **stderr**. Never write non-RPC bytes to stdout in this mode.
 
-### 5. Call `rgbuilder_status`
+### 5. Call `rgctl_status`
 
-The tool takes no arguments. The result includes pretty-printed JSON text and `structuredContent` with the same fields as `GET /api/status` / `.rgbuilder/pipeline_status.json`.
+The tool takes no arguments. The result includes pretty-printed JSON text and `structuredContent` with the same fields as `GET /api/status` / `.rgctl/pipeline_status.json`.
 
 | Field | Meaning |
 |-------|---------|
 | `schema_version` | `1` |
 | `command` | `pipeline_status` |
 | `plan[]` | Stages `basic_discover`, `deep_pass`, `semantic_index` with `pending` / `running` / `complete` / `skipped` / `failed` |
-| `dashboard_ready` | `.rgbuilder/dashboard/index.html` exists |
+| `dashboard_ready` | `.rgctl/dashboard/index.html` exists |
 | `cfg_ready` | CFG/PDG archive exists |
 | `semantic_ready` | `semantic_index.bin` exists |
 | `message` | Human line, e.g. `Dashboard is being prepared` |
@@ -141,26 +141,26 @@ rgctl -r example/coolstore serve --no-pipeline --open
 
 ### 6. Query, search, impact, metrics, CPG, check
 
-JSON shapes match CLI `-f json` for the same operation ([JSON API](../json-api.md)). Pass either `query` or `macro` on `rgbuilder_query`, not both.
+JSON shapes match CLI `-f json` for the same operation ([JSON API](../json-api.md)). Pass either `query` or `macro` on `rgctl_query`, not both.
 
 | Tool | Typical arguments | Notes |
 |------|-------------------|--------|
-| `rgbuilder_query` | `query` **or** `macro`; optional `explain`, `limit` | Macros: `all_functions`, `all_communities`, `direct_calls`, `call_chain`. Default `limit` 20. Find-by-name / FQN / community / neighborhood are GQL, not extra tools. |
-| `rgbuilder_search` | `text`; optional `scope`, `limit` | `scope`: `function` (default), `community`, `docs`, `all`. Default `limit` 20. Needs semantic index. |
-| `rgbuilder_impact` | `symbol`; optional `depth`, `class`, `file` | Blast-radius JSON (`schema_version` 2) including `metrics`. |
-| `rgbuilder_metrics` | at least one of `pagerank`, `betweenness`, `communities` | Invalid-params if no flag. |
-| `rgbuilder_cpg` | `op` plus op-specific fields | `op`: `status`, `function`, `calls`, `mutations`, `flows`, `slice`, `inspect`, `pdg`, `ast`. **Not** `export` (CLI only). |
-| `rgbuilder_check` | `policy_file` | Same as CLI `-f json check`. |
+| `rgctl_query` | `query` **or** `macro`; optional `explain`, `limit` | Macros: `all_functions`, `all_communities`, `direct_calls`, `call_chain`. Default `limit` 20. Find-by-name / FQN / community / neighborhood are GQL, not extra tools. |
+| `rgctl_search` | `text`; optional `scope`, `limit` | `scope`: `function` (default), `community`, `docs`, `all`. Default `limit` 20. Needs semantic index. |
+| `rgctl_impact` | `symbol`; optional `depth`, `class`, `file` | Blast-radius JSON (`schema_version` 2) including `metrics`. |
+| `rgctl_metrics` | at least one of `pagerank`, `betweenness`, `communities` | Invalid-params if no flag. |
+| `rgctl_cpg` | `op` plus op-specific fields | `op`: `status`, `function`, `calls`, `mutations`, `flows`, `slice`, `inspect`, `pdg`, `ast`. **Not** `export` (CLI only). |
+| `rgctl_check` | `policy_file` | Same as CLI `-f json check`. |
 
 Cursor / Claude examples:
 
-- Inventory: `rgbuilder_query` with `{ "macro": "all_functions" }`
-- Name search: `rgbuilder_query` with `{ "query": "MATCH (n:Function) WHERE n.name LIKE '*Service*' RETURN n" }`
-- Checkout: `rgbuilder_search` with `{ "text": "checkout flow", "scope": "function" }`
-- Before edit: `rgbuilder_impact` with `{ "symbol": "CartService::clearCart", "depth": 2 }`
-- Hotspots: `rgbuilder_metrics` with `{ "pagerank": true }`
-- CPG: `rgbuilder_cpg` with `{ "op": "status" }` then `{ "op": "mutations", "type_name": "ShoppingCart", "exclude_ctors": true }`
-- CI: `rgbuilder_check` with `{ "policy_file": "/absolute/path/to/policy.json" }`
+- Inventory: `rgctl_query` with `{ "macro": "all_functions" }`
+- Name search: `rgctl_query` with `{ "query": "MATCH (n:Function) WHERE n.name LIKE '*Service*' RETURN n" }`
+- Checkout: `rgctl_search` with `{ "text": "checkout flow", "scope": "function" }`
+- Before edit: `rgctl_impact` with `{ "symbol": "CartService::clearCart", "depth": 2 }`
+- Hotspots: `rgctl_metrics` with `{ "pagerank": true }`
+- CPG: `rgctl_cpg` with `{ "op": "status" }` then `{ "op": "mutations", "type_name": "ShoppingCart", "exclude_ctors": true }`
+- CI: `rgctl_check` with `{ "policy_file": "/absolute/path/to/policy.json" }`
 
 ### 7. Resources
 
@@ -168,9 +168,9 @@ Cursor / Claude examples:
 
 | URI | Content |
 |-----|---------|
-| `rgbuilder://status` | Pipeline status (`schema_version` 1) |
-| `rgbuilder://manifest` | Dashboard `manifest.json`, or status JSON if missing |
-| `rgbuilder://migration-plan` | Migration plan JSON, or `{ "available": false, ... }` if missing |
+| `rgctl://status` | Pipeline status (`schema_version` 1) |
+| `rgctl://manifest` | Dashboard `manifest.json`, or status JSON if missing |
+| `rgctl://migration-plan` | Migration plan JSON, or `{ "available": false, ... }` if missing |
 
 ### 8. Smoke-test without an IDE
 
@@ -191,7 +191,7 @@ In a second process you would normally let the IDE speak MCP. For a raw check, s
 ```
 
 ```json
-{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"rgbuilder_status","arguments":{}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"rgctl_status","arguments":{}}}
 ```
 
 Responses are framed with `Content-Length`. A successful `tools/call` includes `result.structuredContent`.
@@ -214,7 +214,7 @@ Same rules as `discover` / HTTP `serve`:
 - else positional `PATH` on `serve`
 - else process cwd (what Cursor sets for the MCP child)
 
-Two full pipelines on the same repo cannot run at once (`.rgbuilder/pipeline.lock`).
+Two full pipelines on the same repo cannot run at once (`.rgctl/pipeline.lock`).
 
 ### 11. OpenCode smoke test (host integration)
 
@@ -229,16 +229,16 @@ Two full pipelines on the same repo cannot run at once (`.rgbuilder/pipeline.loc
 **Daemon HTTP MCP (remote):**
 
 ```bash
-RGBUILDER_OPENCODE_MODE=daemon ./scripts/integration/opencode-mcp-smoke.sh
+RGCTL_OPENCODE_MODE=daemon ./scripts/integration/opencode-mcp-smoke.sh
 ```
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `RGBUILDER_RGCTL` | `target/debug/rgctl` | Path to `rgctl` binary |
-| `RGBUILDER_OPENCODE_MODE` | `stdio` | `stdio` or `daemon` |
-| `RGBUILDER_REQUIRE_OPENCODE` | `0` | Exit 1 if `opencode` is missing |
+| `RGCTL_RGCTL` | `target/debug/rgctl` | Path to `rgctl` binary |
+| `RGCTL_OPENCODE_MODE` | `stdio` | `stdio` or `daemon` |
+| `RGCTL_REQUIRE_OPENCODE` | `0` | Exit 1 if `opencode` is missing |
 
-If `opencode` is not installed, the script exits **0** with `skip:` (unless `RGBUILDER_REQUIRE_OPENCODE=1`).
+If `opencode` is not installed, the script exits **0** with `skip:` (unless `RGCTL_REQUIRE_OPENCODE=1`).
 
 Example scratch config (stdio):
 
@@ -246,7 +246,7 @@ Example scratch config (stdio):
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "rgbuilder": {
+    "rgctl": {
       "type": "local",
       "command": ["/absolute/path/to/rgctl", "--no-daemon", "serve", "--mode", "mcp", "--no-pipeline"],
       "cwd": "repo",
@@ -267,7 +267,7 @@ Cargo wrapper (ignored unless opencode is present):
 cargo test --release --test opencode_mcp_smoke -- --ignored --nocapture
 ```
 
-Success line: `[opencode-smoke] OK — rgbuilder connected`.
+Success line: `[opencode-smoke] OK — rgctl connected`.
 
 Full tier matrix (A/B/C), corpora, and the **ecommerce-java 7-tool checklist**: [integration-tests.md](../internal/integration-tests.md).
 
@@ -275,13 +275,13 @@ Full tier matrix (A/B/C), corpora, and the **ecommerce-java 7-tool checklist**: 
 
 | MCP tool | Arguments | Notes |
 |----------|-----------|--------|
-| `rgbuilder_status` | none | Pipeline + artifact flags. Safe at any time. |
-| `rgbuilder_query` | `query` xor `macro`; `explain`; `limit` | Default limit 20. |
-| `rgbuilder_search` | `text`; `scope`; `limit` | Default limit 20. Unready → status JSON. |
-| `rgbuilder_impact` | `symbol`; `depth`; `class`; `file` | Blast-radius. |
-| `rgbuilder_metrics` | `pagerank` / `betweenness` / `communities` | At least one required. |
-| `rgbuilder_cpg` | `op` + fields | No `export`. CFG ops unready → status JSON. |
-| `rgbuilder_check` | `policy_file` | Missing file is invalid-params. |
+| `rgctl_status` | none | Pipeline + artifact flags. Safe at any time. |
+| `rgctl_query` | `query` xor `macro`; `explain`; `limit` | Default limit 20. |
+| `rgctl_search` | `text`; `scope`; `limit` | Default limit 20. Unready → status JSON. |
+| `rgctl_impact` | `symbol`; `depth`; `class`; `file` | Blast-radius. |
+| `rgctl_metrics` | `pagerank` / `betweenness` / `communities` | At least one required. |
+| `rgctl_cpg` | `op` + fields | No `export`. CFG ops unready → status JSON. |
+| `rgctl_check` | `policy_file` | Missing file is invalid-params. |
 
 **Not MCP tools** (CLI): `discover`, `semantic index`, `cpg export`, `communities label --write`, dashboard HTTP.
 
@@ -315,5 +315,5 @@ When MCP is already connected in the IDE, prefer the seven tools over spawning `
 - [HTTP Server and Dashboard](http-server-and-dashboard.md) -- browser UI and `/api/query` (standard `serve`)
 - [Discovering and Indexing a Codebase](discovering-and-indexing.md) -- `discover --full` stages
 - [Agent Skill](agent-skill.md) -- `install --skill` for Claude Code and Cursor
-- [Graph Query Language](graph-query-language.md) -- MATCH / macros (`rgbuilder_query`)
+- [Graph Query Language](graph-query-language.md) -- MATCH / macros (`rgctl_query`)
 - [JSON API](../json-api.md) -- payload shapes shared by CLI, HTTP, and MCP

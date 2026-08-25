@@ -4,14 +4,14 @@
 //!   ./scripts/test-dashboard-metasfresh.sh
 //!   cargo test --release --test dashboard_metasfresh -- --ignored --nocapture
 //!
-//! Repo: `example/metasfresh-4.9.8b` (override: `RGBUILDER_METASFRESH_REPO`).
+//! Repo: `example/metasfresh-4.9.8b` (override: `RGCTL_METASFRESH_REPO`).
 
 mod dashboard_harness;
 
 use dashboard_harness::{
     assert_dashboard_bundle_all_analysis, metasfresh_repo_path, run_discover_all_timed,
 };
-use rgbuilder_dashboard::dist_embedded;
+use rgctl_dashboard::dist_embedded;
 
 /// metasfresh reference graph (~128k functions per performance doc).
 const METASFRESH_MIN_NODES: u64 = 100_000;
@@ -30,7 +30,7 @@ fn discover_all_writes_dashboard_bundle_on_metasfresh() {
     let repo = metasfresh_repo_path();
     if !repo.is_dir() {
         eprintln!(
-            "skip: metasfresh example not found at {} (set RGBUILDER_METASFRESH_REPO)",
+            "skip: metasfresh example not found at {} (set RGCTL_METASFRESH_REPO)",
             repo.display()
         );
         return;
@@ -47,7 +47,7 @@ fn discover_all_writes_dashboard_bundle_on_metasfresh() {
     assert_dashboard_bundle_all_analysis(&repo, METASFRESH_MIN_NODES, METASFRESH_MIN_METANODES);
 
     let manifest: serde_json::Value = serde_json::from_slice(
-        &std::fs::read(repo.join(".rgbuilder/dashboard/manifest.json")).unwrap(),
+        &std::fs::read(repo.join(".rgctl/dashboard/manifest.json")).unwrap(),
     )
     .unwrap();
     let functions = manifest["metrics"]["function_count"].as_u64().unwrap_or(0);
@@ -76,8 +76,8 @@ fn metasfresh_dashboard_bundle_when_cache_present() {
     }
 
     let repo = metasfresh_repo_path();
-    let dash = repo.join(".rgbuilder/dashboard/manifest.json");
-    let archive = repo.join(".rgbuilder/analysis/cfg_pdg.archive.bin");
+    let dash = repo.join(".rgctl/dashboard/manifest.json");
+    let archive = repo.join(".rgctl/analysis/cfg_pdg.archive.bin");
     if !repo.is_dir() || !dash.is_file() || !archive.is_file() {
         eprintln!(
             "skip: no metasfresh --all cache at {} (run ./scripts/test-dashboard-metasfresh.sh)",

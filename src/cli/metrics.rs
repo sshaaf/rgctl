@@ -3,8 +3,8 @@
 use super::args::OutputFormat;
 use super::context::CliContext;
 use anyhow::Result;
-use rgbuilder_service::command::{Command, MetricsArgs as SvcMetrics};
-use rgbuilder_service::{Session, execute};
+use rgctl_service::command::{Command, MetricsArgs as SvcMetrics};
+use rgctl_service::{Session, execute};
 use serde_json::json;
 
 pub struct MetricsArgs {

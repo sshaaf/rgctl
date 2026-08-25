@@ -1,0 +1,16 @@
+[package]
+name = "rgctl-semantic"
+version = "0.4.6"
+edition.workspace = true
+rust-version.workspace = true
+description = "Semantic analysis and IDL generation for rgctl"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-error = { path = "../rgctl-error" }
+rgctl-graph = { path = "../rgctl-graph" }
+rgctl-plugin-api = { path = "../rgctl-plugin-api" }
+handlebars = "4"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

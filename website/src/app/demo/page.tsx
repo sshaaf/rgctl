@@ -14,7 +14,7 @@ export default function DemoPage() {
     <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6">
       <Badge className="mb-4">Interactive + recorded</Badge>
       <h1 className="text-3xl tracking-tight text-[var(--ink)] sm:text-4xl">
-        See rgBuilder in action
+        See rgctl in action
       </h1>
       <p className="mt-3 max-w-2xl text-[var(--body)]">
         Interactive agent scenarios first — prompt → tool call → schema-aligned
@@ -63,7 +63,7 @@ export default function DemoPage() {
       </div>
 
       <p className="mt-4 text-sm text-[var(--mute)]">
-        RgBuilder is focused on CLI usecases, however a tech preview dashboard is also available when the discover command runs with --with-dashboard{" "}.
+        rgctl is focused on CLI usecases, however a tech preview dashboard is also available when the discover command runs with --with-dashboard{" "}.
       </p>
     </div>
   );

@@ -5,9 +5,9 @@
 //! C4 semantic expand ⊆ CALLS, C5 CFG text ⊆ CALLS, plus centrality degrees.
 //!
 //! C2/C3: empty blast caches on flat/on-demand graphs are accepted (#28 won't-fix).
-//! See `rgbuilder-tests/correctness/QE.md`.
+//! See `rgctl-tests/correctness/QE.md`.
 
-use rgbuilder::analysis::{AnalysisResults, MacroCallIndex};
+use rgctl::analysis::{AnalysisResults, MacroCallIndex};
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fs;
@@ -20,7 +20,7 @@ fn fixture_repo() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo")
 }
 
-fn rgbuilder_bin() -> PathBuf {
+fn rgctl_bin() -> PathBuf {
     for key in ["CARGO_BIN_EXE_rgctl"] {
         if let Ok(p) = std::env::var(key) {
             return PathBuf::from(p);
@@ -68,7 +68,7 @@ impl Sandbox {
     }
 
     fn run(&self, args: &[&str]) -> Output {
-        let mut cmd = Command::new(rgbuilder_bin());
+        let mut cmd = Command::new(rgctl_bin());
         cmd.arg("-r").arg(&self.repo);
         cmd.args(args);
         cmd.output().expect("spawn rgctl")
@@ -241,7 +241,7 @@ fn cross_feature_consistency_after_discover() {
         "publishEvent must have ≥1 CALLS caller on fixture",
     );
 
-    let analysis_path = sandbox.repo.join(".rgbuilder/analysis_results.bin");
+    let analysis_path = sandbox.repo.join(".rgctl/analysis_results.bin");
     check(
         &mut failures,
         analysis_path.is_file(),

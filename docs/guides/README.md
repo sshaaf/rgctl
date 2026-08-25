@@ -1,6 +1,6 @@
-# rgBuilder Guides
+# rgctl Guides
 
-Practical, step-by-step guides for every major rgBuilder feature. Each guide uses the **CoolStore** application (`example/coolstore`) as a running example so you can follow along on a real Java EE codebase.
+Practical, step-by-step guides for every major rgctl feature. Each guide uses the **CoolStore** application (`example/coolstore`) as a running example so you can follow along on a real Java EE codebase.
 
 ## Guides
 
@@ -20,11 +20,11 @@ Practical, step-by-step guides for every major rgBuilder feature. Each guide use
 | [HTTP Server and Dashboard](http-server-and-dashboard.md) | `serve` | Run an HTTP API and browser-based dashboard |
 | [MCP Server](mcp-server.md) | `serve --mode mcp` | stdio MCP for Cursor / Claude Code (seven tools + auto full pipeline) |
 | [Migration Planning](migration-planning.md) | `discover --export-migration-hints` | Generate a dependency-aware migration roadmap |
-| [Agent Skill](agent-skill.md) | `install --skill` | Teach AI agents to use rgBuilder for refactoring, migration, porting, and testing |
+| [Agent Skill](agent-skill.md) | `install --skill` | Teach AI agents to use rgctl for refactoring, migration, porting, and testing |
 
 ## Prerequisites
 
-All guides assume you have rgBuilder installed. See the [Installation guide](../installation.md) to get started.
+All guides assume you have rgctl installed. See the [Installation guide](../installation.md) to get started.
 
 To follow the examples, clone the repository and navigate to the example project:
 

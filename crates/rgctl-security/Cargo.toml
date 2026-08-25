@@ -1,0 +1,18 @@
+[package]
+name = "rgctl-security"
+version = "0.4.6"
+edition.workspace = true
+rust-version.workspace = true
+description = "Security analysis for rgctl"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-analysis = { path = "../rgctl-analysis" }
+rgctl-error = { path = "../rgctl-error" }
+rgctl-graph = { path = "../rgctl-graph" }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -1,4 +1,4 @@
-//! rgBuilder CLI command definitions and dispatch.
+//! rgctl CLI command definitions and dispatch.
 
 mod args;
 mod blast_radius;
@@ -72,7 +72,7 @@ pub struct Cli {
     #[arg(long = "no-daemon", global = true)]
     pub no_daemon: bool,
 
-    /// Daemon workspace root (default: $HOME → state under ~/.rgbuilder/)
+    /// Daemon workspace root (default: $HOME → state under ~/.rgctl/)
     #[arg(long = "daemon-home", value_name = "PATH", global = true)]
     pub daemon_home: Option<std::path::PathBuf>,
 
@@ -105,7 +105,7 @@ pub enum Commands {
         #[arg(long = "with-security", visible_alias = "security")]
         with_security: bool,
 
-        /// Per-function CFG, dominators, and PDG → `.rgbuilder/analysis/` + cfg_pdg archive.
+        /// Per-function CFG, dominators, and PDG → `.rgctl/analysis/` + cfg_pdg archive.
         /// Off by default. Does **not** include discover-time taint (see `--with-taint`).
         #[arg(long = "with-cfg", visible_alias = "cfg")]
         with_cfg: bool,
@@ -119,7 +119,7 @@ pub enum Commands {
         #[arg(long = "with-dfg-loops")]
         with_dfg_loops: bool,
 
-        /// Write coarse AST skeleton archive under `.rgbuilder/analysis/` (implies CFG).
+        /// Write coarse AST skeleton archive under `.rgctl/analysis/` (implies CFG).
         #[arg(long = "with-ast-skeleton")]
         with_ast_skeleton: bool,
 
@@ -127,11 +127,11 @@ pub enum Commands {
         #[arg(long = "write-json-graph")]
         write_json_graph: bool,
 
-        /// Export the static dashboard bundle under `.rgbuilder/dashboard/`. Off by default.
+        /// Export the static dashboard bundle under `.rgctl/dashboard/`. Off by default.
         #[arg(long = "with-dashboard")]
         with_dashboard: bool,
 
-        /// Write a migration roadmap JSON after analysis (default: `.rgbuilder/migration_plan.json`).
+        /// Write a migration roadmap JSON after analysis (default: `.rgctl/migration_plan.json`).
         /// Alias: `--export-migration-plan` (deprecated name).
         #[arg(
             long = "export-migration-hints",
@@ -320,7 +320,7 @@ pub enum Commands {
         #[arg(long, default_value_t = 8080)]
         port: u16,
 
-        /// Dashboard directory [default: `<repo>/.rgbuilder/dashboard`]
+        /// Dashboard directory [default: `<repo>/.rgctl/dashboard`]
         #[arg(long, value_name = "DIR")]
         dashboard_dir: Option<std::path::PathBuf>,
 
@@ -344,7 +344,7 @@ pub enum Commands {
         #[arg(long = "daemon-worker", hide = true)]
         daemon_worker: bool,
 
-        /// Daemon endpoint path (Unix socket or Windows port file; default under `<repo>/.rgbuilder/`)
+        /// Daemon endpoint path (Unix socket or Windows port file; default under `<repo>/.rgctl/`)
         #[arg(long, value_name = "PATH")]
         socket: Option<std::path::PathBuf>,
 
@@ -355,7 +355,7 @@ pub enum Commands {
 
     /// Install bundled artifacts into a repository
     Install {
-        /// Install the rgBuilder agent skill (Claude Code + Cursor project dirs)
+        /// Install the rgctl agent skill (Claude Code + Cursor project dirs)
         #[arg(long = "skill")]
         skill: bool,
 
@@ -396,7 +396,7 @@ pub enum DaemonAction {
 
 #[derive(Subcommand)]
 pub enum SemanticCommands {
-    /// Build `.rgbuilder/semantic_index.bin` from function symbols (not run by default discover)
+    /// Build `.rgctl/semantic_index.bin` from function symbols (not run by default discover)
     Index {
         /// Embedding dimensions before sign quantization (multiple of 8) [default: 256]
         #[arg(long, default_value_t = DEFAULT_EMBEDDING_DIMENSIONS)]
@@ -449,7 +449,7 @@ pub enum SemanticCommands {
 
     /// Distill `vocab_tokens.txt` through a teacher embedder into an RBVK matrix
     Distill {
-        /// RBVK destination (copy to crates/rgbuilder-analysis/assets/vocab_matrix.bin)
+        /// RBVK destination (copy to crates/rgctl-analysis/assets/vocab_matrix.bin)
         #[arg(long = "matrix", value_name = "PATH")]
         matrix: std::path::PathBuf,
 
@@ -1127,7 +1127,7 @@ fn init_logging(verbose: bool, discover_json: bool) {
     } else {
         tracing_subscriber::fmt()
             .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                EnvFilter::new("warn,rgctl=info,rgbuilder_extraction=warn,rgbuilder_analysis=warn")
+                EnvFilter::new("warn,rgctl=info,rgctl_extraction=warn,rgctl_analysis=warn")
             }))
             .with_target(false)
             .with_level(false)

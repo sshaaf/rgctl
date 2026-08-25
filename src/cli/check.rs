@@ -6,7 +6,7 @@ use super::context::CliContext;
 use super::policy_file::PolicyFile;
 use crate::analysis::{BlastRadiusEngine, CentralityAnalyzer, PetGraphView, PolicyViolation};
 use anyhow::Result;
-use rgbuilder_graph::schema::NodeType;
+use rgctl_graph::schema::NodeType;
 use serde_json::json;
 use std::path::Path;
 use std::process::Command;
@@ -21,13 +21,13 @@ pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
             return Ok(());
         }
 
-        let mut session = rgbuilder_service::Session::new(&ctx.repo);
+        let mut session = rgctl_service::Session::new(&ctx.repo);
         if !session.graph_ready() {
             anyhow::bail!("Graph not found (run `rgctl discover` first)");
         }
-        let value = rgbuilder_service::execute(
+        let value = rgctl_service::execute(
             &mut session,
-            rgbuilder_service::Command::Check(rgbuilder_service::CheckArgs {
+            rgctl_service::Command::Check(rgctl_service::CheckArgs {
                 policy_file: args.policy_file.clone(),
             }),
         )?;
@@ -105,7 +105,7 @@ pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
 
 fn changed_function_symbols(
     repo: &Path,
-    backend: &rgbuilder_graph::backend::MemoryBackend,
+    backend: &rgctl_graph::backend::MemoryBackend,
 ) -> Result<Vec<String>> {
     let output = Command::new("git")
         .args(["diff", "--name-only", "HEAD"])

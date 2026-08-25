@@ -2,7 +2,7 @@
 
 **Status:** Phase 0–3 done; high-impact Go CFG lowering landed (if/switch init, `for_clause`, switch case bodies). Remaining: fallthrough/goto/short-circuit/defer-unwind; Phase 4 polish.  
 **Coverage map:** [go-language-coverage.md](./go-language-coverage.md)  
-**Issue:** https://github.com/sshaaf/rgBuilder/issues/46
+**Issue:** https://github.com/sshaaf/rgctl/issues/46
 
 ## Progress (2026-07-24)
 
@@ -37,7 +37,7 @@
 | Task | Deliverable | Done when |
 |------|-------------|-----------|
 | 0.1 Coverage document | `docs/design/go-language-coverage.md` | Feature IDs LF-01…LF-21 |
-| 0.2 Fixture package | `rgbuilder-tests/ecommerce-go/internal/langfeatures/` | Compiles; discover indexes symbols |
+| 0.2 Fixture package | `rgctl-tests/ecommerce-go/internal/langfeatures/` | Compiles; discover indexes symbols |
 | 0.3 Expected facts | `lf_*` entries in `expected-facts.json` | `cargo test --test graph_correctness go` exercises them |
 | 0.4 Plan + issue update | this doc + #46 | Linked from issue body |
 
@@ -48,7 +48,7 @@
 | 1.1 | `callee_name`: accept `field_identifier` | LF-02, LF-03, LF-04 extraction |
 | 1.2 | Go methods: receiver type → `qualified_name` (`Type.Method`) + metadata | LF-02, LF-03, LF-18 browseability |
 | 1.3 | Call relations: set `to_type_hint` / `to_qualified_hint` from receiver/local types (best-effort) | Cross-file same-name resolution |
-| 1.4 | Unit tests in `rgbuilder-lang-go` for selector + collision | Prevents silent regression |
+| 1.4 | Unit tests in `rgctl-lang-go` for selector + collision | Prevents silent regression |
 | 1.5 | Green LF-01…LF-03 (and LF-18) in graph_correctness | Phase 1 exit |
 
 ## Phase 2 — P0 dataflow / metrics / embedding fields

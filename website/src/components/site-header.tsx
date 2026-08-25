@@ -31,7 +31,7 @@ export function SiteHeader() {
           <Link href="/" className="flex items-center gap-2 text-[var(--ink)]">
             <Terminal className="h-4 w-4 text-[var(--primary)]" aria-hidden />
             <span className="font-[family-name:var(--font-serif)] text-[19px] font-semibold tracking-tight">
-              rgBuilder
+              rgctl
             </span>
           </Link>
           <nav className="hidden items-center gap-1 md:flex" aria-label="Primary">

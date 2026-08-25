@@ -11,7 +11,7 @@ import {
 
 export type Theme = "light" | "dark";
 
-const STORAGE_KEY = "rgbuilder-theme";
+const STORAGE_KEY = "rgctl-theme";
 
 type ThemeContextValue = {
   theme: Theme;

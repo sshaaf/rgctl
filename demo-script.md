@@ -1,14 +1,14 @@
-# AI Agent Demo Script: `rgBuilder` Agent Skill in Action
+# AI Agent Demo Script: `rgctl` Agent Skill in Action
 
-This script demonstrates how **`rgBuilder`** operates when installed as a native **Agent Skill** in environments like Gemini Agent, OpenCode, or Claude Agent.
+This script demonstrates how **`rgctl`** operates when installed as a native **Agent Skill** in environments like Gemini Agent, OpenCode, or Claude Agent.
 
-When registered as a skill, the agent does not start with terminal commands—it starts with a **user prompt in natural language**. The LLM decides when and how to invoke the `rgBuilder` tool to fetch graph-backed code facts before reasoning or applying refactoring edits.
+When registered as a skill, the agent does not start with terminal commands—it starts with a **user prompt in natural language**. The LLM decides when and how to invoke the `rgctl` tool to fetch graph-backed code facts before reasoning or applying refactoring edits.
 
 **Accuracy notes (verified against CLI):**
 
 - Commands and flags below match `rgctl --help` / subcommand help (as of this repo).
 - Sample JSON is **illustrative but schema-aligned** (`schema_version`, real field names). It is not a live capture from one fixture run.
-- Prefer the in-tree **ecommerce-java** fixture for demos (`rgbuilder-tests/ecommerce-java`). Symbol names in scenarios are illustrative.
+- Prefer the in-tree **ecommerce-java** fixture for demos (`rgctl-tests/ecommerce-java`). Symbol names in scenarios are illustrative.
 - Dashboard / migration JSON are **opt-in** (`--with-dashboard`, `--export-migration-hints`).
 - GQL `--macro-name … unused`: the trailing `unused` (or `x`) is only a **required QUERY placeholder** when using a macro — it does **not** mean “find unused code.”
 
@@ -63,9 +63,9 @@ tool_use: rgctl {
 }
 ```
 
-* **What actually happens:** Discover writes artifacts under `.rgbuilder/` — notably `.rgbuilder/migration_plan.json` (from `--export-migration-hints`) and, with `--with-dashboard`, `.rgbuilder/dashboard/migration_graph.json` + dashboard `migration_plan.json`. With `-f json`, stdout is **discover telemetry** (`schema_version`, `metrics`, …), not the plan body itself. The agent should **read the plan file** (or open the Migration tab via `serve --open`).
+* **What actually happens:** Discover writes artifacts under `.rgctl/` — notably `.rgctl/migration_plan.json` (from `--export-migration-hints`) and, with `--with-dashboard`, `.rgctl/dashboard/migration_graph.json` + dashboard `migration_plan.json`. With `-f json`, stdout is **discover telemetry** (`schema_version`, `metrics`, …), not the plan body itself. The agent should **read the plan file** (or open the Migration tab via `serve --open`).
 
-* **rgBuilder Skill Output (illustrative — plan file excerpt):**
+* **rgctl Skill Output (illustrative — plan file excerpt):**
 ```json
 {
   "schema_version": 2,
@@ -79,7 +79,7 @@ tool_use: rgctl {
 ```
 
 * **LLM Reasoning & Action:**
-> "rgBuilder wrote a migration roadmap under `.rgbuilder/migration_plan.json` (and the dashboard Migration bundle). I will open the highest-priority packages first and use blast-radius before editing shared symbols."
+> "rgctl wrote a migration roadmap under `.rgctl/migration_plan.json` (and the dashboard Migration bundle). I will open the highest-priority packages first and use blast-radius before editing shared symbols."
 
 ---
 
@@ -93,7 +93,7 @@ tool_use: rgctl {
 }
 ```
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -126,7 +126,7 @@ tool_use: rgctl {
 
 > **Note:** `all_functions` expands to `MATCH (f:Function) RETURN f` — a full inventory. The word `unused` is a **placeholder argument**, not a dead-code filter. Finding zero-caller functions needs a follow-up query or offline analysis of CALL edges (there is no built-in “unused functions” macro).
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -161,7 +161,7 @@ tool_use: rgctl {
 
 > **Note:** `all_communities` lists label-propagation communities (virtual `:Community`). It does **not** mean “orphaned modules.” For labeled list + modularity, prefer `communities list` / `-f json communities list`.
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -197,7 +197,7 @@ tool_use: rgctl {
 
 > Requires prior `discover --with-cfg` for a useful L_proc-rich export. Writes a **file** (`--output`); success is typically a text summary, not a rich stdout JSON document.
 
-* **rgBuilder Skill Output (illustrative summary):**
+* **rgctl Skill Output (illustrative summary):**
 ```text
 Wrote hybrid CPG export to cpg.json (graphson)
 ```
@@ -228,7 +228,7 @@ tool_use: rgctl {
 
 > `semantic index` is **opt-in** (not part of `discover`). Default embedder is **vocab** (compiled token table). Use `--embedder code-daemon` for the ONNX retriever (Git LFS weights) or `--embedder hash` in CI.
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 3,
@@ -271,7 +271,7 @@ tool_use: rgctl {
 }
 ```
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 3,
@@ -306,7 +306,7 @@ tool_use: rgctl {
 }
 ```
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -339,7 +339,7 @@ tool_use: rgctl {
 }
 ```
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -373,7 +373,7 @@ tool_use: rgctl {
 }
 ```
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 2,
@@ -412,7 +412,7 @@ tool_use: rgctl {
 }
 ```
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -450,7 +450,7 @@ tool_use: rgctl {
 
 > `--with-ast-skeleton` implies CFG. Output is a **coarse skeleton** (`kind`, lines, `label`) — not a full typed signature API (`params` / `return_type` are **not** emitted today).
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -487,7 +487,7 @@ tool_use: rgctl {
 
 > **`cpg slice` has no `--symbol`.** It wraps `slice` and requires `<FILE> --line --variable` (optional `--function`). For whole-function CFG/PDG dumps, use `inspect <Symbol> cfg|pdg` or `cpg pdg <Symbol>`.
 
-* **rgBuilder Skill Output (JSON — status):**
+* **rgctl Skill Output (JSON — status):**
 ```json
 {
   "schema_version": 1,
@@ -515,7 +515,7 @@ tool_use: rgctl {
 }
 ```
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -551,7 +551,7 @@ tool_use: rgctl {
 }
 ```
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -582,7 +582,7 @@ tool_use: rgctl {
 
 > `--with-dfg-loops` **tags** loop-carried `DataDependency` edges during discover; it does **not** print a dedicated loop-hazard JSON array on discover stdout. Inspect the PDG (or dashboard Dataflow) afterward for `loop_carried` tags.
 
-* **rgBuilder Skill Output (illustrative — PDG edge property):**
+* **rgctl Skill Output (illustrative — PDG edge property):**
 ```json
 {
   "schema_version": 1,
@@ -621,7 +621,7 @@ tool_use: rgctl {
 
 > Policy files use the **blast-radius policy schema** (`max_impact_nodes`, `forbidden_crossings`, `node_domains`, …) — see [docs/policy-format.md](docs/policy-format.md). Named rules like `no-controller-direct-db-access` are **not** built-in policy ids.
 
-* **rgBuilder Skill Output (JSON):**
+* **rgctl Skill Output (JSON):**
 ```json
 {
   "schema_version": 1,
@@ -637,7 +637,7 @@ tool_use: rgctl {
 
 ## Agent Skill Summary Matrix
 
-| # | User Intent | Agent `rgBuilder` Skill Command | Purpose |
+| # | User Intent | Agent `rgctl` Skill Command | Purpose |
 | --- | --- | --- | --- |
 | **1** | Modernization Roadmap | `discover . … --with-dashboard --with-harmonic --export-migration-hints` | Writes migration plan + optional dashboard bundle |
 | **2** | Bottleneck Detection | `-f json metrics --pagerank` | PageRank hotspots (`.pagerank.top`) |

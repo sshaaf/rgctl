@@ -45,14 +45,14 @@ cargo build --bin rgctl
 |------|---------|
 | [`../dashboard/scripts/record-feature-demo.mjs`](../dashboard/scripts/record-feature-demo.mjs) | Tab montage (ecommerce-java defaults) |
 | [`record-feature-demo.sh`](record-feature-demo.sh) | Discover + serve + record + burn |
-| [`rgbuilder-feature-demo.srt`](rgbuilder-feature-demo.srt) | Written by the recorder |
-| [`burn-feature-demo-captions.sh`](burn-feature-demo-captions.sh) | Burn → `rgbuilder-feature-demo.mp4` |
+| [`rgctl-feature-demo.srt`](rgctl-feature-demo.srt) | Written by the recorder |
+| [`burn-feature-demo-captions.sh`](burn-feature-demo-captions.sh) | Burn → `rgctl-feature-demo.mp4` |
 
 ```bash
 cargo build --release
 ./docs/videos/record-feature-demo.sh
 # or step-by-step:
-#   rgctl -r rgbuilder-tests/ecommerce-java serve --port 8080
+#   rgctl -r rgctl-tests/ecommerce-java serve --port 8080
 #   DASHBOARD_URL=http://127.0.0.1:8080/ node dashboard/scripts/record-feature-demo.mjs
 #   ./docs/videos/burn-feature-demo-captions.sh
 ```

@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `semantic` command provides **natural-language search** over function symbols in your codebase. Instead of matching exact names or patterns, you describe what you are looking for in plain English (e.g., "shopping cart checkout") and rgBuilder returns the most semantically similar functions.
+The `semantic` command provides **natural-language search** over function symbols in your codebase. Instead of matching exact names or patterns, you describe what you are looking for in plain English (e.g., "shopping cart checkout") and rgctl returns the most semantically similar functions.
 
 Semantic search is built on a separate opt-in index (`semantic_index.bin`) that embeds every function symbol into a vector space. Queries are then answered via Hamming nearest-neighbor search, returning results ranked by a **fusion score** that combines vector similarity with keyword matching.
 
@@ -35,14 +35,14 @@ rgctl -r example/coolstore semantic index
 **Output:**
 
 ```
-Indexed 7526 functions (vocab-accumulate-v2, 256 dims) → example/coolstore/.rgbuilder/semantic_index.bin
+Indexed 7526 functions (vocab-accumulate-v2, 256 dims) → example/coolstore/.rgctl/semantic_index.bin
   incremental: 0 reused, 7526 embedded, 0 removed
 ```
 
 **What happened:**
 
-- rgBuilder embedded all 7,526 function symbols into 256-dimensional vectors using the **vocab-accumulate-v2** model (a compiled token-table embedder that requires no external model or ONNX runtime).
-- The index was written to `.rgbuilder/semantic_index.bin`.
+- rgctl embedded all 7,526 function symbols into 256-dimensional vectors using the **vocab-accumulate-v2** model (a compiled token-table embedder that requires no external model or ONNX runtime).
+- The index was written to `.rgctl/semantic_index.bin`.
 - On subsequent runs, unchanged functions are reused (incremental indexing).
 
 ### 2. Query with Natural Language
@@ -129,7 +129,7 @@ Note: the `--scope` flag on the `index` command determines what gets embedded. T
 
 ### 7. Choosing an Embedder
 
-rgBuilder supports three embedding backends:
+rgctl supports three embedding backends:
 
 | Embedder | Command | Requirements | Best For |
 |----------|---------|-------------|----------|

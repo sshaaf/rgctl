@@ -1,9 +1,9 @@
-//! Code graph types and helpers (re-exported from `rgbuilder-graph`).
+//! Code graph types and helpers (re-exported from `rgctl-graph`).
 
-pub use rgbuilder_graph::CodeGraph;
-pub use rgbuilder_graph::*;
+pub use rgctl_graph::CodeGraph;
+pub use rgctl_graph::*;
 
-use rgbuilder_error::Result;
+use rgctl_error::Result;
 use std::path::Path;
 
 /// Build a code graph from a repository (workspace entry point).

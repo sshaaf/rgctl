@@ -5,14 +5,14 @@
 mod analysis_helpers;
 
 use analysis_helpers::build_dominance;
-use rgbuilder::analysis::{
+use rgctl::analysis::{
     BackwardSlicer, BlastRadiusEngine, ControlFlowGraph, DominatorTree, InterproceduralCFG,
     InterproceduralSlicer, ProgramDependenceGraph, SliceCriterion, TaintAnalyzer,
     build_cfg_for_function, criterion_for_parameter, filter_handoff_seeds_by_index,
     resolve_handoff_seeds, verify_idom_acyclic,
 };
-use rgbuilder::graph::backend::{GraphBackend, MemoryBackend};
-use rgbuilder::graph::schema::{Edge, EdgeType, GraphParameter, Node, NodeType};
+use rgctl::graph::backend::{GraphBackend, MemoryBackend};
+use rgctl::graph::schema::{Edge, EdgeType, GraphParameter, Node, NodeType};
 use std::collections::{HashMap, HashSet};
 #[test]
 fn alias_handoff_interprocedural_slice() {
@@ -136,7 +136,7 @@ fn irreducible_cfg_maintains_acyclic_idom() {
     let b = uuid::Uuid::new_v4();
     let c = uuid::Uuid::new_v4();
     let exit = uuid::Uuid::new_v4();
-    use rgbuilder::analysis::cfg::{BasicBlock, CfgEdgeType, Statement, StatementKind};
+    use rgctl::analysis::cfg::{BasicBlock, CfgEdgeType, Statement, StatementKind};
     use std::collections::HashSet;
 
     for (id, label) in [(a, "a"), (b, "b"), (c, "c")] {
@@ -192,8 +192,8 @@ fn kafka_example_exceeds_10k_source_lines() {
     );
 
     // Real monorepo indexing smoke test (graph volume, not synthetic generation).
-    use rgbuilder_pipeline::{PipelineConfig, ProcessingPipeline};
-    use rgbuilder_registry::LanguageRegistry;
+    use rgctl_pipeline::{PipelineConfig, ProcessingPipeline};
+    use rgctl_registry::LanguageRegistry;
     use std::sync::Arc;
 
     let registry = Arc::new(LanguageRegistry::new());

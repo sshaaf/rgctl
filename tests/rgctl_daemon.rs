@@ -6,7 +6,7 @@
 mod rgctl_harness;
 
 use rgctl_harness::{
-    assert_no_rgbuilder_under, assert_ok, cache_entry_for_repo, copy_tree, daemon_discover,
+    assert_no_rgctl_under, assert_ok, cache_entry_for_repo, copy_tree, daemon_discover,
     daemon_discover_auto_start, fixture_src, http_mcp_post, materialize_fixture, reserve_port,
     rgctl, toml_escape, wait_http, DaemonGuard,
 };
@@ -136,8 +136,8 @@ fn daemon_start_status_stop_idempotent_and_stale_pid() {
         .status
         .success());
 
-    fs::create_dir_all(home.path().join(".rgbuilder")).unwrap();
-    fs::write(home.path().join(".rgbuilder/rgctl.pid"), "999999").unwrap();
+    fs::create_dir_all(home.path().join(".rgctl")).unwrap();
+    fs::write(home.path().join(".rgctl/rgctl.pid"), "999999").unwrap();
     let status = Command::new(rgctl())
         .args(["--daemon-home", home_s, "daemon", "status"])
         .output()
@@ -161,7 +161,7 @@ fn auto_start_discover_writes_cache() {
         "{stderr}"
     );
 
-    let cache = home.path().join(".rgbuilder/cache");
+    let cache = home.path().join(".rgctl/cache");
     let has_cache = cache.is_dir()
         && fs::read_dir(&cache)
             .map(|rd| rd.flatten().any(|e| e.path().is_dir()))
@@ -171,19 +171,19 @@ fn auto_start_discover_writes_cache() {
         "expected cache/{{reponame}} under {}",
         cache.display()
     );
-    assert_no_rgbuilder_under(repo.path());
+    assert_no_rgctl_under(repo.path());
 
     let repo_cache = cache_entry_for_repo(home.path());
     assert!(
         repo_cache
-            .join(".rgbuilder/graph.snapshot.bin")
+            .join(".rgctl/graph.snapshot.bin")
             .is_file(),
         "expected snapshot under {}",
         repo_cache.display()
     );
     assert!(
         repo_cache
-            .join(".rgbuilder/analysis_results.bin")
+            .join(".rgctl/analysis_results.bin")
             .is_file(),
         "expected analysis_results under {}",
         repo_cache.display()
@@ -205,7 +205,7 @@ fn daemon_session_roundtrip_discover_gql_mcp_then_cleanup() {
 
     let disc = daemon_discover(home.path(), &repo);
     assert_ok(&disc, "daemon discover");
-    assert_no_rgbuilder_under(&repo);
+    assert_no_rgctl_under(&repo);
 
     let gql = Command::new(rgctl())
         .current_dir(&repo)
@@ -230,7 +230,7 @@ fn daemon_session_roundtrip_discover_gql_mcp_then_cleanup() {
             "id": 10,
             "method": "tools/call",
             "params": {
-                "name": "rgbuilder_query",
+                "name": "rgctl_query",
                 "arguments": {
                     "repo": repo.file_name().unwrap().to_str().unwrap(),
                     "query": "MATCH (n:Function) RETURN n LIMIT 1"
@@ -321,9 +321,9 @@ fn storage_override_places_cache_outside_home() {
     let repo = tempfile::tempdir().unwrap();
     copy_tree(&fixture_src(), repo.path());
     let port = reserve_port();
-    fs::create_dir_all(home.path().join(".rgbuilder/.config")).unwrap();
+    fs::create_dir_all(home.path().join(".rgctl/.config")).unwrap();
     fs::write(
-        home.path().join(".rgbuilder/.config/config.toml"),
+        home.path().join(".rgctl/.config/config.toml"),
         format!(
             "host = \"127.0.0.1\"\nport = {port}\nstorage = {}\n",
             toml_escape(storage.path())
@@ -393,7 +393,7 @@ fn mcp_initialize_and_tools_list() {
         .cloned()
         .unwrap_or_default();
     assert!(
-        list.iter().any(|t| t["name"] == "rgbuilder_query"),
+        list.iter().any(|t| t["name"] == "rgctl_query"),
         "{tools}"
     );
 }
@@ -461,9 +461,9 @@ fn foreground_serve_no_pipeline_query() {
 fn mcp_disabled_is_not_an_mcp_session() {
     let home = tempfile::tempdir().unwrap();
     let port = reserve_port();
-    fs::create_dir_all(home.path().join(".rgbuilder/.config")).unwrap();
+    fs::create_dir_all(home.path().join(".rgctl/.config")).unwrap();
     fs::write(
-        home.path().join(".rgbuilder/.config/config.toml"),
+        home.path().join(".rgctl/.config/config.toml"),
         format!("host = \"127.0.0.1\"\nport = {port}\n\n[mcp]\nenabled = false\npath = \"/mcp\"\n"),
     )
     .unwrap();
@@ -511,7 +511,7 @@ fn mcp_two_repos_without_repo_is_invalid_params() {
             "id": 3,
             "method": "tools/call",
             "params": {
-                "name": "rgbuilder_query",
+                "name": "rgctl_query",
                 "arguments": { "query": "MATCH (n:Function) RETURN n LIMIT 1" }
             }
         }),
@@ -554,7 +554,7 @@ fn stdio_mcp_does_not_index_home() {
     std::thread::sleep(Duration::from_millis(800));
     let _ = child.kill();
     let _ = child.wait();
-    let indexed = fake_home.path().join(".rgbuilder");
+    let indexed = fake_home.path().join(".rgctl");
     assert!(
         !indexed.is_dir()
             || fs::read_dir(&indexed)

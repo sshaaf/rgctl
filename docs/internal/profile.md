@@ -17,7 +17,7 @@ Hardware and OS where the **latest numbers below** were recorded. This is a **de
 | RAM | **36 GB** |
 | OS | macOS **darwin 25.6.0** (Sequoia family) |
 | Binary | `target/release/rgctl` (release build immediately before each run) |
-| Mode | **`--no-daemon`** (in-process; artifacts in `{corpus}/.rgbuilder/`) |
+| Mode | **`--no-daemon`** (in-process; artifacts in `{corpus}/.rgctl/`) |
 | Isolation | **None** — desktop apps, thermal limits, and APFS cache affect wall time |
 
 Re-profile on **your** hardware before changing baselines in `tests/cold_profile_gates.rs`.
@@ -26,7 +26,7 @@ Re-profile on **your** hardware before changing baselines in `tests/cold_profile
 
 ## Primary corpora
 
-Large trees live under **`example/`** (gitignored). Fetch with `./scripts/fetch-profile-repos.sh` or clone manually. Override paths with `RGBUILDER_LINUX_REPO` / `METASFRESH_REPO`.
+Large trees live under **`example/`** (gitignored). Fetch with `./scripts/fetch-profile-repos.sh` or clone manually. Override paths with `RGCTL_LINUX_REPO` / `METASFRESH_REPO`.
 
 | Corpus | Path | Typical use |
 |--------|------|-------------|
@@ -40,12 +40,12 @@ See also `example/README.md` (kafka, k8s-website markdown gates).
 ## Cold profile policy
 
 1. **Release binary only:** `cargo build --release --bin rgctl`
-2. **Delete artifacts:** `rm -rf example/<corpus>/.rgbuilder/` (and daemon cache if you used the daemon — not for `--no-daemon` runs)
-3. **`--no-daemon`:** avoids auto-start daemon + `~/.rgbuilder/cache/` (keeps gates comparable to pre-daemon baselines)
+2. **Delete artifacts:** `rm -rf example/<corpus>/.rgctl/` (and daemon cache if you used the daemon — not for `--no-daemon` runs)
+3. **`--no-daemon`:** avoids auto-start daemon + `~/.rgctl/cache/` (keeps gates comparable to pre-daemon baselines)
 4. **Run from the corpus directory** (see pitfall below)
 5. **Logging:** `RUST_LOG=info,profile=info` and `discover … -v`
 
-Warm or partial `.rgbuilder/` caches **invalidate** wall times (often seconds instead of minutes).
+Warm or partial `.rgctl/` caches **invalidate** wall times (often seconds instead of minutes).
 
 ---
 
@@ -62,7 +62,7 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 |------|--------|----------------|------------------------|
 | `linux_cold_discover_within_baseline` | `example/linux` | default | **145 s** |
 | `metasfresh_cold_discover_within_baseline` | `example/metasfresh-4.9.8b` | `--full` | **74 s** |
-| `kafka_cold_discover_within_baseline` | `example/kafka` | default | env `RGBUILDER_KAFKA_COLD_BASELINE_SECS` (default 600 s) |
+| `kafka_cold_discover_within_baseline` | `example/kafka` | default | env `RGCTL_KAFKA_COLD_BASELINE_SECS` (default 600 s) |
 | `k8s_website_markdown_cold_discover_within_baseline` | `example/k8s-website` | `-l markdown` | **3 s** |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`--no-daemon`, `-r <corpus>`, `discover . -v`).
@@ -75,7 +75,7 @@ Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`--no-dae
 
 ```bash
 cargo build --release --bin rgctl
-rm -rf example/linux/.rgbuilder
+rm -rf example/linux/.rgctl
 cd example/linux
 /usr/bin/time -l env RUST_LOG=info,profile=info \
   ../../target/release/rgctl --no-daemon -f json discover . -v \
@@ -86,7 +86,7 @@ grep '\[profile\]' /tmp/linux-cold-profile.log
 **metasfresh — full pipeline** (same as cold gate):
 
 ```bash
-rm -rf example/metasfresh-4.9.8b/.rgbuilder
+rm -rf example/metasfresh-4.9.8b/.rgctl
 cd example/metasfresh-4.9.8b
 /usr/bin/time -l env RUST_LOG=info,profile=info \
   ../../target/release/rgctl --no-daemon -f json discover . --full -v \
@@ -97,7 +97,7 @@ Optional single-pass deep discover (not the cold gate):
 
 ```bash
 cd example/metasfresh-4.9.8b
-rm -rf .rgbuilder
+rm -rf .rgctl
 /usr/bin/time -l env RUST_LOG=info,profile=info \
   ../../target/release/rgctl --no-daemon -f json discover . \
   --with-cfg --with-security --with-taint -v \
@@ -124,7 +124,7 @@ Algorithm detail (sampled betweenness, HyperBall, adaptive gating): [analysis-ar
 
 ## Gate baselines (2026-08-25)
 
-Recorded on the **reference machine** above, release `rgctl`, **`--no-daemon`**, cold `.rgbuilder/` removed. These values are the **`cold_profile_gates`** baselines (+10% tolerance).
+Recorded on the **reference machine** above, release `rgctl`, **`--no-daemon`**, cold `.rgctl/` removed. These values are the **`cold_profile_gates`** baselines (+10% tolerance).
 
 ### Linux (`example/linux`) — default discover
 

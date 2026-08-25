@@ -55,7 +55,7 @@ fn metasfresh_discover_all_within_baseline() {
 #[test]
 #[ignore = "manual: gbuilder discover --with-cfg --with-security --with-taint (~5.5s baseline)"]
 fn gbuilder_discover_all_within_baseline() {
-    let baseline_secs = std::env::var("RGBUILDER_GBUILDER_DISCOVER_ALL_BASELINE_SECS")
+    let baseline_secs = std::env::var("RGCTL_GBUILDER_DISCOVER_ALL_BASELINE_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(GBUILDER_DISCOVER_ALL_BASELINE_SECS);

@@ -31,14 +31,14 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "rgBuilder — code knowledge graph for AI agents",
-    template: "%s · rgBuilder",
+    default: "rgctl — code knowledge graph for AI agents",
+    template: "%s · rgctl",
   },
   description:
     "Open-source code knowledge graph for LLM agents. Index once, query compact JSON — blast radius, GQL, semantic search, migration planning.",
-  metadataBase: new URL("https://shaaf.dev/rgBuilder"),
+  metadataBase: new URL("https://shaaf.dev/rgctl"),
   openGraph: {
-    title: "rgBuilder",
+    title: "rgctl",
     description:
       "Open-source code knowledge graph for LLM agents — accurate answers, fewer tokens.",
     type: "website",

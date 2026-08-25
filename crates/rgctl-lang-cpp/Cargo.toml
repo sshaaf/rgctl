@@ -1,0 +1,16 @@
+[package]
+name = "rgctl-lang-cpp"
+version = "0.4.6"
+edition.workspace = true
+rust-version.workspace = true
+description = "rgctl language plugin: cpp"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-plugin-api = { workspace = true }
+rgctl-registry = { workspace = true }
+rgctl-plugin-helpers = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-cpp = "0.23.4"
+serde_json = "1"
+tracing = "0.1"

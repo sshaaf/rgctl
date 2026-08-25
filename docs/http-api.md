@@ -36,7 +36,7 @@ rgctl -r "$REPO" serve --open
 | Flag | Effect |
 |------|--------|
 | `--host`, `--port` | Bind address (default `127.0.0.1:8080`) |
-| `--dashboard-dir DIR` | Override `.rgbuilder/dashboard` |
+| `--dashboard-dir DIR` | Override `.rgctl/dashboard` |
 | `--query-only` | API only, no static files |
 | `--dashboard-only` | Dashboard only, no query API |
 | `--mode standard\|mcp` | HTTP (default) or MCP stdio |
@@ -88,7 +88,7 @@ curl -sS -X POST http://127.0.0.1:8080/api/query \
   -d '{"macro":"all_communities"}' | jq '.rows[:5]'
 ```
 
-`serve` loads `.rgbuilder/analysis_results.bin` so virtual `:Community` nodes and `community_id` filters work the same as CLI `gql`.
+`serve` loads `.rgctl/analysis_results.bin` so virtual `:Community` nodes and `community_id` filters work the same as CLI `gql`.
 
 ### Response
 
@@ -100,7 +100,7 @@ Errors return HTTP 400 with a plain-text message body.
 
 ## Semantic search API
 
-Requires `rgctl semantic index` before `serve` (embedder chosen at index time: **vocab** default, or `hash` / `code-daemon` / `onnx`). Restart `serve` after rebuilding `.rgbuilder/semantic_index.bin`. Same origin as the dashboard.
+Requires `rgctl semantic index` before `serve` (embedder chosen at index time: **vocab** default, or `hash` / `code-daemon` / `onnx`). Restart `serve` after rebuilding `.rgctl/semantic_index.bin`. Same origin as the dashboard.
 
 ### `GET /api/semantic/status`
 
@@ -141,7 +141,7 @@ curl -sS -X POST http://127.0.0.1:8080/api/semantic/query \
 Static hosting (no Rust process after export):
 
 ```bash
-cd .rgbuilder/dashboard && python3 -m http.server 8765
+cd .rgctl/dashboard && python3 -m http.server 8765
 # open http://localhost:8765/
 ```
 
@@ -163,7 +163,7 @@ rgctl -r "$REPO" serve --daemon   # foreground bootstrap; same daemon model
 - **Per-repo API:** `POST http://127.0.0.1:8080/{reponame}/api/query`
 - **MCP:** `POST http://127.0.0.1:8080/mcp`
 
-CLI commands route through the daemon by default (cache under `~/.rgbuilder/`). Use **`--no-daemon`** for in-process execution and `{repo}/.rgbuilder/` artifacts.
+CLI commands route through the daemon by default (cache under `~/.rgctl/`). Use **`--no-daemon`** for in-process execution and `{repo}/.rgctl/` artifacts.
 
 The legacy blast-radius-only **`query.sock`** auto-connect path is **retired** on current main (see [unreleased](releases/unreleased.md)).
 

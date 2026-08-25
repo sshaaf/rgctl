@@ -1,0 +1,15 @@
+[package]
+name = "rgctl-lang-go"
+version = "0.4.6"
+edition.workspace = true
+rust-version.workspace = true
+description = "rgctl language plugin: go"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-plugin-api = { workspace = true }
+rgctl-registry = { workspace = true }
+rgctl-plugin-helpers = { workspace = true }
+tree-sitter = { workspace = true }
+tree-sitter-go = "0.25"
+serde_json = "1"

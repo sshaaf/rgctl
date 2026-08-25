@@ -1,0 +1,28 @@
+[package]
+name = "rgctl-extraction"
+version = "0.4.6"
+edition.workspace = true
+rust-version.workspace = true
+description = "Code extraction layer for rgctl"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+rgctl-error = { path = "../rgctl-error" }
+rgctl-graph = { path = "../rgctl-graph" }
+rgctl-plugin-api = { path = "../rgctl-plugin-api" }
+rgctl-plugin-helpers = { path = "../rgctl-plugin-helpers" }
+rgctl-registry = { path = "../rgctl-registry" }
+ignore = "0.4"
+rayon = "1.7"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+rgctl-languages = { workspace = true }
+rgctl-gql = { workspace = true }
+rgctl-pipeline = { workspace = true }
+rgctl-graph = { path = "../rgctl-graph" }

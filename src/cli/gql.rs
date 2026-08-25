@@ -3,8 +3,8 @@
 use super::args::OutputFormat;
 use super::context::CliContext;
 use anyhow::Result;
-use rgbuilder_service::command::{Command, QueryArgs};
-use rgbuilder_service::{Session, execute};
+use rgctl_service::command::{Command, QueryArgs};
+use rgctl_service::{Session, execute};
 
 pub struct GqlArgs {
     pub query: String,
@@ -75,11 +75,11 @@ pub fn run(ctx: &CliContext, args: GqlArgs) -> Result<()> {
 
 pub(crate) fn load_community_context(
     ctx: &CliContext,
-    backend: &rgbuilder_graph::backend::MemoryBackend,
-) -> Option<rgbuilder_analysis::CommunityQueryContext> {
-    use rgbuilder_analysis::{AnalysisResults, CommunityQueryContext};
-    use rgbuilder_graph::backend::GraphBackend;
-    let path = ctx.repo.join(".rgbuilder/analysis_results.bin");
+    backend: &rgctl_graph::backend::MemoryBackend,
+) -> Option<rgctl_analysis::CommunityQueryContext> {
+    use rgctl_analysis::{AnalysisResults, CommunityQueryContext};
+    use rgctl_graph::backend::GraphBackend;
+    let path = ctx.repo.join(".rgctl/analysis_results.bin");
     if !path.is_file() {
         return None;
     }

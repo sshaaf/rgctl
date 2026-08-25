@@ -1,17 +1,17 @@
 ---
 metadata:
-  author: rgbuilder-fixture
+  author: rgctl-fixture
   team: platform-docs
   scope: markdown-context-example
 ---
 
 # Markdown context graph — example corpus
 
-This directory is a **minimal but realistic** repo used to demo and test rgBuilder’s markdown context graph ([issue #56](https://github.com/sshaaf/rgBuilder/issues/56)).
+This directory is a **minimal but realistic** repo used to demo and test rgctl’s markdown context graph ([issue #56](https://github.com/sshaaf/rgctl/issues/56)).
 
 It is not production software. It models how **docs, ADRs, and code** land in the same `graph.snapshot.bin` so agents can query structure instead of reading every file.
 
-**Note:** This is isolated from the parent rgBuilder repo. When you set `REPO` to this folder, the root [AGENTS.md](https://github.com/sshaaf/rgBuilder/blob/main/AGENTS.md) of rgBuilder is **not** indexed — only files under this tree.
+**Note:** This is isolated from the parent rgctl repo. When you set `REPO` to this folder, the root [AGENTS.md](https://github.com/sshaaf/rgctl/blob/main/AGENTS.md) of rgctl is **not** indexed — only files under this tree.
 
 ## Layout
 
@@ -49,7 +49,7 @@ Then read [Checkout Flow](docs/guide.md#checkout-flow) and [Payments ADR](docs/a
 
 ## Try it
 
-From the rgBuilder repo root (build the CLI first: `cargo build --bin rgctl`):
+From the rgctl repo root (build the CLI first: `cargo build --bin rgctl`):
 
 ```bash
 export REPO="$(pwd)/tests/fixtures/markdown-context"
@@ -81,7 +81,7 @@ RGB="$(pwd)/target/debug/rgctl"
 "$RGB" -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 5
 ```
 
-Artifacts appear under `$REPO/.rgbuilder/` after discover (`graph.snapshot.bin`, `content_store.bin` when bodies are large). Vault export writes `$REPO/vault/`.
+Artifacts appear under `$REPO/.rgctl/` after discover (`graph.snapshot.bin`, `content_store.bin` when bodies are large). Vault export writes `$REPO/vault/`.
 
 ## Narrative (what the graph encodes)
 

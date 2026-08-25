@@ -36,7 +36,7 @@ rgctl -r example/coolstore -f json cpg status
 
 ```json
 {
-  "archive_path": "example/coolstore/.rgbuilder/analysis/cfg_pdg.archive.bin",
+  "archive_path": "example/coolstore/.rgctl/analysis/cfg_pdg.archive.bin",
   "archive_present": true,
   "ast_skeleton_count": 0,
   "ast_skeleton_present": false,

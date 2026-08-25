@@ -13,7 +13,7 @@
 | Goal | How |
 |------|-----|
 | Find functions by intent, not exact names | vocab token-table embeddings (256-d default); optional code-daemon ONNX |
-| Keep discover lean | Separate `.rgbuilder/semantic_index.bin` — built via `semantic index` |
+| Keep discover lean | Separate `.rgctl/semantic_index.bin` — built via `semantic index` |
 | Fast retrieval at scale | Sign-quantized vectors + Hamming top-k |
 | Blend structure + semantics | Late fusion re-ranks Hamming pool with graph signals |
 | Agent-ready output | `-f json semantic query` + HTTP `/api/semantic/query` |
@@ -64,7 +64,7 @@ flowchart TB
 |----------|-----|-------|
 | **vocab** (default) | `--embedder vocab` | Compiled bag-of-tokens (`vocab-accumulate-v1` FNV, or `v2` after `semantic distill`); offline; native **256-d** |
 | **sign-hash** | `--embedder hash` | Deterministic FNV sign-hash — CI / `--no-default-features` |
-| **code-daemon** | `--embedder code-daemon` | Bundled ONNX + SentencePiece in `rgbuilder-analysis/assets/`; requires `semantic-onnx` feature |
+| **code-daemon** | `--embedder code-daemon` | Bundled ONNX + SentencePiece in `rgctl-analysis/assets/`; requires `semantic-onnx` feature |
 | **custom ONNX** | `--embedder onnx --model PATH` | Optional `--tokenizer` for SentencePiece |
 
 Default dimensions: **256**. Declaration metadata only unless `--embed-bodies`. `git lfs pull` is needed only for `--embedder code-daemon` (~206 MB weights).
@@ -96,18 +96,18 @@ No extra index pass required beyond normal `discover`.
 
 | Component | Path |
 |-----------|------|
-| Index + Hamming search | `crates/rgbuilder-analysis/src/semantic_search.rs` |
-| Vocab accumulator | `crates/rgbuilder-analysis/src/semantic_vocab.rs` |
-| Call-graph diffusion | `crates/rgbuilder-analysis/src/semantic_diffuse.rs` |
-| Body token extraction | `crates/rgbuilder-analysis/src/semantic_extract.rs` |
-| Late fusion | `crates/rgbuilder-analysis/src/semantic_fusion.rs` |
-| Hybrid expansion | `crates/rgbuilder-analysis/src/semantic_hybrid.rs` |
-| Bundled code-daemon | `crates/rgbuilder-analysis/src/semantic_embedded.rs` |
-| ONNX runtime path | `crates/rgbuilder-analysis/src/semantic_onnx.rs` |
-| Token bloom at extract | `crates/rgbuilder-graph/src/structural_sketch.rs` |
+| Index + Hamming search | `crates/rgctl-analysis/src/semantic_search.rs` |
+| Vocab accumulator | `crates/rgctl-analysis/src/semantic_vocab.rs` |
+| Call-graph diffusion | `crates/rgctl-analysis/src/semantic_diffuse.rs` |
+| Body token extraction | `crates/rgctl-analysis/src/semantic_extract.rs` |
+| Late fusion | `crates/rgctl-analysis/src/semantic_fusion.rs` |
+| Hybrid expansion | `crates/rgctl-analysis/src/semantic_hybrid.rs` |
+| Bundled code-daemon | `crates/rgctl-analysis/src/semantic_embedded.rs` |
+| ONNX runtime path | `crates/rgctl-analysis/src/semantic_onnx.rs` |
+| Token bloom at extract | `crates/rgctl-graph/src/structural_sketch.rs` |
 | CLI | `src/cli/semantic.rs`, `semantic_output.rs` |
 | HTTP API | `src/cli/semantic_api.rs`, `http_serve.rs` |
-| Manifest export | `crates/rgbuilder-export/src/manifest.rs` |
+| Manifest export | `crates/rgctl-export/src/manifest.rs` |
 
 ---
 
@@ -128,7 +128,7 @@ Requires `rgctl serve` (not static `python -m http.server`) so the semantic API 
 ```bash
 rgctl discover .
 rgctl semantic index                    # default vocab, 256-d, no source re-read
-rgctl semantic distill --matrix crates/rgbuilder-analysis/assets/vocab_matrix.bin
+rgctl semantic distill --matrix crates/rgctl-analysis/assets/vocab_matrix.bin
 # teacher: code-daemon (our ONNX). Rebuild rgctl to compile v2 into the binary.
 rgctl semantic index --incremental      # reuse unchanged code_hash rows
 rgctl -f json semantic query "shopping cart checkout" --limit 10
@@ -157,8 +157,8 @@ rgctl semantic index --embed-bodies          # append function-body identifier t
 
 | Path | Content |
 |------|---------|
-| `.rgbuilder/semantic_index.bin` | Quantized embeddings + metadata (schema v2) |
-| `.rgbuilder/dashboard/manifest.json` | `semantic` section when index present |
+| `.rgctl/semantic_index.bin` | Quantized embeddings + metadata (schema v2) |
+| `.rgctl/dashboard/manifest.json` | `semantic` section when index present |
 
 ---
 
@@ -166,12 +166,12 @@ rgctl semantic index --embed-bodies          # append function-body identifier t
 
 | Layer | Location |
 |-------|----------|
-| Hamming + index roundtrip | `crates/rgbuilder-analysis/src/semantic_search.rs` tests |
-| Vocab accumulate | `crates/rgbuilder-analysis/src/semantic_vocab.rs` tests |
-| Call-graph diffusion | `crates/rgbuilder-analysis/src/semantic_diffuse.rs` tests |
-| Fusion scoring | `crates/rgbuilder-analysis/src/semantic_fusion.rs` tests |
+| Hamming + index roundtrip | `crates/rgctl-analysis/src/semantic_search.rs` tests |
+| Vocab accumulate | `crates/rgctl-analysis/src/semantic_vocab.rs` tests |
+| Call-graph diffusion | `crates/rgctl-analysis/src/semantic_diffuse.rs` tests |
+| Fusion scoring | `crates/rgctl-analysis/src/semantic_fusion.rs` tests |
 | QE oracles | `tests/semantic_search_qe.rs` |
-| Multi-query timing | `tests/semantic_query_timing.rs` (polyglot CI; linux ignored + `RGBUILDER_LINUX_SEMANTIC=1`, prefer `--release`) |
+| Multi-query timing | `tests/semantic_query_timing.rs` (polyglot CI; linux ignored + `RGCTL_LINUX_SEMANTIC=1`, prefer `--release`) |
 | CLI subprocess | `tests/cli_output/subprocess_golden_path.rs` |
 | HTTP semantic API | `src/cli/http_serve.rs` unit tests |
 

@@ -1,7 +1,7 @@
-use rgbuilder::cli::discover_output::{
+use rgctl::cli::discover_output::{
     DISCOVER_SCHEMA_VERSION, build_discover_response, fixture_discover_json,
 };
-use rgbuilder::pipeline::PipelineStats;
+use rgctl::pipeline::PipelineStats;
 
 #[test]
 fn test_discover_json_schema_sanity() {

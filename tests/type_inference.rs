@@ -5,7 +5,7 @@
 mod analysis_helpers;
 
 use analysis_helpers::{has_type, with_inferred_types};
-use rgbuilder::analysis::{InferredType, confidence_for};
+use rgctl::analysis::{InferredType, confidence_for};
 
 macro_rules! type_test {
     ($(#[$attr:meta])* $name:ident, $lang:expr, $code:expr, $fn:expr, $check:expr) => {

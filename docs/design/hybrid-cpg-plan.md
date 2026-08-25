@@ -88,7 +88,7 @@ Agents must stitch `gql` / `blast-radius` / `inspect` / `slice` and know `--with
 
 ### Steps
 
-1. **Module** — `crates/rgbuilder-analysis/src/cpg/` (or `cpg_query.rs`):
+1. **Module** — `crates/rgctl-analysis/src/cpg/` (or `cpg_query.rs`):
    - `CpgContext { graph, archive, call_graph }`
    - Resolvers: `function_by_name`, `type_by_name`, `cfg(fn)`, `pdg(fn)`
 2. **CLI** — `rgctl cpg` subcommands (v0):
@@ -144,7 +144,7 @@ Today:
 3. Map to L_repo `Class`/`Struct` by name/FQN when possible; store type string even if Class UUID missing.
 4. Skip unresolved receivers into `kind=Unresolved` bucket (queryable with flag; not counted as proof).
 
-**Index:** Prefer **sidecar** `.rgbuilder/analysis/field_write.index.bin` (function_id → writes, secondary map type→writes) built during `--with-cfg` pass—avoid bloating every PDG if scan-only is enough. Rebuild when archive rebuilds; invalidate with same digest rules as other sidecars.
+**Index:** Prefer **sidecar** `.rgctl/analysis/field_write.index.bin` (function_id → writes, secondary map type→writes) built during `--with-cfg` pass—avoid bloating every PDG if scan-only is enough. Rebuild when archive rebuilds; invalidate with same digest rules as other sidecars.
 
 **Do not** stamp field-write edges into `graph.snapshot.bin` in v1 (digest + RSS). Optional later: `Modifies` edges Function→Variable if Variable nodes for fields are extracted.
 
@@ -184,7 +184,7 @@ Agents switch to `slice` / Joern `reachableByFlows` mentally; hybrid CPG should 
 
 Map:
 
-| CPG concept | rgBuilder |
+| CPG concept | rgctl |
 |-------------|----------|
 | `reachableByFlows` (forward) | Forward PDG slice / data-dep BFS |
 | Backward slice | Existing `slice` default |

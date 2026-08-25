@@ -6,7 +6,7 @@ use super::inspect::{self, InspectArgs};
 use super::markup::markup_context_unsupported;
 use super::slice::{self, SliceArgs};
 use anyhow::Result;
-use rgbuilder_analysis::{
+use rgctl_analysis::{
     AstSkeletonArchive, CpgExportFormat, CpgExportScope, CpgFlowsArgs, MutationQuery,
     SliceDirection as AnalysisSliceDirection, cpg_calls, cpg_flows, cpg_function, cpg_mutations,
     cpg_status, export_cpg,
@@ -63,8 +63,8 @@ pub enum CpgAction {
     },
 }
 
-fn cpg_action_to_service(action: &CpgAction) -> rgbuilder_service::CpgArgs {
-    use rgbuilder_service::{CpgArgs, CpgOp};
+fn cpg_action_to_service(action: &CpgAction) -> rgctl_service::CpgArgs {
+    use rgctl_service::{CpgArgs, CpgOp};
     let dir = |d: &SliceDirection| match d {
         SliceDirection::Forward => Some("forward".into()),
         SliceDirection::Backward => Some("backward".into()),
@@ -211,9 +211,9 @@ pub fn run(ctx: &CliContext, action: CpgAction) -> Result<()> {
         && !matches!(&action, CpgAction::Export { .. })
     {
         let svc = cpg_action_to_service(&action);
-        let mut session = rgbuilder_service::Session::new(&ctx.repo);
+        let mut session = rgctl_service::Session::new(&ctx.repo);
         let value =
-            rgbuilder_service::execute(&mut session, rgbuilder_service::Command::Cpg(svc))?;
+            rgctl_service::execute(&mut session, rgctl_service::Command::Cpg(svc))?;
         return ctx.emit_json_value(&value);
     }
     match action {

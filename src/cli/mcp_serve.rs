@@ -18,7 +18,7 @@ pub fn serve(ctx: &CliContext, args: McpServeArgs) -> Result<()> {
     let no_pipeline = args.no_pipeline;
     let verbose = ctx.verbose;
     let pipeline_root = root.clone();
-    rgbuilder_mcp::serve(rgbuilder_mcp::McpServeArgs {
+    rgctl_mcp::serve(rgctl_mcp::McpServeArgs {
         repo: root,
         on_start: if no_pipeline {
             None

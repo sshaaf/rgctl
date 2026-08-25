@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `communities` command lets you **list and label functional clusters** that rgBuilder automatically detects in your codebase. During `discover`, the Louvain community detection algorithm partitions the call graph into groups of tightly connected functions. The `communities` command gives you tools to explore these clusters and generate human-readable labels for them.
+The `communities` command lets you **list and label functional clusters** that rgctl automatically detects in your codebase. During `discover`, the Louvain community detection algorithm partitions the call graph into groups of tightly connected functions. The `communities` command gives you tools to explore these clusters and generate human-readable labels for them.
 
 Communities reveal the implicit architecture of your code -- groups of functions that work together closely even if they span multiple files or packages.
 
@@ -77,7 +77,7 @@ rgctl -r example/coolstore -f json communities list
 - **`id`** -- the community's unique identifier, usable in GQL queries.
 - **`label`** -- a heuristic label generated from the most representative member names and paths.
 - **`member_count`** -- how many functions belong to this community.
-- The largest community (120 members) is the lodash utility library. The second largest (60 members) is labeled "Infrastructure / Common Library" -- rgBuilder detected it as shared infrastructure code.
+- The largest community (120 members) is the lodash utility library. The second largest (60 members) is labeled "Infrastructure / Common Library" -- rgctl detected it as shared infrastructure code.
 - The `coolstore.model` communities contain the domain model (entities, serialization).
 
 ### 2. Query Community Members with GQL
@@ -155,7 +155,7 @@ This finds entire communities whose member functions are semantically related to
 
 ## Understanding Community Labels
 
-rgBuilder generates community labels heuristically from member names and file paths:
+rgctl generates community labels heuristically from member names and file paths:
 
 | Label Pattern | Meaning |
 |---------------|---------|

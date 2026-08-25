@@ -1,24 +1,24 @@
 /**
- * Record an rgBuilder dashboard feature montage — one beat per main tab.
+ * Record an rgctl dashboard feature montage — one beat per main tab.
  *
  * Timing: prepare each tab, then hold a fixed showcase window. SRT cues use
  * wall-clock timestamps from those showcase windows (no equal-slot guessing).
  * Encode stays near 1× so captions stay aligned.
  *
  * Prereq (ecommerce-java fixture recommended):
- *   rgctl -r rgbuilder-tests/ecommerce-java discover . -l java -e target \
+ *   rgctl -r rgctl-tests/ecommerce-java discover . -l java -e target \
  *     --with-cfg --with-security --with-taint --with-dashboard --with-harmonic \
  *     --export-migration-hints
- *   rgctl -r rgbuilder-tests/ecommerce-java semantic index --embedder vocab
- *   rgctl -r rgbuilder-tests/ecommerce-java serve --port 8080
+ *   rgctl -r rgctl-tests/ecommerce-java semantic index --embedder vocab
+ *   rgctl -r rgctl-tests/ecommerce-java serve --port 8080
  *
  * Usage:
  *   DASHBOARD_URL=http://127.0.0.1:8080/ node dashboard/scripts/record-feature-demo.mjs
  *
  * Outputs:
- *   docs/videos/rgbuilder-feature-demo-no-captions.mp4
- *   docs/videos/rgbuilder-feature-demo.srt
- *   docs/videos/rgbuilder-feature-demo.raw.webm  (intermediate)
+ *   docs/videos/rgctl-feature-demo-no-captions.mp4
+ *   docs/videos/rgctl-feature-demo.srt
+ *   docs/videos/rgctl-feature-demo.raw.webm  (intermediate)
  */
 
 import { chromium } from "playwright";
@@ -29,9 +29,9 @@ import { spawnSync } from "node:child_process";
 const BASE = process.env.DASHBOARD_URL ?? "http://127.0.0.1:8080/";
 const ROOT = path.resolve(import.meta.dirname, "../..");
 const OUT_DIR = path.join(ROOT, "docs/videos");
-const RAW_WEBM = path.join(OUT_DIR, "rgbuilder-feature-demo.raw.webm");
-const OUT_NO_CAPTIONS = path.join(OUT_DIR, "rgbuilder-feature-demo-no-captions.mp4");
-const OUT_SRT = path.join(OUT_DIR, "rgbuilder-feature-demo.srt");
+const RAW_WEBM = path.join(OUT_DIR, "rgctl-feature-demo.raw.webm");
+const OUT_NO_CAPTIONS = path.join(OUT_DIR, "rgctl-feature-demo-no-captions.mp4");
+const OUT_SRT = path.join(OUT_DIR, "rgctl-feature-demo.srt");
 
 /** Showcase hold per tab (after prep). Override with DEMO_HOLD_SEC. */
 const HOLD_MS = Math.round(Number(process.env.DEMO_HOLD_SEC ?? "6.5") * 1000);

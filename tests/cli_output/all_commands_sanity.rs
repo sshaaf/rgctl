@@ -34,7 +34,7 @@ use std::str;
 
 const NIL_UUID: &str = "00000000-0000-0000-0000-000000000000";
 
-fn rgbuilder_bin() -> PathBuf {
+fn rgctl_bin() -> PathBuf {
     for key in ["CARGO_BIN_EXE_rgctl"] {
         if let Ok(p) = std::env::var(key) {
             return PathBuf::from(p);
@@ -85,7 +85,7 @@ impl Sandbox {
     }
 
     fn run(&self, args: &[&str]) -> Output {
-        let mut cmd = Command::new(rgbuilder_bin());
+        let mut cmd = Command::new(rgctl_bin());
         cmd.env("RGCTL_NO_DAEMON", "1");
         cmd.arg("--no-daemon");
         cmd.arg("-r").arg(&self.repo).arg("-d").arg(&self.db);

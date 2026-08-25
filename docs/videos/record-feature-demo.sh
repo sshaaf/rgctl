@@ -7,7 +7,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-REPO="${RGBUILDER_DEMO_REPO:-$ROOT/rgbuilder-tests/ecommerce-java}"
+REPO="${RGCTL_DEMO_REPO:-$ROOT/rgctl-tests/ecommerce-java}"
 PORT="${DASHBOARD_PORT:-8080}"
 URL="http://127.0.0.1:${PORT}/"
 
@@ -55,4 +55,4 @@ echo "==> burn captions"
 "$ROOT/docs/videos/burn-feature-demo-captions.sh"
 
 echo "==> done"
-ls -lh "$ROOT/docs/videos/rgbuilder-feature-demo"*.mp4 "$ROOT/docs/videos/rgbuilder-feature-demo.srt"
+ls -lh "$ROOT/docs/videos/rgctl-feature-demo"*.mp4 "$ROOT/docs/videos/rgctl-feature-demo.srt"
