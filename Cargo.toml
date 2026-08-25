@@ -258,6 +258,10 @@ name = "discover_full_serve"
 path = "tests/discover_full_serve.rs"
 
 [[test]]
+name = "rgctl_no_daemon"
+path = "tests/rgctl_no_daemon.rs"
+
+[[test]]
 name = "dashboard_bundle"
 path = "tests/dashboard_bundle.rs"
 

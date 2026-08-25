@@ -1,217 +1,29 @@
 //! MCP `tools/call` coverage on an indexed repo (happy path for each catalog tool).
 
+mod rgctl_harness;
+
+use rgctl_harness::{
+    assert_ok, cli_json, materialize_fixture, mcp_connect_stdio,
+    mcp_structured, run_no_daemon_in_repo,
+};
 use serde_json::Value;
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
-
-fn rgbuilder_bin() -> PathBuf {
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
-        return PathBuf::from(bin);
-    }
-    if let Some(bin) = std::env::var_os("CARGO_BIN_EXE_rgctl") {
-        return PathBuf::from(bin);
-    }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
-}
-
-fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> std::io::Result<()> {
-    fs::create_dir_all(&dst)?;
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        let from = entry.path();
-        let to = dst.as_ref().join(entry.file_name());
-        if ty.is_dir() {
-            copy_dir_all(from, to)?;
-        } else {
-            fs::copy(from, to)?;
-        }
-    }
-    Ok(())
-}
-
-fn materialize() -> (tempfile::TempDir, PathBuf) {
-    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo");
-    let tmp = tempfile::tempdir().expect("tempdir");
-    let repo = tmp.path().join("repo");
-    copy_dir_all(&fixture, &repo).expect("copy fixture");
-    let _ = fs::remove_dir_all(repo.join(".rgbuilder"));
-    let _ = fs::remove_dir_all(repo.join(".rbuilder"));
-    (tmp, repo)
-}
-
-fn run_in(repo: &Path, args: &[&str]) -> Output {
-    Command::new(rgbuilder_bin())
-        .args(args)
-        .current_dir(repo)
-        .output()
-        .expect("spawn rgctl")
-}
-
-fn assert_ok(output: &Output, label: &str) {
-    assert!(
-        output.status.success(),
-        "{label} failed status={:?}\nstdout: {}\nstderr: {}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-fn cli_json(repo: &Path, args: &[&str]) -> Value {
-    let mut full = vec!["-r", repo.to_str().unwrap(), "-f", "json"];
-    full.extend_from_slice(args);
-    let output = run_in(repo, &full);
-    assert_ok(&output, &format!("cli {}", args.join(" ")));
-    serde_json::from_slice(&output.stdout).unwrap_or_else(|err| {
-        panic!(
-            "CLI JSON parse failed ({err}): {}",
-            String::from_utf8_lossy(&output.stdout)
-        )
-    })
-}
+use std::path::Path;
 
 fn discover_and_index(repo: &Path) {
-    let repo_s = repo.to_str().unwrap();
     assert_ok(
-        &run_in(
+        &run_no_daemon_in_repo(
             repo,
-            &[
-                "-r",
-                repo_s,
-                "discover",
-                ".",
-                "--languages",
-                "java,rust",
-            ],
+            &["discover", ".", "--languages", "java,rust"],
         ),
         "discover",
     );
     assert_ok(
-        &run_in(repo, &["-r", repo_s, "semantic", "index"]),
+        &run_no_daemon_in_repo(repo, &["semantic", "index"]),
         "semantic index",
     );
     let policy = Path::new(env!("CARGO_MANIFEST_DIR")).join("rgbuilder-tests/rgbuilder-policy.json");
     fs::copy(&policy, repo.join("policy.json")).expect("copy policy");
-}
-
-fn read_mcp_json(reader: &mut BufReader<impl Read>) -> Option<Value> {
-    let mut header = String::new();
-    let mut content_length: Option<usize> = None;
-    loop {
-        header.clear();
-        if reader.read_line(&mut header).ok()? == 0 {
-            return None;
-        }
-        let lower = header.to_ascii_lowercase();
-        if let Some(rest) = lower.strip_prefix("content-length:") {
-            content_length = rest.trim().parse().ok();
-        }
-        if header.trim().is_empty() {
-            break;
-        }
-        if header.trim_start().starts_with('{') {
-            return serde_json::from_str(header.trim()).ok();
-        }
-    }
-    let len = content_length?;
-    let mut buf = vec![0u8; len];
-    reader.read_exact(&mut buf).ok()?;
-    serde_json::from_slice(&buf).ok()
-}
-
-struct McpProc {
-    child: std::process::Child,
-    stdin: std::process::ChildStdin,
-    reader: BufReader<std::process::ChildStdout>,
-    next_id: i64,
-}
-
-impl Drop for McpProc {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-impl McpProc {
-    fn rpc(&mut self, method: &str, params: Value) -> Value {
-        let id = self.next_id;
-        self.next_id += 1;
-        let msg = serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "method": method,
-            "params": params
-        });
-        writeln!(self.stdin, "{msg}").expect("write rpc");
-        let resp = read_mcp_json(&mut self.reader).expect("rpc response");
-        assert_eq!(resp["id"], id, "{resp}");
-        resp
-    }
-
-    fn call(&mut self, name: &str, arguments: Value) -> Value {
-        self.rpc(
-            "tools/call",
-            serde_json::json!({ "name": name, "arguments": arguments }),
-        )
-    }
-}
-
-fn mcp_connect(repo: &Path) -> McpProc {
-    let mut child = Command::new(rgbuilder_bin())
-        .args([
-            "-r",
-            repo.to_str().unwrap(),
-            "serve",
-            "--mode",
-            "mcp",
-            "--no-pipeline",
-        ])
-        .current_dir(repo)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn mcp");
-    let stdin = child.stdin.take().expect("stdin");
-    let stdout = child.stdout.take().expect("stdout");
-    let mut proc = McpProc {
-        child,
-        stdin,
-        reader: BufReader::new(stdout),
-        next_id: 1,
-    };
-    let init = proc.rpc(
-        "initialize",
-        serde_json::json!({
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": { "name": "test", "version": "0" }
-        }),
-    );
-    assert!(init.get("result").is_some(), "initialize failed: {init}");
-    proc
-}
-
-fn mcp_structured(resp: &Value) -> Value {
-    assert!(resp.get("error").is_none(), "tool error: {resp}");
-    let result = resp.get("result").expect("result");
-    let structured = result
-        .get("structuredContent")
-        .cloned()
-        .unwrap_or_else(|| {
-            let text = result["content"][0]["text"].as_str().unwrap_or("");
-            serde_json::from_str(text).unwrap_or_else(|err| {
-                panic!("expected structured JSON ({err}): {resp}")
-            })
-        });
-    let text = result["content"][0]["text"].as_str().expect("content text");
-    let parsed: Value = serde_json::from_str(text).expect("content text JSON");
-    assert_eq!(parsed, structured, "content text must match structuredContent");
-    structured
 }
 
 fn assert_not_status(doc: &Value, tool: &str) {
@@ -224,9 +36,9 @@ fn assert_not_status(doc: &Value, tool: &str) {
 
 #[test]
 fn mcp_each_catalog_tool_returns_cli_shaped_json() {
-    let (_tmp, repo) = materialize();
+    let (_tmp, repo) = materialize_fixture();
     discover_and_index(&repo);
-    let mut mcp = mcp_connect(&repo);
+    let mut mcp = mcp_connect_stdio(&repo);
 
     let status = mcp_structured(&mcp.call("rgbuilder_status", serde_json::json!({})));
     assert_eq!(status["schema_version"], 1);
@@ -342,9 +154,9 @@ fn mcp_each_catalog_tool_returns_cli_shaped_json() {
 
 #[test]
 fn mcp_tool_call_ids_and_invalid_metrics_flag() {
-    let (_tmp, repo) = materialize();
+    let (_tmp, repo) = materialize_fixture();
     discover_and_index(&repo);
-    let mut mcp = mcp_connect(&repo);
+    let mut mcp = mcp_connect_stdio(&repo);
 
     let listed = mcp.rpc("tools/list", serde_json::json!({}));
     let names: Vec<&str> = listed["result"]["tools"]

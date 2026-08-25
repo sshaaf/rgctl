@@ -192,17 +192,10 @@ pub fn run_cold_discover_timed(repo: &Path, extra_args: &[&str]) -> (Output, Dur
     );
     let start = Instant::now();
     let output = Command::new(&bin)
+        .current_dir(repo)
         .env("RUST_LOG", "info,profile=info")
-        .args([
-            "--no-daemon",
-            "-r",
-            repo.to_str().unwrap(),
-            "-f",
-            "json",
-            "discover",
-            ".",
-            "-v",
-        ])
+        .env("RGCTL_NO_DAEMON", "1")
+        .args(["--no-daemon", "-f", "json", "discover", ".", "-v"])
         .args(extra_args)
         .output()
         .expect("spawn rgctl discover");
