@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-plugin-helpers"
-version = "0.4.6"
+version = "0.4.7"
 edition.workspace = true
 rust-version.workspace = true
 description = "Tree-sitter extraction helpers for rgctl plugins"

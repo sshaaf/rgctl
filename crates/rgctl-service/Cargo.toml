@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-service"
-version = "0.4.6"
+version = "0.4.7"
 edition.workspace = true
 rust-version.workspace = true
 description = "Shared command execution for rgctl CLI, HTTP, and MCP"

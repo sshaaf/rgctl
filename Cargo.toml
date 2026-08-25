@@ -43,42 +43,42 @@ edition = "2024"
 rust-version = "1.88"
 
 [workspace.dependencies]
-rgctl-plugin-api = { path = "crates/rgctl-plugin-api", version = "0.4.6" }
-rgctl-plugin-helpers = { path = "crates/rgctl-plugin-helpers", version = "0.4.6" }
-rgctl-config-formats = { path = "crates/rgctl-config-formats", version = "0.4.6" }
-rgctl-lang-runtime = { path = "crates/rgctl-lang-runtime", version = "0.4.6" }
-rgctl-registry = { path = "crates/rgctl-registry", version = "0.4.6" }
-rgctl-error = { path = "crates/rgctl-error", version = "0.4.6" }
-rgctl-graph = { path = "crates/rgctl-graph", version = "0.4.6" }
-rgctl-extraction = { path = "crates/rgctl-extraction", version = "0.4.6" }
-rgctl-pipeline = { path = "crates/rgctl-pipeline", version = "0.4.6" }
-rgctl-analysis = { path = "crates/rgctl-analysis", version = "0.4.6", default-features = false }
-rgctl-gql = { path = "crates/rgctl-gql", version = "0.4.6" }
-rgctl-export = { path = "crates/rgctl-export", version = "0.4.6" }
-rgctl-dashboard = { path = "crates/rgctl-dashboard", version = "0.4.6" }
-rgctl-wasm = { path = "crates/rgctl-wasm", version = "0.4.6" }
-rgctl-security = { path = "crates/rgctl-security", version = "0.4.6" }
-rgctl-project-config = { path = "crates/rgctl-project-config", version = "0.4.6" }
-rgctl-incremental = { path = "crates/rgctl-incremental", version = "0.4.6" }
-rgctl-semantic = { path = "crates/rgctl-semantic", version = "0.4.6" }
-rgctl-rules = { path = "crates/rgctl-rules", version = "0.4.6" }
-rgctl-core = { path = "crates/rgctl-core", version = "0.4.6" }
-rgctl-service = { path = "crates/rgctl-service", version = "0.4.6" }
-rgctl-mcp = { path = "crates/rgctl-mcp", version = "0.4.6" }
+rgctl-plugin-api = { path = "crates/rgctl-plugin-api", version = "0.4.7" }
+rgctl-plugin-helpers = { path = "crates/rgctl-plugin-helpers", version = "0.4.7" }
+rgctl-config-formats = { path = "crates/rgctl-config-formats", version = "0.4.7" }
+rgctl-lang-runtime = { path = "crates/rgctl-lang-runtime", version = "0.4.7" }
+rgctl-registry = { path = "crates/rgctl-registry", version = "0.4.7" }
+rgctl-error = { path = "crates/rgctl-error", version = "0.4.7" }
+rgctl-graph = { path = "crates/rgctl-graph", version = "0.4.7" }
+rgctl-extraction = { path = "crates/rgctl-extraction", version = "0.4.7" }
+rgctl-pipeline = { path = "crates/rgctl-pipeline", version = "0.4.7" }
+rgctl-analysis = { path = "crates/rgctl-analysis", version = "0.4.7", default-features = false }
+rgctl-gql = { path = "crates/rgctl-gql", version = "0.4.7" }
+rgctl-export = { path = "crates/rgctl-export", version = "0.4.7" }
+rgctl-dashboard = { path = "crates/rgctl-dashboard", version = "0.4.7" }
+rgctl-wasm = { path = "crates/rgctl-wasm", version = "0.4.7" }
+rgctl-security = { path = "crates/rgctl-security", version = "0.4.7" }
+rgctl-project-config = { path = "crates/rgctl-project-config", version = "0.4.7" }
+rgctl-incremental = { path = "crates/rgctl-incremental", version = "0.4.7" }
+rgctl-semantic = { path = "crates/rgctl-semantic", version = "0.4.7" }
+rgctl-rules = { path = "crates/rgctl-rules", version = "0.4.7" }
+rgctl-core = { path = "crates/rgctl-core", version = "0.4.7" }
+rgctl-service = { path = "crates/rgctl-service", version = "0.4.7" }
+rgctl-mcp = { path = "crates/rgctl-mcp", version = "0.4.7" }
 tempfile = "3"
 zstd = "0.13"
 rayon = "1.7"
-rgctl-lang-go = { path = "crates/rgctl-lang-go", version = "0.4.6" }
-rgctl-lang-java = { path = "crates/rgctl-lang-java", version = "0.4.6" }
-rgctl-lang-javascript = { path = "crates/rgctl-lang-javascript", version = "0.4.6" }
-rgctl-lang-python = { path = "crates/rgctl-lang-python", version = "0.4.6" }
-rgctl-lang-rust = { path = "crates/rgctl-lang-rust", version = "0.4.6" }
-rgctl-lang-typescript = { path = "crates/rgctl-lang-typescript", version = "0.4.6" }
-rgctl-lang-csharp = { path = "crates/rgctl-lang-csharp", version = "0.4.6" }
-rgctl-lang-c = { path = "crates/rgctl-lang-c", version = "0.4.6" }
-rgctl-lang-cpp = { path = "crates/rgctl-lang-cpp", version = "0.4.6" }
-rgctl-lang-markdown = { path = "crates/rgctl-lang-markdown", version = "0.4.6" }
-rgctl-languages = { path = "crates/rgctl-languages", version = "0.4.6" }
+rgctl-lang-go = { path = "crates/rgctl-lang-go", version = "0.4.7" }
+rgctl-lang-java = { path = "crates/rgctl-lang-java", version = "0.4.7" }
+rgctl-lang-javascript = { path = "crates/rgctl-lang-javascript", version = "0.4.7" }
+rgctl-lang-python = { path = "crates/rgctl-lang-python", version = "0.4.7" }
+rgctl-lang-rust = { path = "crates/rgctl-lang-rust", version = "0.4.7" }
+rgctl-lang-typescript = { path = "crates/rgctl-lang-typescript", version = "0.4.7" }
+rgctl-lang-csharp = { path = "crates/rgctl-lang-csharp", version = "0.4.7" }
+rgctl-lang-c = { path = "crates/rgctl-lang-c", version = "0.4.7" }
+rgctl-lang-cpp = { path = "crates/rgctl-lang-cpp", version = "0.4.7" }
+rgctl-lang-markdown = { path = "crates/rgctl-lang-markdown", version = "0.4.7" }
+rgctl-languages = { path = "crates/rgctl-languages", version = "0.4.7" }
 tree-sitter = "0.25"
 
 [workspace.lints.rust]
@@ -109,7 +109,7 @@ expect_used = "warn"
 
 [package]
 name = "rgctl"
-version = "0.4.6"
+version = "0.4.7"
 edition.workspace = true
 rust-version.workspace = true
 authors = ["rgctl Contributors"]
