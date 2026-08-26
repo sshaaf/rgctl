@@ -38,7 +38,7 @@ if ! command -v opencode >/dev/null 2>&1; then
   exit 0
 fi
 
-SCRATCH="$(mktemp -d "${TMPDIR:-/tmp}/rgctl-opencode-smoke.XXXXXX")"
+SCRATCH="$(mktemp -d /tmp/rgctl-opencode-smoke.XXXXXX)"
 DAEMON_HOME=""
 PORT=""
 
@@ -96,11 +96,15 @@ write_daemon_config() {
   "\$schema": "https://opencode.ai/config.json",
   "mcp": {
     "rgctl": {
-      "type": "remote",
-      "url": "http://127.0.0.1:${PORT}/mcp",
-      "oauth": false,
+      "type": "local",
+      "command": ["${RGCTL}", "--daemon-home", "${DAEMON_HOME}", "serve", "--mode", "mcp"],
+      "cwd": "repo",
       "enabled": true,
-      "timeout": 60000
+      "timeout": 60000,
+      "environment": {
+        "RGCTL_HOME": "${DAEMON_HOME}",
+        "RUST_LOG": "error"
+      }
     }
   }
 }
