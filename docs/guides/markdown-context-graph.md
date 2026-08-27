@@ -2,7 +2,7 @@
 
 ## Introduction
 
-rgBuilder indexes `.md` and `.mdx` files into a **documentation context graph** alongside your code. Headings become navigable sections, internal links become `REFERENCES` edges, code fences become searchable blocks, and frontmatter keys become queryable variables — all in the same `graph.snapshot.bin` that powers `gql`, `metrics`, and `export`.
+rgctl indexes `.md` and `.mdx` files into a **documentation context graph** alongside your code. Headings become navigable sections, internal links become `REFERENCES` edges, code fences become searchable blocks, and frontmatter keys become queryable variables — all in the same `graph.snapshot.bin` that powers `gql`, `metrics`, and `export`.
 
 This guide walks through `discover`, GQL, Obsidian/OKF export, and doc-scoped semantic search. The primary example is the English docs from [kubernetes/website](https://github.com/kubernetes/website) (`content/en`, on the order of **17k heading sections**). A small in-tree fixture covers every markdown construct and doc→code linking.
 
@@ -19,25 +19,33 @@ This guide walks through `discover`, GQL, Obsidian/OKF export, and doc-scoped se
 
 This guide uses **two checkouts** — each for a different part of the walkthrough, not as alternatives to the same task.
 
-1. **[kubernetes/website](https://github.com/kubernetes/website)** (`example/kubernetes-website/`) — **Steps 1–4:** `discover`, Obsidian export, doc semantic search, communities, and OKF on a real documentation site. Clone the repo (sparse `content/en` is enough) before you start.
+1. **[kubernetes/website](https://github.com/kubernetes/website)** (`example/k8s-website/`) — **Steps 1–4:** `discover`, Obsidian export, doc semantic search, communities, and OKF on a real documentation site. Sparse-checkout `content/en` before you start.
 
 2. **markdown-context fixture** (`tests/fixtures/markdown-context/`) — **Step 5 and the construct showcase:** every supported markdown syntax, plus `CheckoutService.java` for doc→code GQL. Always in-tree; no clone.
 
 ```bash
-# kubernetes/website — sparse clone of English docs only
+# kubernetes/website — sparse clone of English docs (same dest as ./scripts/fetch-profile-repos.sh)
 mkdir -p example
-git clone --depth 1 --filter=blob:none --sparse https://github.com/kubernetes/website.git example/kubernetes-website
-(cd example/kubernetes-website && git sparse-checkout set content/en)
+git clone --depth 1 --filter=blob:none --sparse https://github.com/kubernetes/website.git example/.tmp-k8s-website
+(cd example/.tmp-k8s-website && git sparse-checkout set content/en)
+rm -rf example/k8s-website
+mv example/.tmp-k8s-website/content/en example/k8s-website
+rm -rf example/.tmp-k8s-website
 
-export REPO="$(pwd)/example/kubernetes-website/content/en"
+export REPO="$(pwd)/example/k8s-website"
 export REPO_FIXTURE="$(pwd)/tests/fixtures/markdown-context"
+export RGCTL_NO_DAEMON=1   # write artifacts to $REPO/.rgctl/ (see Installation)
 ```
 
-**Prerequisites:** `rg-build` on your `PATH`. For large exports (17k+ Obsidian notes), use a **release** binary — [download the latest release](https://github.com/sshaaf/rgBuilder/releases) or [build from source](../user-guide.md#1-installation) (`cargo build --release`). See [Installation](../user-guide.md#1-installation) in the User Guide.
+Maintainers who already fetch profile corpora can skip the clone: `./scripts/fetch-profile-repos.sh` then `export REPO="$(pwd)/example/k8s-website"`.
 
-## What rgBuilder indexes
+**Prerequisites:** `rgctl` on your `PATH`. For large exports (17k+ Obsidian notes), use a **release** binary — [download the latest release](https://github.com/sshaaf/rgctl/releases) or [build from source](../installation.md) (`cargo build --release --bin rgctl`). See [Installation](../installation.md).
 
-rgBuilder parses markdown with official `tree-sitter-md` (block + inline grammars). The table below maps author syntax to graph nodes and edges.
+This walkthrough sets `RGCTL_NO_DAEMON=1` (same as `--no-daemon`) so snapshots land in `{repo}/.rgctl/` next to the checkout. Default CLI mode otherwise uses a background daemon and caches under `~/.rgctl/cache/{reponame}/`. See [Daemon vs no-daemon](../installation.md#daemon-vs-no-daemon).
+
+## What rgctl indexes
+
+rgctl parses markdown with official `tree-sitter-md` (block + inline grammars). The table below maps author syntax to graph nodes and edges.
 
 | Author writes | Graph | Properties / edges |
 |---------------|-------|-------------------|
@@ -69,31 +77,32 @@ For the full node model and GQL catalog, see [markdown-context.md](../markdown-c
 
 ### 1. Discover documentation (kubernetes/website)
 
-If you built from source, ensure `target/release/rg-build` is on your `PATH` (see [Add rgBuilder to your PATH](../user-guide.md#2-add-rgbuilder-to-your-path)).
+If you built from source, ensure `target/release/rgctl` is on your `PATH` (see [Add to PATH](../installation.md#add-to-path)).
 
 ```bash
-export REPO="$(pwd)/example/kubernetes-website/content/en"
+export REPO="$(pwd)/example/k8s-website"
+export RGCTL_NO_DAEMON=1
 
-rg-build -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover . -l markdown
 ```
 
 **Output:**
 
 ```
-[>] rg-build discover
-[✓] rg-build discover finished in 1.6s
+[>] rgctl discover
+[✓] rgctl discover finished in 1.6s
 ```
 
 **What happened:**
 
-- rgBuilder parsed the sparse checkout of kubernetes/website `content/en` — thousands of `.md` files, **17,244 heading modules** (`:Module` with `kind=heading`), zero `:Function` nodes.
-- The graph snapshot was written to `$REPO/.rgbuilder/graph.snapshot.bin`.
-- Section bodies larger than 32 KiB inline were stored in `$REPO/.rgbuilder/content_store.bin` (Blake3-keyed).
+- rgctl parsed the sparse checkout of kubernetes/website `content/en` — thousands of `.md` files, **17,244 heading modules** (`:Module` with `kind=heading`), zero `:Function` nodes.
+- The graph snapshot was written to `$REPO/.rgctl/graph.snapshot.bin` (`RGCTL_NO_DAEMON=1` / `--no-daemon`).
+- Section bodies larger than 32 KiB inline were stored in `$REPO/.rgctl/content_store.bin` (Blake3-keyed).
 
 Confirm the heading count (read `"count"` from the JSON envelope — property projection in `RETURN` is not supported):
 
 ```bash
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (n:Module) WHERE n.kind = 'heading' RETURN n LIMIT 1"
 ```
 
@@ -103,7 +112,7 @@ The `"count"` field reflects the full match set (17,244 at time of writing; drif
 
 ```bash
 export REPO="$REPO_FIXTURE"
-rg-build -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover . -l markdown
 ```
 
 Markdown is included in default `discover`. Use `-l markdown` when you want **only** documentation.
@@ -113,9 +122,10 @@ Markdown is included in default `discover`. Use `-l markdown` when you want **on
 Turn every heading section into an interlinked vault. Export reads the graph and `content_store.bin` — it does not re-parse source files.
 
 ```bash
-export REPO="$(pwd)/example/kubernetes-website/content/en"
+export REPO="$(pwd)/example/k8s-website"
+export RGCTL_NO_DAEMON=1
 
-rg-build -r "$REPO" export \
+rgctl -r "$REPO" export \
   --export-format obsidian \
   --export-output "$REPO/vault" \
   --query all
@@ -124,14 +134,14 @@ rg-build -r "$REPO" export \
 **Output:**
 
 ```
-[>] rg-build export
-Exported 17244 notes (2971 wikilinks) -> …/example/kubernetes-website/content/en/vault
-[✓] rg-build export finished in 7.0s
+[>] rgctl export
+Exported 17244 notes (2971 wikilinks) -> …/example/k8s-website/vault
+[✓] rgctl export finished in 7.0s
 ```
 
 **What happened:**
 
-- rgBuilder exported **17,244 notes** — one per heading module. Note count equals heading module count.
+- rgctl exported **17,244 notes** — one per heading module. Note count equals heading module count.
 - Folder layout mirrors doc paths (e.g. `docs/concepts/…/feature.md#overview` → nested vault paths). Long blog titles get truncated slugs with a stable hash suffix.
 - Outgoing `REFERENCES` edges became **2,971 wikilinks** (`[[path]]`, no `.md` suffix).
 - Each note's YAML frontmatter includes `qualified_name` and `level` for trace-back to GQL.
@@ -142,7 +152,7 @@ Exported 17244 notes (2971 wikilinks) -> …/example/kubernetes-website/content/
 
 ```bash
 export REPO="$REPO_FIXTURE"
-rg-build -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
+rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 ```
 
 ```
@@ -156,19 +166,20 @@ Re-export after doc edits: `discover`, then `export`. Obsidian export is read-on
 **Cross-links across the corpus:**
 
 ```bash
-export REPO="$(pwd)/example/kubernetes-website/content/en"
+export REPO="$(pwd)/example/k8s-website"
+export RGCTL_NO_DAEMON=1
 
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (h:Module)-[:REFERENCES]->(t) WHERE h.kind = 'heading' RETURN h, t LIMIT 20"
 ```
 
 **Communities (GQL)** — community assignment is computed at `discover` and exposed through GQL as a virtual overlay (not stored in `graph.snapshot.bin`). List communities, then filter heading modules by `community_id`:
 
 ```bash
-rg-build -r "$REPO" -f json gql --macro-name all_communities unused
+rgctl -r "$REPO" -f json gql --macro-name all_communities unused
 
 # Pick a community_id from the output (example below — yours will differ)
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (n:Module) WHERE n.kind = 'heading' AND n.community_id = '60994' RETURN n LIMIT 20"
 ```
 
@@ -177,7 +188,7 @@ On markdown-only graphs, community detection uses `REFERENCES` cross-links and h
 **PageRank (`metrics`, not GQL)** — centrality scores are not GQL node properties. Use the metrics command after `discover`:
 
 ```bash
-rg-build -r "$REPO" -f json metrics --pagerank
+rgctl -r "$REPO" -f json metrics --pagerank
 ```
 
 The `top` array lists node UUIDs and scores. For named hotspots, combine with GQL on structure (`REFERENCES`, `CONTAINS`) or communities above.
@@ -185,22 +196,22 @@ The `top` array lists node UUIDs and scores. For named hotspots, combine with GQ
 **Doc-scoped semantic index** (separate from `discover`; uses `semantic_index.bin`):
 
 ```bash
-rg-build -r "$REPO" semantic index --scope docs --embedder hash
+rgctl -r "$REPO" semantic index --scope docs --embedder hash
 ```
 
 **Output:**
 
 ```
-[>] rg-build semantic index
-Indexed 24608 functions (sign-hash-v1, 256 dims) → …/kubernetes-website/content/en/.rgbuilder/semantic_index.bin
+[>] rgctl semantic index
+Indexed 24608 functions (sign-hash-v1, 256 dims) → …/k8s-website/.rgctl/semantic_index.bin
   incremental: 0 reused, 24608 embedded, 0 removed
-[✓] rg-build semantic index finished in 2.0s
+[✓] rgctl semantic index finished in 2.0s
 ```
 
 The CLI still prints `functions` — the count is **index entries** (heading + code-block modules when `--scope docs`).
 
 ```bash
-rg-build -r "$REPO" -f json semantic query "pod scheduling" --scope docs --limit 10
+rgctl -r "$REPO" -f json semantic query "pod scheduling" --scope docs --limit 10
 ```
 
 **What happened:**
@@ -212,9 +223,10 @@ rg-build -r "$REPO" -f json semantic query "pod scheduling" --scope docs --limit
 ### 4. Export OKF JSON
 
 ```bash
-export REPO="$(pwd)/example/kubernetes-website/content/en"
+export REPO="$(pwd)/example/k8s-website"
+export RGCTL_NO_DAEMON=1
 
-rg-build -r "$REPO" export \
+rgctl -r "$REPO" export \
   --export-format okf \
   --export-output "$REPO/okf.json" \
   --query all
@@ -223,9 +235,9 @@ rg-build -r "$REPO" export \
 **Output:**
 
 ```
-[>] rg-build export
-Exported 17244 OKF entities -> …/example/kubernetes-website/content/en/okf.json
-[✓] rg-build export finished in 466ms
+[>] rgctl export
+Exported 17244 OKF entities -> …/example/k8s-website/okf.json
+[✓] rgctl export finished in 466ms
 ```
 
 Use `--query all` for doc exports (filter queries target code-graph subsets). The fixture run is identical with `REPO="$REPO_FIXTURE"` (16 entities).
@@ -247,35 +259,35 @@ markdown-context/
 
 ```bash
 export REPO="$REPO_FIXTURE"
-rg-build -r "$REPO" discover . -l markdown,java   # docs + code
+rgctl -r "$REPO" discover . -l markdown,java   # docs + code
 ```
 
 **GQL on the fixture** (`LIKE` = prefix/suffix globs only):
 
 ```bash
 # Checkout-related headings
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (n:Module) WHERE n.kind = 'heading' AND n.name LIKE 'Checkout*' RETURN n LIMIT 10"
 
 # Heading tree
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (h:Module)-[:CONTAINS*1..3]->(n:Module) \
    WHERE h.kind = 'heading' AND h.name LIKE 'Checkout*' AND n.kind = 'heading' \
    RETURN h, n"
 
 # Cross-doc link (guide → payments ADR)
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (h:Module)-[:REFERENCES]->(t:Module) \
    WHERE h.kind = 'heading' AND t.name = 'Payments' RETURN h, t"
 
 # Doc → Java class (needs markdown,java discover)
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (h:Module)-[:REFERENCES]->(f:File)-[:CONTAINS]->(c:Class) \
    WHERE h.name LIKE 'Checkout*' AND f.name LIKE '*CheckoutService.java' \
    RETURN h, f, c"
 
 # Section prose — compact GQL returns bindings; use Obsidian export or semantic query for full text
-rg-build -r "$REPO" -f json gql \
+rgctl -r "$REPO" -f json gql \
   "MATCH (n:Module) WHERE n.kind = 'heading' AND n.name = 'Checkout Flow' RETURN n LIMIT 1"
 ```
 
@@ -288,7 +300,7 @@ After `discover` on `$REPO_FIXTURE`, these checks confirm each supported constru
 `docs/guide.md` — ATX headings (`# Checkout Flow`, `## Cart`, `### Validation rules`). Nested `CONTAINS`: Checkout Flow → Cart → Validation rules.
 
 ```bash
-rg-build -r "$REPO_FIXTURE" -f json gql \
+rgctl -r "$REPO_FIXTURE" -f json gql \
   "MATCH (a:Module)-[:CONTAINS]->(b:Module) \
    WHERE a.kind = 'heading' AND b.kind = 'heading' RETURN a, b LIMIT 20"
 ```
@@ -298,7 +310,7 @@ rg-build -r "$REPO_FIXTURE" -f json gql \
 `docs/guide.md#checkout-flow` links to `./adr.md#payments`, `./adr.md`, and `../src/CheckoutService.java`. External URLs (Stripe API) get link symbols but no `REFERENCES` edge.
 
 ```bash
-rg-build -r "$REPO_FIXTURE" -f json gql \
+rgctl -r "$REPO_FIXTURE" -f json gql \
   "MATCH (h:Module)-[:REFERENCES]->(t) \
    WHERE h.qualified_name LIKE '*#checkout-flow' RETURN h, t"
 ```
@@ -312,7 +324,7 @@ cart.validate();
 ````
 
 ```bash
-rg-build -r "$REPO_FIXTURE" -f json gql \
+rgctl -r "$REPO_FIXTURE" -f json gql \
   "MATCH (n:Module) WHERE n.kind = 'code_block' RETURN n LIMIT 5"
 ```
 
@@ -323,7 +335,7 @@ rg-build -r "$REPO_FIXTURE" -f json gql \
 - `docs/overview.mdx` — same plugin as `.md`; JSX in fences is not executed
 
 ```bash
-rg-build -r "$REPO_FIXTURE" -f json gql \
+rgctl -r "$REPO_FIXTURE" -f json gql \
   "MATCH (v:Variable) WHERE v.kind = 'frontmatter' RETURN v LIMIT 10"
 ```
 
@@ -358,7 +370,7 @@ If a linked file is not in the discover set, the `REFERENCES` edge is dropped.
 Cold discover and warm Obsidian export on kubernetes/website are gated in ignored tests (`example/k8s-website` in the repo's internal profile layout). These use **ceiling** baselines (not typical laptop timings):
 
 ```bash
-cargo build --release --bin rg-build
+cargo build --release --bin rgctl
 cargo test --release --test cold_profile_gates k8s_website_markdown_cold_discover_within_baseline -- --ignored --nocapture
 cargo test --release --test cold_profile_gates k8s_website_obsidian_export_to_vault -- --ignored --nocapture
 ```
@@ -384,6 +396,7 @@ Code-graph formats (`json`, `graphml`, `graphviz`, `mermaid`) also include doc n
 
 ## Related Guides
 
+- [Installation](../installation.md) — `rgctl` binary, PATH, daemon vs `--no-daemon`
 - [Discovering and Indexing a Codebase](discovering-and-indexing.md) — `discover` flags and artifacts
 - [Graph Query Language](graph-query-language.md) — GQL syntax and macros
 - [Exporting Graphs](exporting-graphs.md) — JSON, GraphML, Mermaid, and filter queries

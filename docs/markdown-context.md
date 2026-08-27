@@ -86,6 +86,7 @@ Turn the markdown context graph into an **Obsidian vault** — one note per head
 
 ```bash
 export REPO=/path/to/repo
+export RGCTL_NO_DAEMON=1   # {repo}/.rgctl/; omit to use ~/.rgctl/cache/{reponame}/
 cargo build --release --bin rgctl   # release is faster for large exports
 export PATH="$PWD/target/release:$PATH"
 
@@ -158,6 +159,7 @@ Obsidian export is **read-only** — edits in Obsidian are not synced back to th
 
 ```bash
 export REPO="$(pwd)/tests/fixtures/markdown-context"
+export RGCTL_NO_DAEMON=1
 rgctl -r "$REPO" discover . -l markdown
 rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 ```
@@ -167,6 +169,7 @@ rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" -
 ```bash
 ./scripts/fetch-profile-repos.sh
 export REPO="$(pwd)/example/k8s-website"
+export RGCTL_NO_DAEMON=1
 rgctl -r "$REPO" discover . -l markdown
 rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 ```
@@ -268,7 +271,7 @@ Query 6 finds doc → Java **file → class** via existing `REFERENCES` and `CON
 
 ## PageRank and communities
 
-Doc `REFERENCES` edges participate in discover-time centrality ([`default_behavioral_edges`](../../crates/rgctl-analysis/src/centrality.rs)) and community detection (`default_community_edge_types` includes `References`).
+Doc `REFERENCES` edges participate in discover-time centrality ([`default_behavioral_edges`](../crates/rgctl-analysis/src/centrality.rs)) and community detection (`default_community_edge_types` includes `References`).
 
 **Communities at discover:** `detect_with_view_defaults` projects neighbors via `build_community_neighbor_lists`:
 
