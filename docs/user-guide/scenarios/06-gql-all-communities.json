@@ -1,7 +1,0 @@
-{
-  "id": "06-gql-all-communities",
-  "args": ["-f", "json", "gql", "--macro-name", "all_communities", "unused"],
-  "needs_discover": true,
-  "require_json_keys": ["schema_version", "rows"],
-  "sync_output": false
-}

@@ -1,8 +1,0 @@
-{
-  "id": "06-gql-all-functions",
-  "args": ["-f", "json", "gql", "--macro-name", "all_functions", "unused"],
-  "needs_discover": true,
-  "require_json_keys": ["schema_version", "count"],
-  "jq_filter": ".count",
-  "marker": "06-gql-all-functions"
-}

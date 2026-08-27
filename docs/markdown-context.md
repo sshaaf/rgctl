@@ -8,8 +8,8 @@ Markdown is registered in `default_registry()` — `discover` indexes `.md` / `.
 
 ```bash
 export REPO=/path/to/repo
-rgctl -r "$REPO" discover . -l markdown
-rgctl -r "$REPO" discover . -l markdown,java   # doc + code (Phase 2b)
+rgctl -r "$REPO" discover -l markdown
+rgctl -r "$REPO" discover -l markdown,java   # doc + code (Phase 2b)
 ```
 
 Fixture corpus: `tests/fixtures/markdown-context/` — start with its [README.md](../tests/fixtures/markdown-context/README.md) for layout, narrative, and copy-paste commands.
@@ -87,8 +87,8 @@ export REPO=/path/to/repo
 cargo build --release --bin rgctl   # release is faster for large exports
 export PATH="$PWD/target/release:$PATH"
 
-rgctl -r "$REPO" discover . -l markdown
-# or docs + code: rgctl -r "$REPO" discover .
+rgctl -r "$REPO" discover -l markdown
+# or docs + code: rgctl -r "$REPO" discover
 ```
 
 ### 2. Export vault
@@ -144,7 +144,7 @@ Section prose (from `body_text` or `content_store.bin` via `body_ref`).
 ### Re-export after doc edits
 
 ```bash
-rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover -l markdown
 rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 ```
 
@@ -156,7 +156,7 @@ Obsidian export is **read-only** — edits in Obsidian are not synced back to th
 
 ```bash
 export REPO="$(pwd)/tests/fixtures/markdown-context"
-rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover -l markdown
 rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 ```
 
@@ -165,7 +165,7 @@ rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" -
 ```bash
 ./scripts/fetch-profile-repos.sh
 export REPO="$(pwd)/example/k8s-website"
-rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover -l markdown
 rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 ```
 
@@ -182,7 +182,7 @@ Entity bundle for Open Knowledge Foundation tooling (heading modules + bodies).
 Default `semantic index` embeds **`:Function` nodes only**. For documentation:
 
 ```bash
-rgctl -r "$REPO" discover . -l markdown   # or full discover
+rgctl -r "$REPO" discover -l markdown   # or full discover
 
 # Index doc sections (offline embedder — no ONNX)
 rgctl -r "$REPO" semantic index --scope docs --embedder hash

@@ -19,7 +19,7 @@ The "hybrid" in the name refers to the two-resolution architecture: the coarse-g
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` with `--with-cfg`:
 
 ```bash
-rgctl -r example/coolstore discover . --with-cfg
+rgctl -r example/coolstore discover --with-cfg
 ```
 
 ## Step-by-Step

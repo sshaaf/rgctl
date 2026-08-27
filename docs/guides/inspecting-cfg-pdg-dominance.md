@@ -19,7 +19,7 @@ While higher-level commands like `slice` and `cpg flows` build on these structur
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` with `--with-cfg`:
 
 ```bash
-rgctl -r example/coolstore discover . --with-cfg
+rgctl -r example/coolstore discover --with-cfg
 ```
 
 ## Step-by-Step

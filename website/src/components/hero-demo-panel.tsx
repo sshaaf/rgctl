@@ -21,7 +21,7 @@ const DEMOS: Demo[] = [
     label: "blast-radius",
     caption: "ecommerce-java · impact at depth 2",
     copyText:
-      'rgctl discover .\nrgctl -f json blast-radius "priceShoppingCart" --depth 2',
+      'cd rgctl-tests/ecommerce-java\nrgctl discover .\nrgctl -f json blast-radius "priceShoppingCart" --depth 2',
     lines: [
       { kind: "cmd", text: "discover ." },
       { kind: "out", text: "✓ graph built · reachability cached" },
@@ -118,7 +118,8 @@ const DEMOS: Demo[] = [
     id: "taint",
     label: "taint",
     caption: "source → sink · security paths",
-    copyText: "rgctl discover . --with-taint --with-security",
+    copyText:
+      "cd your-repo\nrgctl discover . --with-taint --with-security",
     lines: [
       {
         kind: "cmd",
@@ -154,7 +155,7 @@ const DEMOS: Demo[] = [
     label: "migration",
     caption: "prioritized plan + CI check",
     copyText:
-      "rgctl discover . --export-migration-hints\nrgctl -f json check --policy-file policy.json",
+      "cd your-repo\nrgctl discover . --export-migration-hints\nrgctl -f json check --policy-file policy.json",
     lines: [
       { kind: "cmd", text: "discover . --export-migration-hints" },
       { kind: "out", text: "✓ wrote .rgctl/migration_plan.json" },

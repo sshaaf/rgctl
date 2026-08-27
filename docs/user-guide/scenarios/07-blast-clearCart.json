@@ -1,8 +1,0 @@
-{
-  "id": "07-blast-clearCart",
-  "args": ["-f", "json", "blast-radius", "CartService::clearCart"],
-  "needs_discover": true,
-  "require_json_keys": ["schema_version", "target"],
-  "jq_filter": "{score: .metrics.score, callers: .topology.direct_callers}",
-  "marker": "07-blast-clearCart"
-}

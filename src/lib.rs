@@ -17,7 +17,7 @@ pub use rgctl_graph::CodeGraph;
 
 /// Build information
 pub const BUILD_INFO: &str = concat!(
-    "rgctl v",
+    "v",
     env!("CARGO_PKG_VERSION"),
     " (",
     env!("CARGO_PKG_REPOSITORY"),
@@ -52,6 +52,7 @@ mod tests {
 
     #[test]
     fn test_build_info() {
-        assert!(BUILD_INFO.contains("rgctl"));
+        assert!(BUILD_INFO.starts_with('v'));
+        assert!(BUILD_INFO.contains("github.com"));
     }
 }

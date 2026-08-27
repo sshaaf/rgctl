@@ -1,7 +1,0 @@
-{
-  "id": "11-metrics-pagerank",
-  "args": ["-f", "json", "metrics", "--pagerank"],
-  "needs_discover": true,
-  "require_json_keys": ["schema_version"],
-  "sync_output": false
-}

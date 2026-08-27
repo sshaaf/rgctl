@@ -187,7 +187,9 @@ tower = { version = "0.5", features = ["util"] }
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
+    "Win32_Security",
     "Win32_Storage_FileSystem",
+    "Win32_System_IO",
     "Win32_System_Pipes",
 ] }
 

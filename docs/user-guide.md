@@ -1053,7 +1053,7 @@ For documentation repos (or `-l markdown` discover), export heading sections as 
 
 ```bash
 export REPO=/path/to/docs-repo
-rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover -l markdown
 rgctl -r "$REPO" export \
   --export-format obsidian \
   --export-output "$REPO/vault" \
@@ -1129,7 +1129,7 @@ Shared daemon for catalog, per-repo HTTP API, and `/mcp` (default cache under `~
 
 ```bash
 rgctl daemon start --host 127.0.0.1 --port 8080
-rgctl -r "$REPO" discover .
+rgctl -r "$REPO" discover
 # Terminal 2 — CLI routes through daemon unless --no-daemon
 rgctl -r "$REPO" -f json blast-radius 'CartService::clearCart'
 ```

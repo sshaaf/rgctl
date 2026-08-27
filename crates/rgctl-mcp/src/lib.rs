@@ -84,8 +84,8 @@ fn read_rpc_message(reader: &mut BufReader<std::io::StdinLock<'_>>) -> Result<Op
 
 fn write_rpc_message(stdout: &mut std::io::StdoutLock<'_>, value: &Value) -> Result<()> {
     let body = serde_json::to_vec(value)?;
-    write!(stdout, "Content-Length: {}\r\n\r\n", body.len())?;
     stdout.write_all(&body)?;
+    stdout.write_all(b"\n")?;
     stdout.flush()?;
     Ok(())
 }

@@ -37,7 +37,7 @@ With the skill installed, every code review conversation has access to architect
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rgctl -r example/coolstore discover . --with-cfg
+rgctl -r example/coolstore discover --with-cfg
 ```
 
 ## Step-by-Step
@@ -257,7 +257,7 @@ When you ask: *"Generate a migration plan for this codebase"*
 The agent follows the skill's decision table (row 1: "Generate a migration plan") and runs:
 
 ```bash
-rgctl -r example/coolstore discover . \
+rgctl -r example/coolstore discover \
   --with-cfg --with-harmonic --export-migration-hints \
   --migration-preset hybrid_default --migration-order scheduled
 ```

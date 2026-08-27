@@ -265,7 +265,7 @@ JSON output still emitted on exit 1 (parse stdout for violations).
 ```yaml
 - name: Policy Check
   run: |
-    rgctl -r . discover .
+    rgctl -r . discover
     rgctl -r . check --policy-file .rgctl/policy.json
 ```
 
@@ -274,7 +274,7 @@ JSON output still emitted on exit 1 (parse stdout for violations).
 ```yaml
 policy-check:
   script:
-    - rgctl -r . discover .
+    - rgctl -r . discover
     - rgctl -r . check --policy-file .rgctl/policy.json
   only:
     - merge_requests

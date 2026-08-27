@@ -155,7 +155,7 @@ Shared daemon for multi-repo cache, catalog, and MCP:
 
 ```bash
 rgctl daemon start [--host HOST] [--port PORT]
-rgctl -r "$REPO" discover .
+rgctl -r "$REPO" discover
 rgctl -r "$REPO" serve --daemon   # foreground bootstrap; same daemon model
 ```
 

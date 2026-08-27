@@ -13,6 +13,7 @@ use rgctl_harness::{
 use serde_json::Value;
 use std::fs;
 use std::io::Write;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
@@ -245,6 +246,62 @@ fn daemon_session_roundtrip_discover_gql_mcp_then_cleanup() {
 
     guard.stop();
     guard.assert_not_running();
+}
+
+/// Regression: nonblocking control sockets truncated JSON at 8192 bytes (VHS `jq` pipes).
+#[test]
+fn daemon_large_gql_json_after_discover_exceeds_8192_bytes() {
+    let home = tempfile::tempdir().unwrap();
+    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests/ecommerce-java");
+    assert!(repo.is_dir(), "missing fixture {}", repo.display());
+    let port = reserve_port();
+    let guard = DaemonGuard::new(home.path().to_path_buf());
+
+    assert_ok(&guard.start_on_port(port), "daemon start");
+    assert_ok(
+        &Command::new(rgctl())
+            .current_dir(&repo)
+            .args([
+                "--daemon-home",
+                home.path().to_str().unwrap(),
+                "discover",
+                ".",
+                "-l",
+                "java",
+                "-e",
+                "target",
+                "--with-cfg",
+            ])
+            .output()
+            .unwrap(),
+        "daemon discover ecommerce-java",
+    );
+
+    let gql = Command::new(rgctl())
+        .current_dir(&repo)
+        .args([
+            "--daemon-home",
+            home.path().to_str().unwrap(),
+            "-f",
+            "json",
+            "gql",
+            "--macro-name",
+            "all_functions",
+            "unused",
+        ])
+        .output()
+        .unwrap();
+    assert_ok(&gql, "daemon gql all_functions");
+    assert!(
+        gql.stdout.len() > 8192,
+        "expected large JSON payload, got {} bytes",
+        gql.stdout.len()
+    );
+    let doc: Value = serde_json::from_slice(&gql.stdout).unwrap();
+    assert_eq!(doc["schema_version"], 1);
+    assert!(doc["count"].as_u64().unwrap_or(0) > 0);
+
+    guard.stop();
 }
 
 #[test]
