@@ -25,7 +25,7 @@ This guide uses the **CoolStore** (`example/coolstore`) -- a Java EE e-commerce 
 Migration planning requires harmonic centrality and the migration hints export:
 
 ```bash
-rgctl -r example/coolstore discover . \
+rgctl -r example/coolstore discover \
   --with-cfg \
   --with-harmonic \
   --export-migration-hints
@@ -114,17 +114,17 @@ rgctl offers four migration strategy presets:
 
 ```bash
 # Foundational-first: extract shared libraries and utilities first
-rgctl -r example/coolstore discover . \
+rgctl -r example/coolstore discover \
   --with-harmonic --export-migration-hints \
   --migration-preset foundational_first
 
 # Dense cluster: extract tightly-coupled clusters together
-rgctl -r example/coolstore discover . \
+rgctl -r example/coolstore discover \
   --with-harmonic --export-migration-hints \
   --migration-preset dense_cluster
 
 # Risk mitigation: prioritize low-risk extractions
-rgctl -r example/coolstore discover . \
+rgctl -r example/coolstore discover \
   --with-harmonic --export-migration-hints \
   --migration-preset risk_mitigation
 ```
@@ -142,12 +142,12 @@ Control how steps are sorted:
 
 ```bash
 # Scheduled: dependency-aware topological sort (default)
-rgctl -r example/coolstore discover . \
+rgctl -r example/coolstore discover \
   --with-harmonic --export-migration-hints \
   --migration-order scheduled
 
 # Priority: sort by priority score regardless of dependencies
-rgctl -r example/coolstore discover . \
+rgctl -r example/coolstore discover \
   --with-harmonic --export-migration-hints \
   --migration-order priority
 ```

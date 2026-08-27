@@ -7,7 +7,7 @@ import { ArrowRight } from "lucide-react";
 const examples = [
   {
     label: "Index once",
-    cmd: "discover .",
+    cmd: "discover .  # run from repo root; or: rgctl -r PATH discover",
     href: "/install/",
   },
   {

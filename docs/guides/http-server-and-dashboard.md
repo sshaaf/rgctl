@@ -17,7 +17,7 @@ The `serve` command launches an HTTP server that provides both a **browser-based
 This guide uses the **CoolStore** (`example/coolstore`). `rgctl serve` can start the full pipeline itself. To only serve existing artifacts:
 
 ```bash
-rgctl -r example/coolstore discover . --with-cfg --with-dashboard
+rgctl -r example/coolstore discover --with-cfg --with-dashboard
 rgctl -r example/coolstore serve --no-pipeline --open
 ```
 

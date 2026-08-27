@@ -19,7 +19,7 @@ The result is a **blast-radius score** (0--100), a list of direct callers, and t
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rgctl -r example/coolstore discover .
+rgctl -r example/coolstore discover
 ```
 
 ## Step-by-Step

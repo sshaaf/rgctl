@@ -268,7 +268,7 @@ Document known gaps: reflection, `Object` receivers without cast, cross-language
 ## 9. API sketch (stable for agents)
 
 ```bash
-rgctl -r "$REPO" discover . --with-cfg
+rgctl -r "$REPO" discover --with-cfg
 
 rgctl -r "$REPO" -f json cpg status
 rgctl -r "$REPO" -f json cpg mutations --type OrderDTO --exclude-ctors

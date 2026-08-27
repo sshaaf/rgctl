@@ -19,7 +19,7 @@ Slicing works in two directions: **backward** (what statements contributed to th
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` with `--with-cfg` to enable CFG/PDG analysis:
 
 ```bash
-rgctl -r example/coolstore discover . --with-cfg
+rgctl -r example/coolstore discover --with-cfg
 ```
 
 The `--with-cfg` flag is required because slicing depends on the Program Dependence Graph (PDG), which is built from the control-flow graph.

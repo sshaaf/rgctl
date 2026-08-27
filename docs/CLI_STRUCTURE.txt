@@ -120,7 +120,7 @@ Usage Examples:
 ===============
 
 # Index (snapshot-canonical; no legacy JSON unless requested)
-rgctl -r /path/to/repo discover . --languages java,rust
+rgctl -r /path/to/repo discover --languages java,rust
 
 # Blast radius (text)
 rgctl -r /path/to/repo blast-radius OrderService::process

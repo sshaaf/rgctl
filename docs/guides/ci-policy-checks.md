@@ -19,7 +19,7 @@ Policy checks automate what would otherwise be manual code review: ensuring that
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rgctl -r example/coolstore discover .
+rgctl -r example/coolstore discover
 ```
 
 ## Step-by-Step

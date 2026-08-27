@@ -19,7 +19,7 @@ Metrics give you a quantitative view of your codebase's architecture -- which fu
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rgctl -r example/coolstore discover .
+rgctl -r example/coolstore discover
 ```
 
 ## Step-by-Step

@@ -19,7 +19,7 @@ GQL is the primary interface for asking precise, composable questions: "What fun
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rgctl -r example/coolstore discover .
+rgctl -r example/coolstore discover
 ```
 
 ## Step-by-Step
