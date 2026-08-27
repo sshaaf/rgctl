@@ -16,12 +16,11 @@ AI coding agents default to reading files sequentially. That burns context, miss
 
 Quick cli tour:
 
-https://github.com/user-attachments/assets/6f355d16-dd6f-43e2-baad-9d4372b84540
-
+https://github.com/user-attachments/assets/86f58b6b-f6e2-4e64-a8a6-067a375844a7
 
 Dashboard tour (optional visualization):
 
-https://github.com/user-attachments/assets/81328399-dca1-4232-8edc-2a23563c3451
+https://github.com/user-attachments/assets/2f0412b8-ab9b-4e5f-952b-48f09cf02060
 
 ---
 
