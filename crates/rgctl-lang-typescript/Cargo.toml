@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-lang-typescript"
-version = "0.4.7"
+version = "0.4.8"
 edition.workspace = true
 rust-version.workspace = true
 description = "rgctl language plugin: typescript"

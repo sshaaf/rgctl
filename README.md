@@ -188,7 +188,7 @@ rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with
 
 **IDE agents (MCP):** `rgctl serve --mode mcp` — seven tools on stdio; see [MCP Server guide](docs/guides/mcp-server.md).
 
-Concepts → **[Introduction](docs/Introduction.md)** · Commands → **[User Guide](docs/user-guide.md)** · Upgrade from v0.4.6 → **[v0.4.7 release notes](docs/releases/v0.4.7.md)**
+Concepts → **[Introduction](docs/Introduction.md)** · Commands → **[User Guide](docs/user-guide.md)** · Latest → **[v0.4.8 release notes](docs/releases/v0.4.8.md)**
 
 Example deep-analysis commands (after `discover --with-cfg`):
 
@@ -247,6 +247,7 @@ Quick links into **[Introduction](docs/Introduction.md)** — see [Where most to
 |----------|-----|
 | **[Documentation index](docs/README.md)** | Map of all docs by persona |
 | **[Installation](docs/installation.md)** | Install rgctl, CLI / HTTP / MCP / **daemon** modes, `--no-daemon`, verify setup |
+| **[v0.4.8 release notes](docs/releases/v0.4.8.md)** | Latest — agent docs, daemon/discover guidance |
 | **[v0.4.7 release notes](docs/releases/v0.4.7.md)** | rgctl rename, daemon, MCP, upgrade from v0.4.6 |
 | **[Introduction](docs/Introduction.md)** | Concepts — graph, reachability, capability map |
 | **[User Guide](docs/user-guide.md)** | ecommerce-java fixture, every CLI command |

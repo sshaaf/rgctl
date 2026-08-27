@@ -1,3 +1,3 @@
-# Unreleased (post v0.4.7)
+# Unreleased (post v0.4.8)
 
 _No entries yet._
