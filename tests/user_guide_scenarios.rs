@@ -1,29 +1,20 @@
-//! User-guide scenario suite — docs/user-guide/scenarios via scripts/user-guide-scenarios.py
+//! User-guide §16 + VHS tape workflow — all Tier-1 `rgctl-tests/ecommerce-*` projects.
+//!
+//! Each project run uses an isolated temp `--daemon-home` (started in the harness,
+//! stopped on drop). Requires `jq` on PATH.
+//!
+//! ```bash
+//! cargo test --test user_guide_scenarios
+//! ```
 
-use std::path::PathBuf;
-use std::process::Command;
+mod rgctl_harness;
+mod user_guide_harness;
 
-fn repo_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
+use user_guide_harness::{run_full_workflow, PROJECTS};
 
 #[test]
-fn user_guide_scenarios_pass() {
-    let root = repo_root();
-    let script = root.join("scripts/user-guide-scenarios.py");
-    assert!(script.is_file(), "missing {}", script.display());
-
-    let mut cmd = Command::new("python3");
-    cmd.arg(&script).current_dir(&root);
-    if let Ok(bin) = std::env::var("CARGO_BIN_EXE_rgctl") {
-        cmd.env("CARGO_BIN_EXE_rgctl", bin);
-    }
-    let out = cmd.output().expect("spawn python3");
-    if !out.status.success() {
-        panic!(
-            "user-guide scenarios failed:\n{}\n{}",
-            String::from_utf8_lossy(&out.stdout),
-            String::from_utf8_lossy(&out.stderr)
-        );
+fn user_guide_workflow_all_ecommerce_projects() {
+    for project in PROJECTS {
+        run_full_workflow(project);
     }
 }

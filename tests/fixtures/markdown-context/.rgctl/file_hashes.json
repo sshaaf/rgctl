@@ -1,0 +1,172 @@
+{
+  "version": "0.4.5",
+  "indexed_at": "1787171869",
+  "last_commit": "7ba578036fcd335813905dfb1c5d2f9d348901e6",
+  "files": {
+    "docs/adr/architecture-decisions.md": "bda18ed68834e03a8700a6c25ba343084143956cddf01667ee2eb379e7b98fa3",
+    "docs/guide/payment-handoff.md": "b4c0211760bdcba35c52651f2c04e86175a2c56299263e8211a69748e6ac65c8",
+    "docs/guide/validation-rules.md": "887d8932c72cebd1697ad83e0e9546326cc38f72e65e1cf23d36e281217e03b7",
+    "docs/overview.mdx": "1d2b0c97e2b21c82ff9b69631bcf28d1458db884e8da2362a125c55613e8e05d",
+    "docs/adr/overview.md": "8a37e17c783884223c960a16a36ac42a94fd530729e53b18b305831645995e82",
+    "README/try-it.md": "52266f9e4a2cf47f47869b24f48bd6c7411d5c8a8a28f8da47705fe9b1e6a4d0",
+    "docs/adr/alternatives-considered.md": "eabad833c152ca52e5e43f8f200867e8f99548dab633a4a6f9fbc7c17bfa556b",
+    "docs/guide/checkout-flow.md": "c374b632078b16181a6464f78f0d29760f096f896b588831013b2c8eb6c5a7d1",
+    "README/narrative-what-the-graph-encodes.md": "6c600dadc58152fcc72058eff6819e11142dc75558722e0b8fe74900ec709a30",
+    "README/what-gets-indexed.md": "0150c9c1b179cb2117d44ef28adfa1a138f8f12ffbb4ad14b9b480b184227891",
+    "docs/adr.md": "c3ec3f00c545cb7fcb9e2f3cb4155cbc89af192517d2bf071399ed15af8d04cf",
+    "docs/adr/payments.md": "011035a307abd4d8475084017b45b78d50ff710e2b094f375822d1a14c3d0ab5",
+    "docs/guide.md": "908bf496dceb1f2fe6cba8330fd61e5e9d08b9b5c0c7c24c0a7f52afe0231d5d",
+    "README/layout.md": "908af1c71d65adf46094b9576889b9ea60996dfe618ed11b704a6f676e77e5a6",
+    "docs/guide/cart.md": "5fde35426b4b38df913fc1005931cc63b354f0879150f2bbfff3e8b774ee6c16",
+    "docs/guide/related-material.md": "4e140bd423f69e39ac7269b9b14e5bdd567d334617a01d7617544c88175adbc3",
+    "README.md": "7f482fa158f7c320d165a9b4c39ff39f9c589a44abfaa59b63747c6d0ef9f73e",
+    "README/markdown-context-graph-example-corpus.md": "d82276fdc0f0f245810e889da8d3228102414c2f5c0914d3ae1f4c33a0b505e5",
+    "docs/overview/mdx-overview.md": "8c16c2e1199feab8384e3a8f93dbda92a60dfde0fb90568cae241c5b0997f2d1",
+    "README/agent-workflow-graph-first.md": "42c07e35d8f0686b6000237961d1f209e97cba2916afb820bf4566bc32105e0f"
+  },
+  "node_mapping": {
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/overview/mdx-overview.md": [
+      "8068298c-4575-4b52-8a4d-eeaab2837c3c",
+      "ffc219c1-cc91-4aa8-8469-d6fdc8969f2b",
+      "70291652-f936-49c3-8319-92e4ef0e3fa4"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/guide/checkout-flow.md": [
+      "ba5aa53c-f64b-417d-b092-4e88c25984af",
+      "a42909b3-9943-4116-97c7-e3a5d9f56fae",
+      "01887481-0693-4c9f-8c90-b37712cae872",
+      "db1eb8e3-1603-4b1f-a2c8-5fc65f3a2a4c",
+      "36f26d87-765f-4d75-b5f0-bb5178f38ea1",
+      "1ba67865-f33f-41d2-b888-29ab11564507"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./README/agent-workflow-graph-first.md": [
+      "fc8f0f31-9e63-430b-bfef-be950863822e",
+      "35c0dc1c-8937-4ca8-a66d-c513213a1516",
+      "1c8b389c-4c9f-412a-9137-aa2fba132fb8",
+      "29cac6b1-a888-45f5-abfe-2fa808ccfd26",
+      "a5ec65d2-52c4-4a17-bcbe-6b55a87b90a6",
+      "98a20dfb-2673-478c-ba9a-3a2c87e39428"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/guide/cart.md": [
+      "7b80ba59-5623-4028-9fa9-16b89b0ffe6c",
+      "5e3e12a9-c9dc-464f-bd1a-42ab0b5998ca",
+      "4abee696-42b8-4452-b2d6-5dea123e059b"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/adr.md": [
+      "65f84b1e-bb62-4aa7-a60f-7e71ad2d4389",
+      "ffac134a-823c-48bf-9d58-8cd9aa24fa83",
+      "1ee738d1-c30d-4e50-a7d4-8b2ae8ff5b89",
+      "aaf021f1-b001-4f9c-a004-9a8b25c2056f",
+      "17db65a5-dcdb-4747-a110-3a8108f0b3e3",
+      "6471b2e9-f031-49b0-897a-86fcc4954efe",
+      "19d4760d-c989-49b0-b09c-68cb77addc18"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./README/try-it.md": [
+      "db25ffea-3b5e-4ab1-87cf-2e91ee40ed91",
+      "54d9f2af-fef2-40e4-8b0c-c87624e4842a",
+      "3f740e02-e671-41b1-95cb-801a7e4f9c9c",
+      "a5e0e1c9-de58-4137-9c1c-08beaec3a950"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/guide/related-material.md": [
+      "13df9ed7-2a3b-48e9-9523-8ea1b94284d3",
+      "9e322739-d1a0-41cd-91c0-d7d106ca66db",
+      "7d268c69-03a5-4f01-b565-df91a0d2afaa"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/adr/alternatives-considered.md": [
+      "15b21e95-703f-4608-b6a2-848bec7fdea3",
+      "b83e3a6d-6574-4f07-be23-ed972ae72811",
+      "04a8a719-daa2-438e-bce3-da824a4bfe97"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./README.md": [
+      "f9968da9-a1ab-4295-88e3-35d6884609a2",
+      "331a355f-7803-4a7a-b9ce-15a96517162f",
+      "9ab36d39-0dfd-4f49-bc56-a162417cc92e",
+      "ad2b3849-0459-42f3-95b5-aa99f146d325",
+      "fc1f9403-6737-4713-9c56-1f040f5dc010",
+      "dc6917b5-6562-430d-bab6-18ef35cb8f2f",
+      "508acf0a-17be-4bea-9051-b3a7daeee4b0",
+      "4584ea5c-6b7e-444e-9003-d9cf5bd3eb52",
+      "3d05b71b-8678-4c74-a0b9-281faf2b69f3",
+      "f39cc223-0c76-4e78-9f40-2dd80c76b1cb",
+      "8d1be58e-c514-4c86-9976-913e5f9b4b34",
+      "95736947-114c-41c0-a203-7b1bdf543b64",
+      "d24294a0-7a53-4848-a47e-896fc85bf31f",
+      "8b6038cb-36a4-4f9e-b2ea-f67fcfb26320",
+      "98aae8b1-9854-465f-b1c6-5f585a0ca578",
+      "058ae296-c6bc-41d7-8fbb-db311cc29481",
+      "96029b48-146c-46b9-979a-f9f23b72b2e2",
+      "745feb6c-676a-493b-bbba-7c512f33e4dd"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/adr/overview.md": [
+      "94c20a9b-8b33-48e2-b411-25b362a67cfc",
+      "03565d1e-c215-4a4c-a35d-19927ffec1ac",
+      "87ed55cb-fdab-4c81-a10f-be20b1223178"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/guide/validation-rules.md": [
+      "3f54de25-cc9b-439e-8430-870bc1280173",
+      "7af7dcdb-d08d-45c4-96d7-b9ffa9b6aaec",
+      "c0bba37f-97eb-431c-a734-18438e679235",
+      "78c92218-6ef9-4a29-9f9b-f5985c042055",
+      "ac717a05-5098-408a-9922-d6f4ad6cae6e"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./README/narrative-what-the-graph-encodes.md": [
+      "31e1c9d0-8175-4772-b96d-15ccc5a05f62",
+      "d4fe75bf-4718-42d4-ac0b-17a543417de2",
+      "f3ee912c-eeb2-4caa-8093-9dccb01e190c",
+      "7c81a424-6bdd-4aaf-9e2f-f499415239bb"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/guide/payment-handoff.md": [
+      "16299258-a036-4c88-829c-b2af7341e77d",
+      "f27c2bc2-57c2-4823-92b6-6c8c9b5c9918",
+      "66c8c80e-b496-4e3e-9302-d699c53c4469",
+      "e8914099-faa3-457f-9bd7-0d712c42a9f3"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/overview.mdx": [
+      "b174c2c5-fc54-4a51-bcc7-e232495f95dc",
+      "99721456-5553-474c-81bf-e3ff5918427a"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./README/what-gets-indexed.md": [
+      "56a7aca6-98a8-4338-9367-8522ef3f8b6d",
+      "bb7c692c-541d-4e65-b5a1-e703bb329f52",
+      "43ec8575-62bd-47b2-a359-44efe9290a52"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/guide.md": [
+      "b311547b-93cd-404e-9f2e-8c5cb67efe92",
+      "a1725a7c-988e-46f4-a053-031ad15990f7",
+      "8722c9fd-ae8f-45e8-ad6f-41f5fadf713e",
+      "837655da-25c4-4cfd-989d-18b0e9ad6065",
+      "8c2d1f17-eefa-4c01-91c9-6ff88ef79aa6",
+      "56910453-b404-4d8c-85dc-d38dab876947",
+      "cdf37556-aa43-4b0a-8639-ae978923036c",
+      "e3ecbe6a-2898-4c97-89f7-38840274ae46",
+      "534aa31a-2382-4c08-98d6-2deaf4fabe11",
+      "8bb3d986-9f1b-4c7b-bf18-2ddce32b8be0",
+      "2929c351-d318-4881-89aa-d961de100673",
+      "935b69df-226f-42c9-9021-10b0a3beb8e4"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/adr/architecture-decisions.md": [
+      "b1b3eecf-91b1-4575-8254-388c71027ecf",
+      "6eb48be5-3134-45a6-b955-41c6edad9960",
+      "49cc4061-8f83-4556-8285-fd0eae72a992",
+      "8d1c3388-0219-46e6-9319-948fddf35eca"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./README/markdown-context-graph-example-corpus.md": [
+      "e909febf-b38e-47a3-8cbf-8b56dc2691a7",
+      "e4adc2f9-cf36-4329-86cb-b240afb07e77",
+      "98a09163-47d6-4fbe-a1c0-8c275aa5be5a",
+      "a1112e82-06ed-4c38-bf51-1cd92e6f09b1",
+      "3257f400-aea9-4023-971d-a38ef83d3fcb"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./README/layout.md": [
+      "aec95ddf-9b1a-4e5c-a11d-37ae324b8921",
+      "7810715e-f9d0-43c5-9edc-0ebdd3ad6c40",
+      "cc4f1517-f67e-46c7-a069-6ddd71aaa5ab",
+      "ae00365a-fb48-4f12-831b-51859afa90ca"
+    ],
+    "/Users/sshaaf/git/rust/rbuilder/tests/fixtures/markdown-context/./docs/adr/payments.md": [
+      "09cb9536-57c0-429e-b1bf-02930a33ae34",
+      "132334bc-09cd-4266-91e9-fe5e94a0f0c7",
+      "a2a371d6-0cff-437c-a3e9-1503cf60f3ba",
+      "de3d0419-bf84-432d-a518-3db7e27ddeab"
+    ]
+  }
+}

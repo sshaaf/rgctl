@@ -1,40 +1,22 @@
-# User-guide scenarios
+# User-guide workflow tests
 
-Each runnable command in [user-guide.md](../user-guide.md) should have a JSON scenario here.
-CI runs `scripts/user-guide-scenarios.py --check` against `rgctl-tests/ecommerce-java`.
+Runnable commands from [user-guide.md](../user-guide.md) §16 and the VHS tapes
+(`docs/videos/user-guide-cli.tape`, `docs/videos/markdown-context-cli.tape`) are
+covered by Rust integration tests:
 
-## Scenario schema
+| Test crate | Scope |
+|------------|--------|
+| `tests/user_guide_scenarios.rs` | Full workflow on all nine `rgctl-tests/ecommerce-*` projects via isolated temp daemon |
+| `tests/markdown_context_cli.rs` | Markdown fixture GQL queries + VHS tape `jq` pipes |
 
-```json
-{
-  "id": "04-discover-json",
-  "args": ["-f", "json", "discover", ".", "-l", "java", "-e", "target"],
-  "is_discover": true,
-  "require_json_keys": ["schema_version", "command", "metrics"],
-  "marker": "04-discover-json",
-  "jq_filter": null,
-  "sync_output": true
-}
-```
+Each project run uses an isolated temp `--daemon-home` (see `tests/user_guide_harness.rs`).
+Requires `jq` on `PATH`. Uses `CARGO_BIN_EXE_rgctl` when set (CI builds release first).
 
-| Field | Meaning |
-|-------|---------|
-| `id` | Unique id (filename stem) |
-| `args` | argv after binary (run with `-r` ecommerce-java) |
-| `is_discover` | If true, tears down `.rgctl` then runs |
-| `needs_discover` | Default true for non-discover scenarios |
-| `require_json_keys` | Top-level JSON keys that must exist when stdout is JSON |
-| `stdout_contains` | Substrings that must appear in stdout or stderr |
-| `marker` | Optional `<!-- ug-scenario:ID -->` id in user-guide.md |
-| `jq_filter` | Optional jq expression applied before sync/check |
-| `sync_output` | Default true when marker present; set false to skip sample rewrite |
+## Per-project symbols
 
-## Run
+Java uses the exact VHS tape strings (`CartService::clearCart`, `ShoppingCart`, etc.).
+Other languages use mapped equivalents (see `PROJECTS` in `tests/user_guide_harness.rs`).
 
-```bash
-# from repo root; prefers target/release/rgctl
-python3 scripts/user-guide-scenarios.py
-python3 scripts/user-guide-scenarios.py --check          # CI: assert marker samples
-python3 scripts/user-guide-scenarios.py --sync           # rewrite marker samples
-python3 scripts/user-guide-scenarios.py --check-markers
-```
+Steps skipped when not applicable:
+- **slice** — only java + rust (verified PDG params)
+- **cpg mutations body lines** — C allows 0 hits (type not indexed as `ShoppingCart`)

@@ -276,6 +276,12 @@ fn run_control_loop(state: Arc<WorkerState>) -> Result<()> {
         while !state.stop.load(Ordering::Relaxed) {
             match listener.accept() {
                 Ok((stream, _)) => {
+                    // Accepted sockets inherit the listener's nonblocking mode; large
+                    // JSON control responses need blocking writes (see write_all).
+                    if let Err(err) = stream.set_nonblocking(false) {
+                        eprintln!("rgctl control: {err:#}");
+                        continue;
+                    }
                     if let Err(err) = handle_control_conn(&state, stream) {
                         eprintln!("rgctl control: {err:#}");
                     }
