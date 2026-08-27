@@ -65,7 +65,7 @@ export default function AgentsPage() {
         <TerminalBlock
           lines={[
             'export REPO=/path/to/repo',
-            'rgctl -r "$REPO" discover',
+            'cd "$REPO" && rgctl discover .   # or: rgctl -r "$REPO" discover',
             "rgctl -r \"$REPO\" -f json gql --macro-name all_functions unused | jq '.count'",
             'rgctl -r "$REPO" -f json blast-radius "ShoppingCartService" --depth 3 \\',
             "  | jq '{score: .metrics.score, callers: .metrics.direct_callers_count}'",

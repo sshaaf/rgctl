@@ -52,7 +52,7 @@ flowchart TB
 
 **Query tiers** (`src/cli/blast_radius.rs`): T0 blast lookup cache hit → daemon-backed service (default) or in-process mmap path → full hydrate for `--with-slices` / `--policy-file`.
 
-> **Retired:** The per-repo **`query.sock`** blast-only daemon (`src/cli/query_daemon.rs`, `serve --daemon` as a Unix socket) is removed on current main. Use the shared **HTTP+MCP daemon** (`rgctl daemon start`, cache under `~/.rgctl/`) or **`--no-daemon`** for in-process queries. See [unreleased.md](../releases/unreleased.md).
+> **Retired:** The per-repo **`query.sock`** blast-only daemon (`src/cli/query_daemon.rs`, old Unix-socket `serve --daemon`) is removed in v0.4.7+. Use the shared **HTTP+MCP daemon** (`rgctl daemon start`, cache under `~/.rgctl/`) or **`--no-daemon`** for in-process queries. See [v0.4.7 release notes](../releases/v0.4.7.md).
 
 ---
 

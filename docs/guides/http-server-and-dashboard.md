@@ -168,9 +168,8 @@ See the [HTTP API Reference](../http-api.md) for complete endpoint documentation
 | `--mode` | `standard` | `standard` (HTTP) or `mcp` (stdio, no HTTP) |
 | `--no-pipeline` | off | Fail fast if artifacts are missing (old `serve` behavior) |
 | `--dashboard-dir` | `.rgctl/dashboard` | Dashboard directory |
-| `--daemon` | off | Legacy Unix socket mode |
-| `--daemon` | off | Background HTTP+MCP daemon (`daemon start`) |
-| `--idle-secs` | `300` | Auto-exit after N seconds idle |
+| `--daemon` | off | Background HTTP+MCP daemon (`daemon start` / `serve --daemon`) |
+| `--idle-secs` | `300` | Daemon auto-exit after N seconds idle (`serve --daemon` only) |
 
 ## Benefits
 

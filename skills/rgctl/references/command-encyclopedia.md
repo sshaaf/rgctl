@@ -485,17 +485,15 @@ rgctl cpg export --format graphson --output cpg.json [--path-contains src/] \
 
 ## serve
 
-**Command:** `rgctl serve [--open] [--host H] [--port N] [--dashboard-dir DIR] [--query-only|--dashboard-only]`
+**Command:** `rgctl serve [--open] [--host H] [--port N] [--dashboard-dir DIR] [--query-only|--dashboard-only] [--mode standard|mcp] [--daemon]`
 
-**Purpose:** HTTP dashboard + `POST /api/query` (and semantic routes). Preferred for many interactive queries.
+**Purpose:** HTTP dashboard + `POST /api/query` (and semantic routes). **`--mode mcp`:** stdio MCP (seven tools, no HTTP). **`--daemon`:** foreground bootstrap of the background HTTP+MCP daemon (same model as `rgctl daemon start`; cache under `~/.rgctl/`).
 
 **Prerequisites:** `discover` (dashboard bundle with `--with-dashboard` for full UI).
 
-**Legacy daemon mode:** `rgctl serve --daemon [--socket PATH] [--idle-secs N]` — Unix-socket (or Windows port-file) blast-radius-only daemon; conflicts with all HTTP flags (`--host`/`--port`/`--open`/`--query-only`/`--dashboard-only`/`--dashboard-dir`). `--idle-secs` (default 300) auto-exits after inactivity.
+**Pitfalls:** `--daemon` is **not** the retired Unix-socket blast daemon — it starts the shared HTTP+MCP daemon. Do not combine `--daemon` with `--host`/`--open` on the same process (use `daemon start` for background HTTP). **`--idle-secs`** (default 300) applies to daemon idle shutdown.
 
-**Pitfalls:** `serve --daemon` is the **legacy** Unix-socket blast-radius daemon — prefer HTTP `serve`. Only use `--daemon` if the user explicitly asks for the old socket.
-
-**Agent should report:** URL/port; how to POST a sample query.
+**Agent should report:** URL/port for HTTP; note MCP stdio vs HTTP `/mcp` when relevant.
 
 ---
 

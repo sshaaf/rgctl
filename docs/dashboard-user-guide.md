@@ -8,7 +8,7 @@ Interactive browser UI for exploring a repository after `discover`. This guide i
 
 ## Prerequisites
 
-1. Index the repo:
+1. Index the repo (from repo root):
 
 ```bash
 cd /path/to/your/repo
@@ -17,14 +17,16 @@ rgctl discover . --with-dashboard          # graph + dashboard bundle
 rgctl discover . --with-cfg --with-security --with-taint --with-dashboard    # CFG, PDG, taint + dashboard
 ```
 
+With the **default daemon**, the dashboard bundle is under `~/.rgctl/cache/{reponame}/.rgctl/dashboard/`, not necessarily in your source tree. Use **`rgctl --no-daemon discover . --with-dashboard`** if you want `{repo}/.rgctl/dashboard/` locally.
+
 2. Open the dashboard over **HTTP** (required for WASM):
 
 ```bash
-# Option A — integrated server (dashboard + query API)
-rgctl serve --open
+# Option A — integrated server (dashboard + query API; recommended)
+rgctl -r /path/to/your/repo serve --open
 
-# Option B — static files only
-cd .rgctl/dashboard && python3 -m http.server 8765
+# Option B — static files only (in-repo artifacts with --no-daemon)
+cd /path/to/your/repo/.rgctl/dashboard && python3 -m http.server 8765
 # open http://localhost:8765/
 ```
 
@@ -130,7 +132,7 @@ Screenshot placeholders (capture with `dashboard/scripts/capture-migration-scree
 
 | Problem | Fix |
 |---------|-----|
-| “Graph not found” / empty stats | Run `rgctl discover . --with-dashboard` in repo root |
+| “Graph not found” / empty stats | Run `discover . --with-dashboard` from repo root; with default daemon use `rgctl -r REPO serve --open` (not `file://`) |
 | WASM engine error in notifications | Rebuild dashboard (`npm run build` in `dashboard/`) and re-run `discover --with-dashboard` |
 | Stale data after git pull | Re-run `discover` (with `--with-dashboard` if using UI) |
 | Semantic search empty / warning | `rgctl semantic index` then `rgctl serve --open` |
@@ -140,6 +142,6 @@ Screenshot placeholders (capture with `dashboard/scripts/capture-migration-scree
 
 ## See also
 
-- [Introduction — Dashboard](Introduction.md#dashboard-visual-exploration)
+- [User Guide §15 — HTTP server](user-guide.md#15-http-server-serve--optional)
 - [User Guide](user-guide.md)
 - [HTTP API](http-api.md) — `rgctl serve` query endpoint

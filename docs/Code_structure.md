@@ -138,7 +138,7 @@ flowchart TB
 - **`src/main.rs`** — process entry, dispatches to CLI.
 - **`src/cli/`** — subcommands: `discover`, `blast-radius`, `serve`, `gql`, `slice`, `inspect`, `metrics`, `semantic`, `communities`, `cpg`, `check`, `export`.
 - **`src/cli/http_serve.rs`** — default `serve`: dashboard + `POST /api/query`.
-- **`src/cli/query_daemon.rs`** — legacy blast-radius socket client (retired on main; see [unreleased](releases/unreleased.md)). Background daemon lives under `src/cli/daemon/`.
+- **`src/cli/query_daemon.rs`** — legacy blast-radius socket client (retired in v0.4.7; see [v0.4.7 release notes](releases/v0.4.7.md)). Background daemon lives under `src/cli/daemon/`.
 - **`src/cli/*_output.rs`** — typed JSON serializers (`blast_radius_output`, `discover_output`, `gql_output`, …). Commands assemble domain results from workspace crates and serialize here; **do not** embed algorithm logic in output modules.
 - **`src/languages/`** — wires the active language **bundle** into a `LanguageRegistry` at runtime.
 - Re-exports **`rgctl-core`** for library users (`use rgctl::analysis`, etc.).
@@ -226,8 +226,8 @@ Single home for **graph algorithms and semantic analysis**:
 | Command | Primary crates |
 |---|---|
 | `discover` | `pipeline`, `extraction`, `registry`, `graph`, `analysis`, `incremental`, `export`, `project-config`; stdout JSON via `discover_output` when `-f json` |
-| `blast-radius` | `analysis` (engine + macro index + depth filter), `graph` (columnar snapshot mmap), `query_daemon` (optional client); CLI orchestration in `blast_radius.rs` |
-| `serve` | `http_serve` (default) + `query_daemon` (`--daemon`); HTTP dashboard + `/api/query`; optional blast socket |
+| `blast-radius` | `analysis` (engine + macro index + depth filter), `graph` (columnar snapshot mmap), daemon client (default); CLI orchestration in `blast_radius.rs` |
+| `serve` | `http_serve` (default HTTP) + `daemon` (`--daemon` / `daemon start`); HTTP dashboard + `/api/query` + optional `/mcp` |
 | `gql` | `gql`, `graph` |
 | `slice` | `analysis` (CFG, PDG, slicing), reads source from disk |
 | `inspect` | `graph`, `analysis` |

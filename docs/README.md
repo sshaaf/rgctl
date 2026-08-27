@@ -13,8 +13,9 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 | CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
 | Concepts (what / why) | [Introduction](Introduction.md) |
 
-**Agent loop:** [AGENTS.md](../AGENTS.md) → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json`.  
-**First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.
+**Agent loop:** [AGENTS.md](../AGENTS.md) → `discover` once (see [daemon vs `--no-daemon`](installation.md#daemon-vs-no-daemon)) → `gql` / `blast-radius` / `cpg` with `-f json`.  
+**First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.  
+**Upgrading from v0.4.6:** [v0.4.7 release notes](releases/v0.4.7.md) (`rg-build` → `rgctl`, daemon, MCP).
 
 ## Secondary
 

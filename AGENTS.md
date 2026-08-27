@@ -110,16 +110,20 @@ Foreground equivalent: `rgctl serve --daemon`. Use `--no-daemon` for in-repo art
 
 ## On-disk artifacts for agents
 
-After `discover`:
+After `discover`, paths are relative to the **artifact root**:
 
-| Path | Content |
+| Default daemon | `--no-daemon` |
+|----------------|---------------|
+| `~/.rgctl/cache/{reponame}/.rgctl/` | `{repo}/.rgctl/` |
+
+| Path (under artifact root) | Content |
 |------|---------|
-| `.rgctl/graph.snapshot.bin` | Graph snapshot |
-| `.rgctl/content_store.bin` | Large markdown bodies / files (Blake3-keyed; used by Obsidian export + doc semantic index) |
-| `.rgctl/dashboard/manifest.json` | Counts, feature flags |
-| `.rgctl/dashboard/migration_plan.json` | Migration export (with `--with-dashboard` and/or `--export-migration-hints`) |
-| `.rgctl/dashboard/graph_payload.bin` | Columnar graph for dashboard WASM |
-| `.rgctl/semantic_index.bin` | Opt-in semantic search index (`semantic index`) |
+| `graph.snapshot.bin` | Graph snapshot |
+| `content_store.bin` | Large markdown bodies / files (Blake3-keyed; used by Obsidian export + doc semantic index) |
+| `dashboard/manifest.json` | Counts, feature flags |
+| `dashboard/migration_plan.json` | Migration export (with `--with-dashboard` and/or `--export-migration-hints`) |
+| `dashboard/graph_payload.bin` | Columnar graph for dashboard WASM |
+| `semantic_index.bin` | Opt-in semantic search index (`semantic index`) |
 
 ---
 

@@ -289,7 +289,7 @@ Concepts often live in package/directory names or type names, not function names
 
 | Symptom | Fix |
 |---------|-----|
-| No `.rgctl/` | `discover .` |
+| No `.rgctl/` in repo | Normal with default daemon — check `~/.rgctl/cache/` or run `cd repo && rgctl discover .`; use `--no-daemon` for in-repo artifacts |
 | slice/inspect/cpg fails | Re-discover with `--with-cfg` |
 | semantic query fails | `semantic index` |
 | Ambiguous symbol | Add `--class` or `--file`; disambiguate via GQL |
@@ -300,13 +300,15 @@ Concepts often live in package/directory names or type names, not function names
 
 ## Artifacts
 
+Paths are under the artifact root (`~/.rgctl/cache/{reponame}/.rgctl/` by default, or `{repo}/.rgctl/` with `--no-daemon`):
+
 | Path | Content |
 |------|---------|
-| `.rgctl/graph.snapshot.bin` | Main graph snapshot |
-| `.rgctl/semantic_index.bin` | Semantic index |
-| `.rgctl/migration_plan.json` | Migration roadmap |
-| `.rgctl/dashboard/` | Dashboard bundle |
-| `.rgctl/analysis/` | CFG/PDG archives |
+| `graph.snapshot.bin` | Main graph snapshot |
+| `semantic_index.bin` | Semantic index |
+| `migration_plan.json` | Migration roadmap |
+| `dashboard/` | Dashboard bundle |
+| `analysis/` | CFG/PDG archives |
 
 ## Exit Codes
 

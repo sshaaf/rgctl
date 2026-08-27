@@ -230,14 +230,14 @@ See the [MCP Server guide](guides/mcp-server.md) for the full tool catalog and c
 
 ### Mode comparison
 
-| | CLI | HTTP server | MCP server |
-|---|---|---|---|
-| **Transport** | Process per command | HTTP `127.0.0.1:8080` | stdio JSON-RPC |
-| **Dashboard** | No | Yes (optional) | No (artifacts on disk only) |
-| **Auto pipeline** | No (manual `discover`) | Yes (unless `--no-pipeline`) | Yes (unless `--no-pipeline`) |
-| **Warm graph** | No (loads from snapshot) | Yes (in-memory) | Yes (in-memory) |
-| **Use case** | CI, scripts, one-off | Team, repeated queries, visual | IDE agents (Cursor, Claude Code) |
-| **Output** | stdout (text or `-f json`) | HTTP JSON responses | JSON-RPC tool results |
+| | CLI (default daemon) | `--no-daemon` | HTTP server | MCP server |
+|---|---|---|---|---|
+| **Transport** | Process per command (via daemon) | Process per command (in-process) | HTTP `127.0.0.1:8080` | stdio JSON-RPC |
+| **Artifact location** | `~/.rgctl/cache/` | `{repo}/.rgctl/` | Uses daemon cache or in-repo | Uses daemon cache or in-repo |
+| **Dashboard** | No | No | Yes (optional) | No |
+| **Auto pipeline** | No (manual `discover`) | No | Yes (unless `--no-pipeline`) | Yes (unless `--no-pipeline`) |
+| **Use case** | Interactive dev, IDE agents | CI, cold profiles, reproducible builds | Team, repeated queries, visual | IDE agents (Cursor, Claude Code) |
+| **Output** | stdout (text or `-f json`) | stdout | HTTP JSON | JSON-RPC tool results |
 
 ---
 
@@ -382,14 +382,16 @@ If empty, revisit [Add to PATH](#add-to-path). For GUI apps (Cursor, VS Code), n
 
 ### `discover` fails or produces no output
 
-- Ensure you are in a directory with source files in a [supported language](languages.md).
+- Ensure you are in a directory with source files in a [supported language](languages.md), or pass an explicit path: `rgctl discover /path/to/repo` or `cd repo && rgctl discover .`.
+- **Do not** use `rgctl -r PATH discover .` from another cwd — the `.` ignores `-r` and indexes your shell directory instead.
 - Check `rgctl --version` works first.
 - Try verbose mode: `rgctl discover . -v`
 - For detailed timing: `RUST_LOG=info rgctl discover . -v`
+- If the daemon fails with `empty control message`, retry with `--no-daemon -v` for a direct error.
 
 ### Queries fail with "no graph found"
 
-Run `discover` first. All query commands (`gql`, `blast-radius`, `metrics`, etc.) require a prior `discover`.
+Run `discover` first on the repo you mean to query. With the default daemon, artifacts live under `~/.rgctl/cache/` — you do not need a `.rgctl/` folder in the source tree. Use `--no-daemon` if you expect in-repo artifacts.
 
 ### MCP tools return pipeline status instead of results
 
