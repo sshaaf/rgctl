@@ -264,7 +264,7 @@ fn scope_flag(scope: CliSemanticScope) -> &'static str {
     }
 }
 
-fn validate_index_scope(index: &SemanticIndex, requested: CliSemanticScope) -> Result<()> {
+pub(crate) fn validate_index_scope(index: &SemanticIndex, requested: CliSemanticScope) -> Result<()> {
     let has_functions = index
         .entries
         .iter()

@@ -37,16 +37,6 @@ pub enum PdgEdgeLayer {
     Control,
 }
 
-/// HTTP vs MCP transport for `rgctl serve`.
-#[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ServeMode {
-    /// Dashboard + query API (default).
-    #[default]
-    Standard,
-    /// MCP stdio (no HTTP bind).
-    Mcp,
-}
-
 /// Agent host directories for `rgctl install --skill`.
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SkillHost {

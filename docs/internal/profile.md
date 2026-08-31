@@ -17,7 +17,7 @@ Hardware and OS where the **latest numbers below** were recorded. This is a **de
 | RAM | **36 GB** |
 | OS | macOS **darwin 25.6.0** (Sequoia family) |
 | Binary | `target/release/rgctl` (release build immediately before each run) |
-| Mode | **`--no-daemon`** (in-process; artifacts in `{corpus}/.rgctl/`) |
+| Mode | In-repo artifacts in `{corpus}/.rgctl/` |
 | Isolation | **None** — desktop apps, thermal limits, and APFS cache affect wall time |
 
 Re-profile on **your** hardware before changing baselines in `tests/cold_profile_gates.rs`.
@@ -40,10 +40,9 @@ See also `example/README.md` (kafka, k8s-website markdown gates).
 ## Cold profile policy
 
 1. **Release binary only:** `cargo build --release --bin rgctl`
-2. **Delete artifacts:** `rm -rf example/<corpus>/.rgctl/` (and daemon cache if you used the daemon — not for `--no-daemon` runs)
-3. **`--no-daemon`:** avoids auto-start daemon + `~/.rgctl/cache/` (keeps gates comparable to pre-daemon baselines)
-4. **Run from the corpus directory** (see pitfall below)
-5. **Logging:** `RUST_LOG=info,profile=info` and `discover … -v`
+2. **Delete artifacts:** `rm -rf example/<corpus>/.rgctl/`
+3. **Run from the corpus directory** (see pitfall below)
+4. **Logging:** `RUST_LOG=info,profile=info` and `discover … -v`
 
 Warm or partial `.rgctl/` caches **invalidate** wall times (often seconds instead of minutes).
 
@@ -67,7 +66,7 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `ecommerce_java_inheritance_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | default | **0.31 s** wall; **0.008 s** `index_graph_build` |
 | `ecommerce_java_kantra_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | `--with-kantra --kantra-rules <fixture>` | env `RGCTL_ECOMMERCE_JAVA_KANTRA_*` (fixture catalog; fast CI path) |
 
-Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`--no-daemon`, `-r <corpus>`, `discover . -v`).
+Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`-r <corpus>`, `discover . -v`).
 
 **ecommerce-java gate** (inheritance external stubs): small Java fixture; asserts wall time and `[profile] stage index_graph_build` after `Extends`/`Implements`/`Permits` stub edges. Override with `RGCTL_ECOMMERCE_JAVA_COLD_BASELINE_SECS` / `RGCTL_ECOMMERCE_JAVA_INDEX_GRAPH_BUILD_BASELINE_SECS`.
 
@@ -82,7 +81,7 @@ cargo build --release --bin rgctl
 rm -rf example/linux/.rgctl
 cd example/linux
 /usr/bin/time -l env RUST_LOG=info,profile=info \
-  ../../target/release/rgctl --no-daemon -f json discover . -v \
+  ../../target/release/rgctl -f json discover . -v \
   2>&1 | tee /tmp/linux-cold-profile.log
 grep '\[profile\]' /tmp/linux-cold-profile.log
 ```
@@ -93,7 +92,7 @@ grep '\[profile\]' /tmp/linux-cold-profile.log
 rm -rf example/metasfresh-4.9.8b/.rgctl
 cd example/metasfresh-4.9.8b
 /usr/bin/time -l env RUST_LOG=info,profile=info \
-  ../../target/release/rgctl --no-daemon -f json discover . --full -v \
+  ../../target/release/rgctl -f json discover . --full -v \
   2>&1 | tee /tmp/metasfresh-full-profile.log
 ```
 
@@ -103,7 +102,7 @@ Optional single-pass deep discover (not the cold gate):
 cd example/metasfresh-4.9.8b
 rm -rf .rgctl
 /usr/bin/time -l env RUST_LOG=info,profile=info \
-  ../../target/release/rgctl --no-daemon -f json discover . \
+  ../../target/release/rgctl -f json discover . \
   --with-cfg --with-security --with-taint -v \
   2>&1 | tee /tmp/metasfresh-deep-profile.log
 ```
@@ -141,7 +140,7 @@ Algorithm detail (sampled betweenness, HyperBall, adaptive gating): [analysis-ar
 
 ## Gate baselines (2026-08-25)
 
-Recorded on the **reference machine** above, release `rgctl`, **`--no-daemon`**, cold `.rgctl/` removed. These values are the **`cold_profile_gates`** baselines (+10% tolerance).
+Recorded on the **reference machine** above, release `rgctl`, cold `.rgctl/` removed. These values are the **`cold_profile_gates`** baselines (+10% tolerance).
 
 ### Linux (`example/linux`) — default discover
 

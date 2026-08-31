@@ -1,16 +1,12 @@
-//! Shared helpers for rgctl integration tests (daemon, no-daemon, MCP stdio/HTTP).
-//!
-//! Tier A (fast CI): tiny_polyglot fixture + temp `RGCTL_HOME`.
-//! Tier B (ignored): `example/linux` smoke — see `rgctl_no_daemon.rs`.
+//! Shared helpers for rgctl integration tests.
 
 #![allow(dead_code)]
 
 use serde_json::Value;
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
 pub fn rgctl() -> PathBuf {
@@ -87,36 +83,29 @@ pub fn assert_ok(output: &Output, label: &str) {
     );
 }
 
-/// Force in-process execution and in-repo `{repo}/.rgctl/` artifacts.
-/// Use for all integration tests except explicit daemon-tier cases (`rgctl_daemon.rs`).
-pub fn apply_no_daemon(cmd: &mut Command) {
-    cmd.env("RGCTL_NO_DAEMON", "1").arg("--no-daemon");
-}
-
-/// No-daemon + optional cwd so `discover .` indexes the intended repo (not the test runner cwd).
+/// Optional cwd so `discover .` indexes the intended repo (not the test runner cwd).
 pub fn apply_test_isolation(cmd: &mut Command, repo: Option<&Path>) {
-    apply_no_daemon(cmd);
     if let Some(repo) = repo {
         cmd.current_dir(repo);
     }
 }
 
-/// Run rgctl with cwd = `repo` and `--no-daemon` (Tier A no-daemon pattern).
-pub fn run_no_daemon_in_repo(repo: &Path, args: &[&str]) -> Output {
+/// Run rgctl with cwd = `repo`.
+pub fn run_in_repo(repo: &Path, args: &[&str]) -> Output {
     let mut cmd = Command::new(rgctl());
     apply_test_isolation(&mut cmd, Some(repo));
     cmd.args(args);
     cmd.output().expect("spawn rgctl")
 }
 
-pub fn run_no_daemon_json(repo: &Path, args: &[&str]) -> Output {
+pub fn run_in_repo_json(repo: &Path, args: &[&str]) -> Output {
     let mut full = vec!["-f", "json"];
     full.extend_from_slice(args);
-    run_no_daemon_in_repo(repo, &full)
+    run_in_repo(repo, &full)
 }
 
 pub fn cli_json(repo: &Path, args: &[&str]) -> Value {
-    let output = run_no_daemon_json(repo, args);
+    let output = run_in_repo_json(repo, args);
     assert_ok(&output, &format!("cli {}", args.join(" ")));
     serde_json::from_slice(&output.stdout).unwrap_or_else(|err| {
         panic!(
@@ -128,10 +117,7 @@ pub fn cli_json(repo: &Path, args: &[&str]) -> Value {
 
 pub fn discover_fixture(repo: &Path) {
     assert_ok(
-        &run_no_daemon_in_repo(
-            repo,
-            &["discover", ".", "--languages", "java,rust"],
-        ),
+        &run_in_repo(repo, &["discover", ".", "--languages", "java,rust"]),
         "discover",
     );
 }
@@ -186,237 +172,11 @@ pub fn reserve_port() -> u16 {
     port
 }
 
-pub fn toml_escape(path: &Path) -> String {
-    format!("\"{}\"", path.display().to_string().replace('\\', "\\\\"))
+// Back-compat aliases while tests are updated.
+pub fn run_no_daemon_in_repo(repo: &Path, args: &[&str]) -> Output {
+    run_in_repo(repo, args)
 }
 
-/// Stops the daemon (and optional child) on drop.
-pub struct DaemonGuard {
-    pub home: PathBuf,
-    child_kill: Option<Child>,
-}
-
-impl DaemonGuard {
-    pub fn new(home: PathBuf) -> Self {
-        Self {
-            home,
-            child_kill: None,
-        }
-    }
-
-    pub fn with_child(home: PathBuf, child: Child) -> Self {
-        Self {
-            home,
-            child_kill: Some(child),
-        }
-    }
-
-    pub fn stop(&self) {
-        let _ = Command::new(rgctl())
-            .args(["--daemon-home", self.home.to_str().unwrap(), "daemon", "stop"])
-            .output();
-    }
-
-    pub fn assert_not_running(&self) {
-        let status = Command::new(rgctl())
-            .args(["--daemon-home", self.home.to_str().unwrap(), "daemon", "status"])
-            .output()
-            .unwrap();
-        let st = String::from_utf8_lossy(&status.stdout);
-        assert!(
-            st.contains("not running"),
-            "expected daemon stopped, got: {st}"
-        );
-        assert!(
-            !self.home.join(".rgctl/rgctl.pid").exists()
-                || fs::read_to_string(self.home.join(".rgctl/rgctl.pid"))
-                    .map(|s| s.trim().is_empty())
-                    .unwrap_or(true),
-            "stale pid file under {}",
-            self.home.display()
-        );
-    }
-
-    pub fn start_on_port(&self, port: u16) -> Output {
-        Command::new(rgctl())
-            .args([
-                "--daemon-home",
-                self.home.to_str().unwrap(),
-                "daemon",
-                "start",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                &port.to_string(),
-            ])
-            .output()
-            .unwrap()
-    }
-}
-
-impl Drop for DaemonGuard {
-    fn drop(&mut self) {
-        self.stop();
-        if let Some(mut c) = self.child_kill.take() {
-            let _ = c.kill();
-            let _ = c.wait();
-        }
-    }
-}
-
-pub fn daemon_discover_auto_start(home: &Path, repo: &Path) -> Output {
-    Command::new(rgctl())
-        .current_dir(repo)
-        .env("RGCTL_HOME", home)
-        .args(["discover", "."])
-        .output()
-        .unwrap()
-}
-
-pub fn daemon_discover(home: &Path, repo: &Path) -> Output {
-    Command::new(rgctl())
-        .current_dir(repo)
-        .env("RGCTL_HOME", home)
-        .args(["--daemon-home", home.to_str().unwrap(), "discover", "."])
-        .output()
-        .unwrap()
-}
-
-pub fn cache_entry_for_repo(home: &Path) -> PathBuf {
-    let cache = home.join(".rgctl/cache");
-    fs::read_dir(&cache)
-        .unwrap()
-        .flatten()
-        .find(|e| e.path().is_dir())
-        .map(|e| e.path())
-        .unwrap_or_else(|| panic!("no cache entry under {}", cache.display()))
-}
-
-// --- MCP stdio ---
-
-pub fn read_mcp_json(reader: &mut BufReader<impl Read>) -> Option<Value> {
-    let mut header = String::new();
-    let mut content_length: Option<usize> = None;
-    loop {
-        header.clear();
-        if reader.read_line(&mut header).ok()? == 0 {
-            return None;
-        }
-        let lower = header.to_ascii_lowercase();
-        if let Some(rest) = lower.strip_prefix("content-length:") {
-            content_length = rest.trim().parse().ok();
-        }
-        if header.trim().is_empty() {
-            break;
-        }
-        if header.trim_start().starts_with('{') {
-            return serde_json::from_str(header.trim()).ok();
-        }
-    }
-    let len = content_length?;
-    let mut buf = vec![0u8; len];
-    reader.read_exact(&mut buf).ok()?;
-    serde_json::from_slice(&buf).ok()
-}
-
-pub struct McpProc {
-    child: Child,
-    stdin: std::process::ChildStdin,
-    reader: BufReader<std::process::ChildStdout>,
-    next_id: i64,
-}
-
-impl Drop for McpProc {
-    fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
-    }
-}
-
-impl McpProc {
-    pub fn rpc(&mut self, method: &str, params: Value) -> Value {
-        let id = self.next_id;
-        self.next_id += 1;
-        let msg = serde_json::json!({
-            "jsonrpc": "2.0",
-            "id": id,
-            "method": method,
-            "params": params
-        });
-        writeln!(self.stdin, "{msg}").expect("write rpc");
-        let resp = read_mcp_json(&mut self.reader).expect("rpc response");
-        assert_eq!(resp["id"], id, "{resp}");
-        resp
-    }
-
-    pub fn call(&mut self, name: &str, arguments: Value) -> Value {
-        self.rpc(
-            "tools/call",
-            serde_json::json!({ "name": name, "arguments": arguments }),
-        )
-    }
-}
-
-pub fn mcp_connect_stdio(repo: &Path) -> McpProc {
-    let mut child = Command::new(rgctl())
-        .args([
-            "serve",
-            "--mode",
-            "mcp",
-            "--no-pipeline",
-        ])
-        .current_dir(repo)
-        .env("RGCTL_NO_DAEMON", "1")
-        .arg("--no-daemon")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("spawn mcp");
-    let stdin = child.stdin.take().expect("stdin");
-    let stdout = child.stdout.take().expect("stdout");
-    let mut proc = McpProc {
-        child,
-        stdin,
-        reader: BufReader::new(stdout),
-        next_id: 1,
-    };
-    let init = proc.rpc(
-        "initialize",
-        serde_json::json!({
-            "protocolVersion": "2024-11-05",
-            "capabilities": {},
-            "clientInfo": { "name": "test", "version": "0" }
-        }),
-    );
-    assert!(init.get("result").is_some(), "initialize failed: {init}");
-    proc
-}
-
-pub fn mcp_structured(resp: &Value) -> Value {
-    assert!(resp.get("error").is_none(), "tool error: {resp}");
-    let result = resp.get("result").expect("result");
-    let structured = result
-        .get("structuredContent")
-        .cloned()
-        .unwrap_or_else(|| {
-            let text = result["content"][0]["text"].as_str().unwrap_or("");
-            serde_json::from_str(text).unwrap_or_else(|err| {
-                panic!("expected structured JSON ({err}): {resp}")
-            })
-        });
-    let text = result["content"][0]["text"].as_str().expect("content text");
-    let parsed: Value = serde_json::from_str(text).expect("content text JSON");
-    assert_eq!(parsed, structured, "content text must match structuredContent");
-    structured
-}
-
-pub fn http_mcp_post(port: u16, body: &Value) -> Value {
-    reqwest::blocking::Client::new()
-        .post(format!("http://127.0.0.1:{port}/mcp"))
-        .json(body)
-        .send()
-        .unwrap()
-        .json()
-        .unwrap()
+pub fn run_no_daemon_json(repo: &Path, args: &[&str]) -> Output {
+    run_in_repo_json(repo, args)
 }

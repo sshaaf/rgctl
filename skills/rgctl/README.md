@@ -28,7 +28,7 @@ skills/rgctl/
 ### Main SKILL.md (Always Loaded)
 
 - When to use rgctl
-- **MCP vs CLI decision** (7 MCP tools table)
+- **CLI subprocess workflow** — spawn `rgctl -f json` for agents
 - **6 workflow families:**
   1. Discovery & Indexing
   1b. Konveyor Kantra rules (`--with-kantra`)
@@ -80,7 +80,7 @@ skills/rgctl/
 
 ✅ **Progressive disclosure** - Main skill <500 lines, details in references
 ✅ **Workflow-centric** - Organized by user intent, not commands
-✅ **MCP alignment** - Follows same pattern as MCP guide
+✅ **CLI-first** - Agents use `rgctl -f json` subprocesses (optional `serve` HTTP)
 ✅ **Clear routing** - Natural language → tool mapping
 ✅ **Comprehensive** - All features documented with examples
 ✅ **Integration** - Shows how features work together
@@ -98,6 +98,7 @@ This writes `.claude/skills/rgctl/` and `.cursor/skills/rgctl/` from the embedde
 ## See Also
 
 - [User Guide](../../docs/user-guide.md) - Complete CLI tutorial
-- [MCP Server Guide](../../docs/guides/mcp-server.md) - MCP setup
+- [Agent recipes](../../docs/agent-recipes.md) - Copy-paste CLI workflows
+- [HTTP API](../../docs/http-api.md) - Optional `rgctl serve` for repeated queries
 - [JSON API](../../docs/json-api.md) - Schema specifications
 - [All Guides](../../docs/guides/README.md) - Feature-specific guides

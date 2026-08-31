@@ -17,7 +17,7 @@ rgctl discover . --with-dashboard          # graph + dashboard bundle
 rgctl discover . --with-cfg --with-security --with-taint --with-dashboard    # CFG, PDG, taint + dashboard
 ```
 
-With the **default daemon**, the dashboard bundle is under `~/.rgctl/cache/{reponame}/.rgctl/dashboard/`, not necessarily in your source tree. Use **`rgctl --no-daemon discover . --with-dashboard`** if you want `{repo}/.rgctl/dashboard/` locally.
+The dashboard bundle is written to `{repo}/.rgctl/dashboard/` when you pass `--with-dashboard` during `discover`.
 
 2. Open the dashboard over **HTTP** (required for WASM):
 
@@ -25,7 +25,7 @@ With the **default daemon**, the dashboard bundle is under `~/.rgctl/cache/{repo
 # Option A — integrated server (dashboard + query API; recommended)
 rgctl -r /path/to/your/repo serve --open
 
-# Option B — static files only (in-repo artifacts with --no-daemon)
+# Option B — static files only (serve dashboard dir directly)
 cd /path/to/your/repo/.rgctl/dashboard && python3 -m http.server 8765
 # open http://localhost:8765/
 ```
@@ -132,7 +132,7 @@ Screenshot placeholders (capture with `dashboard/scripts/capture-migration-scree
 
 | Problem | Fix |
 |---------|-----|
-| “Graph not found” / empty stats | Run `discover . --with-dashboard` from repo root; with default daemon use `rgctl -r REPO serve --open` (not `file://`) |
+| “Graph not found” / empty stats | Run `discover . --with-dashboard` from repo root, then `rgctl -r REPO serve --open` (not `file://`) |
 | WASM engine error in notifications | Rebuild dashboard (`npm run build` in `dashboard/`) and re-run `discover --with-dashboard` |
 | Stale data after git pull | Re-run `discover` (with `--with-dashboard` if using UI) |
 | Semantic search empty / warning | `rgctl semantic index` then `rgctl serve --open` |

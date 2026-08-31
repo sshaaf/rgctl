@@ -531,15 +531,15 @@ rgctl cpg export --format graphson --output cpg.json [--path-contains src/] \
 
 ## serve
 
-**Command:** `rgctl serve [--open] [--host H] [--port N] [--dashboard-dir DIR] [--query-only|--dashboard-only] [--mode standard|mcp] [--daemon]`
+**Command:** `rgctl serve [--open] [--host H] [--port N] [--dashboard-dir DIR] [--query-only|--dashboard-only] [--no-pipeline]`
 
-**Purpose:** HTTP dashboard + `POST /api/query` (and semantic routes). **`--mode mcp`:** stdio MCP (seven tools, no HTTP). **`--daemon`:** foreground bootstrap of the background HTTP+MCP daemon (same model as `rgctl daemon start`; cache under `~/.rgctl/`).
+**Purpose:** Local HTTP dashboard + `POST /api/query` (and semantic routes) for **one repository**. Auto-runs `discover --full` unless `--no-pipeline`.
 
 **Prerequisites:** `discover` (dashboard bundle with `--with-dashboard` for full UI).
 
-**Pitfalls:** `--daemon` is **not** the retired Unix-socket blast daemon — it starts the shared HTTP+MCP daemon. Do not combine `--daemon` with `--host`/`--open` on the same process (use `daemon start` for background HTTP). **`--idle-secs`** (default 300) applies to daemon idle shutdown.
+**Pitfalls:** Foreground only — binds until Ctrl+C. Not a multi-repo catalog. Agents usually prefer CLI `-f json` subprocesses over HTTP.
 
-**Agent should report:** URL/port for HTTP; note MCP stdio vs HTTP `/mcp` when relevant.
+**Agent should report:** URL/port for HTTP; note `--no-pipeline` if artifacts must exist first.
 
 ---
 

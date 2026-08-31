@@ -2,13 +2,13 @@
 
 rgctl is designed so agents answer **structural questions** from a pre-built graph instead of reading whole files into context.
 
-**Installation:** [docs/installation.md](docs/installation.md) (prerequisites, modes, setup)  
+**Installation:** [docs/installation.md](docs/installation.md) (prerequisites, setup)  
 **Full JSON reference:** [docs/json-api.md](docs/json-api.md) (also on the site: [sshaaf.github.io/rgctl/docs/json-api/](https://sshaaf.github.io/rgctl/docs/json-api/))  
 **Copy-paste recipes:** [docs/agent-recipes.md](docs/agent-recipes.md)  
 **Human walkthrough:** [docs/user-guide.md](docs/user-guide.md)  
 **Docs hub:** [docs/README.md](docs/README.md) · [site docs](https://sshaaf.github.io/rgctl/docs/)
 
-Do **not** open the browser dashboard unless the user asks for a visual UI. In an IDE with `serve --mode mcp` already connected, prefer the MCP catalog. Otherwise default to CLI `-f json`.
+Default for agents: spawn **`rgctl -f json`** subprocesses (or use foreground **`rgctl serve`** for repeated HTTP queries). Do **not** open the browser dashboard unless the user asks for a visual UI.
 
 Install the project skill once (Claude Code + Cursor dirs under the repo):
 
@@ -21,17 +21,19 @@ rgctl -r "$REPO" install --skill
 ## Agent workflow
 
 ```text
-1. rgctl discover . --full       # or plain discover; --full adds CFG/dashboard/semantic
-2. rgctl -f json <command>      # compact facts on stdout
-3. Parse schema_version + payload   # never scrape stderr for JSON
+1. cd "$REPO" && rgctl discover .     # or rgctl -r PATH discover (no trailing . with -r)
+2. rgctl -f json <command>            # compact facts on stdout
+3. Parse schema_version + payload     # never scrape stderr for JSON
 ```
 
-Set `REPO` to the repository root (where indexed artifacts live — `{repo}/.rgctl/` with `--no-daemon`, or `~/.rgctl/cache/{reponame}/` via the default daemon):
+Artifacts live at **`{repo}/.rgctl/`**. Set `REPO` to the repository root:
 
 ```bash
 export REPO=/path/to/repo
 rgctl -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 20'
 ```
+
+Upgrading from an old daemon install: `rgctl migrate-cache` copies `~/.rgctl/cache/{name}/.rgctl/` into the repo (see [installation.md](docs/installation.md)).
 
 ---
 
@@ -41,7 +43,6 @@ rgctl -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 20'
 |--------|---------|
 | Full session (graph + CFG + dashboard + semantic) | `rgctl discover PATH --full` (queryable after stage 1; status in `.rgctl/pipeline_status.json`) |
 | HTTP session (auto-pipeline) | `rgctl serve` — `GET /api/status`; `--no-pipeline` restores fail-fast |
-| MCP session (stdio) | `rgctl serve --mode mcp` — tools `rgctl_status`, `rgctl_query`, `rgctl_search`, `rgctl_impact`, `rgctl_metrics`, `rgctl_cpg`, `rgctl_check`. Default query/search `limit` 20. Unready tools return pipeline status JSON. Guide: [docs/guides/mcp-server.md](docs/guides/mcp-server.md) |
 | Inventory functions | `rgctl -f json gql --macro-name all_functions unused` |
 | List communities | `rgctl -f json gql --macro-name all_communities unused` |
 | Find symbol by pattern | `rgctl -f json gql "MATCH (n:Function) WHERE n.name LIKE '*Service*' RETURN n LIMIT 20"` |
@@ -74,7 +75,15 @@ rgctl -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 20'
 
 ## Repeated queries in one session
 
-**Option A — HTTP (recommended):**
+**Option A — CLI subprocess (default for agents):**
+
+```bash
+export REPO=/path/to/repo
+rgctl -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 5'
+rgctl -r "$REPO" -f json blast-radius ShoppingCartService
+```
+
+**Option B — HTTP (one long-lived process):**
 
 ```bash
 rgctl -r "$REPO" serve --open
@@ -83,24 +92,11 @@ rgctl -r "$REPO" serve --open
 
 See [docs/http-api.md](docs/http-api.md).
 
-**Option B — MCP stdio (prefer in IDE):** `rgctl serve --mode mcp` (no HTTP). Use the seven tools for query / search / impact / metrics / CPG / check / status. Keep CLI for `discover`, `semantic index`, `cpg export`, and CI scripts. See [docs/guides/mcp-server.md](docs/guides/mcp-server.md).
-
-**Option C — HTTP+MCP daemon (shared cache):**
-
-```bash
-rgctl daemon start --host 127.0.0.1 --port 8080
-rgctl -r "$REPO" discover          # auto-routes through daemon; cache under ~/.rgctl/
-# Do not use `-r "$REPO" discover .` — the `.` ignores `-r` and indexes shell cwd instead.
-curl -s http://127.0.0.1:8080/       # repo catalog
-```
-
-Foreground equivalent: `rgctl serve --daemon`. Use `--no-daemon` for in-repo artifacts or CI. See [installation.md](docs/installation.md#daemon-vs-no-daemon) and [integration-tests.md](docs/internal/integration-tests.md).
-
 ---
 
 ## Rules of thumb
 
-0. **Daemon cache** — default commands use a background daemon; state lives under **`~/.rgctl/`** (override with `--daemon-home` or `RGCTL_HOME`). Use **`--no-daemon`** for in-repo `{repo}/.rgctl/` (CI, cold profiles, source-tree artifacts).
+0. **Artifacts** — always `{repo}/.rgctl/` after `discover`. Add `.rgctl/` to `.gitignore`.
 1. **Index first** — `gql`, `blast-radius`, `metrics` fail without `discover`.
 2. **Discover target** — `cd repo && rgctl discover .` or `rgctl -r PATH discover` (no trailing `.` with `-r`; `discover .` uses cwd, not `-r`).
 3. **Use `-f json`** — stable `schema_version` fields; see [json-api.md](docs/json-api.md).
@@ -116,13 +112,9 @@ Foreground equivalent: `rgctl serve --daemon`. Use `--no-daemon` for in-repo art
 
 ## On-disk artifacts for agents
 
-After `discover`, paths are relative to the **artifact root**:
+After `discover`, artifacts live under **`{repo}/.rgctl/`**:
 
-| Default daemon | `--no-daemon` |
-|----------------|---------------|
-| `~/.rgctl/cache/{reponame}/.rgctl/` | `{repo}/.rgctl/` |
-
-| Path (under artifact root) | Content |
+| Path | Content |
 |------|---------|
 | `graph.snapshot.bin` | Graph snapshot |
 | `content_store.bin` | Large markdown bodies / files (Blake3-keyed; used by Obsidian export + doc semantic index) |
@@ -146,6 +138,6 @@ After `discover`, paths are relative to the **artifact root**:
 
 - [Introduction](docs/Introduction.md) — concepts
 - [User Guide](docs/user-guide.md) — full CLI
-- [Integration test matrix](docs/internal/integration-tests.md) — Tier A/B/C (daemon, no-daemon, MCP, OpenCode)
+- [Integration test matrix](docs/internal/integration-tests.md) — CI harness
 - [Markdown context graph](docs/markdown-context.md) — `.md` / `.mdx` indexing and GQL
 - [Further reading](docs/further-reading.md) — research map and contribution ideas

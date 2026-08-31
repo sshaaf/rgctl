@@ -1,6 +1,6 @@
 rgctl CLI Structure (developer reference)
 ==========================================
-Last synced: 2026-08-25 — prefer `rgctl --help` and docs/json-api.md for JSON contracts.
+Last synced: 2026-09-01 — prefer `rgctl --help` and docs/json-api.md for JSON contracts.
 User Guide is the canonical human reference; this file is a maintainer cheat sheet.
 
 rgctl [GLOBAL OPTIONS] <COMMAND>
@@ -10,9 +10,6 @@ Global Options:
   -d, --db <PATH>             Legacy graph.db path (default: {repo}/.rgctl/graph.db)
   -f, --format <FORMAT>       Output format: text | json | graphviz | mermaid
   -o, --output <FILE>         Write stdout to file instead of terminal
-  --no-daemon                 In-process; do not contact or start daemon
-  --daemon-home <PATH>        Daemon workspace root (default: $HOME → ~/.rgctl/)
-  --fail-if-no-daemon         Fail if daemon is not running (no auto-start)
 
 Active Commands:
 ================
@@ -48,19 +45,18 @@ Active Commands:
 │   ├── --no-policy                 Skip default policy behavior
 │   └── --with-slices               Slice hand-offs in gatekeeping (slow; full graph path)
 │
-│   Query path: daemon (default) or in-process with --no-daemon
+│   Query path: in-process mmap against {repo}/.rgctl/
 │
 ├── serve [PATH]
-│   ├── --mode standard|mcp     HTTP (default) or stdio MCP (no HTTP bind)
 │   ├── --no-pipeline           Fail fast if artifacts missing (no auto discover --full)
 │   ├── --open                  Open browser after start
-│   ├── --daemon                Background HTTP+MCP daemon (0.0.0.0:8080)
-│   ├── --socket <PATH>         Control socket (default: {daemon-home}/.rgctl/rgctl.sock)
-│   └── --idle-secs <SECS>      Daemon idle exit (default: 300)
+│   ├── --host / --port         Bind address (default 127.0.0.1:8080)
+│   └── --query-only / --dashboard-only
+│
+├── migrate-cache [--name NAME]
+│   └── Copy legacy ~/.rgctl/cache/{name}/.rgctl/ into current repo
 │
 ├── install --skill [--host all|claude|cursor] [--force]
-│
-├── daemon start|stop|restart|status|list
 │
 ├── gql <QUERY>
 │   ├── --explain                   Execution plan
@@ -128,7 +124,7 @@ rgctl -r /path/to/repo blast-radius OrderService::process
 # Hop-limited impact zone
 rgctl -r /path/to/repo -f json blast-radius OrderService::process --depth 5
 
-# Optional warm daemon for repeated queries
+# Optional foreground HTTP for repeated queries
 rgctl -r /path/to/repo serve &
 rgctl -r /path/to/repo -f json blast-radius saveError
 
@@ -149,7 +145,7 @@ Performance / architecture notes:
 =================================
   discover (default)     Writes columnar graph.snapshot.bin + engine snapshot
   blast-radius T0        macro_call_index.db hit (SQLite blast cache only) — no engine load
-  blast-radius T1        mmap graph + engine snapshot via daemon (default) or in-process with --no-daemon
+  blast-radius T1        mmap graph + engine snapshot (in-process)
   blast-radius full      Hydrated graph — required for --with-slices, --policy-file centrality
 
   See docs/cli-io-sanity-qe.md for subprocess gates; discover timing baselines in tests/discover_perf_baselines.rs.

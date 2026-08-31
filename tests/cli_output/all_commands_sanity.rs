@@ -86,8 +86,6 @@ impl Sandbox {
 
     fn run(&self, args: &[&str]) -> Output {
         let mut cmd = Command::new(rgctl_bin());
-        cmd.env("RGCTL_NO_DAEMON", "1");
-        cmd.arg("--no-daemon");
         cmd.arg("-r").arg(&self.repo).arg("-d").arg(&self.db);
         cmd.current_dir(&self.repo);
         cmd.args(args);

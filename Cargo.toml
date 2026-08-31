@@ -24,7 +24,6 @@ members = [
     "crates/rgctl-kantra",
     "crates/rgctl-core",
     "crates/rgctl-service",
-    "crates/rgctl-mcp",
     "crates/rgctl-lang-go",
     "crates/rgctl-lang-java",
     "crates/rgctl-lang-javascript",
@@ -66,7 +65,6 @@ rgctl-rules = { path = "crates/rgctl-rules", version = "0.4.8" }
 rgctl-kantra = { path = "crates/rgctl-kantra", version = "0.4.8" }
 rgctl-core = { path = "crates/rgctl-core", version = "0.4.8" }
 rgctl-service = { path = "crates/rgctl-service", version = "0.4.8" }
-rgctl-mcp = { path = "crates/rgctl-mcp", version = "0.4.8" }
 tempfile = "3"
 zstd = "0.13"
 rayon = "1.7"
@@ -126,7 +124,6 @@ categories = ["development-tools", "command-line-utilities"]
 # Workspace crates
 rgctl-core = { workspace = true }
 rgctl-service = { workspace = true }
-rgctl-mcp = { workspace = true }
 rgctl-plugin-api = { workspace = true }
 rgctl-plugin-helpers = { workspace = true }
 rgctl-config-formats = { workspace = true }
@@ -186,15 +183,6 @@ include_dir = "0.7"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["fs"] }
 tower = { version = "0.5", features = ["util"] }
-
-[target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = [
-    "Win32_Foundation",
-    "Win32_Security",
-    "Win32_Storage_FileSystem",
-    "Win32_System_IO",
-    "Win32_System_Pipes",
-] }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -265,10 +253,6 @@ path = "tests/discover_full_serve.rs"
 [[test]]
 name = "rgctl_no_daemon"
 path = "tests/rgctl_no_daemon.rs"
-
-[[test]]
-name = "opencode_mcp_smoke"
-path = "tests/opencode_mcp_smoke.rs"
 
 [[test]]
 name = "dashboard_bundle"

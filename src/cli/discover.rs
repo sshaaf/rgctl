@@ -72,9 +72,6 @@ pub fn run(ctx: &CliContext, args: DiscoverArgs) -> Result<()> {
         &args.kantra_rules,
         &args.kantra_catalog,
     )?;
-    if args.artifact_root.is_none() && super::daemon::route_discover(ctx, args.clone())? {
-        return Ok(());
-    }
     let path = resolve_session_root(ctx, args.path.as_deref());
 
     if args.full {

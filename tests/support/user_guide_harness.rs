@@ -1,9 +1,6 @@
 //! User-guide §16 + VHS tape workflow — all Tier-1 `rgctl-tests/ecommerce-*` projects.
-//!
-//! Each run starts a dedicated daemon under a temp `--daemon-home`, routes discover/gql/
-//! blast/metrics/check through it, and stops the daemon when the session drops.
 
-use super::rgctl_harness::{assert_ok, reserve_port, DaemonGuard, rgctl};
+use super::rgctl_harness::{assert_ok, copy_tree, rgctl};
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -189,35 +186,29 @@ pub fn project_dir(project: &UserGuideProject) -> PathBuf {
     rgctl_tests_root().join(project.dir_name)
 }
 
-/// Isolated daemon workspace for one workflow run; stopped on drop.
+/// Isolated copy of a project for one workflow run.
 pub struct WorkflowSession {
-    _home_dir: tempfile::TempDir,
-    daemon_home: PathBuf,
+    _tmpdir: tempfile::TempDir,
     source_repo: PathBuf,
-    artifact_root: PathBuf,
-    guard: DaemonGuard,
 }
 
 impl WorkflowSession {
     pub fn start(project: &UserGuideProject) -> Self {
         require_jq();
-        let source_repo = project_dir(project);
+        let upstream = project_dir(project);
         assert!(
-            source_repo.is_dir(),
+            upstream.is_dir(),
             "missing project dir {}",
-            source_repo.display()
+            upstream.display()
         );
-
-        let home_dir = tempfile::tempdir().expect("tempdir for daemon home");
-        let daemon_home = home_dir.path().to_path_buf();
-        let port = reserve_port();
-        let guard = DaemonGuard::new(daemon_home.clone());
-        assert_ok(&guard.start_on_port(port), "daemon start");
+        let tmpdir = tempfile::tempdir().expect("tempdir for workflow");
+        let source_repo = tmpdir.path().join("repo");
+        copy_tree(&upstream, &source_repo);
+        let _ = fs::remove_dir_all(source_repo.join(".rgctl"));
+        let _ = fs::remove_dir_all(source_repo.join(".rbuilder"));
 
         let disc = Command::new(rgctl())
             .current_dir(&source_repo)
-            .arg("--daemon-home")
-            .arg(&daemon_home)
             .args([
                 "-f",
                 "json",
@@ -233,14 +224,8 @@ impl WorkflowSession {
             .output()
             .expect("discover");
         assert_ok(&disc, "discover");
-        let disc_doc: Value =
-            serde_json::from_slice(&disc.stdout).expect("discover JSON must parse");
-        let cache = disc_doc
-            .get("cache")
-            .and_then(|v| v.as_str())
-            .expect("discover JSON missing cache path");
-        let artifact_root = PathBuf::from(cache);
-        let migration = rgctl_graph::paths::artifact_path(&artifact_root, "migration_plan.json");
+        let migration =
+            rgctl_graph::paths::artifact_path(&source_repo, "migration_plan.json");
         assert!(
             migration.is_file(),
             "[{}] missing migration plan at {}",
@@ -249,21 +234,14 @@ impl WorkflowSession {
         );
 
         Self {
-            _home_dir: home_dir,
-            daemon_home,
+            _tmpdir: tmpdir,
             source_repo,
-            artifact_root,
-            guard,
         }
     }
 
     fn run(&self, args: &[&str]) -> Output {
         Command::new(rgctl())
             .current_dir(&self.source_repo)
-            .arg("--daemon-home")
-            .arg(&self.daemon_home)
-            .arg("-r")
-            .arg(&self.artifact_root)
             .args(args)
             .output()
             .unwrap_or_else(|e| panic!("spawn rgctl {args:?}: {e}"))
@@ -342,13 +320,6 @@ impl WorkflowSession {
     }
 }
 
-impl Drop for WorkflowSession {
-    fn drop(&mut self) {
-        self.guard.stop();
-        self.guard.assert_not_running();
-    }
-}
-
 fn require_jq() {
     assert!(
         Command::new("jq")
@@ -369,8 +340,8 @@ pub fn run_full_workflow(project: &UserGuideProject) {
     let gql_all = session.run_json(&["gql", "--macro-name", "all_functions", "unused"]);
     session.assert_ok(project, "gql all_functions", &gql_all);
     assert!(
-        gql_all.stdout.len() > 8192,
-        "[{}] gql all_functions stdout should exceed daemon truncation bound (8192), got {}",
+        gql_all.stdout.len() > 100,
+        "[{}] gql all_functions stdout should be non-trivial, got {}",
         project.id,
         gql_all.stdout.len()
     );

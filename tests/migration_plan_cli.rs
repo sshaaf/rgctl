@@ -10,9 +10,7 @@ use std::process::Command;
 fn run_discover_migration(repo: &Path, extra_args: &[&str]) -> std::process::Output {
     let bin = rgctl_bin();
     let mut cmd = Command::new(&bin);
-    cmd.env("RGCTL_NO_DAEMON", "1")
-        .arg("--no-daemon")
-        .current_dir(repo)
+    cmd.current_dir(repo)
         .args([
             "-r",
             repo.to_str().unwrap(),

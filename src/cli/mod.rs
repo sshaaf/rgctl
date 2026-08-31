@@ -8,7 +8,6 @@ pub mod check_output;
 mod communities;
 mod context;
 mod cpg;
-mod daemon;
 mod discover;
 mod discover_cfg;
 mod discover_impl;
@@ -23,14 +22,12 @@ pub mod inspect_output;
 mod install;
 pub mod install_output;
 mod markup;
-mod mcp_serve;
 mod metrics;
 pub mod metrics_output;
 mod pipeline_session;
 pub mod pipeline_status;
 mod policy_file;
-#[allow(dead_code)]
-mod query_daemon;
+mod migrate_cache;
 mod semantic;
 mod semantic_api;
 pub mod semantic_output;
@@ -43,7 +40,7 @@ pub use args::OutputFormat;
 use crate::BUILD_INFO;
 use crate::analysis::{DEFAULT_CANDIDATE_POOL, DEFAULT_EMBEDDING_DIMENSIONS};
 use args::{
-    ExportFormat, InspectLayer, PdgEdgeLayer, ServeMode, SkillHost, SliceDirection, SliceView,
+    ExportFormat, InspectLayer, PdgEdgeLayer, SkillHost, SliceDirection, SliceView,
 };
 use clap::{Parser, Subcommand};
 use context::CliContext;
@@ -68,18 +65,6 @@ pub struct Cli {
     /// Write output to file instead of stdout
     #[arg(short = 'o', long = "output", global = true)]
     pub output: Option<std::path::PathBuf>,
-
-    /// Run in-process; do not contact or start a daemon
-    #[arg(long = "no-daemon", global = true)]
-    pub no_daemon: bool,
-
-    /// Daemon workspace root (default: $HOME → state under ~/.rgctl/)
-    #[arg(long = "daemon-home", value_name = "PATH", global = true)]
-    pub daemon_home: Option<std::path::PathBuf>,
-
-    /// Fail if no daemon is running; do not auto-start
-    #[arg(long = "fail-if-no-daemon", global = true)]
-    pub fail_if_no_daemon: bool,
 
     #[command(subcommand)]
     pub command: Commands,
@@ -318,18 +303,13 @@ pub enum Commands {
     /// Serve the analysis dashboard and GQL query API over HTTP.
     ///
     /// Default: dashboard at `/` and query API at `/api/query` (alias `/graphql`).
-    /// Starts the full discover pipeline unless `--no-pipeline` or `--daemon`.
-    /// Use `--mode mcp` for MCP stdio (no HTTP). `--daemon` is the legacy blast socket.
+    /// Starts the full discover pipeline unless `--no-pipeline`.
     Serve {
         /// Repository path to index (defaults to `--repo` or cwd)
         #[arg(value_name = "PATH")]
         path: Option<String>,
 
-        /// `standard` (HTTP, default) or `mcp` (stdio MCP, no HTTP bind)
-        #[arg(long, value_enum, default_value_t = ServeMode::Standard)]
-        mode: ServeMode,
-
-        /// Do not auto-run discover; fail fast if artifacts are missing (pre-0.4.7 serve)
+        /// Do not auto-run discover; fail fast if artifacts are missing
         #[arg(long = "no-pipeline")]
         no_pipeline: bool,
 
@@ -356,22 +336,21 @@ pub enum Commands {
         /// Serve the dashboard only (no query API)
         #[arg(long)]
         dashboard_only: bool,
+    },
 
-        /// Background HTTP+MCP daemon (replaces the old blast query socket).
+    /// Copy daemon-era cache artifacts into `{repo}/.rgctl/`
+    MigrateCache {
+        /// Cache entry name under `~/.rgctl/cache/` (default: repo directory name)
         #[arg(long)]
-        daemon: bool,
+        name: Option<String>,
 
-        /// Worker process (hidden; spawned by `serve --daemon` / `daemon start`)
-        #[arg(long = "daemon-worker", hide = true)]
-        daemon_worker: bool,
-
-        /// Daemon endpoint path (Unix socket or Windows port file; default under `<repo>/.rgctl/`)
+        /// Explicit cache `.rgctl/` source directory
         #[arg(long, value_name = "PATH")]
-        socket: Option<std::path::PathBuf>,
+        from: Option<std::path::PathBuf>,
 
-        /// Daemon idle exit in seconds [default: 300]
-        #[arg(long, default_value_t = 300)]
-        idle_secs: u64,
+        /// Overwrite existing `{repo}/.rgctl/`
+        #[arg(long)]
+        force: bool,
     },
 
     /// Install bundled artifacts into a repository
@@ -388,31 +367,6 @@ pub enum Commands {
         #[arg(long)]
         force: bool,
     },
-
-    /// Control the background HTTP/MCP daemon
-    Daemon {
-        #[command(subcommand)]
-        action: DaemonAction,
-    },
-}
-
-#[derive(Subcommand)]
-pub enum DaemonAction {
-    /// Start the daemon (idempotent)
-    Start {
-        #[arg(long)]
-        host: Option<String>,
-        #[arg(long)]
-        port: Option<u16>,
-    },
-    /// Stop the daemon
-    Stop,
-    /// Restart the daemon
-    Restart,
-    /// Show pid, HTTP, MCP
-    Status,
-    /// List cached repositories
-    List,
 }
 
 #[derive(Subcommand)]
@@ -670,21 +624,23 @@ impl Cli {
 
         let command_path = match &self.command {
             Commands::Discover { path: Some(p), .. } | Commands::Serve { path: Some(p), .. } => {
-                Some(std::path::PathBuf::from(p))
+                let path = std::path::Path::new(p);
+                if path.as_os_str() == "." {
+                    None
+                } else {
+                    Some(path.to_path_buf())
+                }
             }
             _ => None,
         };
 
-        let mut ctx = CliContext::new(
+        let ctx = CliContext::new(
             command_path.or(self.repo),
             self.db,
             self.format.unwrap_or_default(),
             self.output,
             verbose,
         );
-        ctx.no_daemon = self.no_daemon || std::env::var_os("RGCTL_NO_DAEMON").is_some();
-        ctx.daemon_home = self.daemon_home;
-        ctx.fail_if_no_daemon = self.fail_if_no_daemon;
 
         let result = match self.command {
             Commands::Discover {
@@ -989,37 +945,12 @@ impl Cli {
             Commands::Install { skill, host, force } => {
                 install::run(&ctx, install::InstallArgs { skill, host, force })
             }
-            Commands::Daemon { action } => match action {
-                DaemonAction::Start { host, port } => {
-                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
-                    let pid = daemon::start(&home, host.as_deref(), port)?;
-                    eprintln!("rgctl: daemon pid {pid}");
-                    Ok(())
-                }
-                DaemonAction::Stop => {
-                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
-                    daemon::stop(&home)
-                }
-                DaemonAction::Restart => {
-                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
-                    let pid = daemon::restart(&home)?;
-                    eprintln!("rgctl: daemon pid {pid}");
-                    Ok(())
-                }
-                DaemonAction::Status => {
-                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
-                    print!("{}", daemon::status_text(&home)?);
-                    Ok(())
-                }
-                DaemonAction::List => {
-                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
-                    print!("{}", daemon::list_text(&home)?);
-                    Ok(())
-                }
-            },
+            Commands::MigrateCache { name, from, force } => migrate_cache::run(
+                &ctx,
+                migrate_cache::MigrateCacheArgs { name, from, force },
+            ),
             Commands::Serve {
                 path,
-                mode,
                 no_pipeline,
                 host,
                 port,
@@ -1027,47 +958,19 @@ impl Cli {
                 open,
                 query_only,
                 dashboard_only,
-                daemon,
-                daemon_worker,
-                socket: _,
-                idle_secs: _,
-            } => {
-                if daemon_worker {
-                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
-                    daemon::run_worker(home, host, port)
-                } else if daemon {
-                    let home = daemon::resolve_home(ctx.daemon_home.as_deref())?;
-                    // Foreground serve defaults to 127.0.0.1; daemon uses config (0.0.0.0) unless --host was not the foreground default.
-                    let daemon_host = if host == "127.0.0.1" {
-                        None
-                    } else {
-                        Some(host.as_str())
-                    };
-                    let pid = daemon::start(&home, daemon_host, Some(port))?;
-                    eprintln!("rgctl: daemon pid {pid} (background HTTP)");
-                    Ok(())
-                } else if mode == ServeMode::Mcp {
-                    if ctx.no_daemon {
-                        mcp_serve::serve(&ctx, mcp_serve::McpServeArgs { path, no_pipeline })
-                    } else {
-                        daemon::stdio_mcp_bridge(&ctx)
-                    }
-                } else {
-                    http_serve::serve(
-                        &ctx,
-                        http_serve::HttpServeArgs {
-                            host,
-                            port,
-                            dashboard_dir,
-                            open,
-                            query_only,
-                            dashboard_only,
-                            no_pipeline,
-                            path,
-                        },
-                    )
-                }
-            }
+            } => http_serve::serve(
+                &ctx,
+                http_serve::HttpServeArgs {
+                    host,
+                    port,
+                    dashboard_dir,
+                    open,
+                    query_only,
+                    dashboard_only,
+                    no_pipeline,
+                    path,
+                },
+            ),
         };
 
         if !long_running {
@@ -1109,8 +1012,8 @@ fn command_label_for(command: &Commands) -> &'static str {
         Commands::Check { .. } => "check",
         Commands::Export { .. } => "export",
         Commands::Install { .. } => "install",
+        Commands::MigrateCache { .. } => "migrate-cache",
         Commands::Serve { .. } => "serve",
-        Commands::Daemon { .. } => "daemon",
     }
 }
 

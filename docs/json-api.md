@@ -4,7 +4,7 @@ Programmatic reference for parsing rgctl output. Every structured CLI command em
 
 **Canonical JSON reference** (includes field catalogs formerly in `cli-output-schemas.md`).
 
-**Source of truth (Rust types):** `crates/rgctl-service` JSON modules (CLI `src/cli/*_output.rs` re-exports). MCP tools return the same `schema_version` payloads via `structuredContent`.
+**Source of truth (Rust types):** `crates/rgctl-service` JSON modules (CLI `src/cli/*_output.rs` re-exports).
 
 ---
 
@@ -56,16 +56,6 @@ rgctl -r "$REPO" -f json blast-radius ShoppingCartService -o /tmp/blast.json
 | Default text | Human-readable tables | Progress / info logs |
 
 **Rule:** parse **stdout only** for JSON. Do not scrape stderr.
-
-### MCP (`serve --mode mcp`)
-
-Stdio JSON-RPC; no HTTP. Tools: `rgctl_status`, `rgctl_query`, `rgctl_search`, `rgctl_impact`, `rgctl_metrics`, `rgctl_cpg`, `rgctl_check`. Successful `tools/call` results use the same documents as CLI `-f json` (pretty text plus `structuredContent`).
-
-`rgctl_query` and `rgctl_search` apply **`limit` 20** when the client omits `limit`. CLI `-f json gql` / `semantic query` do **not** add that default.
-
-If the graph, CFG archive, or semantic index is missing, those tools return pipeline status (`command`: `pipeline_status`, `schema_version` 1) as the **tool result**, not a JSON-RPC error. `cpg export` is CLI-only (`rgctl_cpg` `op` `export` is unknown).
-
-Resources: `rgctl://status`, `rgctl://manifest`, `rgctl://migration-plan`. Walkthrough: [MCP Server](guides/mcp-server.md).
 
 ### Prerequisites
 
@@ -122,7 +112,7 @@ if (doc.schema_version !== 2) {
 | `cpg` | ✅ | varies by subcommand | Hybrid CPG façade |
 | `install` | ✅ | `writes` | Install bundled agent skill |
 | `export` | ❌ (file) | — | Full-graph serialization |
-| `serve` | ❌ | — | HTTP dashboard + `/api/query` (default); `--mode mcp` stdio; `--daemon` background HTTP+MCP daemon bootstrap |
+| `serve` | ❌ | — | HTTP dashboard + `/api/query` (foreground) |
 
 ---
 
@@ -153,7 +143,7 @@ interface DiscoverResponse {
 }
 ```
 
-With `--full`, stdout is still **one** JSON object (`full: true` + `plan`). Live stage updates go to `.rgctl/pipeline_status.json` (`schema_version` 1, `command: "pipeline_status"`). `GET /api/status` on HTTP `serve` and MCP `rgctl_status` (`structuredContent`) return the same document. See [MCP Server](guides/mcp-server.md).
+With `--full`, stdout is still **one** JSON object (`full: true` + `plan`). Live stage updates go to `.rgctl/pipeline_status.json` (`schema_version` 1, `command: "pipeline_status"`). `GET /api/status` on HTTP `serve` returns the same document.
 
 ### Example
 
@@ -185,8 +175,6 @@ rgctl -f json discover . | jq '.metrics | {nodes: .nodes_generated, ms: .duratio
 ```bash
 rgctl -f json gql "<QUERY>" [--macro-name NAME] [--explain]
 ```
-
-CLI JSON does not default-limit rows. MCP `rgctl_query` applies `limit` 20 when omitted.
 
 ### TypeScript shape
 
@@ -1304,7 +1292,7 @@ rgctl -f json blast-radius <SYMBOL> [--depth N] [--policy-file PATH] [--with-sli
 
 ---
 
-## 1b. `serve` — HTTP dashboard + background daemon
+## 1b. `serve` — HTTP dashboard
 
 **Foreground HTTP (one repo):**
 
@@ -1314,18 +1302,7 @@ rgctl serve -r REPO [--open]
 
 Binds `http://127.0.0.1:8080/` — dashboard at `/`, GQL at `POST /api/query`. See [http-api.md](http-api.md).
 
-**Background HTTP+MCP daemon:**
-
-```bash
-rgctl daemon start [--host HOST] [--port PORT]
-rgctl serve -r REPO --daemon [--idle-secs SECS]
-```
-
-Default bind `0.0.0.0:8080`; catalog at `/`, per-repo routes under `/{reponame}/`, MCP at `/mcp`. Cache lives under `~/.rgctl/cache/{reponame}/` unless `--daemon-home` / storage override is set.
-
-**Role:** Shared in-memory graph + command service for CLI routing, HTTP, and MCP. Opt out with **`--no-daemon`** (in-process, `{repo}/.rgctl/`).
-
-**Requires:** prior `discover` (via daemon or `--no-daemon`) producing `graph.snapshot.bin`.
+**Requires:** prior `discover` producing `graph.snapshot.bin` under `{repo}/.rgctl/`.
 
 ---
 

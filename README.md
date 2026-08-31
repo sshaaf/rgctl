@@ -33,7 +33,7 @@ https://github.com/user-attachments/assets/2f0412b8-ab9b-4e5f-952b-48f09cf02060
 | Agent reads dozens of files to guess dependencies | Agent calls `blast-radius Symbol` → structured impact JSON |
 | “What calls this?” requires search + inference | `gql` returns exact graph matches |
 | Migration planning from partial context | **Migration planner** — package roadmap, dual ordering, tunable scores, interactive graph |
-| Repeated file dumps every turn | One `discover`, then cache-backed queries via CLI or `-f json` |
+| Repeated file dumps every turn | One `discover`, then queries via CLI `-f json` or HTTP `serve` |
 
 rgctl answers **reachability and relation questions deterministically** from the indexed graph. The LLM reasons on **summaries and facts**, not raw repo grep — fewer tokens, less hallucination, faster turns.
 
@@ -73,8 +73,8 @@ rgctl is **async and parallel by design** — discovery walks the tree, parses l
 
 - **Full discovery in seconds** on typical repos (not minutes of ad-hoc agent exploration)
 - **Reachability compressed** — enterprise-scale call graphs stored in compact on-disk snapshots, not gigabytes in RAM
-- **HTTP `serve`** — dashboard + `/api/query` on port 8080; optional `serve --daemon` for background HTTP+MCP daemon
-- **Background daemon (default for CLI)** — auto-starts on first use; cache under `~/.rgctl/`; MCP at `/mcp` when daemon is running
+- **HTTP `serve`** — optional foreground dashboard + `/api/query` on port 8080
+- **In-repo artifacts** — `{repo}/.rgctl/` after `discover` (CI-friendly, no background daemon)
 
 Index once → query many times. That is the agent workflow.
 
@@ -83,16 +83,15 @@ Index once → query many times. That is the agent workflow.
            │
            ▼
     rgctl gql | blast-radius | metrics | semantic | export -f json
-           │                    (routes through daemon by default)
+           │                    (or HTTP serve for repeated /api/query)
            ▼
-  artifact root  ←  ~/.rgctl/cache/{reponame}/.rgctl/  (default daemon)
-                 or  {repo}/.rgctl/  (--no-daemon)
+      {repo}/.rgctl/
            ▲
            │
       discover  ←  cd repo && discover .   OR   rgctl -r PATH discover
            ▲
            │
-     Your repository (source tree; not written by default daemon discover)
+     Your repository
 ```
 
 ---
@@ -156,17 +155,18 @@ git lfs pull   # only if you use `semantic index --embedder code-daemon` (~206 M
 cargo build --release --bin rgctl
 ```
 
-**Discover** (build the graph + reachability caches). Default: **background daemon** stores artifacts under `~/.rgctl/cache/`, not in your repo. Use **`--no-daemon`** for CI or in-repo `{repo}/.rgctl/`.
+**Discover** (build the graph + reachability caches). Artifacts land in **`{repo}/.rgctl/`**.
 
 ```bash
 git clone https://github.com/konveyor-ecosystem/coolstore.git
 cd coolstore
 rgctl discover .                    # from repo root (recommended)
 # or: rgctl -r /path/to/coolstore discover   (no trailing `.` with -r)
-# CI:  rgctl --no-daemon discover .          # writes coolstore/.rgctl/
 
-rgctl -f json discover . | jq '.metrics'     # when run from repo root
+rgctl -f json discover . | jq '.metrics'
 ```
+
+Upgrading from an old daemon install: `rgctl migrate-cache` copies `~/.rgctl/cache/{name}/.rgctl/` into the repo.
 
 **Do not** use `rgctl -r PATH discover .` — the `.` ignores `-r` and indexes your shell cwd instead.
 
@@ -186,7 +186,7 @@ rgctl -f json metrics --pagerank --communities
 rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints
 ```
 
-**IDE agents (MCP):** `rgctl serve --mode mcp` — seven tools on stdio; see [MCP Server guide](docs/guides/mcp-server.md).
+**IDE agents:** spawn `rgctl -f json` subprocesses or use `rgctl serve` for HTTP; see [AGENTS.md](AGENTS.md).
 
 Concepts → **[Introduction](docs/Introduction.md)** · Commands → **[User Guide](docs/user-guide.md)** · Latest → **[v0.4.8 release notes](docs/releases/v0.4.8.md)**
 
@@ -233,9 +233,9 @@ Quick links into **[Introduction](docs/Introduction.md)** — see [Where most to
 | `cpg` | [§10 Hybrid CPG](docs/user-guide.md#10-hybrid-cpg-cpg) |
 | `export` | [§13 Export](docs/user-guide.md#13-export-graph-projections) |
 | `check` | [§14 CI policy check](docs/user-guide.md#14-ci-policy-check) |
-| `serve` | [§15 HTTP server](docs/user-guide.md#15-http-server-serve--optional) · [MCP guide](docs/guides/mcp-server.md) |
+| `serve` | [§15 HTTP server](docs/user-guide.md#15-http-server-serve--optional) |
 
-**Dashboard** — visual exploration after `discover --with-dashboard` (under the artifact root, e.g. `~/.rgctl/cache/{reponame}/.rgctl/dashboard/` or `{repo}/.rgctl/dashboard/`). See **[Feature designs](docs/design/README.md)** for per-tab engineering docs.  
+**Dashboard** — visual exploration after `discover --with-dashboard` at `{repo}/.rgctl/dashboard/`. See **[Feature designs](docs/design/README.md)** for per-tab engineering docs.  
 **Migration export** — `discover --export-migration-hints` (alias `--export-migration-plan`; optional `--migration-preset`, `--migration-order scheduled|priority`).  
 **Languages** — nine Tier 1 languages (Rust, Python, Java, Go, TypeScript, JavaScript, C#, C, C++) plus config/IaC plugins and **markdown** (`.md` / `.mdx` docs context). See [Languages](docs/languages.md) and [Markdown context](docs/markdown-context.md).
 
@@ -246,7 +246,7 @@ Quick links into **[Introduction](docs/Introduction.md)** — see [Where most to
 | Document | For |
 |----------|-----|
 | **[Documentation index](docs/README.md)** | Map of all docs by persona |
-| **[Installation](docs/installation.md)** | Install rgctl, CLI / HTTP / MCP / **daemon** modes, `--no-daemon`, verify setup |
+| **[Installation](docs/installation.md)** | Install rgctl, CLI / HTTP modes, verify setup |
 | **[v0.4.8 release notes](docs/releases/v0.4.8.md)** | Latest — agent docs, daemon/discover guidance |
 | **[v0.4.7 release notes](docs/releases/v0.4.7.md)** | rgctl rename, daemon, MCP, upgrade from v0.4.6 |
 | **[Introduction](docs/Introduction.md)** | Concepts — graph, reachability, capability map |
@@ -256,7 +256,6 @@ Quick links into **[Introduction](docs/Introduction.md)** — see [Where most to
 | **[Agent recipes](docs/agent-recipes.md)** | Copy-paste automation workflows |
 | **[JSON API](docs/json-api.md)** | Parse `-f json` payloads + field catalogs |
 | **[HTTP API](docs/http-api.md)** | `rgctl serve` → `/api/query` and `/api/semantic/*` |
-| **[MCP Server guide](docs/guides/mcp-server.md)** | IDE agents — `serve --mode mcp` (seven tools on stdio) |
 | **[Policy format](docs/policy-format.md)** | `check` / blast policy JSON |
 | **[Languages](docs/languages.md)** | Supported languages and tiers |
 | **[Markdown context](docs/markdown-context.md)** | Doc graph — headings, links, doc→code GQL |

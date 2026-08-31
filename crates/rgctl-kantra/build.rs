@@ -115,11 +115,12 @@ fn main() {
 
     let mut rules = Vec::new();
     let mut seen_ids = HashSet::new();
+    let mut duplicates_skipped = 0usize;
     let mut names = Vec::new();
     let mut descriptions = Vec::new();
 
     for root in &source_roots {
-        match load_ruleset_dir(root, &mut seen_ids) {
+        match load_ruleset_dir(root, &mut seen_ids, &mut duplicates_skipped) {
             Ok((meta, mut batch)) => {
                 names.push(meta.name);
                 if let Some(desc) = meta.description {
@@ -171,8 +172,13 @@ fn main() {
         "cargo:rustc-env=RGCTL_KANTRA_CATALOG={}",
         out_path.display()
     );
+    if duplicates_skipped > 0 {
+        println!(
+            "kantra catalog: skipped {duplicates_skipped} duplicate ruleIDs from upstream rulesets"
+        );
+    }
     println!(
-        "cargo:warning=kantra embedded catalog: {} rules ({})",
+        "kantra embedded catalog: {} rules ({})",
         stored.rules.len(),
         stored.catalog_id
     );
@@ -232,6 +238,7 @@ fn collect_ruleset_dirs(root: &Path) -> Vec<PathBuf> {
 fn load_ruleset_dir(
     dir: &Path,
     seen_ids: &mut HashSet<String>,
+    duplicates_skipped: &mut usize,
 ) -> Result<(RulesetMeta, Vec<BuildRule>), String> {
     let meta_path = dir.join("ruleset.yaml");
     let meta_text = fs::read_to_string(&meta_path)
@@ -256,11 +263,7 @@ fn load_ruleset_dir(
         for rule in &mut batch {
             merge_ruleset_labels(&meta.labels, rule);
             if !seen_ids.insert(rule.rule_id.clone()) {
-                println!(
-                    "cargo:warning=duplicate ruleID {} in {}; keeping first occurrence",
-                    rule.rule_id,
-                    path.display()
-                );
+                *duplicates_skipped += 1;
                 continue;
             }
             rules.push(rule.clone());

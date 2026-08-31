@@ -311,7 +311,7 @@ rgctl -r "$REPO" serve --open
 # {"query":"MATCH (n:Function) RETURN n LIMIT 5"}
 ```
 
-See [docs/http-api.md](../../docs/http-api.md). For IDE agents prefer `serve --mode mcp`; for a shared multi-repo cache use `daemon start` or `serve --daemon`.
+See [docs/http-api.md](../../docs/http-api.md). For IDE agents spawn `rgctl -f json` subprocesses; optional `rgctl serve` for repeated HTTP queries on one repo.
 
 ---
 

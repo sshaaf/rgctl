@@ -17,9 +17,7 @@ fn materialize() -> (tempfile::TempDir, std::path::PathBuf) {
 
 fn run_discover(repo: &Path, extra: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(rgctl_bin());
-    cmd.env("RGCTL_NO_DAEMON", "1")
-        .arg("--no-daemon")
-        .current_dir(repo)
+    cmd.current_dir(repo)
         .args([
             "-r",
             repo.to_str().unwrap(),
@@ -48,9 +46,7 @@ fn discover_all_flag_is_ignored() {
 
     fn nodes_generated(repo: &Path, extra: &[&str]) -> u64 {
         let mut cmd = Command::new(rgctl_bin());
-        cmd.env("RGCTL_NO_DAEMON", "1")
-            .arg("--no-daemon")
-            .current_dir(repo)
+        cmd.current_dir(repo)
             .args([
                 "-r",
                 repo.to_str().unwrap(),

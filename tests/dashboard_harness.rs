@@ -150,10 +150,12 @@ fn run_discover_with_flags(repo: &Path, languages: Option<&str>, deep: bool) -> 
         "rgctl binary not found at {} — run cargo build --release",
         bin.display()
     );
+    let rgctl_dir = repo.join(".rgctl");
+    if rgctl_dir.exists() {
+        std::fs::remove_dir_all(&rgctl_dir).expect("remove stale .rgctl before discover");
+    }
     let mut cmd = Command::new(&bin);
-    cmd.env("RGCTL_NO_DAEMON", "1")
-        .arg("--no-daemon")
-        .current_dir(repo);
+    cmd.current_dir(repo);
     // Dashboard tests always opt in (#31 — bare discover skips dashboard).
     cmd.args([
         "-r",
@@ -406,21 +408,24 @@ pub fn assert_dashboard_bundle_with_meta(repo: &Path, min_nodes: u64, min_metano
         .unwrap_or(false);
     assert!(has_community_id, "metanodes should carry community_id");
 
-    let has_members = meta["nodes"]
-        .as_array()
-        .map(|nodes| {
-            nodes.iter().any(|n| {
-                n["member_indices"]
-                    .as_array()
-                    .map(|a| !a.is_empty())
-                    .unwrap_or(false)
+    let community_only = meta["community_only"].as_bool().unwrap_or(false);
+    if !community_only {
+        let has_members = meta["nodes"]
+            .as_array()
+            .map(|nodes| {
+                nodes.iter().any(|n| {
+                    n["member_indices"]
+                        .as_array()
+                        .map(|a| !a.is_empty())
+                        .unwrap_or(false)
+                })
             })
-        })
-        .unwrap_or(false);
-    assert!(
-        has_members,
-        "metagraph metanodes must include member_indices for LOD"
-    );
+            .unwrap_or(false);
+        assert!(
+            has_members,
+            "metagraph metanodes must include member_indices for LOD when community_only is false"
+        );
+    }
 
     let node_count = manifest["graph"]["node_count"].as_u64().unwrap_or(0);
     let edge_count = manifest["graph"]["edge_count"].as_u64().unwrap_or(0);

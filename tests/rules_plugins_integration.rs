@@ -62,6 +62,7 @@ fn test_tier1_plugin_registry() {
         "csharp",
         "c",
         "cpp",
+        "markdown",
     ] {
         assert!(registry.has_plugin(id), "missing plugin {id}");
     }

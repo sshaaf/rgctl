@@ -1,5 +1,8 @@
 //! Integration tests for `discover --with-kantra`.
 
+mod rgctl_harness;
+
+use rgctl_harness::rgctl;
 use std::process::Command;
 use std::sync::Mutex;
 
@@ -8,14 +11,10 @@ static ECOMMERCE_LOCK: Mutex<()> = Mutex::new(());
 /// tiny_polyglot_repo tests share one `.rgctl/` artifact directory.
 static TINY_REPO_LOCK: Mutex<()> = Mutex::new(());
 
-fn rgctl_bin() -> String {
-    std::env::var("RGCTL_BIN").unwrap_or_else(|_| {
-        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        manifest
-            .join("target/debug/rgctl")
-            .to_string_lossy()
-            .into_owned()
-    })
+fn rgctl_bin() -> std::path::PathBuf {
+    std::env::var("RGCTL_BIN")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| rgctl())
 }
 
 fn rules_dir() -> std::path::PathBuf {
@@ -33,7 +32,6 @@ fn kantra_rules_indexed_in_graph_gql() {
         .args([
             "discover",
             ".",
-            "--no-daemon",
             "-l",
             "go",
             "--with-kantra",
@@ -49,7 +47,6 @@ fn kantra_rules_indexed_in_graph_gql() {
     );
     let gql = Command::new(rgctl_bin())
         .args([
-            "--no-daemon",
             "-f",
             "json",
             "gql",
@@ -82,7 +79,6 @@ fn kantra_embedded_discover_writes_findings_json() {
         .args([
             "discover",
             ".",
-            "--no-daemon",
             "--languages",
             "java",
             "--with-kantra",
@@ -120,7 +116,6 @@ fn kantra_rules_and_catalog_mutually_exclusive() {
         .args([
             "discover",
             ".",
-            "--no-daemon",
             "--with-kantra",
             "--kantra-rules",
             rules.to_str().unwrap(),
@@ -147,7 +142,6 @@ fn kantra_discover_writes_findings_json() {
         .args([
             "discover",
             ".",
-            "--no-daemon",
             "--languages",
             "java",
             "--with-kantra",
@@ -198,7 +192,6 @@ fn kantra_markdown_imports_not_matched_by_go_referenced() {
         .args([
             "discover",
             ".",
-            "--no-daemon",
             "-l",
             "markdown,go",
             "--with-kantra",
@@ -235,7 +228,6 @@ fn kantra_rule_target_property_gql() {
         .args([
             "discover",
             ".",
-            "--no-daemon",
             "-l",
             "go",
             "--with-kantra",
@@ -251,7 +243,6 @@ fn kantra_rule_target_property_gql() {
     );
     let gql = Command::new(rgctl_bin())
         .args([
-            "--no-daemon",
             "-f",
             "json",
             "gql",
@@ -285,7 +276,6 @@ fn kantra_violates_edges_materialized_in_graph() {
         .args([
             "discover",
             ".",
-            "--no-daemon",
             "--languages",
             "java",
             "--with-kantra",
@@ -302,7 +292,6 @@ fn kantra_violates_edges_materialized_in_graph() {
     );
     let gql = Command::new(rgctl_bin())
         .args([
-            "--no-daemon",
             "-f",
             "json",
             "gql",
@@ -333,7 +322,6 @@ fn kantra_findings_include_enrichment() {
         .args([
             "discover",
             ".",
-            "--no-daemon",
             "--languages",
             "java",
             "--with-kantra",
@@ -369,7 +357,6 @@ fn kantra_file_cache_records_hits_on_second_discover() {
     let args = [
         "discover",
         ".",
-        "--no-daemon",
         "-l",
         "java,rust",
         "--with-kantra",

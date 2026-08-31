@@ -5,16 +5,15 @@
 //!   MATCH (a)-[:IMPLEMENTS]->(b) WHERE a.name = 'CustomUserDetailsService' RETURN a,b
 //!   MATCH (a:Class)-[:EXTENDS]->(b) WHERE a.name = 'ResourceNotFoundException' RETURN a,b
 
+mod rgctl_harness;
+
+use rgctl_harness::rgctl;
 use std::process::Command;
 
-fn rgctl_bin() -> String {
-    std::env::var("RGCTL_BIN").unwrap_or_else(|_| {
-        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
-        manifest
-            .join("target/debug/rgctl")
-            .to_string_lossy()
-            .into_owned()
-    })
+fn rgctl_bin() -> std::path::PathBuf {
+    std::env::var("RGCTL_BIN")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|_| rgctl())
 }
 
 fn discover(repo: &std::path::Path) {
@@ -22,7 +21,6 @@ fn discover(repo: &std::path::Path) {
         .args([
             "discover",
             ".",
-            "--no-daemon",
             "-q",
             "--languages",
             "java",
@@ -39,7 +37,7 @@ fn discover(repo: &std::path::Path) {
 
 fn gql(repo: &std::path::Path, query: &str) -> serde_json::Value {
     let out = Command::new(rgctl_bin())
-        .args(["-r", &repo.to_string_lossy(), "--no-daemon", "-f", "json", "gql", query])
+        .args(["-r", &repo.to_string_lossy(), "-f", "json", "gql", query])
         .output()
         .expect("gql");
     assert!(

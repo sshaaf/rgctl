@@ -4,11 +4,11 @@ Short answers for common first-hour questions. Commands → [User Guide](user-gu
 
 ### Where are `.rgctl/` artifacts stored?
 
-**Default (background daemon):** `~/.rgctl/cache/{reponame}/.rgctl/` — not in your source tree. **CI / in-repo:** `rgctl --no-daemon discover .` writes `{repo}/.rgctl/`. See [Installation — Daemon vs no-daemon](installation.md#daemon-vs-no-daemon).
+**Default:** `{repo}/.rgctl/` next to the source tree. Legacy background-daemon caches under `~/.rgctl/cache/{reponame}/` can be copied with `rgctl migrate-cache`. See [Installation — Migrating from daemon cache](installation.md#migrating-from-daemon-cache).
 
 ### I ran `discover` but queried the wrong repo
 
-`rgctl -r PATH discover .` indexes **shell cwd**, not `PATH`. Use `cd repo && rgctl discover .` or `rgctl -r PATH discover` (no trailing `.`).
+`rgctl -r PATH discover .` indexes **`PATH`** (`.` is resolved under `-r`), not shell cwd. Use `cd repo && rgctl discover .` when you mean cwd, or `rgctl -r PATH discover` without `.`.
 
 ### Discover vs semantic index?
 

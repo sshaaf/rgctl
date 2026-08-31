@@ -14,9 +14,6 @@ pub struct GqlArgs {
 
 pub fn run(ctx: &CliContext, args: GqlArgs) -> Result<()> {
     if ctx.format == OutputFormat::Json {
-        if super::daemon::route_gql(ctx, &args)? {
-            return Ok(());
-        }
         let mut session = Session::new(&ctx.repo);
         if !session.graph_ready() {
             anyhow::bail!(

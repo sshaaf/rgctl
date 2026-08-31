@@ -1,4 +1,4 @@
-//! Tier A/B integration tests for `--no-daemon` (artifacts in source tree).
+//! Integration tests for in-repo `.rgctl/` artifacts.
 //!
 //! Tier A runs on `tiny_polyglot_repo` in CI.
 //! Tier B (`#[ignore]`) runs cold discover + gql on `example/linux` when present.
@@ -57,16 +57,14 @@ fn discover_dot_from_repo_cwd_indexes_that_repo() {
     assert_rgctl_snapshot(&repo);
 }
 
-/// Regression: `-r OTHER discover .` from a different cwd indexes cwd, not `-r`.
+/// Regression: `-r REPO discover .` from a different cwd indexes `-r`, not shell cwd.
 #[test]
-fn discover_dot_ignores_dash_r_when_cwd_differs() {
+fn discover_dot_uses_dash_r_when_cwd_differs() {
     let (_tmp, repo) = materialize_fixture();
     let outer = tempfile::tempdir().unwrap();
     let out = Command::new(rgctl())
         .current_dir(outer.path())
-        .env("RGCTL_NO_DAEMON", "1")
         .args([
-            "--no-daemon",
             "-r",
             repo.to_str().unwrap(),
             "discover",
@@ -74,12 +72,9 @@ fn discover_dot_ignores_dash_r_when_cwd_differs() {
         ])
         .output()
         .unwrap();
-    assert_ok(&out, "discover from outer cwd");
-    assert!(
-        outer.path().join(".rgctl/graph.snapshot.bin").is_file(),
-        "discover . should index cwd (outer temp), not -r target"
-    );
-    assert_no_rgctl_under(&repo);
+    assert_ok(&out, "discover from outer cwd with -r");
+    assert_rgctl_snapshot(&repo);
+    assert_no_rgctl_under(outer.path());
 }
 
 #[test]
@@ -88,9 +83,7 @@ fn discover_absolute_path_works_from_any_cwd() {
     let outer = tempfile::tempdir().unwrap();
     let out = Command::new(rgctl())
         .current_dir(outer.path())
-        .env("RGCTL_NO_DAEMON", "1")
         .args([
-            "--no-daemon",
             "discover",
             repo.to_str().unwrap(),
         ])

@@ -40,7 +40,7 @@ End-to-end guide for installing rgctl, indexing an in-tree example, and querying
 
 ## 1. Installation
 
-> **Standalone guide:** [Installation](installation.md) covers prerequisites, all operating modes (CLI / HTTP / MCP), daemon vs no-daemon, agent skill setup, upgrading, and troubleshooting.
+> **Standalone guide:** [Installation](installation.md) covers prerequisites, CLI and HTTP modes, agent skill setup, upgrading, and troubleshooting.
 
 ### Option A — GitHub release (recommended)
 
@@ -212,14 +212,7 @@ All commands below assume `REPO` points at `ecommerce-java`, or that you run fro
 
 ## 4. Index with `discover`
 
-`discover` scans source files, builds the knowledge graph, runs analytics (complexity, communities, centrality, blast-radius scoring), and writes artifacts under **`.rgctl/`**.
-
-**Where that directory lives** depends on daemon mode (see [Installation — Daemon vs no-daemon](installation.md#daemon-vs-no-daemon)):
-
-| Mode | Artifact path |
-|------|----------------|
-| **Default (background daemon)** | `~/.rgctl/cache/{reponame}/.rgctl/` — source tree is not written |
-| **`--no-daemon`** | `{repo}/.rgctl/` — use for CI, cold profiles, or checked-in fixtures |
+`discover` scans source files, builds the knowledge graph, runs analytics (complexity, communities, centrality, blast-radius scoring), and writes artifacts under **`{repo}/.rgctl/`**.
 
 **Choosing the discover target** (common pitfall):
 
@@ -431,10 +424,10 @@ rgctl discover . --write-json-graph
 
 ### What `discover` creates
 
-After a successful run, the layout below appears under the **artifact root** (daemon cache or in-repo `.rgctl/`). Examples use the in-repo path for readability:
+After a successful run, the layout below appears under **`{repo}/.rgctl/`**:
 
 ```
-{artifact-root}/.rgctl/          # e.g. ~/.rgctl/cache/ecommerce-java/.rgctl/  or  ecommerce-java/.rgctl/
+{repo}/.rgctl/
 ├── graph.snapshot.bin          # Columnar mmap graph (primary cache for queries)
 ├── content_store.bin           # Large markdown bodies / files (body_ref / blob_ref; Obsidian + doc semantic)
 ├── blast_engine.snapshot.bin   # Pre-built blast-radius engine
@@ -455,15 +448,13 @@ After a successful run, the layout below appears under the **artifact root** (da
 
 Query commands read `graph.snapshot.bin` when present. You do **not** need `graph.db` for normal CLI use.
 
-Point every subsequent command at the **same repo root** you indexed (daemon routing resolves the cache automatically):
+Point every subsequent command at the **same repo root** you indexed:
 
 ```bash
 export REPO="$PWD"   # after cd into the repo
 # or pass -r on each command:
 rgctl -r "$REPO" gql 'MATCH (n:Function) RETURN n LIMIT 5'
 ```
-
-For CI or scripts that need artifacts in the tree: `rgctl --no-daemon discover .` then `-r "$REPO"` as usual.
 
 ---
 
@@ -474,9 +465,6 @@ These apply to **every** subcommand:
 | Flag | Purpose |
 |------|---------|
 | `-r, --repo PATH` | Repository root (default: current directory) |
-| `--no-daemon` | Skip background daemon; use in-process execution and `{repo}/.rgctl/` artifacts |
-| `--daemon-home PATH` | Override daemon state directory (default `~/.rgctl/`; env `RGCTL_HOME`) |
-| `--fail-if-no-daemon` | Exit if the background daemon cannot be started or reached |
 | `-d, --db PATH` | Legacy graph JSON path (default: `.rgctl/graph.db`) |
 | `-f, --format FORMAT` | Output: `text`, `json`, `graphviz`, `mermaid` |
 | `-o, --output FILE` | Write command output to a file instead of stdout |
@@ -1155,7 +1143,7 @@ The fixture also ships a shared policy at [`rgctl-tests/rgctl-policy.json`](../r
 
 ## 15. HTTP server (`serve`) — optional
 
-`serve` binds HTTP immediately and, unless `--no-pipeline`, starts the same staged full pipeline as `discover --full`. The dashboard at `/` shows a preparing page until the bundle exists. Prefer CLI `-f json` for agents and CI; use [`serve --mode mcp`](guides/mcp-server.md) in the IDE for the seven workflow tools.
+`serve` binds HTTP immediately and, unless `--no-pipeline`, starts the same staged full pipeline as `discover --full`. The dashboard at `/` shows a preparing page until the bundle exists. Prefer CLI `-f json` for agents and CI.
 
 ```bash
 # Starts indexing if needed; preparing page until dashboard exists
@@ -1181,29 +1169,6 @@ curl -sS -X POST http://127.0.0.1:8080/api/query \
 ```
 
 Full reference: [http-api.md](http-api.md). CoolStore walkthrough: [HTTP Server and Dashboard](guides/http-server-and-dashboard.md).
-
-### MCP stdio (`--mode mcp`)
-
-No HTTP bind. The host (Cursor, Claude Code) speaks JSON-RPC on stdin/stdout. Tools: `rgctl_status`, `rgctl_query`, `rgctl_search`, `rgctl_impact`, `rgctl_metrics`, `rgctl_cpg`, `rgctl_check`. Query/search default `limit` 20. Unready artifacts return pipeline status JSON as the tool result.
-
-```bash
-rgctl -r "$REPO" serve --mode mcp
-```
-
-Walkthrough (Cursor / Claude Code config): [MCP Server](guides/mcp-server.md).
-
-### Background HTTP+MCP daemon
-
-Shared daemon for catalog, per-repo HTTP API, and `/mcp` (default cache under `~/.rgctl/`):
-
-```bash
-rgctl daemon start --host 127.0.0.1 --port 8080
-rgctl -r "$REPO" discover
-# Terminal 2 — CLI routes through daemon unless --no-daemon
-rgctl -r "$REPO" -f json blast-radius 'CartService::clearCart'
-```
-
-Foreground start: `rgctl serve --daemon`. Opt out: `--no-daemon` (in-process, `{repo}/.rgctl/`). See [HTTP Server and Dashboard](guides/http-server-and-dashboard.md) and [installation.md](installation.md#daemon-vs-no-daemon).
 
 ---
 
@@ -1271,7 +1236,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgctl/migration_p
 | `check` | CI policy gateway |
 | `install` | Copy the bundled agent skill into `.claude/skills/` and `.cursor/skills/` |
 | `semantic` | Opt-in semantic index + query (`--scope community`, `docs`, `all`) |
-| `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--mode mcp` stdio; `--no-pipeline` fail-fast; `--daemon` background HTTP+MCP daemon bootstrap |
+| `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--no-pipeline` fail-fast |
 
 ### `discover` flags
 
@@ -1312,10 +1277,6 @@ If you ran `rgctl -r /path/to/repo discover .` from another directory, artifacts
 cd /path/to/repo && rgctl discover .
 # or: rgctl -r /path/to/repo discover    # no trailing .
 ```
-
-### `empty control message` / daemon worker died
-
-Usually the daemon worker crashed (OOM, panic) or indexed an unintended huge tree. Check you indexed the repo you meant (see above). Retry with `--no-daemon -v` for a direct error, or inspect `~/.rgctl/` logs if present.
 
 ### `Graph not found` / `run discover first`
 
@@ -1362,13 +1323,13 @@ On **very large repos** (500k+ graph nodes), discover automatically:
 - Skips per-function rows in `function_metrics.json` (community/metagraph view instead)
 - Uses on-demand blast reachability for flat call graphs (no eager multi-hundred-GB bitsets)
 
-Profile a cold run (use `--no-daemon` so artifacts land in-repo for `rm -rf`):
+Profile a cold run (delete in-repo artifacts first):
 
 ```bash
-rgctl --no-daemon discover . -v   # from repo root
-# or to reset in-repo artifacts:
 rm -rf .rgctl
-RUST_LOG=info,profile=info rgctl --no-daemon discover . -v 2>&1 | grep '\[profile\]'
+rgctl discover . -v   # from repo root
+# or:
+RUST_LOG=info,profile=info rgctl discover . -v 2>&1 | grep '\[profile\]'
 ```
 
 ### Further reading

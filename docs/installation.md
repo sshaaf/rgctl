@@ -13,13 +13,12 @@ Everything you need to install rgctl (`rgctl`), choose the right operating mode,
 3. [Add to PATH](#add-to-path)
 4. [Verify the installation](#verify-the-installation)
 5. [Choose your operating mode](#choose-your-operating-mode)
-6. [Daemon vs no-daemon](#daemon-vs-no-daemon)
-7. [Install the agent skill](#install-the-agent-skill)
-8. [Optional: semantic search setup](#optional-semantic-search-setup)
-9. [Upgrading](#upgrading)
-10. [Uninstalling](#uninstalling)
-11. [Troubleshooting](#troubleshooting)
-12. [Next steps](#next-steps)
+6. [Install the agent skill](#install-the-agent-skill)
+7. [Optional: semantic search setup](#optional-semantic-search-setup)
+8. [Upgrading](#upgrading)
+9. [Uninstalling](#uninstalling)
+10. [Troubleshooting](#troubleshooting)
+11. [Next steps](#next-steps)
 
 ---
 
@@ -159,11 +158,11 @@ If both commands produce output without errors, the installation is working.
 
 ## Choose your operating mode
 
-rgctl supports four operating modes. Pick the one that fits your workflow:
+rgctl supports two operating modes:
 
 ### CLI (one-shot commands)
 
-The default. Run `discover` once, then issue queries as needed. Each command is a separate process.
+The default. Run `discover` once (writes `{repo}/.rgctl/`), then issue queries as separate processes.
 
 ```bash
 rgctl discover .
@@ -171,11 +170,11 @@ rgctl -f json gql 'MATCH (n:Function) RETURN n LIMIT 10'
 rgctl -f json blast-radius MyFunction
 ```
 
-**Best for:** CI/CD pipelines, shell scripts, one-off queries, automation.
+**Best for:** CI/CD pipelines, shell scripts, IDE agents (spawn `rgctl -f json`), automation.
 
 ### HTTP server
 
-A persistent HTTP server with an optional browser dashboard. Keeps the graph in memory for fast repeated queries.
+A foreground HTTP server with an optional browser dashboard. Keeps the graph in memory for fast repeated queries.
 
 ```bash
 rgctl serve --open              # starts on http://127.0.0.1:8080, opens browser
@@ -197,76 +196,26 @@ curl -s http://127.0.0.1:8080/api/query \
 
 See the [HTTP Server and Dashboard guide](guides/http-server-and-dashboard.md) and [HTTP API reference](http-api.md).
 
-### MCP server (IDE integration)
-
-A stdio-based MCP (Model Context Protocol) server for Cursor, Claude Code, and other MCP hosts. No HTTP -- the host spawns `rgctl` as a subprocess.
-
-```bash
-rgctl serve --mode mcp
-```
-
-The MCP server provides **seven tools**: `rgctl_query`, `rgctl_search`, `rgctl_impact`, `rgctl_metrics`, `rgctl_cpg`, `rgctl_check`, `rgctl_status`. It auto-runs the full pipeline on start (basic graph, CFG, dashboard, semantic index) unless `--no-pipeline` is passed.
-
-**Configure Cursor** (`.cursor/mcp.json`):
-
-```json
-{
-  "mcpServers": {
-    "rgctl": {
-      "command": "rgctl",
-      "args": ["-r", "/absolute/path/to/repo", "serve", "--mode", "mcp"]
-    }
-  }
-}
-```
-
-**Configure Claude Code** (`.claude/settings.json`):
-
-```json
-{
-  "mcpServers": {
-    "rgctl": {
-      "command": "rgctl",
-      "args": ["-r", "/absolute/path/to/repo", "serve", "--mode", "mcp"]
-    }
-  }
-}
-```
-
-**Best for:** IDE-integrated workflows where the agent queries the graph without leaving the editor.
-
-See the [MCP Server guide](guides/mcp-server.md) for the full tool catalog and configuration details.
-
 ### Mode comparison
 
-| | CLI (default daemon) | `--no-daemon` | HTTP server | MCP server |
-|---|---|---|---|---|
-| **Transport** | Process per command (via daemon) | Process per command (in-process) | HTTP `127.0.0.1:8080` | stdio JSON-RPC |
-| **Artifact location** | `~/.rgctl/cache/` | `{repo}/.rgctl/` | Uses daemon cache or in-repo | Uses daemon cache or in-repo |
-| **Dashboard** | No | No | Yes (optional) | No |
-| **Auto pipeline** | No (manual `discover`) | No | Yes (unless `--no-pipeline`) | Yes (unless `--no-pipeline`) |
-| **Use case** | Interactive dev, IDE agents | CI, cold profiles, reproducible builds | Team, repeated queries, visual | IDE agents (Cursor, Claude Code) |
-| **Output** | stdout (text or `-f json`) | stdout | HTTP JSON | JSON-RPC tool results |
+| | CLI | HTTP server |
+|---|---|---|
+| **Transport** | Process per command | HTTP `127.0.0.1:8080` |
+| **Artifact location** | `{repo}/.rgctl/` | Same (reads in-repo artifacts) |
+| **Dashboard** | No | Yes (optional) |
+| **Auto pipeline** | No (manual `discover`) | Yes (unless `--no-pipeline`) |
+| **Use case** | Agents, CI, scripts | Team, repeated queries, visual |
+| **Output** | stdout (text or `-f json`) | HTTP JSON |
 
----
+### Migrating from daemon cache
 
-## Daemon vs no-daemon
-
-By default, `rgctl` uses a background daemon. Indexed artifacts are cached under `~/.rgctl/` (override with `--daemon-home` or `RGCTL_HOME`).
-
-Use `--no-daemon` to store artifacts in the repository itself at `{repo}/.rgctl/`:
+If you previously used the background daemon, artifacts may still be under `~/.rgctl/cache/{reponame}/.rgctl/`. Copy them into the repo:
 
 ```bash
-rgctl --no-daemon discover .
+cd /path/to/repo
+rgctl migrate-cache              # uses repo directory name as cache key
+rgctl migrate-cache --name coolstore --force   # explicit cache name
 ```
-
-| | Default (daemon) | `--no-daemon` |
-|---|---|---|
-| **Artifact location** | `~/.rgctl/cache/{reponame}/` | `{repo}/.rgctl/` |
-| **Shared across sessions** | Yes | No (repo-local) |
-| **Best for** | Interactive development | CI, containers, cold profiles, reproducible builds |
-
-Add `.rgctl/` to your `.gitignore` when using `--no-daemon`.
 
 ---
 
@@ -360,9 +309,9 @@ rm ~/.local/bin/rgctl          # or wherever you placed it
 2. Remove cached artifacts (optional):
 
 ```bash
-rm -rf ~/.rgctl            # daemon cache
-# Per-repo artifacts (if --no-daemon was used):
 rm -rf /path/to/repo/.rgctl
+# Legacy daemon cache (if present):
+rm -rf ~/.rgctl/cache
 ```
 
 3. Remove agent skill files (optional):
@@ -387,7 +336,7 @@ which rgctl          # macOS / Linux
 where.exe rgctl      # Windows
 ```
 
-If empty, revisit [Add to PATH](#add-to-path). For GUI apps (Cursor, VS Code), note that they may not inherit your shell PATH -- use absolute paths in MCP config.
+If empty, revisit [Add to PATH](#add-to-path). For GUI apps (Cursor, VS Code), note that they may not inherit your shell PATH — use absolute paths in agent configs.
 
 ### `discover` fails or produces no output
 
@@ -396,15 +345,10 @@ If empty, revisit [Add to PATH](#add-to-path). For GUI apps (Cursor, VS Code), n
 - Check `rgctl --version` works first.
 - Try verbose mode: `rgctl discover . -v`
 - For detailed timing: `RUST_LOG=info rgctl discover . -v`
-- If the daemon fails with `empty control message`, retry with `--no-daemon -v` for a direct error.
 
 ### Queries fail with "no graph found"
 
-Run `discover` first on the repo you mean to query. With the default daemon, artifacts live under `~/.rgctl/cache/` — you do not need a `.rgctl/` folder in the source tree. Use `--no-daemon` if you expect in-repo artifacts.
-
-### MCP tools return pipeline status instead of results
-
-The pipeline is still running. Wait for it to complete. Check status with the `rgctl_status` tool or look at stderr output.
+Run `discover` first on the repo you mean to query. Artifacts should appear at `{repo}/.rgctl/`. If you still have a legacy daemon cache, run `rgctl migrate-cache`.
 
 ### Slow `discover` on large repositories
 

@@ -29,7 +29,7 @@ This guide uses the **CoolStore** — a Java EE e-commerce application. It lives
 
 **Pitfall:** `rgctl -r example/coolstore discover` does **not** index `example/coolstore`. The positional `.` becomes the session root (usually your **shell cwd**), so `-r` is ignored. That can scan the wrong tree and fail on large parent directories.
 
-**Artifacts (default daemon):** With the background daemon (default), snapshots live under `~/.rgctl/cache/<reponame>/.rgctl/`, not in the source tree. Use `rgctl --no-daemon discover .` when you want artifacts under `{repo}/.rgctl/` instead. After daemon discover, pass `-r` to the cache path from discover JSON, or rely on daemon routing for `-f json` gql / blast-radius / metrics / check.
+**Artifacts:** `discover` writes snapshots under **`{repo}/.rgctl/`**. Add `.rgctl/` to `.gitignore`. Legacy daemon caches under `~/.rgctl/cache/` can be copied with `rgctl migrate-cache`.
 
 ## Step-by-Step
 
@@ -68,8 +68,7 @@ This prints a plan, finishes a basic (queryable) index, then runs CFG + dashboar
 
 - rgctl scanned every supported source file (Java, JavaScript, and others) under the repository root.
 - It detected 186 circular dependency cycles in the codebase.
-- With the default daemon, the graph snapshot was written under `~/.rgctl/cache/<reponame>/.rgctl/graph.snapshot.bin` (discover JSON includes the exact `cache` path).
-- With `--no-daemon`, the same files appear under `example/coolstore/.rgctl/`.
+- The graph snapshot was written to `example/coolstore/.rgctl/graph.snapshot.bin`.
 - The entire process completed in under one second.
 
 ### 2. Discovery with Deep Analysis
@@ -100,7 +99,7 @@ Skipped files due to errors failed=1
 
 - In addition to the basic graph, rgctl built a CFG (control-flow graph), PDG (program dependence graph), and dominator tree for each of the 6,585 parseable functions.
 - It indexed 3,299 field-write sites, enabling the `cpg mutations` command.
-- The analysis archive was written to `.rgctl/analysis/cfg_pdg.archive.bin` under the artifact root (daemon cache or source tree, depending on mode).
+- The analysis archive was written to `.rgctl/analysis/cfg_pdg.archive.bin`.
 - 941 functions were skipped because they were in unsupported languages or had parse errors.
 
 ### 3. Full Analysis with Dashboard and Migration
@@ -144,7 +143,7 @@ rgctl -r example/coolstore discover --exclude bower_components
 
 ### 6. Inspecting Artifacts
 
-After discovery, artifacts live under the **artifact root** (daemon cache entry or `{repo}/.rgctl/` with `--no-daemon`):
+After discovery, artifacts live under **`{repo}/.rgctl/`**:
 
 | Path | Content |
 |------|---------|
@@ -152,8 +151,6 @@ After discovery, artifacts live under the **artifact root** (daemon cache entry 
 | `.rgctl/analysis/cfg_pdg.archive.bin` | CFG/PDG/dominance archive (with `--with-cfg`) |
 | `.rgctl/dashboard/manifest.json` | Dashboard metadata (with `--with-dashboard`) |
 | `.rgctl/migration_plan.json` | Migration roadmap (with `--export-migration-hints`) |
-
-Use `rgctl -f json discover …` and read the `cache` field, or `ls ~/.rgctl/cache/`, to locate the daemon copy.
 
 ## Discover Options Reference
 
@@ -171,7 +168,6 @@ Use `rgctl -f json discover …` and read the `cache` field, or `ls ~/.rgctl/cac
 | `-l, --languages` | Restrict to specific languages |
 | `-e, --exclude` | Exclude directories by name |
 | `-v, --verbose` | Debug logging with stage profiling |
-| `--no-daemon` | Write artifacts under the source tree instead of daemon cache |
 | `--full` | Staged pipeline: basic → CFG/dashboard/harmonic → semantic index |
 
 ## Benefits
@@ -187,4 +183,3 @@ Use `rgctl -f json discover …` and read the `cache` field, or `ls ~/.rgctl/cac
 - [Graph Metrics](graph-metrics.md) — run PageRank, betweenness, and community detection
 - [Migration Planning](migration-planning.md) — use the `--export-migration-hints` output
 - [HTTP Server and Dashboard](http-server-and-dashboard.md) — serve the `--with-dashboard` output in a browser
-- [MCP Server](mcp-server.md) — `serve --mode mcp` auto-runs the full pipeline in an IDE
