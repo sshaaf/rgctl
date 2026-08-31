@@ -112,6 +112,37 @@ impl WhenClause {
         out
     }
 
+    /// Regex patterns used by supported evaluators (for compile-time validation).
+    pub fn regex_patterns(&self) -> Vec<&str> {
+        let mut out = Vec::new();
+        self.collect_regex_patterns(&mut out);
+        out
+    }
+
+    fn collect_regex_patterns<'a>(&'a self, out: &mut Vec<&'a str>) {
+        match self {
+            WhenClause::FileContent { pattern, .. } => out.push(pattern),
+            WhenClause::GoReferenced { pattern } => out.push(pattern),
+            WhenClause::JavaReferenced {
+                pattern,
+                annotated_pattern,
+                ..
+            } => {
+                out.push(pattern);
+                if let Some(p) = annotated_pattern {
+                    out.push(p);
+                }
+            }
+            WhenClause::And(items) | WhenClause::Or(items) => {
+                for item in items {
+                    item.collect_regex_patterns(out);
+                }
+            }
+            WhenClause::Not(inner) => inner.collect_regex_patterns(out),
+            WhenClause::File { .. } | WhenClause::HasTags { .. } | WhenClause::Unsupported { .. } => {}
+        }
+    }
+
     fn collect_providers<'a>(&'a self, out: &mut Vec<&'a str>) {
         match self {
             WhenClause::FileContent { .. } => out.push("builtin.filecontent"),

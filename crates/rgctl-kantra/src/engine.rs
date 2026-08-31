@@ -161,16 +161,31 @@ impl KantraEngine {
             }
 
             let rule_start = Instant::now();
-            let mut violations = if is_composite(&item.clause) {
+            let mut violations = match if is_composite(&item.clause) {
                 let compose_start = Instant::now();
                 let mut leaf_sites = Vec::new();
-                collect_leaf_sites(&item.clause, &mut leaf_sites, rule, ctx)?;
+                if let Err(e) = collect_leaf_sites(&item.clause, &mut leaf_sites, rule, ctx) {
+                    findings.skipped_rules.push(SkippedRule {
+                        rule_id: rule.rule_id.clone(),
+                        reason: e.to_string(),
+                    });
+                    continue;
+                }
                 let mut idx = 0;
                 let out = eval_compose(&item.clause, &rule.rule_id, &leaf_sites, &mut idx);
                 timings.compose_secs += compose_start.elapsed().as_secs_f64();
-                out
+                Ok(out)
             } else {
-                eval_leaf(&item.clause, rule, ctx)?
+                eval_leaf(&item.clause, rule, ctx)
+            } {
+                Ok(v) => v,
+                Err(e) => {
+                    findings.skipped_rules.push(SkippedRule {
+                        rule_id: rule.rule_id.clone(),
+                        reason: e.to_string(),
+                    });
+                    continue;
+                }
             };
             enrich_violations(&mut violations, rule);
             let elapsed = rule_start.elapsed().as_secs_f64();

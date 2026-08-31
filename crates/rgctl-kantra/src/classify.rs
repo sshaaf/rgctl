@@ -1,6 +1,7 @@
 //! Classify Kantra rules by supported providers.
 
 use crate::schema::{KantraRule, RuleSupport, WhenClause};
+use regex::Regex;
 
 /// Classification result for one rule.
 #[derive(Debug, Clone)]
@@ -50,6 +51,10 @@ pub fn classify_rules(rules: &[KantraRule]) -> Vec<ClassifiedRule> {
                     Some(format!("unsupported: {}", unsupported.join(", "))),
                 )
             };
+            let (support, reason) = match invalid_regex_reason(&clause) {
+                Some(regex_err) => (RuleSupport::Unsupported, Some(regex_err)),
+                None => (support, reason),
+            };
             ClassifiedRule {
                 rule_index: i,
                 support,
@@ -75,6 +80,18 @@ fn is_supported_provider(provider: &str) -> bool {
             | "go.referenced"
             | "java.referenced"
     )
+}
+
+fn invalid_regex_reason(clause: &WhenClause) -> Option<String> {
+    for pattern in clause.regex_patterns() {
+        if pattern.is_empty() {
+            continue;
+        }
+        if let Err(e) = Regex::new(pattern) {
+            return Some(format!("invalid regex: {e}"));
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -115,5 +132,14 @@ mod tests {
     fn xml_unsupported() {
         let c = classify_rules(&[rule("builtin.xml:\n  xpath: //x\n")]);
         assert_eq!(c[0].support, RuleSupport::Unsupported);
+    }
+
+    #[test]
+    fn invalid_regex_unsupported() {
+        let c = classify_rules(&[rule(
+            "java.referenced:\n  pattern: '*EntityManager'\n  location: IMPORT\n",
+        )]);
+        assert_eq!(c[0].support, RuleSupport::Unsupported);
+        assert!(c[0].reason.as_ref().unwrap().contains("invalid regex"));
     }
 }

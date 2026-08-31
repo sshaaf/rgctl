@@ -8,6 +8,7 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 const MAGIC: &[u8; 4] = b"RBKC";
 const VERSION: u32 = 1;
@@ -85,35 +86,45 @@ fn main() {
     let out_path = out_dir.join("kantra_catalog.bin");
 
     let embedded_root = manifest_dir.join("assets/rulesets/stable/java");
+    let rulesets_root = manifest_dir.join("assets/rulesets");
     let fixture_root = manifest_dir
         .join("../../tests/fixtures/kantra-rules")
         .canonicalize()
         .unwrap_or_else(|_| manifest_dir.join("../../tests/fixtures/kantra-rules"));
 
-    let (source_label, source_roots) = if embedded_root.is_dir() {
+    let (source_label, source_roots, rulesets_rev) = if embedded_root.is_dir() {
         println!("cargo:rerun-if-changed={}", embedded_root.display());
         let dirs = collect_ruleset_dirs(&embedded_root);
         for dir in &dirs {
             println!("cargo:rerun-if-changed={}", dir.display());
         }
-        ("stable-java", dirs)
+        let rev = rulesets_git_sha(&rulesets_root);
+        if let Some(ref sha) = rev {
+            println!("cargo:rerun-if-changed={}", rulesets_root.join(".git").display());
+            write_rulesets_source(&out_dir, sha);
+        }
+        ("stable-java", dirs, rev)
     } else {
         println!(
             "cargo:warning=konveyor rulesets absent at {}; using fixture catalog",
             embedded_root.display()
         );
         println!("cargo:rerun-if-changed={}", fixture_root.display());
-        ("fixture", vec![fixture_root])
+        ("fixture", vec![fixture_root], None)
     };
 
     let mut rules = Vec::new();
     let mut seen_ids = HashSet::new();
     let mut names = Vec::new();
+    let mut descriptions = Vec::new();
 
     for root in &source_roots {
         match load_ruleset_dir(root, &mut seen_ids) {
             Ok((meta, mut batch)) => {
                 names.push(meta.name);
+                if let Some(desc) = meta.description {
+                    descriptions.push(desc);
+                }
                 rules.append(&mut batch);
             }
             Err(err) => {
@@ -122,11 +133,19 @@ fn main() {
         }
     }
 
-    let catalog_id = format!("{}@{:x}", source_label, catalog_hash(&rules));
+    let catalog_id = match rulesets_rev {
+        Some(sha) => format!("{source_label}@{sha}"),
+        None => format!("{}@{:x}", source_label, catalog_hash(&rules)),
+    };
     let name = if names.len() == 1 {
         names[0].clone()
     } else {
         format!("embedded-{source_label}")
+    };
+    let description = if descriptions.len() == 1 {
+        descriptions.pop()
+    } else {
+        None
     };
 
     let stored_rules: Vec<StoredRule> = rules
@@ -139,7 +158,7 @@ fn main() {
         version: VERSION,
         catalog_id,
         name,
-        description: None,
+        description,
         rules: stored_rules,
     };
 
@@ -152,6 +171,36 @@ fn main() {
         "cargo:rustc-env=RGCTL_KANTRA_CATALOG={}",
         out_path.display()
     );
+    println!(
+        "cargo:warning=kantra embedded catalog: {} rules ({})",
+        stored.rules.len(),
+        stored.catalog_id
+    );
+}
+
+fn write_rulesets_source(out_dir: &Path, sha: &str) {
+    let path = out_dir.join("kantra_rulesets_source.txt");
+    if let Ok(mut file) = fs::File::create(path) {
+        let _ = writeln!(file, "konveyor/rulesets@{sha}");
+    }
+}
+
+fn rulesets_git_sha(rulesets_root: &Path) -> Option<String> {
+    let output = Command::new("git")
+        .arg("-C")
+        .arg(rulesets_root)
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let sha = String::from_utf8(output.stdout).ok()?;
+    let sha = sha.trim();
+    if sha.is_empty() {
+        return None;
+    }
+    Some(sha.to_string())
 }
 
 fn catalog_hash(rules: &[BuildRule]) -> u64 {
@@ -207,14 +256,15 @@ fn load_ruleset_dir(
         for rule in &mut batch {
             merge_ruleset_labels(&meta.labels, rule);
             if !seen_ids.insert(rule.rule_id.clone()) {
-                return Err(format!(
-                    "duplicate ruleID {} in {}",
+                println!(
+                    "cargo:warning=duplicate ruleID {} in {}; keeping first occurrence",
                     rule.rule_id,
                     path.display()
-                ));
+                );
+                continue;
             }
+            rules.push(rule.clone());
         }
-        rules.extend(batch);
     }
     Ok((meta, rules))
 }
