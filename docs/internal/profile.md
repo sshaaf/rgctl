@@ -65,6 +65,7 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `kafka_cold_discover_within_baseline` | `example/kafka` | default | env `RGCTL_KAFKA_COLD_BASELINE_SECS` (default 600 s) |
 | `k8s_website_markdown_cold_discover_within_baseline` | `example/k8s-website` | `-l markdown` | **3 s** |
 | `ecommerce_java_inheritance_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | default | **0.31 s** wall; **0.008 s** `index_graph_build` |
+| `ecommerce_java_kantra_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | `--with-kantra --kantra-rules <fixture>` | env `RGCTL_ECOMMERCE_JAVA_KANTRA_*` (fixture catalog; fast CI path) |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`--no-daemon`, `-r <corpus>`, `discover . -v`).
 
@@ -114,12 +115,25 @@ rm -rf .rgctl
 | Line | Meaning |
 |------|---------|
 | `[profile] discover summary` | Wall time, `index_secs`, `post_index_secs`, peak RSS (`peak_rss_mb`, `ingest_peak_rss_mb`, `analysis_peak_rss_mb`), node/function counts |
-| `[profile] stage` | Per-stage wall seconds and `%` of discover wall (`index_extract`, `index_graph_build`, `centrality`, `cfg_total`, `save_dashboard`, …) |
+| `[profile] stage` | Per-stage wall seconds and `%` of discover wall (`index_extract`, `index_graph_build`, `centrality`, `cfg_total`, `save_dashboard`, `kantra_eval`, `kantra_index`, …) |
 | `[profile] centrality breakdown` | PageRank / betweenness / harmonic sub-times |
 | `[profile] save_dashboard stage` | Dashboard export substeps (e.g. `export_cfg_slice`) |
 | `[profile] cfg cpu stage` | CFG thread CPU sums (can exceed wall on parallel passes) |
 
 Harmonic runs only when `--with-harmonic` or **`discover --full`** (deep stage). Default linux discover skips harmonic and dashboard export.
+
+### Kantra stages (`--with-kantra`)
+
+| Stage | When | Notes |
+|-------|------|-------|
+| `kantra_load` | Eval | Catalog decode / engine setup |
+| `kantra_eval` | Eval | Total eval wall (includes sub-stages below) |
+| `kantra_filecontent` | Eval | `builtin.filecontent` / `builtin.file` |
+| `kantra_referenced` | Eval | `go.referenced` / `java.referenced` |
+| `kantra_compose` | Eval | `and` / `or` / `not` composition |
+| `kantra_index` | After analysis persist | Rewrites `graph.snapshot.bin` with `KantraRule` nodes (runs after all cold mmap use) |
+
+Cold gate `ecommerce_java_kantra_cold_discover_within_baseline` uses `--kantra-rules tests/fixtures/kantra-rules` (small fixture, stable timing). Embedded-catalog discover on the same corpus is heavier (~2.6k rules); profile manually when bumping the rulesets submodule pin.
 
 Algorithm detail (sampled betweenness, HyperBall, adaptive gating): [analysis-architecture.md](../analysis-architecture.md), [harmonic-centrality.md](../harmonic-centrality.md), [graph-metrics-design.md](../design/graph-metrics-design.md).
 

@@ -63,6 +63,11 @@ rgctl -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 20'
 | CPG export | `rgctl cpg export --format graphson --output cpg.json [--path-contains src/]` |
 | Migration plan | `rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints` then read `.rgctl/migration_plan.json` (or dashboard copy) |
 | CI gate on changes | `rgctl -f json check --policy-file policy.json` (exit 1 = violations) |
+| Kantra migration rules | `rgctl discover . --with-kantra` (embedded Konveyor catalog; `.rgctl/kantra_findings.json`) |
+| Kantra target filter | `rgctl discover . --with-kantra --kantra-target quarkus` |
+| Kantra rules inventory (GQL) | `rgctl -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 20"` (after `--with-kantra` index) |
+| Kantra rules by Konveyor target | `rgctl -f json gql` on `:KantraRule` with `` r.`konveyor.io/target` `` property filter — [user guide](docs/user-guide.md#kantra-migration-rules---with-kantra) |
+| Kantra fixture override (CI) | `rgctl discover . --with-kantra --kantra-rules tests/fixtures/kantra-rules` |
 
 ---
 

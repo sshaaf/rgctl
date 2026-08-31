@@ -2,6 +2,8 @@
 
 Feasibility analysis for evaluating [Konveyor Kantra](https://github.com/konveyor/kantra) rules natively against the rgctl graph, without requiring an external LSP or container runtime.
 
+**Implementation status (Phase 1):** embedded Konveyor catalog, `--with-kantra` discover integration, rules graph (`KantraRule` / `KantraRuleset` nodes), and `.rgctl/kantra_findings.json`. See [KANTRA_ARCHITECTURE_OPTIONS.md](../../KANTRA_ARCHITECTURE_OPTIONS.md) and the [user guide](../user-guide.md#kantra-migration-rules---with-kantra).
+
 ---
 
 ## 1. Context

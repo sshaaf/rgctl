@@ -129,8 +129,10 @@ if (doc.schema_version !== 2) {
 ## 4. `discover`
 
 ```bash
-rgctl -f json discover PATH [-l LANGS] [-e PATTERNS] [--with-cfg] [--with-taint] [--full]
+rgctl -f json discover PATH [-l LANGS] [-e PATTERNS] [--with-cfg] [--with-taint] [--with-kantra] [--kantra-target NAME] [--full]
 ```
+
+Kantra flags (`--with-kantra`, `--kantra-rules`, `--kantra-catalog`, `--kantra-target`, `--kantra-index-only`) do not change stdout JSON shape; they add `.rgctl/kantra_findings.json` and `KantraRule` nodes in `graph.snapshot.bin`. See [`kantra_findings.json`](#kantra_findingsjson).
 
 ### TypeScript shape
 
@@ -630,6 +632,7 @@ These files are written under `.rgctl/` (and copied into `.rgctl/dashboard/` for
 | `dashboard/taint/{uuid}.json` | 1 | Per-function taint flows |
 | `dashboard/slice/{uuid}.json` | 1 | Per-function source + PDG bundle |
 | `dashboard/cfg/{uuid}.json` | 1 | Per-function CFG preview |
+| `kantra_findings.json` | 1 | Kantra violations + skipped rules (`discover --with-kantra`) |
 | `file_hashes.json` | — | Incremental discover state |
 | `content_store.bin` | — | Blake3-keyed blob store for truncated markdown bodies / large files (`body_ref`, `blob_ref`) |
 
@@ -699,6 +702,50 @@ These files are written under `.rgctl/` (and copied into `.rgctl/dashboard/` for
   "path_statements": ["...", "...", "..."]
 }
 ```
+
+### `kantra_findings.json`
+
+Written by `discover --with-kantra` (eval stage). Rule nodes are indexed separately into `graph.snapshot.bin` (`KantraRuleset`, `KantraRule`); query with GQL. `VIOLATES` edges are not emitted in Phase 1.
+
+```json
+{
+  "schema_version": 1,
+  "command": "kantra_findings",
+  "catalog_id": "stable-java@022bbd34b34eca53d04b6cb2b97b27e47fef479b",
+  "ruleset": "embedded-stable-java",
+  "target_filter": "quarkus",
+  "evaluated_rules": 2656,
+  "violations": [
+    {
+      "rule_id": "springboot-00001",
+      "category": "mandatory",
+      "file": "src/main/java/com/example/Foo.java",
+      "line": 12,
+      "message": "…",
+      "matched_by": "java.referenced"
+    }
+  ],
+  "skipped_rules": [
+    {
+      "rule_id": "some-xml-rule",
+      "reason": "unsupported: builtin.xml"
+    }
+  ]
+}
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `schema_version` | `1` | Artifact version |
+| `command` | `"kantra_findings"` | Discriminator |
+| `catalog_id` | string? | Embedded: `stable-java@<rulesets-git-sha>`; fixture: `fixture@<hash>`; override paths use `dir@…` / tree id |
+| `ruleset` | string | Display name from catalog |
+| `target_filter` | string? | Set when `--kantra-target` is active |
+| `evaluated_rules` | number | Rules in catalog before per-rule skip |
+| `violations` | array | Matches with `rule_id`, `file`, `line`, `matched_by` (`filecontent`, `java.referenced`, …) |
+| `skipped_rules` | array | Unsupported providers, invalid regex, or eval errors (`rule_id`, `reason`) |
+
+Fixture override (`--kantra-rules`) omits full Konveyor `catalog_id` unless the ruleset was compiled from the submodule.
 
 Binary artifacts (`graph.snapshot.bin`, `graph_payload.bin`, `blast_engine.snapshot.bin`) use internal columnar formats — use CLI JSON or `export --export-format json` for portable graph access.
 

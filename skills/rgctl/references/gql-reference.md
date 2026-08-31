@@ -11,8 +11,9 @@ rgctl's Graph Query Language (GQL) is a Cypher subset for querying the code know
 - `RETURN` projections
 - `LIMIT` caps
 - Variable-length paths (`[:CALLS*1..3]`)
-- Node labels (`:Function`, `:Class`, `:Module`)
+- Node labels (`:Function`, `:Class`, `:Module`, `:KantraRule`, `:KantraRuleset`)
 - Property filters (`WHERE n.name = 'foo'`)
+- Backtick-quoted property names for dotted keys (Konveyor labels: `` r.`konveyor.io/target` ``)
 - `LIKE` for prefix/suffix matching
 
 ### NOT Supported
@@ -57,7 +58,9 @@ Valid relationship types in MATCH patterns:
 | `DEFINEDIN` | Defined in file |
 | `DEPENDSON` | Module-level dependency |
 
-**Invalid edge types:** `DEPENDS`, `IMPORTS` (these don't exist)
+**Kantra rules (after `discover --with-kantra`):** `KantraRuleset` `CONTAINS` `KantraRule`. Konveyor labels are node `properties` (use backtick-quoted keys in `WHERE`). Phase 1 does not emit `VIOLATES` edges to code nodes.
+
+**Invalid edge types:** `DEPENDS`, `IMPORTS`, `VIOLATES` (not available yet)
 
 ## LIKE Pattern Matching
 
@@ -125,6 +128,14 @@ rgctl -f json gql "MATCH (n:Function)
   WHERE n.name LIKE '*Service' RETURN n LIMIT 20"
 ```
 
+### Kantra rule inventory
+
+```bash
+rgctl -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 20"
+rgctl -f json gql 'MATCH (r:KantraRule) WHERE r.`konveyor.io/target` = '\''quarkus'\'' RETURN r'
+rgctl -f json gql "MATCH (s:KantraRuleset)-[:CONTAINS]->(r:KantraRule) RETURN s,r LIMIT 20"
+```
+
 ### Multiple Node Types
 
 ```bash
@@ -158,6 +169,9 @@ Common node properties (language-dependent):
 - `qualified_name` — fully-qualified name
 - `file_path` — source file path
 - `community_id` — cluster ID (if analysis ran)
+- `rule_id` — on `KantraRule` nodes
+- `konveyor.io/target`, `konveyor.io/source`, … — Konveyor labels on `KantraRule` (use backticks in WHERE)
+- `support` — rule support level (`supported`, `partial`, `unsupported`) when indexed
 - `language` — source language
 - `line` — definition line number
 - `id` — internal UUID (not queryable in WHERE)

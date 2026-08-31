@@ -3,10 +3,11 @@ name: rgctl
 description: >-
   Answer structural questions about a codebase using the rgctl CLI graph
   (architecture, communities, call relationships, blast radius, data-flow
-  slices, CPG, semantic search, migration, CI gates). Use when the user asks
-  how code is connected, what calls what, impact of changing a symbol,
-  where data flows, repo structure/hotspots, or when `.rgctl/` exists —
-  treat natural-language codebase questions as rgctl queries first.
+  slices, CPG, semantic search, migration, Konveyor Kantra rules,
+  CI gates). Use when the user asks how code is connected, what calls what,
+  impact of changing a symbol, where data flows, migration rule violations,
+  Konveyor/quarkus/spring targets, repo structure/hotspots, or when `.rgctl/`
+  exists — treat natural-language codebase questions as rgctl queries first.
 ---
 
 # rgctl
@@ -20,6 +21,7 @@ Use rgctl when the user asks:
 - **Impact analysis** — "What breaks if I change this function?"
 - **Data flow** — "Where does this variable flow?", "Trace this tainted input"
 - **Migration planning** — "Generate a migration roadmap"
+- **Konveyor / Kantra rules** — "What Quarkus migration rules apply?", "List rules for target X", "What violations did Kantra find?"
 - **Hotspots** — "What are the most central/risky functions?"
 - **Subsystem mapping** — "Which module owns feature X?"
 
@@ -104,8 +106,35 @@ Organized by user intent (like MCP's 7 tools):
 - `--with-dashboard` — Build dashboard bundle
 - `--export-migration-hints` — Generate migration plan
 - `--with-security --with-taint` — Security scanning
+- `--with-kantra` — Konveyor Kantra rule eval + rules graph index (embedded catalog by default)
 
 **See:** [Discovering and Indexing Guide](../../docs/guides/discovering-and-indexing.md)
+
+### 1b. Konveyor Kantra rules (`--with-kantra`)
+
+**When:** Java/modernization audits, Konveyor target paths (Quarkus, Spring Boot 3+, Jakarta EE), migration rule inventory
+
+| User Intent | MCP Tool | CLI Command |
+|-------------|----------|-------------|
+| Evaluate migration rules | — | `discover . --with-kantra` |
+| Filter by migration target | — | `discover . --with-kantra --kantra-target quarkus` |
+| CI / custom ruleset | — | `discover . --with-kantra --kantra-rules PATH` |
+| List indexed rules (GQL) | `rgctl_query` | `gql "MATCH (r:KantraRule) RETURN r LIMIT 20"` |
+| Rules for one target label | `rgctl_query` | `gql` with `` r.`konveyor.io/target` `` property (backticks) |
+| Read violations artifact | — | `.rgctl/kantra_findings.json` |
+
+**Flags:**
+- `--with-kantra` — Eval + index `KantraRule` / `KantraRuleset` into graph (no `--kantra-rules` needed; embedded Konveyor `stable/java` catalog)
+- `--kantra-target NAME` — Only rules labeled `konveyor.io/target=NAME`
+- `--kantra-rules DIR` — Override with one ruleset directory (`ruleset.yaml` + `*.yaml`)
+- `--kantra-catalog ROOT` — Override with local rulesets tree (e.g. `stable/java`)
+- `--kantra-index-only` — Index rules into graph; skip eval
+
+**Does not require `--with-cfg`.** Unsupported providers and invalid regex patterns land in `skipped_rules`. Phase 1 has no `VIOLATES` edges rule→code yet — use `kantra_findings.json` for violations.
+
+**Source builds:** submodule `crates/rgctl-kantra/assets/rulesets` (see `scripts/init-kantra-rulesets.sh`). Release binaries embed the compiled catalog.
+
+**See:** [User guide — Kantra](../../docs/user-guide.md#kantra-migration-rules---with-kantra), [JSON — kantra_findings](../../docs/json-api.md#kantra_findingsjson), [Architecture options](../../KANTRA_ARCHITECTURE_OPTIONS.md), [Workflows — Kantra](references/workflows.md#konveyor--kantra-migration-rules)
 
 ### 2. Query & Search
 
@@ -130,6 +159,7 @@ Organized by user intent (like MCP's 7 tools):
 - No `COUNT`, `ORDER BY`, `GROUP BY`
 - LIKE only works for prefix (`Foo*`) or suffix (`*Foo`) — `*middle*` silently returns 0
 - CALLS edges miss dynamic dispatch — fall back to `grep` if 0 results for known calls
+- Konveyor label properties use dots — filter with backticks: `` r.`konveyor.io/target` = 'quarkus' ``
 
 **See:** [GQL Reference](references/gql-reference.md), [Communities & Policy Guide](references/communities-and-policy.md), [Semantic Search Guide](../../docs/guides/semantic-search.md)
 
@@ -219,6 +249,10 @@ Quick decision table for common user utterances:
 | User Says | Tool/Command |
 |-----------|--------------|
 | "Generate migration plan / modernize" | `discover --with-cfg --with-security --export-migration-hints --migration-preset hybrid_default` then read `.rgctl/migration_plan.json` |
+| "Konveyor / Kantra rules / migration violations" | `discover . --with-kantra` then read `.rgctl/kantra_findings.json` |
+| "Quarkus / Spring Boot 3 migration rules" | `discover . --with-kantra --kantra-target quarkus` (or `spring-boot3+`) |
+| "List migration rules in graph" | `gql "MATCH (r:KantraRule) RETURN r LIMIT 20"` (after `--with-kantra`) |
+| "Rules for target X" | `gql` on `:KantraRule` with `` r.`konveyor.io/target` `` filter |
 | "Bottlenecks / hotspots / central dependencies" | `metrics --pagerank` |
 | "Inventory functions / candidates to delete" | `gql --macro-name all_functions unused` |
 | "What communities exist?" | `communities list` |
@@ -257,6 +291,26 @@ cat .rgctl/migration_plan.json
 **Orders:** `scheduled` (dependency-safe), `priority` (highest-impact first)
 
 **See:** [Workflows Reference](references/workflows.md#migration--audit)
+
+### Konveyor Kantra audit
+
+```bash
+# Embedded Konveyor stable/java catalog (~2.6k rules in release builds)
+rgctl discover . -l java --with-kantra
+
+# Target-specific eval (konveyor.io/target label)
+rgctl discover . -l java --with-kantra --kantra-target quarkus
+
+# Read violations (NOT in discover stdout)
+cat .rgctl/kantra_findings.json
+
+# Inventory rules via GQL (indexed during discover)
+rgctl -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 20"
+```
+
+Report `catalog_id`, `target_filter`, violation count, top `rule_id`/`file`/`line` hits, and notable `skipped_rules` reasons. Fixture override for CI: `--kantra-rules tests/fixtures/kantra-rules`.
+
+**See:** [Workflows Reference](references/workflows.md#konveyor--kantra-migration-rules)
 
 ### Pre-Refactor Safety Check
 
@@ -297,6 +351,9 @@ Concepts often live in package/directory names or type names, not function names
 | blast-radius returns 0 for known method | Interface/dynamic dispatch — fall back to `grep` |
 | GQL LIKE returns 0 | Concept in package/directory path — try `communities list`, `semantic query`, or broader LIKE |
 | `export --query` with MATCH fails | Use filter syntax (`name:Foo`, `type:Function`, `all`) |
+| Kantra GQL property with dots | Use backticks: `` r.`konveyor.io/target` `` not `r.konveyor.io/target` |
+| `kantra_findings.json` missing | Re-run `discover --with-kantra` (eval skipped with `--kantra-index-only`) |
+| Empty Kantra violations | Check `skipped_rules`; many upstream rules need unsupported providers or Windup regex |
 
 ## Artifacts
 
@@ -307,6 +364,7 @@ Paths are under the artifact root (`~/.rgctl/cache/{reponame}/.rgctl/` by defaul
 | `graph.snapshot.bin` | Main graph snapshot |
 | `semantic_index.bin` | Semantic index |
 | `migration_plan.json` | Migration roadmap |
+| `kantra_findings.json` | Kantra violations + skipped rules (`--with-kantra`) |
 | `dashboard/` | Dashboard bundle |
 | `analysis/` | CFG/PDG archives |
 

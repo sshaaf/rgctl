@@ -7,8 +7,8 @@ A skill for answering structural questions about codebases using the rgctl CLI g
 - **Main skill:** 352 lines (57% reduction from original 814 lines)
 - **Total documentation:** 1,505 lines (85% more comprehensive coverage)
 - **Files:** 5 reference files + main skill
-- **Workflow families:** 6 (organized by user intent)
-- **NL routing examples:** 20+ common user utterances
+- **Workflow families:** 6 + Kantra rules
+- **NL routing examples:** 25+ common user utterances
 
 ## Structure
 
@@ -18,7 +18,7 @@ skills/rgctl/
 ├── README.md                             # This file
 └── references/
     ├── command-encyclopedia.md           # All commands with JSON samples (19KB)
-    ├── workflows.md                      # Migration, refactor, audit scenarios (8.6KB)
+    ├── workflows.md                      # Migration, Kantra rules, refactor, audit scenarios
     ├── gql-reference.md                  # GQL patterns & limitations (4.7KB)
     └── communities-and-policy.md         # Community detection + CI policy (13KB)
 ```
@@ -31,7 +31,8 @@ skills/rgctl/
 - **MCP vs CLI decision** (7 MCP tools table)
 - **6 workflow families:**
   1. Discovery & Indexing
-  2. Query & Search (includes communities)
+  1b. Konveyor Kantra rules (`--with-kantra`)
+  2. Query & Search (includes communities + KantraRule GQL)
   3. Impact & Safety (includes policy checks)
   4. Metrics & Analysis
   5. Code Analysis (CFG/PDG/slicing)
@@ -49,7 +50,7 @@ skills/rgctl/
 - "What to report" guidelines
 
 #### workflows.md
-- Migration & audit workflows
+- Migration & audit workflows (incl. Konveyor Kantra `--with-kantra`)
 - Intent discovery & subsystem mapping
 - Pre-refactor safety analysis
 - CI gates & policy

@@ -323,6 +323,7 @@ Harmonic, dashboard, migration export, security, CFG/PDG, and discover-time tain
 | `--with-harmonic` | Harmonic centrality (migration ranking) |
 | `--with-dashboard` | Static dashboard bundle under `.rgctl/dashboard/` |
 | `--export-migration-hints` | Migration roadmap JSON (alias: `--export-migration-plan`) |
+| `--with-kantra` | Konveyor Kantra rule evaluation + rules graph index (see below) |
 
 ```bash
 # CFG so inspect / slice have rich PDG context
@@ -345,6 +346,50 @@ Example lines from that richer run:
 ```
 
 Use `--with-cfg` when you need `inspect` / slice overlays; add `--with-taint` for discover-time taint flows. On large monorepos (100k+ functions) expect minutes to hours.
+
+### Kantra migration rules (`--with-kantra`)
+
+Evaluate [Konveyor Kantra](https://github.com/konveyor/kantra) rules natively against the indexed graph and source cache — no Kantra CLI, LSP, or containers. Release binaries embed the Konveyor `stable/java` catalog (~2.6k rules); `discover --with-kantra` uses it by default.
+
+```bash
+# Default: embedded catalog + eval + index rules into graph.snapshot.bin
+rgctl discover . -l java -e target --with-kantra
+
+# Migration target filter (konveyor.io/target=<NAME> labels)
+rgctl discover . -l java --with-kantra --kantra-target quarkus
+
+# CI / fixtures: override with a local ruleset directory
+rgctl discover . --with-kantra --kantra-rules tests/fixtures/kantra-rules
+
+# Dev: local konveyor/rulesets checkout instead of embedded blob
+rgctl discover . --with-kantra --kantra-catalog /path/to/rulesets/stable/java
+
+# Index rules into graph only (skip eval)
+rgctl discover . --with-kantra --kantra-index-only
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--with-kantra` | Run Kantra eval and index `KantraRule` / `KantraRuleset` nodes into the session graph |
+| `--kantra-target NAME` | Evaluate only rules labeled `konveyor.io/target=NAME` |
+| `--kantra-rules DIR` | Single ruleset directory (`ruleset.yaml` + `*.yaml`); overrides embedded catalog |
+| `--kantra-catalog ROOT` | Rulesets tree (e.g. `stable/java`); overrides embedded catalog |
+| `--kantra-index-only` | Skip eval; still index catalog rules into the graph |
+
+**Artifacts:** `.rgctl/kantra_findings.json` (violations + skipped rules). Rule nodes are queryable via GQL after index:
+
+```bash
+rgctl gql "MATCH (r:KantraRule) RETURN r LIMIT 10"
+rgctl gql 'MATCH (r:KantraRule) WHERE r.`konveyor.io/target` = '\''quarkus'\'' RETURN r'
+```
+
+Konveyor labels (`konveyor.io/target`, `konveyor.io/source`, …) are stored as node `properties`; use backtick-quoted property names in GQL `WHERE` clauses.
+
+**Source builds:** full embedded catalog requires the git submodule — `git submodule update --init crates/rgctl-kantra/assets/rulesets` or `./scripts/init-kantra-rulesets.sh`. Without it, the build falls back to `tests/fixtures/kantra-rules/`. See [`crates/rgctl-kantra/README.md`](../crates/rgctl-kantra/README.md).
+
+**Further reading:** [Kantra integration exploration](design/kantra-integration-exploration.md) · [Architecture options (embedded catalog + rules graph)](../KANTRA_ARCHITECTURE_OPTIONS.md) · [JSON schema](json-api.md#kantra_findingsjson)
+
+Does **not** require `--with-cfg`. Unsupported rule providers and invalid regex patterns are skipped with reasons in `skipped_rules`. `VIOLATES` edges (rule → code node) are planned for a later phase.
 
 ### Verbose logging and stage profiling
 
@@ -396,6 +441,7 @@ After a successful run, the layout below appears under the **artifact root** (da
 ├── macro_call_index.db         # Blast-radius lookup cache (SQLite; not the graph)
 ├── macro_call_index.bin        # Same index in bincode (companion to .db)
 ├── analysis_results.bin        # Columnar analysis properties
+├── kantra_findings.json        # With --with-kantra (violations + skipped rules)
 ├── file_hashes.json            # Incremental file tracker
 ├── migration_plan.json         # With --export-migration-hints
 ├── analysis/                   # Per-function CFG/PDG/taint (with --with-cfg / --with-taint)
@@ -1246,6 +1292,11 @@ Migration hints (with `--export-migration-hints`) land under `.rgctl/migration_p
 | `--migration-preset` | Preset for migration hints (`hybrid`, `foundational`, …) |
 | `--migration-order` | `scheduled` (topological) or `priority` |
 | `--write-json-graph` | Also write legacy `graph.db` / `graph.json` |
+| `--with-kantra` | Konveyor Kantra eval + rules graph index (embedded catalog by default) |
+| `--kantra-target NAME` | Filter eval to `konveyor.io/target=NAME` |
+| `--kantra-rules DIR` | Override embedded catalog with one ruleset directory |
+| `--kantra-catalog ROOT` | Override embedded catalog with a rulesets tree |
+| `--kantra-index-only` | Index rules into graph; skip eval |
 
 There is no umbrella `--all` flag — combine `--with-cfg --with-security --with-taint` explicitly when you want the former deep pass.
 

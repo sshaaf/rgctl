@@ -23,13 +23,15 @@ Samples below are truncated where noted. Field names match live CLI / `docs/json
 
 ## discover
 
-**Command:** `rgctl [-f json] discover [PATH] [-l/--languages CSV] [-e/--exclude GLOB] [-v/--verbose] [--with-cfg] [--with-security] [--with-taint] [--with-dashboard] [--with-harmonic] [--export-migration-hints] [--with-ast-skeleton] [--with-dfg-loops] [--write-json-graph] …`
+**Command:** `rgctl [-f json] discover [PATH] [-l/--languages CSV] [-e/--exclude GLOB] [-v/--verbose] [--with-cfg] [--with-security] [--with-taint] [--with-dashboard] [--with-harmonic] [--export-migration-hints] [--with-kantra] [--kantra-target NAME] [--kantra-rules DIR] [--kantra-catalog ROOT] [--kantra-index-only] [--with-ast-skeleton] [--with-dfg-loops] [--write-json-graph] …`
 
 **Purpose:** Index the repo once (or after large changes). Build the graph agents query.
 
 **Prerequisites:** None (this creates `.rgctl/`).
 
 **Other flags:** `--languages java,go` restricts the language set; `--exclude` filters paths (glob); `--verbose` prints per-file progress (noisy — skip unless debugging a stuck/slow discover); `--write-json-graph` also writes legacy `graph.db`/`graph.json` (rarely needed, snapshot-only is the default and is what agents should rely on).
+
+**Kantra flags (`--with-kantra`):** Embeds Konveyor `stable/java` catalog by default. Writes `.rgctl/kantra_findings.json` and indexes `KantraRule` / `KantraRuleset` nodes into `graph.snapshot.bin`. `--kantra-target` filters by `konveyor.io/target` label. `--kantra-rules` / `--kantra-catalog` override embedded catalog. `--kantra-index-only` skips eval. Does not change discover stdout JSON shape.
 
 **Sample** (`-f json`, ecommerce-java):
 
@@ -48,9 +50,53 @@ Samples below are truncated where noted. Field names match live CLI / `docs/json
 }
 ```
 
-**Pitfalls:** Do not re-run on every question if `.rgctl/` exists. `--with-cfg` needed for slice/inspect/cpg PDG. `--with-taint` is discover-time taint (on-demand: `slice --taint`). Semantic search needs a separate `semantic index`.
+**Pitfalls:** Do not re-run on every question if `.rgctl/` exists. `--with-cfg` needed for slice/inspect/cpg PDG. `--with-taint` is discover-time taint (on-demand: `slice --taint`). Semantic search needs a separate `semantic index`. Kantra eval does **not** need `--with-cfg`; read violations from `kantra_findings.json`, not discover stdout.
 
 **Agent should report:** files indexed, nodes/edges, duration; note which feature flags were used.
+
+---
+
+## kantra_findings (on-disk)
+
+**Path:** `.rgctl/kantra_findings.json` (after `discover --with-kantra`, eval not skipped)
+
+**Purpose:** Konveyor Kantra rule violations and per-rule skip reasons.
+
+**Prerequisites:** `discover --with-kantra` (omit `--kantra-index-only` if you need violations).
+
+**Sample** (truncated):
+
+```json
+{
+  "schema_version": 1,
+  "command": "kantra_findings",
+  "catalog_id": "stable-java@022bbd34b34eca53d04b6cb2b97b27e47fef479b",
+  "ruleset": "embedded-stable-java",
+  "target_filter": "quarkus",
+  "evaluated_rules": 2656,
+  "violations": [
+    {
+      "rule_id": "springboot-00001",
+      "category": "mandatory",
+      "file": "src/main/java/com/example/Foo.java",
+      "line": 12,
+      "message": "…",
+      "matched_by": "java.referenced"
+    }
+  ],
+  "skipped_rules": [
+    { "rule_id": "some-xml-rule", "reason": "unsupported: builtin.xml" }
+  ]
+}
+```
+
+**GQL companion:** After discover, query indexed rules with `gql "MATCH (r:KantraRule) RETURN r"`. Konveyor labels are properties — filter with backticks: `` r.`konveyor.io/target` ``.
+
+**Pitfalls:** Full embedded catalog skips many rules (unsupported providers, Windup regex). Phase 1 has no `VIOLATES` graph edges — violations are only in this file.
+
+**Agent should report:** `catalog_id`, `target_filter`, violation count, representative hits, skip summary — not full JSON dump.
+
+**See:** [docs/json-api.md](../../docs/json-api.md#kantra_findingsjson)
 
 ---
 
