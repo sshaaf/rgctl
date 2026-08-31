@@ -64,8 +64,11 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `metasfresh_cold_discover_within_baseline` | `example/metasfresh-4.9.8b` | `--full` | **74 s** |
 | `kafka_cold_discover_within_baseline` | `example/kafka` | default | env `RGCTL_KAFKA_COLD_BASELINE_SECS` (default 600 s) |
 | `k8s_website_markdown_cold_discover_within_baseline` | `example/k8s-website` | `-l markdown` | **3 s** |
+| `ecommerce_java_inheritance_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | default | **0.31 s** wall; **0.008 s** `index_graph_build` |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`--no-daemon`, `-r <corpus>`, `discover . -v`).
+
+**ecommerce-java gate** (inheritance external stubs): small Java fixture; asserts wall time and `[profile] stage index_graph_build` after `Extends`/`Implements`/`Permits` stub edges. Override with `RGCTL_ECOMMERCE_JAVA_COLD_BASELINE_SECS` / `RGCTL_ECOMMERCE_JAVA_INDEX_GRAPH_BUILD_BASELINE_SECS`.
 
 ### Manual profile (stage breakdown)
 

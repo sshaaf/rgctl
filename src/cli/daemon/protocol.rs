@@ -149,6 +149,16 @@ pub struct DiscoverRequest {
     #[serde(default)]
     pub with_harmonic: bool,
     #[serde(default)]
+    pub with_kantra: bool,
+    #[serde(default)]
+    pub kantra_rules: Option<String>,
+    #[serde(default)]
+    pub kantra_catalog: Option<String>,
+    #[serde(default)]
+    pub kantra_target: Option<String>,
+    #[serde(default)]
+    pub kantra_index_only: bool,
+    #[serde(default)]
     pub full: bool,
     #[serde(default)]
     pub migration_preset: String,

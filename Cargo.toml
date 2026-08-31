@@ -21,6 +21,7 @@ members = [
     "crates/rgctl-incremental",
     "crates/rgctl-semantic",
     "crates/rgctl-rules",
+    "crates/rgctl-kantra",
     "crates/rgctl-core",
     "crates/rgctl-service",
     "crates/rgctl-mcp",
@@ -62,6 +63,7 @@ rgctl-project-config = { path = "crates/rgctl-project-config", version = "0.4.8"
 rgctl-incremental = { path = "crates/rgctl-incremental", version = "0.4.8" }
 rgctl-semantic = { path = "crates/rgctl-semantic", version = "0.4.8" }
 rgctl-rules = { path = "crates/rgctl-rules", version = "0.4.8" }
+rgctl-kantra = { path = "crates/rgctl-kantra", version = "0.4.8" }
 rgctl-core = { path = "crates/rgctl-core", version = "0.4.8" }
 rgctl-service = { path = "crates/rgctl-service", version = "0.4.8" }
 rgctl-mcp = { path = "crates/rgctl-mcp", version = "0.4.8" }
@@ -143,6 +145,7 @@ rgctl-project-config = { workspace = true }
 rgctl-incremental = { workspace = true }
 rgctl-semantic = { workspace = true }
 rgctl-rules = { workspace = true }
+rgctl-kantra = { workspace = true }
 rgctl-languages = { workspace = true }
 
 rgctl-macros = { path = "rgctl-macros", optional = true }

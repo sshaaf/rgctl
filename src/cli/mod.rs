@@ -12,6 +12,7 @@ mod daemon;
 mod discover;
 mod discover_cfg;
 mod discover_impl;
+mod kantra_discover;
 pub mod discover_output;
 mod export;
 mod gql;
@@ -143,6 +144,26 @@ pub enum Commands {
         /// migration ranking; adds ~30s and multi‑GB peak RSS on kernel-scale graphs.
         #[arg(long = "with-harmonic")]
         with_harmonic: bool,
+
+        /// Evaluate Konveyor Kantra rules natively during discover (embedded catalog by default).
+        #[arg(long = "with-kantra")]
+        with_kantra: bool,
+
+        /// Override embedded catalog with a Kantra rules directory (`ruleset.yaml` + `*.yaml`).
+        #[arg(long = "kantra-rules", value_name = "DIR")]
+        kantra_rules: Option<String>,
+
+        /// Override embedded catalog with a ruleset tree (walks for `ruleset.yaml` dirs).
+        #[arg(long = "kantra-catalog", value_name = "ROOT")]
+        kantra_catalog: Option<String>,
+
+        /// Evaluate only rules labeled `konveyor.io/target=<NAME>`.
+        #[arg(long = "kantra-target", value_name = "NAME")]
+        kantra_target: Option<String>,
+
+        /// Index Kantra rules into the graph without running violation eval.
+        #[arg(long = "kantra-index-only")]
+        kantra_index_only: bool,
 
         /// Staged full pipeline: basic discover (queryable snapshot), then CFG + dashboard +
         /// harmonic, then semantic index. Prints a plan first; does not imply taint/security.
@@ -680,6 +701,11 @@ impl Cli {
                 with_dashboard,
                 export_migration_hints,
                 with_harmonic,
+                with_kantra,
+                kantra_rules,
+                kantra_catalog,
+                kantra_target,
+                kantra_index_only,
                 mut full,
                 migration_preset,
                 migration_order,
@@ -703,6 +729,11 @@ impl Cli {
                         with_dashboard,
                         export_migration_hints,
                         with_harmonic,
+                        with_kantra,
+                        kantra_rules,
+                        kantra_catalog,
+                        kantra_target,
+                        kantra_index_only,
                         full,
                         migration_preset,
                         migration_order,

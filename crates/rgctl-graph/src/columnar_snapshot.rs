@@ -802,6 +802,8 @@ fn node_type_to_u16(t: NodeType) -> u16 {
         NodeType::PuppetVariable => 33,
         NodeType::PuppetFact => 34,
         NodeType::Annotation => 35,
+        NodeType::KantraRuleset => 36,
+        NodeType::KantraRule => 37,
     }
 }
 
@@ -843,6 +845,8 @@ fn node_type_from_u16(v: u16) -> Result<NodeType> {
         33 => NodeType::PuppetVariable,
         34 => NodeType::PuppetFact,
         35 => NodeType::Annotation,
+        36 => NodeType::KantraRuleset,
+        37 => NodeType::KantraRule,
         _ => return Err(Error::SerdeError(format!("unknown node type code {v}"))),
     })
 }

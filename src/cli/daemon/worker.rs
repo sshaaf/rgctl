@@ -493,6 +493,11 @@ fn run_discover(state: &WorkerState, req: DiscoverRequest) -> Result<Value> {
             with_dashboard: req.with_dashboard,
             export_migration_hints: req.export_migration_hints,
             with_harmonic: req.with_harmonic,
+            with_kantra: req.with_kantra,
+            kantra_rules: req.kantra_rules,
+            kantra_catalog: req.kantra_catalog,
+            kantra_target: req.kantra_target,
+            kantra_index_only: req.kantra_index_only,
             full: req.full,
             migration_preset: if req.migration_preset.is_empty() {
                 "hybrid_default".into()

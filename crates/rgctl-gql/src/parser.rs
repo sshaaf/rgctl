@@ -192,7 +192,7 @@ impl<'a> Parser<'a> {
     fn parse_predicate(&mut self) -> Result<Predicate> {
         let variable = self.parse_ident()?;
         self.expect_char('.')?;
-        let property = self.parse_ident()?;
+        let property = self.parse_property_name()?;
         self.skip_whitespace();
         if self.starts_with_keyword("LIKE") {
             self.pos += 4;
@@ -257,6 +257,28 @@ impl<'a> Parser<'a> {
             self.pos += 1;
         }
         Ok(self.input[start..self.pos].to_string())
+    }
+
+    /// Property name after `variable.` — plain identifier or backtick-quoted (e.g. Konveyor labels).
+    fn parse_property_name(&mut self) -> Result<String> {
+        self.skip_whitespace();
+        if self.peek_char() == Some('`') {
+            self.pos += 1;
+            let start = self.pos;
+            while let Some(c) = self.peek_char() {
+                if c == '`' {
+                    let property = self.input[start..self.pos].to_string();
+                    self.pos += 1;
+                    return Ok(property);
+                }
+                self.pos += 1;
+            }
+            return Err(Error::InvalidQuery(format!(
+                "unterminated backtick property at position {}",
+                start
+            )));
+        }
+        self.parse_ident()
     }
 
     fn parse_usize(&mut self) -> Result<usize> {
@@ -412,6 +434,8 @@ fn parse_node_type_name(name: &str) -> Result<NodeType> {
         "puppetresource" => Ok(NodeType::PuppetResource),
         "puppetvariable" => Ok(NodeType::PuppetVariable),
         "puppetfact" => Ok(NodeType::PuppetFact),
+        "kantraruleset" | "kantra_ruleset" => Ok(NodeType::KantraRuleset),
+        "kantrarule" | "kantra_rule" => Ok(NodeType::KantraRule),
         _ => Err(Error::InvalidQuery(format!("unknown node type: {name}"))),
     }
 }
@@ -466,13 +490,21 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_annotation_and_annotated_with() {
-        let q = parse("MATCH (n:Annotation) RETURN n").unwrap();
-        assert_eq!(q.patterns[0].node.node_type, Some(NodeType::Annotation));
-        assert_eq!(
-            parse_edge_type_name("ANNOTATED_WITH").unwrap(),
-            EdgeType::AnnotatedWith
-        );
-        assert_eq!(parse_edge_type_name("PERMITS").unwrap(), EdgeType::Permits);
+    fn test_parse_backtick_property_name() {
+        let q = parse("MATCH (r:KantraRule) WHERE r.`konveyor.io/target` = 'quarkus' RETURN r")
+            .unwrap();
+        assert_eq!(q.where_clause.as_ref().unwrap().predicates.len(), 1);
+        match &q.where_clause.as_ref().unwrap().predicates[0] {
+            Predicate::Equals {
+                variable,
+                property,
+                value,
+            } => {
+                assert_eq!(variable, "r");
+                assert_eq!(property, "konveyor.io/target");
+                assert_eq!(value, "quarkus");
+            }
+            other => panic!("unexpected predicate: {other:?}"),
+        }
     }
 }

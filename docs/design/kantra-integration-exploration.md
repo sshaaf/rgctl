@@ -153,7 +153,9 @@ Every graph `Node` has:
 
 ### 4.5 Edge Types Available
 
-`Calls`, `Uses`, `Inherits`, `DefinedIn`, `Contains`, `Implements`, `AnnotatedWith` — all relevant for `*.referenced` evaluation with `location` semantics. Note: `AnnotatedWith` edges are not traversed during blast-radius analysis (only `Calls` edges are), but they are visible in GQL and available for rule matching.
+`Calls`, `Uses`, `EXTENDS`, `DefinedIn`, `Contains`, `IMPLEMENTS`, `ANNOTATED_WITH` — all relevant for `*.referenced` evaluation with `location` semantics. Note: `ANNOTATED_WITH` edges are not traversed during blast-radius analysis (only `Calls` edges are), but they are visible in GQL and available for rule matching.
+
+**Phase 0 (implemented):** `relation_allows_external_stub()` now includes `Extends`, `Implements`, and `Permits` so class/interface inheritance to framework types commits edges without Kantra CLI. Java inheritance relations use package-qualified `from` names and import-based `to_qualified_hint` for stub deduplication.
 
 ### 4.6 Taint/PDG Infrastructure
 
@@ -174,7 +176,7 @@ The taint detection loop (`taint.rs:detect_*_patterns()`) already iterates every
 | `java.referenced` `IMPORT` | `Import` nodes (full import text in `name`) | **Full** | Low — regex on Import node name |
 | `java.referenced` `PACKAGE` | Import nodes + source text | **Full** | Low — Import match + filecontent regex |
 | `java.referenced` `TYPE` | `Class`/`Struct` nodes with `qualified_name` | **Full** | Low — NodeType + qualified_name match |
-| `java.referenced` `INHERITANCE` | `Inherits` edges | **Full** | Low — follow Inherits edges |
+| `java.referenced` `INHERITANCE` | `EXTENDS` edges (+ import FQN stubs) | **Full** (Phase 0) | Low — follow `EXTENDS` edges in GQL |
 | `java.referenced` `FIELD` | `Variable` nodes with `field_type`, `member_of` | **Partial** | Low — match on Variable node properties |
 | `java.referenced` `METHOD` | `Function` nodes with `qualified_name` + `signature` | **Partial** | Moderate — signature pattern parsing needed |
 | `java.referenced` `ANNOTATION` | `Annotation` nodes + `AnnotatedWith` edges | **Full** | Low — match annotation name via edge target, filter by annotated symbol type |
