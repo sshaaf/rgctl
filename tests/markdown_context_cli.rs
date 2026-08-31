@@ -78,7 +78,10 @@ impl FixtureRepo {
 
     fn run(&self, args: &[&str]) -> Output {
         let mut cmd = Command::new(rgctl_bin());
-        cmd.arg("-r").arg(&self.path);
+        cmd.current_dir(&self.path)
+            .arg("--no-daemon")
+            .arg("-r")
+            .arg(&self.path);
         cmd.args(args);
         cmd.output().expect("spawn rgctl")
     }
@@ -98,6 +101,33 @@ impl FixtureRepo {
             .map(|n| n as usize)
             .or_else(|| doc.get("rows").and_then(|r| r.as_array()).map(|a| a.len()))
             .unwrap_or(0)
+    }
+
+    fn gql_count_jq(&self, query: &str, jq_filter: &str) -> usize {
+        let out = self.run(&["-f", "json", "gql", query]);
+        assert_success(&out, "gql");
+        let mut child = Command::new("jq")
+            .args(["-c", jq_filter])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("spawn jq");
+        {
+            use std::io::Write;
+            child
+                .stdin
+                .take()
+                .expect("jq stdin")
+                .write_all(&out.stdout)
+                .expect("write jq stdin");
+        }
+        let jq_out = child.wait_with_output().expect("jq wait");
+        assert_success(&jq_out, "jq");
+        let trimmed = str::from_utf8(&jq_out.stdout).expect("jq utf8").trim();
+        trimmed
+            .parse::<usize>()
+            .unwrap_or_else(|_| panic!("jq count not usize: {trimmed:?}"))
     }
 
     fn snapshot_bytes(&self) -> u64 {
@@ -170,6 +200,26 @@ fn cli_discover_markdown_writes_snapshot() {
         metrics_nodes(&doc)
     );
     assert!(repo.snapshot_bytes() > 0);
+}
+
+#[test]
+fn cli_vhs_tape_markdown_workflow() {
+    let repo = FixtureRepo::new();
+    repo.discover_json("markdown,java");
+
+    let q1 = "MATCH (n:Module) WHERE n.kind = 'heading' AND n.name LIKE 'Checkout*' RETURN n LIMIT 5";
+    assert_eq!(
+        repo.gql_count_jq(q1, ".count"),
+        1,
+        "VHS tape: checkout heading count"
+    );
+
+    let q6 = "MATCH (h:Module)-[:REFERENCES]->(f:File)-[:CONTAINS]->(c:Class) WHERE h.kind = 'heading' AND h.name LIKE 'Checkout*' AND f.name LIKE '*CheckoutService.java' RETURN h, f, c";
+    assert_eq!(
+        repo.gql_count_jq(q6, ".count"),
+        1,
+        "VHS tape: doc → class count"
+    );
 }
 
 #[test]

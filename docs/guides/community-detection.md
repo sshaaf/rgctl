@@ -19,7 +19,7 @@ Communities reveal the implicit architecture of your code -- groups of functions
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rgctl -r example/coolstore discover .
+rgctl -r example/coolstore discover
 ```
 
 ## Step-by-Step

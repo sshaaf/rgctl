@@ -2,7 +2,7 @@
 
 ## Introduction
 
-The `discover` command is the foundation of every rgctl workflow. It parses your source code, builds a **code knowledge graph** of functions, classes, modules, and their relationships (calls, contains, imports), and runs configurable analytics on the result. Every other rgctl command -- `gql`, `blast-radius`, `metrics`, and the rest -- reads from the graph that `discover` produces.
+The `discover` command is the foundation of every rgctl workflow. It parses your source code, builds a **code knowledge graph** of functions, classes, modules, and their relationships (calls, contains, imports), and runs configurable analytics on the result. Every other rgctl command — `gql`, `blast-radius`, `metrics`, and the rest — reads from the graph that `discover` produces.
 
 Think of `discover` as the indexing step: you run it once (or after significant code changes), and then query the graph as many times as you like without re-parsing.
 
@@ -11,26 +11,47 @@ Think of `discover` as the indexing step: you run it once (or after significant 
 - **Onboarding to an unfamiliar codebase.** Run `discover` to build an inventory of every function, class, and call relationship so you can query the structure instead of reading files one by one.
 - **Pre-migration analysis.** Enable `--with-cfg`, `--with-harmonic`, and `--export-migration-hints` to generate a dependency-aware migration roadmap before refactoring a monolith.
 - **CI integration.** Run `discover` in CI so downstream commands like `check` can enforce architectural policies on every pull request.
-- **Deep program analysis.** Enable `--with-cfg` to build control-flow graphs, program dependence graphs, and dominator trees for every function -- required by `slice`, `inspect`, and `cpg` commands.
+- **Deep program analysis.** Enable `--with-cfg` to build control-flow graphs, program dependence graphs, and dominator trees for every function — required by `slice`, `inspect`, and `cpg` commands.
 
 ## Example Project
 
-This guide uses the **CoolStore** -- a Java EE e-commerce application. It lives in `example/coolstore` and contains Java services, REST endpoints, JPA entities, and an AngularJS frontend.
+This guide uses the **CoolStore** — a Java EE e-commerce application. It lives in `example/coolstore` and contains Java services, REST endpoints, JPA entities, and an AngularJS frontend.
+
+## Choosing what to index
+
+`discover` takes an optional `PATH` argument. How it combines with `-r` / `--repo` matters:
+
+| Pattern | Indexes | When to use |
+|---------|---------|-------------|
+| `cd example/coolstore && rgctl discover .` | Current directory | **Recommended** in tutorials and day-to-day use |
+| `rgctl -r example/coolstore discover` | The `-r` path (no `PATH` arg) | Scripts, agents (`export REPO=…`) |
+| `rgctl discover /abs/path/to/coolstore` | Absolute path | One-shot from any cwd |
+
+**Pitfall:** `rgctl -r example/coolstore discover` does **not** index `example/coolstore`. The positional `.` becomes the session root (usually your **shell cwd**), so `-r` is ignored. That can scan the wrong tree and fail on large parent directories.
+
+**Artifacts (default daemon):** With the background daemon (default), snapshots live under `~/.rgctl/cache/<reponame>/.rgctl/`, not in the source tree. Use `rgctl --no-daemon discover .` when you want artifacts under `{repo}/.rgctl/` instead. After daemon discover, pass `-r` to the cache path from discover JSON, or rely on daemon routing for `-f json` gql / blast-radius / metrics / check.
 
 ## Step-by-Step
 
 ### 1. Basic Discovery
 
-The simplest invocation indexes the repository at the current directory:
+From the repository root:
 
 ```bash
-rgctl -r example/coolstore discover .
+cd example/coolstore
+rgctl discover .
+```
+
+Or from anywhere, without a `PATH` argument:
+
+```bash
+rgctl -r example/coolstore discover
 ```
 
 ### Full pipeline
 
 ```bash
-rgctl -r example/coolstore discover . --full
+rgctl -r example/coolstore discover --full
 ```
 
 This prints a plan, finishes a basic (queryable) index, then runs CFG + dashboard + harmonic centrality and a vocab semantic index. `--full` does not enable taint or secret scanning.
@@ -46,9 +67,9 @@ This prints a plan, finishes a basic (queryable) index, then runs CFG + dashboar
 **What happened:**
 
 - rgctl scanned every supported source file (Java, JavaScript, and others) under the repository root.
-- It built a graph of 14,763 nodes (functions, classes, modules) and their call/containment/import edges.
 - It detected 186 circular dependency cycles in the codebase.
-- The graph snapshot was written to `example/coolstore/.rgctl/graph.snapshot.bin`.
+- With the default daemon, the graph snapshot was written under `~/.rgctl/cache/<reponame>/.rgctl/graph.snapshot.bin` (discover JSON includes the exact `cache` path).
+- With `--no-daemon`, the same files appear under `example/coolstore/.rgctl/`.
 - The entire process completed in under one second.
 
 ### 2. Discovery with Deep Analysis
@@ -56,7 +77,7 @@ This prints a plan, finishes a basic (queryable) index, then runs CFG + dashboar
 To enable control-flow graphs, PDGs, and dominance analysis for every function, add `--with-cfg`:
 
 ```bash
-rgctl -r example/coolstore discover . --with-cfg
+rgctl -r example/coolstore discover --with-cfg
 ```
 
 **Output:**
@@ -79,7 +100,7 @@ Skipped files due to errors failed=1
 
 - In addition to the basic graph, rgctl built a CFG (control-flow graph), PDG (program dependence graph), and dominator tree for each of the 6,585 parseable functions.
 - It indexed 3,299 field-write sites, enabling the `cpg mutations` command.
-- The analysis archive was written to `.rgctl/analysis/cfg_pdg.archive.bin`.
+- The analysis archive was written to `.rgctl/analysis/cfg_pdg.archive.bin` under the artifact root (daemon cache or source tree, depending on mode).
 - 941 functions were skipped because they were in unsupported languages or had parse errors.
 
 ### 3. Full Analysis with Dashboard and Migration
@@ -87,7 +108,7 @@ Skipped files due to errors failed=1
 For the most complete analysis, combine all the deep-analysis flags:
 
 ```bash
-rgctl -r example/coolstore discover . \
+rgctl -r example/coolstore discover \
   --with-cfg \
   --with-dashboard \
   --with-harmonic \
@@ -108,7 +129,7 @@ This enables:
 If you only want to index Java files, use the `--languages` flag:
 
 ```bash
-rgctl -r example/coolstore discover . --languages java
+rgctl -r example/coolstore discover --languages java
 ```
 
 This skips all JavaScript, TypeScript, and other files, producing a smaller, faster index focused on the backend code.
@@ -118,12 +139,12 @@ This skips all JavaScript, TypeScript, and other files, producing a smaller, fas
 To skip vendor or generated code:
 
 ```bash
-rgctl -r example/coolstore discover . --exclude bower_components
+rgctl -r example/coolstore discover --exclude bower_components
 ```
 
 ### 6. Inspecting Artifacts
 
-After discovery, the `.rgctl/` directory contains all generated artifacts:
+After discovery, artifacts live under the **artifact root** (daemon cache entry or `{repo}/.rgctl/` with `--no-daemon`):
 
 | Path | Content |
 |------|---------|
@@ -131,6 +152,8 @@ After discovery, the `.rgctl/` directory contains all generated artifacts:
 | `.rgctl/analysis/cfg_pdg.archive.bin` | CFG/PDG/dominance archive (with `--with-cfg`) |
 | `.rgctl/dashboard/manifest.json` | Dashboard metadata (with `--with-dashboard`) |
 | `.rgctl/migration_plan.json` | Migration roadmap (with `--export-migration-hints`) |
+
+Use `rgctl -f json discover …` and read the `cache` field, or `ls ~/.rgctl/cache/`, to locate the daemon copy.
 
 ## Discover Options Reference
 
@@ -148,18 +171,20 @@ After discovery, the `.rgctl/` directory contains all generated artifacts:
 | `-l, --languages` | Restrict to specific languages |
 | `-e, --exclude` | Exclude directories by name |
 | `-v, --verbose` | Debug logging with stage profiling |
+| `--no-daemon` | Write artifacts under the source tree instead of daemon cache |
+| `--full` | Staged pipeline: basic → CFG/dashboard/harmonic → semantic index |
 
 ## Benefits
 
-- **Single command to index an entire codebase.** No build system integration, no compilation required -- rgctl works directly on source files.
+- **Single command to index an entire codebase.** No build system integration, no compilation required — rgctl works directly on source files.
 - **Incremental depth.** Start with basic discovery in under a second, then opt into deeper analysis (`--with-cfg`, `--with-taint`) only when you need it.
 - **Multi-language support.** Nine Tier 1 languages (Java, Go, Rust, Python, JavaScript, TypeScript, C#, C, C++) plus markdown and config formats.
 - **Foundation for all other commands.** Every query, metric, and analysis reads from the graph `discover` produces.
 
 ## Related Guides
 
-- [Graph Query Language](graph-query-language.md) -- query the graph that `discover` builds
-- [Graph Metrics](graph-metrics.md) -- run PageRank, betweenness, and community detection
-- [Migration Planning](migration-planning.md) -- use the `--export-migration-hints` output
-- [HTTP Server and Dashboard](http-server-and-dashboard.md) -- serve the `--with-dashboard` output in a browser
-- [MCP Server](mcp-server.md) -- `serve --mode mcp` auto-runs the full pipeline in an IDE
+- [Graph Query Language](graph-query-language.md) — query the graph that `discover` builds
+- [Graph Metrics](graph-metrics.md) — run PageRank, betweenness, and community detection
+- [Migration Planning](migration-planning.md) — use the `--export-migration-hints` output
+- [HTTP Server and Dashboard](http-server-and-dashboard.md) — serve the `--with-dashboard` output in a browser
+- [MCP Server](mcp-server.md) — `serve --mode mcp` auto-runs the full pipeline in an IDE

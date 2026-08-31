@@ -22,7 +22,7 @@ else
 fi
 
 echo "==> discover + dashboard bundle ($REPO)"
-rgctl -r "$REPO" discover . -l java -e target \
+rgctl -r "$REPO" discover -l java -e target \
   --with-cfg --with-security --with-taint --with-dashboard --with-harmonic \
   --export-migration-hints
 

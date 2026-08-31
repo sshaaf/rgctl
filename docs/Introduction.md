@@ -20,7 +20,7 @@ Modern codebases are too large to hold in your head. Changing a function raises 
 |---------------|--------------|
 | Places on the map | **Nodes** — functions, classes, files, modules, … |
 | Roads | **Edges** — typed relations (`CALLS`, `CONTAINS`, `IMPORTS`, …) |
-| The map file | Artifacts under **`.rgctl/`** after `discover` |
+| The map file | Artifacts under **`.rgctl/`** after `discover` (default daemon: `~/.rgctl/cache/{reponame}/.rgctl/`; **`--no-daemon`**: `{repo}/.rgctl/`) |
 
 **Reachability** (who can reach whom along call paths) is pre-computed and stored compactly — that is why **blast-radius** stays fast on large graphs.
 
@@ -31,18 +31,21 @@ You do not need graph theory to use the CLI: **indexing builds the map; commands
 ## How the pieces fit
 
 ```text
-  Your repo
+  Your repo (source)
       │
+      │  discover  (cd repo && discover .  OR  rgctl -r PATH discover)
       ▼
-  discover          →  .rgctl/  (snapshot, indexes, optional archives)
+  artifact root (.rgctl/)
+      │   default daemon → ~/.rgctl/cache/{reponame}/.rgctl/
+      │   --no-daemon    → {repo}/.rgctl/
       │
       ├── gql / blast-radius / metrics / cpg / slice / check   (−f json for agents)
       ├── semantic index + query   (opt-in)
-      └── serve                    (optional HTTP UI + /api/query)
+      └── serve / MCP                (optional HTTP UI, stdio MCP, or background daemon)
 ```
 
-1. **Once** (or after large changes): `discover`.  
-2. **Many times:** query commands against `.rgctl/`.  
+1. **Once** (or after large changes): `discover` from the repo you mean to index — see [Discovering and indexing](guides/discovering-and-indexing.md) for `-r` vs `.` pitfalls.  
+2. **Many times:** query commands read the artifact root (daemon cache or in-repo `.rgctl/`).  
 3. **Agents:** always prefer `-f json` ([AGENTS.md](../AGENTS.md)).  
 4. **Dashboard:** optional visual UI after `--with-dashboard` — not required for structural answers.
 
@@ -66,7 +69,7 @@ Commands and sample output live in the **[User Guide](user-guide.md)**. Short in
 | **semantic** | Opt-in natural-language / keyword search over functions |
 | **export / check** | Subgraph export; CI policy on blast-radius |
 | **migration hints** | Package roadmap JSON (`--export-migration-hints`) |
-| **serve** | Optional HTTP API (+ dashboard if assets present) |
+| **serve** | Dashboard + HTTP API; **`serve --mode mcp`** (stdio MCP); **`serve --daemon`** / **`daemon start`** (background HTTP + `/mcp`) |
 
 **Markdown / docs:** `discover` indexes `.md` and `.mdx` by default (headings, links, frontmatter). GQL on `:Module` (`kind=heading`) and `REFERENCES`; semantic search stays function-only. See [markdown-context.md](markdown-context.md).
 

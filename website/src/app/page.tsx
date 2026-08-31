@@ -189,6 +189,7 @@ export default function HomePage() {
           </div>
           <TerminalBlock
             lines={[
+              "cd your-repo",
               "rgctl discover .",
               'rgctl -f json semantic query "checkout flow" --limit 5',
               'rgctl -f json blast-radius "priceShoppingCart" --depth 2',

@@ -4,7 +4,10 @@ use super::config::{
     DaemonConfig, DaemonHome, is_blocked_source, sanitize_reponame, unique_reponame,
 };
 use super::emit_stage;
-use super::protocol::{ControlRequest, ControlResponse, DiscoverRequest, RepoListEntry};
+use super::protocol::{
+    ControlRequest, ControlResponse, DiscoverRequest, RepoListEntry, read_control_line,
+    write_control_line,
+};
 use crate::cli::args::OutputFormat;
 use crate::cli::context::CliContext;
 use crate::cli::discover::{self, DiscoverArgs};
@@ -21,7 +24,7 @@ use rgctl_service::command::{CheckArgs, Command, ImpactArgs, MetricsArgs, QueryA
 use rgctl_service::{Session, execute};
 use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
+use std::io::{Read, Write};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -273,6 +276,12 @@ fn run_control_loop(state: Arc<WorkerState>) -> Result<()> {
         while !state.stop.load(Ordering::Relaxed) {
             match listener.accept() {
                 Ok((stream, _)) => {
+                    // Accepted sockets inherit the listener's nonblocking mode; large
+                    // JSON control responses need blocking writes (see write_all).
+                    if let Err(err) = stream.set_nonblocking(false) {
+                        eprintln!("rgctl control: {err:#}");
+                        continue;
+                    }
                     if let Err(err) = handle_control_conn(&state, stream) {
                         eprintln!("rgctl control: {err:#}");
                     }
@@ -310,17 +319,14 @@ fn run_control_loop(state: Arc<WorkerState>) -> Result<()> {
 
 fn handle_control_conn(
     state: &WorkerState,
-    mut stream: impl std::io::Read + std::io::Write,
+    mut stream: impl Read + Write,
 ) -> Result<()> {
-    let mut reader = BufReader::new(&mut stream);
-    let mut line = String::new();
-    reader.read_line(&mut line)?;
+    let line = read_control_line(&mut stream)?;
     let req: ControlRequest = serde_json::from_str(line.trim())?;
     let t0 = Instant::now();
     let resp = dispatch_control(state, req);
     emit_stage("daemon_execute", t0.elapsed().as_secs_f64());
-    let stream = reader.into_inner();
-    writeln!(stream, "{}", serde_json::to_string(&resp)?)?;
+    write_control_line(&mut stream, &resp)?;
     Ok(())
 }
 

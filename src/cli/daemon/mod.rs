@@ -15,7 +15,7 @@ use super::context::CliContext;
 use super::discover::{self, DiscoverArgs};
 use super::gql::GqlArgs;
 use anyhow::{Context, Result, bail};
-use std::io::{BufRead, BufReader, Write};
+use protocol::{read_control_line, write_control_line};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
@@ -259,20 +259,16 @@ fn call_inner(home: &DaemonHome, req: &ControlRequest) -> Result<ControlResponse
         .with_context(|| format!("connect {}", home.control_file().display()))?;
     stream.set_read_timeout(Some(Duration::from_secs(600)))?;
     stream.set_write_timeout(Some(Duration::from_secs(30)))?;
-    writeln!(stream, "{}", serde_json::to_string(req)?)?;
-    let mut reader = BufReader::new(stream);
-    let mut line = String::new();
-    reader.read_line(&mut line)?;
+    write_control_line(&mut stream, req)?;
+    let line = read_control_line(&mut stream)?;
     serde_json::from_str(line.trim()).context("parse daemon control response")
 }
 
 #[cfg(windows)]
 fn call_inner(home: &DaemonHome, req: &ControlRequest) -> Result<ControlResponse> {
     let mut stream = win_pipe::connect(home)?;
-    writeln!(stream, "{}", serde_json::to_string(req)?)?;
-    let mut reader = BufReader::new(stream);
-    let mut line = String::new();
-    reader.read_line(&mut line)?;
+    write_control_line(&mut stream, req)?;
+    let line = read_control_line(&mut stream)?;
     serde_json::from_str(line.trim()).context("parse daemon control response")
 }
 

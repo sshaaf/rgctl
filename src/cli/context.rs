@@ -131,12 +131,31 @@ impl CliContext {
             fs::write(path, bytes)?;
         } else {
             let mut out = io::stdout().lock();
-            out.write_all(bytes)?;
+            if let Err(e) = out.write_all(bytes) {
+                if e.kind() != io::ErrorKind::BrokenPipe {
+                    return Err(e.into());
+                }
+                return Ok(());
+            }
             if !bytes.ends_with(b"\n") {
-                out.write_all(b"\n")?;
+                if let Err(e) = out.write_all(b"\n") {
+                    if e.kind() != io::ErrorKind::BrokenPipe {
+                        return Err(e.into());
+                    }
+                }
             }
         }
         Ok(())
+    }
+
+    /// Write one line to stdout; ignore broken pipe when piped to `head`, etc.
+    pub fn stdout_line(&self, line: &str) -> Result<()> {
+        let mut out = io::stdout().lock();
+        match writeln!(out, "{line}") {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == io::ErrorKind::BrokenPipe => Ok(()),
+            Err(e) => Err(e.into()),
+        }
     }
 
     pub fn emit_json_value(&self, value: &serde_json::Value) -> Result<()> {

@@ -19,7 +19,7 @@ Semantic search is built on a separate opt-in index (`semantic_index.bin`) that 
 This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
 
 ```bash
-rgctl -r example/coolstore discover .
+rgctl -r example/coolstore discover
 ```
 
 ## Step-by-Step

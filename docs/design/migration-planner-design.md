@@ -504,7 +504,7 @@ tests/migration_plan_cli.rs
 
 ```bash
 cargo build --release
-rgctl -r ~/git/java/gbuilder discover . --with-cfg --with-security --with-taint
+rgctl -r ~/git/java/gbuilder discover --with-cfg --with-security --with-taint
 # → migration_graph.json: ~30 packages, mode package_macro
 rgctl serve -r ~/git/java/gbuilder
 # Migration tab → tune presets → inspect package graph + paginated table

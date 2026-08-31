@@ -120,7 +120,7 @@ Usage Examples:
 ===============
 
 # Index (snapshot-canonical; no legacy JSON unless requested)
-rgctl -r /path/to/repo discover . --languages java,rust
+rgctl -r /path/to/repo discover --languages java,rust
 
 # Blast radius (text)
 rgctl -r /path/to/repo blast-radius OrderService::process
@@ -149,7 +149,7 @@ Performance / architecture notes:
 =================================
   discover (default)     Writes columnar graph.snapshot.bin + engine snapshot
   blast-radius T0        macro_call_index.db hit (SQLite blast cache only) — no engine load
-  blast-radius T1        mmap graph + engine snapshot (or `serve --daemon` socket if running)
+  blast-radius T1        mmap graph + engine snapshot via daemon (default) or in-process with --no-daemon
   blast-radius full      Hydrated graph — required for --with-slices, --policy-file centrality
 
   See docs/cli-io-sanity-qe.md for subprocess gates; discover timing baselines in tests/discover_perf_baselines.rs.

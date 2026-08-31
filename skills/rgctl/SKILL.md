@@ -56,7 +56,7 @@ When MCP is not available, or for operations MCP doesn't support, spawn `rgctl -
 
 ```bash
 export REPO=/path/to/repo
-rgctl -r "$REPO" discover .
+rgctl -r "$REPO" discover
 rgctl -r "$REPO" -f json <command> …
 ```
 
@@ -78,7 +78,7 @@ rgctl -r "$REPO" -f json <command> …
 
 1. **Help-only** — If user only wants help/command list → print workflow table below and **stop** (no discover, no queries)
 2. **Fast path (existing index)** — If `.rgctl/` exists **and** request is a structural question (not rebuild) → **do not re-run discover**. Route via workflow table; use MCP tools or CLI `-f json`
-3. **No index** — Run `rgctl discover .`. Add flags only when needed (`--with-cfg` for slice/cpg, `semantic index` for search, migration flags for plans)
+3. **No index** — Run `cd "$REPO" && rgctl discover .` or `rgctl -r "$REPO" discover` (do **not** use `-r REPO discover .` — the `.` ignores `-r`). Add flags only when needed
 4. **Natural-language routing** — Map utterance with workflow table. Do not ask user to rephrase into CLI unless disambiguation required
 5. **Summarize** — Report key facts, not raw JSON dumps. See "what to report" under each command
 6. **Stop conditions** — Pure code-edit/debug with no structural need → do not force rgctl
@@ -95,7 +95,7 @@ Organized by user intent (like MCP's 7 tools):
 
 | User Intent | MCP Tool | CLI Command |
 |-------------|----------|-------------|
-| Build graph index | — | `discover .` |
+| Build graph index | — | `cd repo && discover .` or `rgctl -r PATH discover` |
 | Build semantic index | — | `semantic index` |
 | Check pipeline status | `rgctl_status` | `cpg status` |
 
@@ -289,7 +289,7 @@ Concepts often live in package/directory names or type names, not function names
 
 | Symptom | Fix |
 |---------|-----|
-| No `.rgctl/` | `discover .` |
+| No `.rgctl/` in repo | Normal with default daemon — check `~/.rgctl/cache/` or run `cd repo && rgctl discover .`; use `--no-daemon` for in-repo artifacts |
 | slice/inspect/cpg fails | Re-discover with `--with-cfg` |
 | semantic query fails | `semantic index` |
 | Ambiguous symbol | Add `--class` or `--file`; disambiguate via GQL |
@@ -300,13 +300,15 @@ Concepts often live in package/directory names or type names, not function names
 
 ## Artifacts
 
+Paths are under the artifact root (`~/.rgctl/cache/{reponame}/.rgctl/` by default, or `{repo}/.rgctl/` with `--no-daemon`):
+
 | Path | Content |
 |------|---------|
-| `.rgctl/graph.snapshot.bin` | Main graph snapshot |
-| `.rgctl/semantic_index.bin` | Semantic index |
-| `.rgctl/migration_plan.json` | Migration roadmap |
-| `.rgctl/dashboard/` | Dashboard bundle |
-| `.rgctl/analysis/` | CFG/PDG archives |
+| `graph.snapshot.bin` | Main graph snapshot |
+| `semantic_index.bin` | Semantic index |
+| `migration_plan.json` | Migration roadmap |
+| `dashboard/` | Dashboard bundle |
+| `analysis/` | CFG/PDG archives |
 
 ## Exit Codes
 
@@ -318,7 +320,7 @@ Concepts often live in package/directory names or type names, not function names
 ```bash
 # Typical workflow
 export REPO=/path/to/repo
-rgctl -r "$REPO" discover .
+rgctl -r "$REPO" discover
 rgctl -r "$REPO" -f json <command> …
 ```
 

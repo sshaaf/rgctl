@@ -122,7 +122,7 @@ if (doc.schema_version !== 2) {
 | `cpg` | ✅ | varies by subcommand | Hybrid CPG façade |
 | `install` | ✅ | `writes` | Install bundled agent skill |
 | `export` | ❌ (file) | — | Full-graph serialization |
-| `serve` | ❌ | — | HTTP dashboard + `/api/query` (default); `--daemon` = Unix socket blast daemon |
+| `serve` | ❌ | — | HTTP dashboard + `/api/query` (default); `--mode mcp` stdio; `--daemon` background HTTP+MCP daemon bootstrap |
 
 ---
 

@@ -15,8 +15,8 @@ export REPO=/path/to/repo   # contains .rgctl/ after discover
 ## Recipe 1 — Orient in an unfamiliar repo
 
 ```bash
-rgctl -r "$REPO" discover .
-rgctl -r "$REPO" -f json discover . | jq '.metrics'
+rgctl -r "$REPO" discover
+rgctl -r "$REPO" -f json discover | jq '.metrics'
 rgctl -r "$REPO" -f json gql --macro-name all_functions unused | jq '.count'
 rgctl -r "$REPO" -f json gql --macro-name all_communities unused | jq '.rows[:5]'
 rgctl -r "$REPO" -f json metrics --pagerank | jq '.rows[:10]'
@@ -102,7 +102,7 @@ rgctl -r "$REPO" -f json gql \
 ## Recipe 5 — Data-flow check at a line (needs `discover --with-cfg`)
 
 ```bash
-rgctl -r "$REPO" discover . --with-cfg
+rgctl -r "$REPO" discover --with-cfg
 rgctl -r "$REPO" -f json slice \
   src/main/java/com/example/Service.java \
   --line 42 --variable request --function handleRequest \
@@ -118,7 +118,7 @@ Note: `--function` is the **method name**, not the class name.
 ## Recipe 6 — Taint sanity check
 
 ```bash
-rgctl -r "$REPO" discover . --with-cfg
+rgctl -r "$REPO" discover --with-cfg
 rgctl -r "$REPO" -f json slice src/.../Controller.java \
   --line 30 --variable param --function handle --taint | jq '.flows'
 ```
@@ -183,7 +183,7 @@ rgctl -r "$REPO" export --export-format mermaid \
 
 ```bash
 export REPO=/path/to/repo
-rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover -l markdown
 
 rgctl -r "$REPO" export \
   --export-format obsidian \
@@ -207,7 +207,7 @@ rgctl -r "$REPO" -f json semantic query "checkout flow" --scope docs --limit 10
 ## Recipe 11 — DTO / cart mutation safety (hybrid CPG)
 
 ```bash
-rgctl -r "$REPO" discover . --with-cfg
+rgctl -r "$REPO" discover --with-cfg
 # Optional fidelity: --with-dfg-loops  --with-ast-skeleton
 
 # CoolStore ShoppingCart (ecommerce-* fixtures) — non-constructor field writes:

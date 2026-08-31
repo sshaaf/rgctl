@@ -1,8 +1,0 @@
-{
-  "id": "04-discover-json",
-  "args": ["-f", "json", "discover", ".", "-l", "java", "-e", "target"],
-  "is_discover": true,
-  "needs_discover": false,
-  "require_json_keys": ["schema_version", "command", "metrics"],
-  "marker": "04-discover-json"
-}

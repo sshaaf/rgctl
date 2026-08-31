@@ -17,7 +17,7 @@ Manual stage breakdown: [docs/internal/profile.md](../docs/internal/profile.md) 
 ./scripts/fetch-profile-repos.sh
 export REPO="$(pwd)/example/k8s-website"
 cargo build --release --bin rgctl
-rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover -l markdown
 rgctl -r "$REPO" export --export-format obsidian --export-output "$REPO/vault" --query all
 # Open example/k8s-website/vault in Obsidian
 ```

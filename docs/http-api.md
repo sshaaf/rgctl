@@ -41,7 +41,7 @@ rgctl -r "$REPO" serve --open
 | `--dashboard-only` | Dashboard only, no query API |
 | `--mode standard\|mcp` | HTTP (default) or MCP stdio |
 | `--no-pipeline` | Do not auto-discover; fail if dashboard/graph missing |
-| `--daemon` | **Legacy** Unix-socket blast daemon (no HTTP, no pipeline) |
+| `--daemon` | Start or attach to the **background HTTP+MCP daemon** (no HTTP bind in this process; no auto-discover). Same model as `rgctl daemon start`. |
 
 ---
 
@@ -155,7 +155,7 @@ Shared daemon for multi-repo cache, catalog, and MCP:
 
 ```bash
 rgctl daemon start [--host HOST] [--port PORT]
-rgctl -r "$REPO" discover .
+rgctl -r "$REPO" discover
 rgctl -r "$REPO" serve --daemon   # foreground bootstrap; same daemon model
 ```
 
@@ -165,7 +165,7 @@ rgctl -r "$REPO" serve --daemon   # foreground bootstrap; same daemon model
 
 CLI commands route through the daemon by default (cache under `~/.rgctl/`). Use **`--no-daemon`** for in-process execution and `{repo}/.rgctl/` artifacts.
 
-The legacy blast-radius-only **`query.sock`** auto-connect path is **retired** on current main (see [unreleased](releases/unreleased.md)).
+The legacy blast-radius-only **`query.sock`** auto-connect path is **retired** in v0.4.7+ (see [v0.4.7 release notes](releases/v0.4.7.md)).
 
 ---
 

@@ -2,6 +2,14 @@
 
 Short answers for common first-hour questions. Commands → [User Guide](user-guide.md). Terms → [Glossary](glossary.md).
 
+### Where are `.rgctl/` artifacts stored?
+
+**Default (background daemon):** `~/.rgctl/cache/{reponame}/.rgctl/` — not in your source tree. **CI / in-repo:** `rgctl --no-daemon discover .` writes `{repo}/.rgctl/`. See [Installation — Daemon vs no-daemon](installation.md#daemon-vs-no-daemon).
+
+### I ran `discover` but queried the wrong repo
+
+`rgctl -r PATH discover .` indexes **shell cwd**, not `PATH`. Use `cd repo && rgctl discover .` or `rgctl -r PATH discover` (no trailing `.`).
+
 ### Discover vs semantic index?
 
 `discover` builds the **code knowledge graph** and reachability caches. `semantic index` is a separate **opt-in** embedding index for natural-language / keyword search. Run discover first, then `rgctl semantic index` if you need Search / `semantic query`. For **doc sections**, use `semantic index --scope docs` (indexes headings + code blocks); query embedder is fixed at index time — see [markdown-context.md](markdown-context.md#semantic-search-doc-sections).

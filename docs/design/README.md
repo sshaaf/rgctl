@@ -31,7 +31,7 @@ Regenerate after UI changes:
 ```bash
 cd dashboard && npm run build
 cargo build --release
-rgctl -r /path/to/gbuilder discover . --with-cfg --with-security --with-taint
+rgctl -r /path/to/gbuilder discover --with-cfg --with-security --with-taint
 rgctl -r /path/to/gbuilder serve --port 8080
 
 DASHBOARD_URL=http://127.0.0.1:8080/ node dashboard/scripts/capture-design-screenshots.mjs

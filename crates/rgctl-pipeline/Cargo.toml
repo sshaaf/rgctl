@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-pipeline"
-version = "0.4.7"
+version = "0.4.8"
 edition.workspace = true
 rust-version.workspace = true
 description = "Parallel processing pipeline for rgctl"

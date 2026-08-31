@@ -212,7 +212,25 @@ All commands below assume `REPO` points at `ecommerce-java`, or that you run fro
 
 ## 4. Index with `discover`
 
-`discover` scans source files, builds the knowledge graph, runs analytics (complexity, communities, centrality, blast-radius scoring), and writes artifacts under `.rgctl/`.
+`discover` scans source files, builds the knowledge graph, runs analytics (complexity, communities, centrality, blast-radius scoring), and writes artifacts under **`.rgctl/`**.
+
+**Where that directory lives** depends on daemon mode (see [Installation — Daemon vs no-daemon](installation.md#daemon-vs-no-daemon)):
+
+| Mode | Artifact path |
+|------|----------------|
+| **Default (background daemon)** | `~/.rgctl/cache/{reponame}/.rgctl/` — source tree is not written |
+| **`--no-daemon`** | `{repo}/.rgctl/` — use for CI, cold profiles, or checked-in fixtures |
+
+**Choosing the discover target** (common pitfall):
+
+| Command | Indexes |
+|---------|---------|
+| `cd repo && rgctl discover .` | **Recommended** — current directory |
+| `rgctl -r /path/to/repo discover` | Repo at `/path/to/repo` |
+| `rgctl discover /path/to/repo` | Same (absolute path positional) |
+| `rgctl -r /path/to/repo discover .` | **Shell cwd only** — `-r` is ignored when `.` is present |
+
+Full table: [Discovering and indexing](guides/discovering-and-indexing.md).
 
 Built-in registry includes **markdown** (`rgctl-lang-markdown`): `.md` and `.mdx` are indexed by default (headings, links, code blocks, frontmatter). See [markdown-context.md](markdown-context.md). Use `-l markdown` or `-l markdown,java` to limit languages.
 
@@ -368,10 +386,10 @@ rgctl discover . --write-json-graph
 
 ### What `discover` creates
 
-After a successful run:
+After a successful run, the layout below appears under the **artifact root** (daemon cache or in-repo `.rgctl/`). Examples use the in-repo path for readability:
 
 ```
-ecommerce-java/.rgctl/
+{artifact-root}/.rgctl/          # e.g. ~/.rgctl/cache/ecommerce-java/.rgctl/  or  ecommerce-java/.rgctl/
 ├── graph.snapshot.bin          # Columnar mmap graph (primary cache for queries)
 ├── content_store.bin           # Large markdown bodies / files (body_ref / blob_ref; Obsidian + doc semantic)
 ├── blast_engine.snapshot.bin   # Pre-built blast-radius engine
@@ -391,13 +409,15 @@ ecommerce-java/.rgctl/
 
 Query commands read `graph.snapshot.bin` when present. You do **not** need `graph.db` for normal CLI use.
 
-Point every subsequent command at this repo:
+Point every subsequent command at the **same repo root** you indexed (daemon routing resolves the cache automatically):
 
 ```bash
-export REPO="$PWD"
+export REPO="$PWD"   # after cd into the repo
 # or pass -r on each command:
 rgctl -r "$REPO" gql 'MATCH (n:Function) RETURN n LIMIT 5'
 ```
+
+For CI or scripts that need artifacts in the tree: `rgctl --no-daemon discover .` then `-r "$REPO"` as usual.
 
 ---
 
@@ -408,6 +428,9 @@ These apply to **every** subcommand:
 | Flag | Purpose |
 |------|---------|
 | `-r, --repo PATH` | Repository root (default: current directory) |
+| `--no-daemon` | Skip background daemon; use in-process execution and `{repo}/.rgctl/` artifacts |
+| `--daemon-home PATH` | Override daemon state directory (default `~/.rgctl/`; env `RGCTL_HOME`) |
+| `--fail-if-no-daemon` | Exit if the background daemon cannot be started or reached |
 | `-d, --db PATH` | Legacy graph JSON path (default: `.rgctl/graph.db`) |
 | `-f, --format FORMAT` | Output: `text`, `json`, `graphviz`, `mermaid` |
 | `-o, --output FILE` | Write command output to a file instead of stdout |
@@ -1053,7 +1076,7 @@ For documentation repos (or `-l markdown` discover), export heading sections as 
 
 ```bash
 export REPO=/path/to/docs-repo
-rgctl -r "$REPO" discover . -l markdown
+rgctl -r "$REPO" discover -l markdown
 rgctl -r "$REPO" export \
   --export-format obsidian \
   --export-output "$REPO/vault" \
@@ -1129,7 +1152,7 @@ Shared daemon for catalog, per-repo HTTP API, and `/mcp` (default cache under `~
 
 ```bash
 rgctl daemon start --host 127.0.0.1 --port 8080
-rgctl -r "$REPO" discover .
+rgctl -r "$REPO" discover
 # Terminal 2 — CLI routes through daemon unless --no-daemon
 rgctl -r "$REPO" -f json blast-radius 'CartService::clearCart'
 ```
@@ -1202,7 +1225,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgctl/migration_p
 | `check` | CI policy gateway |
 | `install` | Copy the bundled agent skill into `.claude/skills/` and `.cursor/skills/` |
 | `semantic` | Opt-in semantic index + query (`--scope community`, `docs`, `all`) |
-| `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--mode mcp` stdio; `--no-pipeline` fail-fast; `--daemon` blast socket |
+| `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--mode mcp` stdio; `--no-pipeline` fail-fast; `--daemon` background HTTP+MCP daemon bootstrap |
 
 ### `discover` flags
 
@@ -1229,6 +1252,19 @@ There is no umbrella `--all` flag — combine `--with-cfg --with-security --with
 ---
 
 ## 18. Troubleshooting
+
+### Indexed the wrong repository
+
+If you ran `rgctl -r /path/to/repo discover .` from another directory, artifacts reflect **shell cwd**, not `-r`. Fix:
+
+```bash
+cd /path/to/repo && rgctl discover .
+# or: rgctl -r /path/to/repo discover    # no trailing .
+```
+
+### `empty control message` / daemon worker died
+
+Usually the daemon worker crashed (OOM, panic) or indexed an unintended huge tree. Check you indexed the repo you meant (see above). Retry with `--no-daemon -v` for a direct error, or inspect `~/.rgctl/` logs if present.
 
 ### `Graph not found` / `run discover first`
 
@@ -1275,11 +1311,13 @@ On **very large repos** (500k+ graph nodes), discover automatically:
 - Skips per-function rows in `function_metrics.json` (community/metagraph view instead)
 - Uses on-demand blast reachability for flat call graphs (no eager multi-hundred-GB bitsets)
 
-Profile a cold run:
+Profile a cold run (use `--no-daemon` so artifacts land in-repo for `rm -rf`):
 
 ```bash
+rgctl --no-daemon discover . -v   # from repo root
+# or to reset in-repo artifacts:
 rm -rf .rgctl
-RUST_LOG=info,profile=info rgctl discover . -v 2>&1 | grep '\[profile\]'
+RUST_LOG=info,profile=info rgctl --no-daemon discover . -v 2>&1 | grep '\[profile\]'
 ```
 
 ### Further reading

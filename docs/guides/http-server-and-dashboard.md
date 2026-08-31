@@ -17,7 +17,7 @@ The `serve` command launches an HTTP server that provides both a **browser-based
 This guide uses the **CoolStore** (`example/coolstore`). `rgctl serve` can start the full pipeline itself. To only serve existing artifacts:
 
 ```bash
-rgctl -r example/coolstore discover . --with-cfg --with-dashboard
+rgctl -r example/coolstore discover --with-cfg --with-dashboard
 rgctl -r example/coolstore serve --no-pipeline --open
 ```
 
@@ -168,9 +168,8 @@ See the [HTTP API Reference](../http-api.md) for complete endpoint documentation
 | `--mode` | `standard` | `standard` (HTTP) or `mcp` (stdio, no HTTP) |
 | `--no-pipeline` | off | Fail fast if artifacts are missing (old `serve` behavior) |
 | `--dashboard-dir` | `.rgctl/dashboard` | Dashboard directory |
-| `--daemon` | off | Legacy Unix socket mode |
-| `--daemon` | off | Background HTTP+MCP daemon (`daemon start`) |
-| `--idle-secs` | `300` | Auto-exit after N seconds idle |
+| `--daemon` | off | Background HTTP+MCP daemon (`daemon start` / `serve --daemon`) |
+| `--idle-secs` | `300` | Daemon auto-exit after N seconds idle (`serve --daemon` only) |
 
 ## Benefits
 
