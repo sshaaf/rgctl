@@ -22,7 +22,7 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 | Goal | Doc |
 |------|-----|
 | Supported languages | [Languages](languages.md) |
-| Markdown / doc context graph | [Markdown context](markdown-context.md) — `.md` / `.mdx`, GQL, Obsidian vault export, doc semantic index |
+| Markdown / doc context graph | [Guide](guides/markdown-context-graph.md) (step-by-step) · [Reference](markdown-context.md) — `.md` / `.mdx`, GQL, Obsidian export, doc semantic index |
 | FAQ / glossary | [FAQ](faq.md) · [Glossary](glossary.md) |
 | HTTP `serve` query API | [HTTP API](http-api.md) |
 | CI blast-radius policy | [Policy format](policy-format.md) |

@@ -2,6 +2,8 @@
 
 rgctl indexes `.md` and `.mdx` through the **custom markup plugin** `rgctl-lang-markdown` (not Tier 1, not generic Tier 2). It uses official `tree-sitter-md` (block + inline grammars) to build a documentation context graph alongside code.
 
+**Step-by-step guide:** [guides/markdown-context-graph.md](guides/markdown-context-graph.md) — discover, GQL, Obsidian/OKF export, semantic search, and a full showcase of supported markdown constructs.
+
 ## Discover
 
 Markdown is registered in `default_registry()` — `discover` indexes `.md` / `.mdx` by default (same as other built-in languages). Filter with `-l markdown` when you only want docs:
@@ -84,6 +86,7 @@ Turn the markdown context graph into an **Obsidian vault** — one note per head
 
 ```bash
 export REPO=/path/to/repo
+export RGCTL_NO_DAEMON=1   # {repo}/.rgctl/; omit to use ~/.rgctl/cache/{reponame}/
 cargo build --release --bin rgctl   # release is faster for large exports
 export PATH="$PWD/target/release:$PATH"
 
@@ -266,7 +269,7 @@ Query 6 finds doc → Java **file → class** via existing `REFERENCES` and `CON
 
 ## PageRank and communities
 
-Doc `REFERENCES` edges participate in discover-time centrality ([`default_behavioral_edges`](../../crates/rgctl-analysis/src/centrality.rs)) and community detection (`default_community_edge_types` includes `References`).
+Doc `REFERENCES` edges participate in discover-time centrality ([`default_behavioral_edges`](../crates/rgctl-analysis/src/centrality.rs)) and community detection (`default_community_edge_types` includes `References`).
 
 **Communities at discover:** `detect_with_view_defaults` projects neighbors via `build_community_neighbor_lists`:
 
