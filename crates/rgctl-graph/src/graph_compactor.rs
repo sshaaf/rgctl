@@ -175,7 +175,7 @@ impl<'a> GraphCompactor<'a> {
             }
         }
 
-        edge_meta.sort_by(|a, b| a.cmp(b));
+        edge_meta.sort();
 
         let mut edge_rows = Vec::with_capacity(edge_meta.len());
         for (from, to, edge_type) in edge_meta {

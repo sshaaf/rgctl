@@ -44,6 +44,7 @@ Daemon tests must use **`--test-threads=1`** (ports + temp `RGCTL_HOME`).
 
 | Pattern | Use |
 |---------|-----|
+| **`RGCTL_NO_DAEMON=1` + `--no-daemon`** | Default for all integration tests **except** `rgctl_daemon.rs` — isolates artifacts under `{repo}/.rgctl/` |
 | `cd repo && rgctl --no-daemon discover .` | Correct no-daemon indexing |
 | `-r OTHER discover .` from another cwd | **Indexes cwd, not `-r`** — regression test documents this |
 | `discover /abs/path/to/repo` | Works from any cwd |

@@ -1,7 +1,7 @@
 //! Kantra discover stage integration.
 
 use crate::analysis::graph_utils::PetGraphView;
-use crate::analysis::ColdMetadataDb;
+use crate::analysis::{AnalysisResults, BlastRadiusEngine, ColdMetadataDb, NodeLookup};
 use crate::cli::stage_profile::DiscoverStageReport;
 use anyhow::{Context, Result, bail};
 use rayon::prelude::*;
@@ -10,14 +10,16 @@ use rgctl_graph::snapshot::SNAPSHOT_FILE;
 use rgctl_kantra::eval::filecontent::SourceCache;
 use rgctl_kantra::loader::KantraRuleset;
 use rgctl_kantra::{
-    EvalContext, EvalEdge, EvalGraph, EvalNode, KantraCatalog, KantraEngine,
-    rewrite_snapshot_with_catalog,
+    EvalContext, EvalEdge, EvalGraph, EvalNode, KantraCatalog, KantraEngine, KantraFindings,
+    KantraFileCache, NodeMetrics, ViolationResolver, cache_dir, enrich_findings,
+    rewrite_snapshot_with_catalog, rewrite_snapshot_with_violations, ruleset_hash,
 };
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
+use uuid::Uuid;
 
 const TEXT_EXTENSIONS: &[&str] = &[
     ".go", ".java", ".kt", ".scala", ".py", ".rs", ".js", ".ts", ".tsx", ".jsx", ".c", ".h",
@@ -61,6 +63,77 @@ pub fn run_kantra_index(
     Ok(())
 }
 
+/// Materialize `VIOLATES` edges after rule nodes are indexed.
+pub fn run_kantra_violates(store: &Path, profile: &mut DiscoverStageReport) -> Result<usize> {
+    let start = Instant::now();
+    let findings_path = rgctl_graph::paths::artifact_path(store, "kantra_findings.json");
+    let bytes = fs::read(&findings_path)
+        .with_context(|| format!("read {}", findings_path.display()))?;
+    let findings: KantraFindings =
+        serde_json::from_slice(&bytes).context("parse kantra findings for VIOLATES")?;
+    let snapshot_path = rgctl_graph::paths::artifact_path(store, SNAPSHOT_FILE);
+    let count = rewrite_snapshot_with_violations(&snapshot_path, &findings)
+        .map_err(|e| anyhow::anyhow!("kantra violates: {e}"))?;
+    profile.kantra_violates.secs = start.elapsed().as_secs_f64();
+    Ok(count)
+}
+
+/// Enrich findings with community / centrality / blast-radius metrics.
+pub fn run_kantra_enrich(
+    store: &Path,
+    cold: &ColdMetadataDb,
+    analysis: &AnalysisResults,
+    blast: &BlastRadiusEngine,
+    eval_graph: &EvalGraph,
+    profile: &mut DiscoverStageReport,
+) -> Result<KantraFindings> {
+    let start = Instant::now();
+    let findings_path = rgctl_graph::paths::artifact_path(store, "kantra_findings.json");
+    let bytes = fs::read(&findings_path)
+        .with_context(|| format!("read {}", findings_path.display()))?;
+    let mut findings: KantraFindings =
+        serde_json::from_slice(&bytes).context("parse kantra findings for enrich")?;
+
+    let resolver = ViolationResolver::from_eval_nodes(&eval_graph.nodes);
+    resolver.attach_node_ids(&mut findings.violations);
+
+    let metrics = build_node_metrics(cold, analysis, blast);
+    enrich_findings(&mut findings, &metrics);
+
+    let json = serde_json::to_string_pretty(&findings).context("serialize kantra findings")?;
+    fs::write(&findings_path, json).with_context(|| format!("write {}", findings_path.display()))?;
+    profile.kantra_enrich.secs = start.elapsed().as_secs_f64();
+    Ok(findings)
+}
+
+fn build_node_metrics(
+    cold: &ColdMetadataDb,
+    analysis: &AnalysisResults,
+    blast: &BlastRadiusEngine,
+) -> HashMap<Uuid, NodeMetrics> {
+    let mut out = HashMap::new();
+    let _ = cold.for_each_node(&mut |node| {
+        let mut metrics = NodeMetrics::default();
+        if let Some(c) = analysis.get_community(node.id) {
+            metrics.community_id = Some(c);
+        }
+        if let Some(cent) = analysis.get_centrality(node.id) {
+            metrics.pagerank = Some(cent.pagerank);
+        }
+        if let Ok(result) = blast.analyze(node.id) {
+            metrics.blast_radius_score = Some(result.score);
+            metrics.impact_zone_size = Some(result.impact_zone_ids.len());
+        }
+        if metrics.community_id.is_some()
+            || metrics.pagerank.is_some()
+            || metrics.blast_radius_score.is_some()
+        {
+            out.insert(node.id, metrics);
+        }
+    });
+    out
+}
+
 /// Run Kantra evaluation and write `.rgctl/kantra_findings.json`.
 pub fn run_kantra_stage(
     repo_root: &Path,
@@ -72,10 +145,10 @@ pub fn run_kantra_stage(
     cold: &ColdMetadataDb,
     petgraph_view: &PetGraphView,
     profile: &mut DiscoverStageReport,
-) -> Result<rgctl_kantra::KantraFindings> {
+) -> Result<(KantraFindings, EvalGraph)> {
     let kantra_start = Instant::now();
     let catalog = resolve_kantra_catalog(rules_path, catalog_path)?;
-    let (engine, load_secs) = KantraEngine::from_catalog(catalog, kantra_target)
+    let (engine, load_secs) = KantraEngine::from_catalog(catalog.clone(), kantra_target)
         .map_err(|e| anyhow::anyhow!("kantra catalog: {e}"))?;
     profile.kantra_load.secs = load_secs;
 
@@ -84,21 +157,34 @@ pub fn run_kantra_stage(
     profile.kantra_filecontent.secs = preload_start.elapsed().as_secs_f64();
 
     let graph = build_eval_graph(cold, petgraph_view)?;
-    let ctx = EvalContext {
+    let rs_hash = ruleset_hash(
+        engine.catalog_id().unwrap_or("unknown"),
+        catalog.rules.len(),
+    );
+    let mut file_cache = KantraFileCache::load(&cache_dir(store), &rs_hash);
+
+    let mut ctx = EvalContext {
         repo_root,
         files,
         sources: &sources,
         graph: &graph,
+        cache: Some(&mut file_cache),
+        cached_files: HashSet::new(),
     };
 
     let ref_start = Instant::now();
-    let (findings, timings) = engine
-        .evaluate(&ctx)
+    let (mut findings, timings) = engine
+        .evaluate(&mut ctx)
         .map_err(|e| anyhow::anyhow!("kantra evaluate: {e}"))?;
     profile.kantra_referenced.secs = ref_start.elapsed().as_secs_f64();
     profile.kantra_compose.secs = timings.compose_secs;
     profile.kantra_filecontent.secs += timings.filecontent_secs;
     profile.kantra_eval.secs = kantra_start.elapsed().as_secs_f64();
+
+    let resolver = ViolationResolver::from_eval_nodes(&graph.nodes);
+    resolver.attach_node_ids(&mut findings.violations);
+
+    file_cache.save(&cache_dir(store))?;
 
     let out_path = rgctl_graph::paths::artifact_path(store, "kantra_findings.json");
     if let Some(parent) = out_path.parent() {
@@ -106,7 +192,7 @@ pub fn run_kantra_stage(
     }
     let json = serde_json::to_string_pretty(&findings).context("serialize kantra findings")?;
     fs::write(&out_path, json).with_context(|| format!("write {}", out_path.display()))?;
-    Ok(findings)
+    Ok((findings, graph))
 }
 
 /// Read discovered source files into a cache (parallel).
@@ -220,6 +306,7 @@ fn build_eval_graph(cold: &ColdMetadataDb, view: &PetGraphView) -> Result<EvalGr
 
 fn node_to_eval(node: &Node) -> EvalNode {
     EvalNode {
+        id: Some(node.id),
         node_type: format!("{:?}", node.node_type),
         name: node.name.to_string(),
         qualified_name: node.qualified_name.as_ref().map(|s| s.to_string()),

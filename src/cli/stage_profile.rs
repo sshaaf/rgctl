@@ -43,6 +43,8 @@ pub struct DiscoverStageReport {
     pub kantra_filecontent: StageTiming,
     pub kantra_referenced: StageTiming,
     pub kantra_compose: StageTiming,
+    pub kantra_enrich: StageTiming,
+    pub kantra_violates: StageTiming,
     /// Absolute high-water RSS for the whole discover run (ingest + analysis).
     pub peak_rss_mb: f64,
     /// Peak RSS during ingest (index → early mmap → complexity → CSR → drop backend).
@@ -75,7 +77,9 @@ impl DiscoverStageReport {
             + self.save_dashboard.secs
             + self.migration_plan.secs
             + self.kantra_index.secs
-            + self.kantra_eval.secs;
+            + self.kantra_eval.secs
+            + self.kantra_enrich.secs
+            + self.kantra_violates.secs;
 
         let stages: &[(&str, f64)] = &[
             ("index_extract", self.index_extract.secs),
@@ -104,6 +108,8 @@ impl DiscoverStageReport {
             ("kantra_filecontent", self.kantra_filecontent.secs),
             ("kantra_referenced", self.kantra_referenced.secs),
             ("kantra_compose", self.kantra_compose.secs),
+            ("kantra_enrich", self.kantra_enrich.secs),
+            ("kantra_violates", self.kantra_violates.secs),
         ];
 
         tracing::info!(

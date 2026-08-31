@@ -10,14 +10,17 @@ use std::process::Command;
 fn run_discover_migration(repo: &Path, extra_args: &[&str]) -> std::process::Output {
     let bin = rgctl_bin();
     let mut cmd = Command::new(&bin);
-    cmd.args([
-        "-r",
-        repo.to_str().unwrap(),
-        "discover",
-        ".",
-        "--languages",
-        "java,rust",
-    ]);
+    cmd.env("RGCTL_NO_DAEMON", "1")
+        .arg("--no-daemon")
+        .current_dir(repo)
+        .args([
+            "-r",
+            repo.to_str().unwrap(),
+            "discover",
+            ".",
+            "--languages",
+            "java,rust",
+        ]);
     cmd.args(extra_args);
     cmd.output().expect("spawn rgctl discover")
 }

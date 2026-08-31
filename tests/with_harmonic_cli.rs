@@ -12,14 +12,17 @@ use std::process::Command;
 
 fn run_discover(repo: &Path, extra: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(rgctl_bin());
-    cmd.args([
-        "-r",
-        repo.to_str().unwrap(),
-        "discover",
-        ".",
-        "--languages",
-        "java,rust",
-    ]);
+    cmd.env("RGCTL_NO_DAEMON", "1")
+        .arg("--no-daemon")
+        .current_dir(repo)
+        .args([
+            "-r",
+            repo.to_str().unwrap(),
+            "discover",
+            ".",
+            "--languages",
+            "java,rust",
+        ]);
     cmd.args(extra);
     cmd.output().expect("spawn rgctl discover")
 }

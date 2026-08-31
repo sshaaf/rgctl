@@ -17,14 +17,17 @@ fn materialize() -> (tempfile::TempDir, std::path::PathBuf) {
 
 fn run_discover(repo: &Path, extra: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(rgctl_bin());
-    cmd.args([
-        "-r",
-        repo.to_str().unwrap(),
-        "discover",
-        ".",
-        "--languages",
-        "java,rust",
-    ]);
+    cmd.env("RGCTL_NO_DAEMON", "1")
+        .arg("--no-daemon")
+        .current_dir(repo)
+        .args([
+            "-r",
+            repo.to_str().unwrap(),
+            "discover",
+            ".",
+            "--languages",
+            "java,rust",
+        ]);
     cmd.args(extra);
     cmd.output().expect("spawn rgctl discover")
 }
@@ -39,18 +42,44 @@ fn assert_ok(output: &std::process::Output, label: &str) {
 }
 
 #[test]
-fn discover_rejects_all_flag() {
-    let (_tmp, repo) = materialize();
-    let output = run_discover(&repo, &["--all"]);
-    assert!(!output.status.success(), "--all must not exist (#34)");
-    let err = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stderr),
-        String::from_utf8_lossy(&output.stdout)
-    );
-    assert!(
-        err.contains("--all") || err.contains("unexpected"),
-        "error should mention unknown --all:\n{err}"
+fn discover_all_flag_is_ignored() {
+    let (_baseline_tmp, baseline_repo) = materialize();
+    let (_all_tmp, all_repo) = materialize();
+
+    fn nodes_generated(repo: &Path, extra: &[&str]) -> u64 {
+        let mut cmd = Command::new(rgctl_bin());
+        cmd.env("RGCTL_NO_DAEMON", "1")
+            .arg("--no-daemon")
+            .current_dir(repo)
+            .args([
+                "-r",
+                repo.to_str().unwrap(),
+                "-f",
+                "json",
+                "discover",
+                ".",
+                "--languages",
+                "java,rust",
+            ]);
+        cmd.args(extra);
+        let out = cmd.output().expect("discover json");
+        assert!(
+            out.status.success(),
+            "discover json failed:\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        serde_json::from_slice::<serde_json::Value>(&out.stdout).expect("discover json")["metrics"]
+            ["nodes_generated"]
+            .as_u64()
+            .expect("nodes_generated")
+    }
+
+    let baseline = nodes_generated(&baseline_repo, &[]);
+    let with_all = nodes_generated(&all_repo, &["--all"]);
+    assert_eq!(
+        baseline, with_all,
+        "--all must not change graph size after #34"
     );
 }
 

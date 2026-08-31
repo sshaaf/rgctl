@@ -56,7 +56,11 @@ fn materialize_fixture() -> tempfile::TempDir {
 
 fn run_rgctl(repo: &Path, args: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(rgctl_bin());
-    cmd.arg("-r").arg(repo);
+    cmd.env("RGCTL_NO_DAEMON", "1")
+        .arg("--no-daemon")
+        .current_dir(repo)
+        .arg("-r")
+        .arg(repo);
     cmd.args(args);
     cmd.output().expect("spawn rgctl")
 }

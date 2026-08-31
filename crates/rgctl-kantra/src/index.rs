@@ -125,7 +125,7 @@ fn ruleset_node_id(catalog_id: &str) -> Uuid {
     Uuid::new_v5(&KANTRA_RULESET_NS, catalog_id.as_bytes())
 }
 
-fn rule_node_id(rule_id: &str) -> Uuid {
+pub fn rule_node_id(rule_id: &str) -> Uuid {
     Uuid::new_v5(&KANTRA_RULE_NS, rule_id.as_bytes())
 }
 

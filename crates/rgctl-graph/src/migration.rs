@@ -22,44 +22,37 @@ pub fn migrate_snapshot(
 /// Promote legacy property-bag fields to first-class node/edge metadata.
 pub fn migrate_v1_to_v2(nodes: &mut [Node], edges: &mut [Edge]) {
     for node in nodes.iter_mut() {
-        if node.signature.is_none() {
-            if let Some(sig) = node.properties.get("signature").cloned() {
+        if node.signature.is_none()
+            && let Some(sig) = node.properties.get("signature").cloned() {
                 node.signature = Some(SharedStr::from(sig));
             }
-        }
-        if node.return_type.is_none() {
-            if let Some(ret) = node.properties.get("return_type").cloned() {
+        if node.return_type.is_none()
+            && let Some(ret) = node.properties.get("return_type").cloned() {
                 node.return_type = Some(SharedStr::from(ret));
             }
-        }
-        if node.parameters.is_empty() {
-            if let Some(raw) = node.properties.get("parameters") {
-                if let Ok(params) = serde_json::from_str::<Vec<Parameter>>(raw) {
+        if node.parameters.is_empty()
+            && let Some(raw) = node.properties.get("parameters")
+                && let Ok(params) = serde_json::from_str::<Vec<Parameter>>(raw) {
                     node.parameters = params
                         .into_iter()
                         .map(graph_parameter_from_plugin)
                         .collect();
                 }
-            }
-        }
-        if node.code_hash.is_none() {
-            if let Some(hash) = node.properties.get("code_hash").cloned() {
+        if node.code_hash.is_none()
+            && let Some(hash) = node.properties.get("code_hash").cloned() {
                 node.code_hash = Some(SharedStr::from(hash));
             }
-        }
     }
 
     for edge in edges.iter_mut() {
-        if edge.call_type.is_none() {
-            if let Some(raw) = edge.properties.get("call_type") {
+        if edge.call_type.is_none()
+            && let Some(raw) = edge.properties.get("call_type") {
                 edge.call_type = parse_call_type(raw);
             }
-        }
-        if edge.access_type.is_none() {
-            if let Some(raw) = edge.properties.get("access_type") {
+        if edge.access_type.is_none()
+            && let Some(raw) = edge.properties.get("access_type") {
                 edge.access_type = parse_access_type(raw);
             }
-        }
     }
 }
 

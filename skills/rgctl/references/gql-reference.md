@@ -58,9 +58,7 @@ Valid relationship types in MATCH patterns:
 | `DEFINEDIN` | Defined in file |
 | `DEPENDSON` | Module-level dependency |
 
-**Kantra rules (after `discover --with-kantra`):** `KantraRuleset` `CONTAINS` `KantraRule`. Konveyor labels are node `properties` (use backtick-quoted keys in `WHERE`). Phase 1 does not emit `VIOLATES` edges to code nodes.
-
-**Invalid edge types:** `DEPENDS`, `IMPORTS`, `VIOLATES` (not available yet)
+**Kantra rules (after `discover --with-kantra`):** `KantraRuleset` `CONTAINS` `KantraRule`; `KantraRule` `VIOLATES` code nodes when eval runs (edge props: `line`, `matched_by`). Konveyor labels are node `properties` (use backtick-quoted keys in `WHERE`).
 
 ## LIKE Pattern Matching
 

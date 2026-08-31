@@ -63,19 +63,17 @@ pub fn extract_name_from_node(node: Node, source: &[u8]) -> Result<Option<String
         if let Some(name) = node.child_by_field_name("name") {
             return Ok(Some(name.utf8_text(source)?.to_string()));
         }
-        if let Some(decl) = node.child_by_field_name("declarator") {
-            if let Some(name) = extract_c_function_name(decl, source) {
+        if let Some(decl) = node.child_by_field_name("declarator")
+            && let Some(name) = extract_c_function_name(decl, source) {
                 return Ok(Some(name));
             }
-        }
     }
 
     for field in ["name", "lhs", "pattern"] {
-        if let Some(field_node) = node.child_by_field_name(field) {
-            if let Some(name) = extract_name_from_node(field_node, source)? {
+        if let Some(field_node) = node.child_by_field_name(field)
+            && let Some(name) = extract_name_from_node(field_node, source)? {
                 return Ok(Some(name));
             }
-        }
     }
 
     let name_kinds = [
@@ -132,11 +130,10 @@ fn extract_c_function_name(node: Node, source: &[u8]) -> Option<String> {
         _ => {
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                if child.is_named() {
-                    if let Some(name) = extract_c_function_name(child, source) {
+                if child.is_named()
+                    && let Some(name) = extract_c_function_name(child, source) {
                         return Some(name);
                     }
-                }
             }
             None
         }
@@ -217,8 +214,8 @@ fn walk_extract(
     symbols: &mut Vec<Symbol>,
 ) -> Result<()> {
     let kind = node.kind();
-    if let Some(symbol_type) = symbol_type_for_kind(kind, function_kinds, class_kinds) {
-        if let Some(name) = extract_name_from_node(node, source)? {
+    if let Some(symbol_type) = symbol_type_for_kind(kind, function_kinds, class_kinds)
+        && let Some(name) = extract_name_from_node(node, source)? {
             let mut parameters = Vec::new();
             if symbol_type == SymbolType::Function {
                 let mut cursor = node.walk();
@@ -251,7 +248,6 @@ fn walk_extract(
                 metadata: serde_json::json!({ "extractor": "generic" }),
             });
         }
-    }
 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {

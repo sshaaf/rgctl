@@ -455,6 +455,7 @@ fn parse_edge_type_name(name: &str) -> Result<EdgeType> {
         "DEPENDSON" => Ok(EdgeType::DependsOn),
         "ANNOTATEDWITH" | "ANNOTATED_WITH" => Ok(EdgeType::AnnotatedWith),
         "PERMITS" => Ok(EdgeType::Permits),
+        "VIOLATES" => Ok(EdgeType::Violates),
         _ => Err(Error::InvalidQuery(format!("unknown edge type: {name}"))),
     }
 }

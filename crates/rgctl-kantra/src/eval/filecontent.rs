@@ -11,6 +11,7 @@ use std::sync::Arc;
 
 /// Source text cache keyed by repo-relative file path strings.
 pub type SourceCache = HashMap<String, Arc<String>>;
+use std::collections::HashSet;
 
 /// Evaluate filecontent rules in parallel over files.
 pub fn eval_filecontent(
@@ -20,6 +21,7 @@ pub fn eval_filecontent(
     repo_root: &Path,
     files: &[PathBuf],
     sources: &SourceCache,
+    skip_files: &HashSet<String>,
 ) -> Result<Vec<KantraViolation>, regex::Error> {
     let re = Regex::new(pattern)?;
     let glob = file_pattern.map(Pattern::new).transpose().ok().flatten();
@@ -32,11 +34,13 @@ pub fn eval_filecontent(
                 .unwrap_or(file)
                 .to_string_lossy()
                 .replace('\\', "/");
-            if let Some(ref g) = glob {
-                if !g.matches(&rel) {
+            if skip_files.contains(&rel) {
+                return Vec::new();
+            }
+            if let Some(ref g) = glob
+                && !g.matches(&rel) {
                     return Vec::new();
                 }
-            }
             let content = match sources.get(&rel).or_else(|| sources.get(file.to_str()?)) {
                 Some(c) => c.as_str(),
                 None => return Vec::new(),
@@ -69,7 +73,7 @@ mod tests {
             Arc::new("import \"golang.org/x/crypto/hkdf\"\n".into()),
         );
         let files = vec![PathBuf::from("main.go")];
-        let hits = eval_filecontent("r1", "hkdf", None, Path::new("."), &files, &sources).unwrap();
+        let hits = eval_filecontent("r1", "hkdf", None, Path::new("."), &files, &sources, &HashSet::new()).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].line, 1);
     }

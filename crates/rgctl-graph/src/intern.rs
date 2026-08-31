@@ -22,11 +22,10 @@ impl StringInterner {
 
     /// Intern a string, returning a shared handle.
     pub fn intern(&self, value: &str) -> Result<Arc<str>> {
-        if let Ok(read) = self.index.read() {
-            if let Some(existing) = read.get(value) {
+        if let Ok(read) = self.index.read()
+            && let Some(existing) = read.get(value) {
                 return Ok(existing.clone());
             }
-        }
 
         let arc: Arc<str> = Arc::from(value);
         let mut write = self
@@ -45,11 +44,10 @@ impl StringInterner {
 
     /// Canonicalize in-place string storage using the intern pool.
     pub fn intern_string(&self, value: &mut String) {
-        if let Ok(arc) = self.intern(value) {
-            if value.as_str() != arc.as_ref() {
+        if let Ok(arc) = self.intern(value)
+            && value.as_str() != arc.as_ref() {
                 *value = arc.as_ref().to_string();
             }
-        }
     }
 
     /// Canonicalize a shared string handle using the intern pool.

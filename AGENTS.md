@@ -66,6 +66,7 @@ rgctl -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 20'
 | Kantra migration rules | `rgctl discover . --with-kantra` (embedded Konveyor catalog; `.rgctl/kantra_findings.json`) |
 | Kantra target filter | `rgctl discover . --with-kantra --kantra-target quarkus` |
 | Kantra rules inventory (GQL) | `rgctl -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 20"` (after `--with-kantra` index) |
+| Kantra violations → code nodes | `rgctl -f json gql "MATCH (r:KantraRule)-[:VIOLATES]->(n) RETURN r, n LIMIT 20"` (after full eval, not `--kantra-index-only`) |
 | Kantra rules by Konveyor target | `rgctl -f json gql` on `:KantraRule` with `` r.`konveyor.io/target` `` property filter — [user guide](docs/user-guide.md#kantra-migration-rules---with-kantra) |
 | Kantra fixture override (CI) | `rgctl discover . --with-kantra --kantra-rules tests/fixtures/kantra-rules` |
 

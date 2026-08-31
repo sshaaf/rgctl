@@ -43,5 +43,7 @@ pub fn violation(rule_id: &str, matched_by: &str, site: &MatchSite) -> KantraVio
         line: site.line,
         message: None,
         matched_by: matched_by.to_string(),
+        symbol: site.symbol.clone(),
+        enrichment: None,
     }
 }

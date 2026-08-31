@@ -3,8 +3,23 @@
 use crate::schema::KantraRule;
 use serde::{Deserialize, Serialize};
 
+/// Graph + analysis enrichment for a violation (schema v2).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ViolationEnrichment {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub node_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub community_id: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pagerank: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blast_radius_score: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub impact_zone_size: Option<usize>,
+}
+
 /// One rule violation.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct KantraViolation {
     pub rule_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -14,6 +29,10 @@ pub struct KantraViolation {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
     pub matched_by: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enrichment: Option<ViolationEnrichment>,
 }
 
 /// Rule skipped during evaluation.
@@ -24,7 +43,7 @@ pub struct SkippedRule {
 }
 
 /// Discover-time Kantra findings artifact (`.rgctl/kantra_findings.json`).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct KantraFindings {
     pub schema_version: u32,
     pub command: String,
@@ -36,6 +55,14 @@ pub struct KantraFindings {
     pub evaluated_rules: usize,
     pub violations: Vec<KantraViolation>,
     pub skipped_rules: Vec<SkippedRule>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub cache_hits: usize,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub cache_misses: usize,
+}
+
+fn is_zero(v: &usize) -> bool {
+    *v == 0
 }
 
 impl KantraFindings {
@@ -47,7 +74,7 @@ impl KantraFindings {
         evaluated: usize,
     ) -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             command: "kantra_findings".into(),
             catalog_id: catalog_id.map(str::to_string),
             ruleset: ruleset_name.into(),
@@ -55,6 +82,8 @@ impl KantraFindings {
             evaluated_rules: evaluated,
             violations: Vec::new(),
             skipped_rules: Vec::new(),
+            cache_hits: 0,
+            cache_misses: 0,
         }
     }
 
@@ -75,5 +104,10 @@ impl KantraFindings {
                 v.category = rule.category.clone();
             }
         }
+    }
+
+    /// Parse findings JSON (tolerant of schema v1 missing enrichment fields).
+    pub fn from_json(bytes: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(bytes)
     }
 }

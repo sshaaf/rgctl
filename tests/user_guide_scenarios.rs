@@ -8,6 +8,7 @@
 //! ```
 
 mod rgctl_harness;
+#[path = "support/user_guide_harness.rs"]
 mod user_guide_harness;
 
 use user_guide_harness::{run_full_workflow, PROJECTS};

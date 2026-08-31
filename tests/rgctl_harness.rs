@@ -87,12 +87,24 @@ pub fn assert_ok(output: &Output, label: &str) {
     );
 }
 
+/// Force in-process execution and in-repo `{repo}/.rgctl/` artifacts.
+/// Use for all integration tests except explicit daemon-tier cases (`rgctl_daemon.rs`).
+pub fn apply_no_daemon(cmd: &mut Command) {
+    cmd.env("RGCTL_NO_DAEMON", "1").arg("--no-daemon");
+}
+
+/// No-daemon + optional cwd so `discover .` indexes the intended repo (not the test runner cwd).
+pub fn apply_test_isolation(cmd: &mut Command, repo: Option<&Path>) {
+    apply_no_daemon(cmd);
+    if let Some(repo) = repo {
+        cmd.current_dir(repo);
+    }
+}
+
 /// Run rgctl with cwd = `repo` and `--no-daemon` (Tier A no-daemon pattern).
 pub fn run_no_daemon_in_repo(repo: &Path, args: &[&str]) -> Output {
     let mut cmd = Command::new(rgctl());
-    cmd.current_dir(repo)
-        .env("RGCTL_NO_DAEMON", "1")
-        .arg("--no-daemon");
+    apply_test_isolation(&mut cmd, Some(repo));
     cmd.args(args);
     cmd.output().expect("spawn rgctl")
 }

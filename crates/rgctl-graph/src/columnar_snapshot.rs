@@ -344,6 +344,7 @@ impl ColumnarGraphMmap {
     }
 
     /// Append a kept base node into a columnar build, copying extension bytes verbatim.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn append_node_for_build(
         &self,
         idx: usize,

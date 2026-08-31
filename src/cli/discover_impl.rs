@@ -448,9 +448,10 @@ pub(crate) fn run_full_analysis(
     let kantra_rules_path = with_kantra.then(|| kantra_rules.as_ref().map(std::path::PathBuf::from));
     let kantra_catalog_path =
         with_kantra.then(|| kantra_catalog.as_ref().map(std::path::PathBuf::from));
+    let mut kantra_eval_graph = None;
     if with_kantra && !kantra_index_only {
         let kantra_start = Instant::now();
-        let _findings = super::kantra_discover::run_kantra_stage(
+        let (_findings, graph) = super::kantra_discover::run_kantra_stage(
             root,
             store,
             kantra_rules_path.as_ref().and_then(|p| p.as_deref()),
@@ -461,6 +462,7 @@ pub(crate) fn run_full_analysis(
             &petgraph_view,
             &mut profile,
         )?;
+        kantra_eval_graph = Some(graph);
         if human_output {
             info!(
                 "[✓] Kantra evaluation complete ({:.1}s)",
@@ -720,6 +722,19 @@ pub(crate) fn run_full_analysis(
     // Topology view is fully consumed into the SCC engine — free DiGraph + UUID maps now.
     drop(petgraph_view);
     debug!("{}", mem_monitor.report());
+
+    if with_kantra && !kantra_index_only {
+        if let Some(ref graph) = kantra_eval_graph {
+            super::kantra_discover::run_kantra_enrich(
+                store,
+                &cold,
+                &analysis_results,
+                &engine,
+                graph,
+                &mut profile,
+            )?;
+        }
+    }
 
     let build_time = blast_start.elapsed();
     let engine_stats = engine.stats();
@@ -982,11 +997,17 @@ pub(crate) fn run_full_analysis(
             kantra_catalog_path.as_ref().and_then(|p| p.as_deref()),
             &mut profile,
         )?;
+        let mut violates_count = 0usize;
+        if !kantra_index_only {
+            violates_count = super::kantra_discover::run_kantra_violates(store, &mut profile)?;
+        }
         if human_output {
             if kantra_index_only {
                 info!("[✓] Kantra rules indexed into graph (eval skipped)");
             } else {
-                info!("[✓] Kantra rules indexed into graph");
+                info!(
+                    "[✓] Kantra rules indexed into graph ({violates_count} VIOLATES edges)"
+                );
             }
         }
     }

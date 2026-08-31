@@ -1,5 +1,6 @@
 //! Kantra evaluation engine.
 
+use crate::cache::{KantraFileCache, hash_file_content};
 use crate::classify::{ClassifiedRule, classify_rules};
 use crate::error::Result;
 use crate::eval::compose::eval_compose;
@@ -13,12 +14,14 @@ use crate::findings::{KantraFindings, SkippedRule};
 use crate::catalog::KantraCatalog;
 use crate::loader::KantraRuleset;
 use crate::schema::{RuleSupport, WhenClause};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 /// Lightweight graph node for Kantra evaluation.
 #[derive(Debug, Clone)]
 pub struct EvalNode {
+    pub id: Option<uuid::Uuid>,
     pub node_type: String,
     pub name: String,
     pub qualified_name: Option<String>,
@@ -52,6 +55,8 @@ pub struct EvalContext<'a> {
     pub files: &'a [PathBuf],
     pub sources: &'a SourceCache,
     pub graph: &'a EvalGraph,
+    pub cache: Option<&'a mut KantraFileCache>,
+    pub cached_files: HashSet<String>,
 }
 
 /// Sub-stage timings (seconds).
@@ -128,7 +133,10 @@ impl KantraEngine {
     }
 
     /// Evaluate all supported rules.
-    pub fn evaluate(&self, ctx: &EvalContext<'_>) -> Result<(KantraFindings, EvalStageTimings)> {
+    pub fn evaluate(
+        &self,
+        ctx: &mut EvalContext<'_>,
+    ) -> Result<(KantraFindings, EvalStageTimings)> {
         let total_start = Instant::now();
         let mut timings = EvalStageTimings::default();
         let mut findings = KantraFindings::new(
@@ -137,6 +145,19 @@ impl KantraEngine {
             self.target_filter.as_deref(),
             self.ruleset.doc.rules.len(),
         );
+        if let Some(cache) = ctx.cache.as_mut() {
+            for (rel, content) in ctx.sources {
+                let hash = hash_file_content(content.as_str());
+                if let Some(vs) = cache.get(rel, &hash) {
+                    findings.violations.extend(vs);
+                    ctx.cached_files.insert(rel.clone());
+                }
+            }
+            findings.cache_hits = cache.hits;
+            findings.cache_misses = cache.misses;
+        }
+        let mut fresh_file_violations: HashMap<String, (String, Vec<crate::findings::KantraViolation>)> =
+            HashMap::new();
 
         for item in &self.classified {
             let rule = &self.ruleset.doc.rules[item.rule_index];
@@ -188,6 +209,20 @@ impl KantraEngine {
                 }
             };
             enrich_violations(&mut violations, rule);
+            for v in &violations {
+                if v.matched_by == "builtin.filecontent" {
+                    let hash = ctx
+                        .sources
+                        .get(&v.file)
+                        .map(|c| hash_file_content(c.as_str()))
+                        .unwrap_or_default();
+                    fresh_file_violations
+                        .entry(v.file.clone())
+                        .or_insert((hash, Vec::new()))
+                        .1
+                        .push(v.clone());
+                }
+            }
             let elapsed = rule_start.elapsed().as_secs_f64();
             if matches!(
                 item.clause,
@@ -201,6 +236,21 @@ impl KantraEngine {
         }
 
         findings.sort_violations();
+        if let Some(cache) = ctx.cache.as_mut() {
+            for (rel, content) in ctx.sources {
+                if ctx.cached_files.contains(rel) {
+                    continue;
+                }
+                let hash = hash_file_content(content.as_str());
+                let violations = fresh_file_violations
+                    .remove(rel.as_str())
+                    .map(|(_, vs)| vs)
+                    .unwrap_or_default();
+                cache.put(rel.clone(), hash, violations);
+            }
+            findings.cache_hits = cache.hits;
+            findings.cache_misses = cache.misses;
+        }
         timings.total_secs = total_start.elapsed().as_secs_f64();
         Ok((findings, timings))
     }
@@ -237,14 +287,15 @@ fn eval_leaf(
             ctx.repo_root,
             ctx.files,
             ctx.sources,
+            &ctx.cached_files,
         )
-        .map_err(|e| crate::error::KantraError::from(e)),
+        .map_err(crate::error::KantraError::from),
         WhenClause::File { pattern } => eval_file(&rule.rule_id, pattern, ctx.repo_root, ctx.files)
             .map_err(|e| crate::error::KantraError::msg(e.to_string())),
         WhenClause::HasTags { tags } => Ok(eval_has_tags(&rule.rule_id, tags, &ctx.graph.nodes)),
         WhenClause::GoReferenced { pattern } => {
             eval_go_referenced(&rule.rule_id, pattern, &ctx.graph.nodes)
-                .map_err(|e| crate::error::KantraError::from(e))
+                .map_err(crate::error::KantraError::from)
         }
         WhenClause::JavaReferenced {
             pattern,
@@ -259,7 +310,7 @@ fn eval_leaf(
             ctx.repo_root,
             ctx.sources,
         )
-        .map_err(|e| crate::error::KantraError::from(e)),
+        .map_err(crate::error::KantraError::from),
         WhenClause::Unsupported { .. } => Ok(Vec::new()),
         WhenClause::And(_) | WhenClause::Or(_) | WhenClause::Not(_) => Ok(Vec::new()),
     }
@@ -317,13 +368,15 @@ mod tests {
         );
         let files = vec![dir.path().join("foo.go")];
         let (engine, _) = KantraEngine::load(dir.path()).unwrap();
-        let ctx = EvalContext {
+        let mut ctx = EvalContext {
             repo_root: dir.path(),
             files: &files,
             sources: &sources,
             graph: &EvalGraph::default(),
+            cache: None,
+            cached_files: HashSet::new(),
         };
-        let (findings, _) = engine.evaluate(&ctx).unwrap();
+        let (findings, _) = engine.evaluate(&mut ctx).unwrap();
         assert!(!findings.violations.is_empty());
         assert_eq!(findings.violations[0].rule_id, "r1");
     }

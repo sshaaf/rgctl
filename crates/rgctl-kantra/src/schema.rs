@@ -73,19 +73,17 @@ impl WhenClause {
     pub fn from_value(value: &Value) -> Self {
         match value {
             Value::Mapping(map) => {
-                if let Some(and) = map.get(&Value::from("and")) {
-                    if let Value::Sequence(items) = and {
+                if let Some(and) = map.get(Value::from("and"))
+                    && let Value::Sequence(items) = and {
                         return WhenClause::And(
                             items.iter().map(WhenClause::from_value).collect(),
                         );
                     }
-                }
-                if let Some(or) = map.get(&Value::from("or")) {
-                    if let Value::Sequence(items) = or {
+                if let Some(or) = map.get(Value::from("or"))
+                    && let Value::Sequence(items) = or {
                         return WhenClause::Or(items.iter().map(WhenClause::from_value).collect());
                     }
-                }
-                if let Some(not) = map.get(&Value::from("not")) {
+                if let Some(not) = map.get(Value::from("not")) {
                     return WhenClause::Not(Box::new(WhenClause::from_value(not)));
                 }
                 for (key, val) in map {
@@ -223,7 +221,7 @@ fn tags_field(val: &Value) -> Vec<String> {
     }
     if let Some(map) = val.as_mapping() {
         return map
-            .get(&Value::from("tags"))
+            .get(Value::from("tags"))
             .and_then(|t| t.as_sequence())
             .map(|seq| {
                 seq.iter()

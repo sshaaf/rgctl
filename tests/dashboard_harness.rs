@@ -151,7 +151,9 @@ fn run_discover_with_flags(repo: &Path, languages: Option<&str>, deep: bool) -> 
         bin.display()
     );
     let mut cmd = Command::new(&bin);
-    cmd.env("RGCTL_NO_DAEMON", "1");
+    cmd.env("RGCTL_NO_DAEMON", "1")
+        .arg("--no-daemon")
+        .current_dir(repo);
     // Dashboard tests always opt in (#31 — bare discover skips dashboard).
     cmd.args([
         "-r",

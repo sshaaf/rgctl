@@ -3,7 +3,7 @@
 //! Each run starts a dedicated daemon under a temp `--daemon-home`, routes discover/gql/
 //! blast/metrics/check through it, and stops the daemon when the session drops.
 
-use crate::rgctl_harness::{assert_ok, reserve_port, DaemonGuard, rgctl};
+use super::rgctl_harness::{assert_ok, reserve_port, DaemonGuard, rgctl};
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;

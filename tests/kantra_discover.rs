@@ -167,7 +167,7 @@ fn kantra_discover_writes_findings_json() {
     let doc: serde_json::Value =
         serde_json::from_slice(&std::fs::read(&findings_path).unwrap()).unwrap();
     assert_eq!(doc.get("command").and_then(|v| v.as_str()), Some("kantra_findings"));
-    assert_eq!(doc.get("schema_version").and_then(|v| v.as_u64()), Some(1));
+    assert_eq!(doc.get("schema_version").and_then(|v| v.as_u64()), Some(2));
     let violations = doc.get("violations").and_then(|v| v.as_array()).unwrap();
     assert!(!violations.is_empty(), "expected at least one violation");
     assert!(
@@ -270,5 +270,135 @@ fn kantra_rule_target_property_gql() {
     assert!(
         !rows.is_empty(),
         "expected KantraRule nodes with konveyor.io/target=quarkus"
+    );
+}
+
+#[test]
+fn kantra_violates_edges_materialized_in_graph() {
+    let _guard = ECOMMERCE_LOCK.lock().unwrap();
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests/ecommerce-java");
+    if !repo.is_dir() {
+        return;
+    }
+    let rules = rules_dir();
+    let out = Command::new(rgctl_bin())
+        .args([
+            "discover",
+            ".",
+            "--no-daemon",
+            "--languages",
+            "java",
+            "--with-kantra",
+            "--kantra-rules",
+            rules.to_str().unwrap(),
+        ])
+        .current_dir(&repo)
+        .output()
+        .expect("discover");
+    assert!(
+        out.status.success(),
+        "discover failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let gql = Command::new(rgctl_bin())
+        .args([
+            "--no-daemon",
+            "-f",
+            "json",
+            "gql",
+            "MATCH (r:KantraRule)-[:VIOLATES]->(n) RETURN n LIMIT 20",
+        ])
+        .current_dir(&repo)
+        .output()
+        .expect("gql");
+    assert!(
+        gql.status.success(),
+        "gql failed: {}",
+        String::from_utf8_lossy(&gql.stderr)
+    );
+    let doc: serde_json::Value = serde_json::from_slice(&gql.stdout).unwrap();
+    let rows = doc.get("rows").and_then(|v| v.as_array()).unwrap();
+    assert!(!rows.is_empty(), "expected VIOLATES edges in graph");
+}
+
+#[test]
+fn kantra_findings_include_enrichment() {
+    let _guard = ECOMMERCE_LOCK.lock().unwrap();
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests/ecommerce-java");
+    if !repo.is_dir() {
+        return;
+    }
+    let rules = rules_dir();
+    let out = Command::new(rgctl_bin())
+        .args([
+            "discover",
+            ".",
+            "--no-daemon",
+            "--languages",
+            "java",
+            "--with-kantra",
+            "--kantra-rules",
+            rules.to_str().unwrap(),
+        ])
+        .current_dir(&repo)
+        .output()
+        .expect("discover");
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let doc: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(repo.join(".rgctl/kantra_findings.json")).unwrap())
+            .unwrap();
+    let violations = doc.get("violations").and_then(|v| v.as_array()).unwrap();
+    assert!(
+        violations.iter().any(|v| {
+            v.get("enrichment")
+                .and_then(|e| e.get("community_id"))
+                .is_some()
+        }),
+        "expected at least one violation with enrichment.community_id"
+    );
+}
+
+#[test]
+fn kantra_file_cache_records_hits_on_second_discover() {
+    let _guard = TINY_REPO_LOCK.lock().unwrap();
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo");
+    if !repo.is_dir() {
+        return;
+    }
+    let rules = rules_dir();
+    let args = [
+        "discover",
+        ".",
+        "--no-daemon",
+        "-l",
+        "java,rust",
+        "--with-kantra",
+        "--kantra-rules",
+        rules.to_str().unwrap(),
+    ];
+    let first = Command::new(rgctl_bin())
+        .args(args)
+        .current_dir(&repo)
+        .output()
+        .expect("discover");
+    assert!(first.status.success(), "{}", String::from_utf8_lossy(&first.stderr));
+    let second = Command::new(rgctl_bin())
+        .args(args)
+        .current_dir(&repo)
+        .output()
+        .expect("discover");
+    assert!(second.status.success(), "{}", String::from_utf8_lossy(&second.stderr));
+    assert!(
+        repo.join(".rgctl/kantra_cache/manifest.json").is_file(),
+        "expected kantra_cache manifest after discover"
+    );
+    let doc: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(repo.join(".rgctl/kantra_findings.json")).unwrap(),
+    )
+    .unwrap();
+    let hits = doc.get("cache_hits").and_then(|v| v.as_u64()).unwrap_or(0);
+    assert!(
+        hits > 0,
+        "expected cache_hits > 0 on second discover, got {hits}"
     );
 }

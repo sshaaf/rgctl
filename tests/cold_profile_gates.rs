@@ -37,8 +37,9 @@ const ECOMMERCE_JAVA_COLD_WALL_BASELINE_SECS: f64 = 0.31;
 /// `index_graph_build` stage for the same corpus (relation commit + stubs).
 const ECOMMERCE_JAVA_COLD_INDEX_GRAPH_BUILD_BASELINE_SECS: f64 = 0.008;
 /// ecommerce-java discover with `--with-kantra` fixture ruleset (2026-08-31).
-const ECOMMERCE_JAVA_KANTRA_COLD_WALL_BASELINE_SECS: f64 = 0.31;
-const ECOMMERCE_JAVA_KANTRA_COLD_EVAL_BASELINE_SECS: f64 = 0.004;
+const ECOMMERCE_JAVA_KANTRA_COLD_WALL_BASELINE_SECS: f64 = 0.36;
+const ECOMMERCE_JAVA_KANTRA_COLD_EVAL_BASELINE_SECS: f64 = 0.005;
+const ECOMMERCE_JAVA_KANTRA_ENRICH_BASELINE_SECS: f64 = 0.05;
 const K8S_WEBSITE_MIN_HEADING_MODULES: u64 = 500;
 /// Obsidian vault export on warm k8s index (~15–25s on maintainer machine).
 const K8S_WEBSITE_OBSIDIAN_EXPORT_BASELINE_SECS: f64 = 30.0;
@@ -53,6 +54,7 @@ pub struct ProfileSummary {
     pub functions: u64,
     pub index_graph_build_secs: Option<f64>,
     pub kantra_eval_secs: Option<f64>,
+    pub kantra_enrich_secs: Option<f64>,
 }
 
 pub fn linux_repo_path() -> PathBuf {
@@ -107,6 +109,10 @@ pub fn parse_profile_summary(log: &str) -> Option<ProfileSummary> {
         } else if line.contains("[profile] stage") && line.contains("kantra_eval") {
             if let Some(secs) = parse_field_f64(line, "secs=") {
                 summary.kantra_eval_secs = Some(secs);
+            }
+        } else if line.contains("[profile] stage") && line.contains("kantra_enrich") {
+            if let Some(secs) = parse_field_f64(line, "secs=") {
+                summary.kantra_enrich_secs = Some(secs);
             }
         }
     }
@@ -465,8 +471,8 @@ fn ecommerce_java_kantra_cold_discover_within_baseline() {
     );
     let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
     eprintln!(
-        "ecommerce-java kantra cold: wall={:.3}s kantra_eval={:?} peak_rss_mb={:.1}",
-        profile.wall_secs, profile.kantra_eval_secs, profile.peak_rss_mb
+        "ecommerce-java kantra cold: wall={:.3}s kantra_eval={:?} kantra_enrich={:?} peak_rss_mb={:.1}",
+        profile.wall_secs, profile.kantra_eval_secs, profile.kantra_enrich_secs, profile.peak_rss_mb
     );
     assert_within_baseline(
         "ecommerce-java kantra cold discover",
@@ -484,6 +490,22 @@ fn ecommerce_java_kantra_cold_discover_within_baseline() {
         );
     } else {
         panic!("kantra_eval stage missing from profile output");
+    }
+    let enrich_baseline = std::env::var("RGCTL_ECOMMERCE_JAVA_KANTRA_ENRICH_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(ECOMMERCE_JAVA_KANTRA_ENRICH_BASELINE_SECS);
+    if let Some(enrich_secs) = profile.kantra_enrich_secs {
+        let limit = enrich_baseline * TOLERANCE;
+        assert!(
+            enrich_secs <= limit,
+            "kantra_enrich {:.4}s exceeds baseline {:.4}s (+10% = {:.4}s)",
+            enrich_secs,
+            enrich_baseline,
+            limit
+        );
+    } else {
+        panic!("kantra_enrich stage missing from profile output");
     }
     assert!(
         repo.join(".rgctl/kantra_findings.json").is_file(),

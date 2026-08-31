@@ -25,8 +25,8 @@ pub use communities::{COMMUNITIES_FILE, COMMUNITIES_SCHEMA_VERSION, CommunitiesP
 pub use dataflow_export::{DATAFLOW_INDEX_FILE, DataflowExportSummary};
 pub use export_context::DashboardExportContext;
 pub use manifest::{
-    AnalysisSection, DashboardManifest, MANIFEST_SCHEMA_VERSION, MetricsSection, SemanticSection,
-    ViewSection,
+    AnalysisSection, DashboardManifest, KantraSection, MANIFEST_SCHEMA_VERSION, MetricsSection,
+    SemanticSection, ViewSection,
 };
 pub use metagraph::{COMMUNITY_ONLY_THRESHOLD, METAGRAPH_FILE, MetagraphExport, MetagraphPayload};
 pub use migration_export::{
@@ -203,7 +203,7 @@ fn export_dashboard_bundle_inner(
         })?;
     }
     let semantic_summary = semantic_section(repo_root);
-    let manifest = Manifest::with_phases(
+    let mut manifest = Manifest::with_phases(
         node_count,
         edge_count,
         digest,
@@ -219,6 +219,7 @@ fn export_dashboard_bundle_inner(
         &sidecars.migration,
         semantic_summary,
     );
+    manifest.kantra = kantra_section(repo_root);
     let (manifest_json, manifest_serialize_secs) = profile_stage("manifest_serialize", || {
         let start = std::time::Instant::now();
         let json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
@@ -505,5 +506,25 @@ fn semantic_section(repo_root: &Path) -> Option<manifest::SemanticSection> {
         model_id: index.model_id,
         dimensions: index.dimensions,
         graph_digest: index.graph_digest,
+    })
+}
+
+fn kantra_section(repo_root: &Path) -> Option<manifest::KantraSection> {
+    let path = rgctl_graph::paths::artifact_path(repo_root, "kantra_findings.json");
+    let bytes = std::fs::read(path).ok()?;
+    let findings = rgctl_kantra::KantraFindings::from_json(&bytes).ok()?;
+    let mut by_category = std::collections::HashMap::new();
+    for v in &findings.violations {
+        if let Some(cat) = &v.category {
+            *by_category.entry(cat.clone()).or_insert(0) += 1;
+        }
+    }
+    Some(manifest::KantraSection {
+        available: true,
+        violation_count: findings.violations.len(),
+        evaluated_rules: findings.evaluated_rules,
+        cache_hits: findings.cache_hits,
+        cache_misses: findings.cache_misses,
+        by_category,
     })
 }
