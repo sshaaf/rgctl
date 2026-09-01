@@ -290,12 +290,11 @@ impl MemoryBackend {
         let key_arc = self.string_interner.intern(key)?;
         let value_arc = self.string_interner.intern(value)?;
         let index = read_lock(&self.node_property_index)?;
-        if let Some(values) = index.get(key_arc.as_ref()) {
-            if let Some(ids) = values.get(value_arc.as_ref()) {
+        if let Some(values) = index.get(key_arc.as_ref())
+            && let Some(ids) = values.get(value_arc.as_ref()) {
                 let nodes = read_lock(&self.nodes)?;
                 return Ok(ids.iter().filter_map(|id| nodes.get(id).cloned()).collect());
             }
-        }
         Ok(Vec::new())
     }
 
@@ -456,11 +455,10 @@ impl MemoryBackend {
             for (key, value) in old_props {
                 let key_arc = self.string_interner.intern(&key)?;
                 let value_arc = self.string_interner.intern(&value)?;
-                if let Some(values) = property_index.get_mut(key_arc.as_ref()) {
-                    if let Some(ids) = values.get_mut(value_arc.as_ref()) {
+                if let Some(values) = property_index.get_mut(key_arc.as_ref())
+                    && let Some(ids) = values.get_mut(value_arc.as_ref()) {
                         ids.retain(|&id| id != node_id);
                     }
-                }
             }
         }
 
@@ -613,8 +611,8 @@ impl MemoryBackend {
                         | NodeType::Annotation
                         | NodeType::Variable
                         | NodeType::TypeAlias
-                ) {
-                    if let Some(file) = &node.file_path {
+                )
+                    && let Some(file) = &node.file_path {
                         let key = format!(
                             "{}::{}",
                             normalize_path_str(file),
@@ -622,7 +620,6 @@ impl MemoryBackend {
                         );
                         index.insert(key, node.id);
                     }
-                }
             }
         }
         index
@@ -641,6 +638,21 @@ impl MemoryBackend {
                 })
             })
             .unwrap_or(false)
+    }
+
+    /// Remove edges of a given type (rebuilds adjacency indexes).
+    pub fn strip_edges_by_type(&mut self, edge_type: EdgeType) -> Result<usize> {
+        let removed = {
+            let mut edges = write_lock(&self.edges)?;
+            let before = edges.len();
+            edges.retain(|e| e.edge_type != edge_type);
+            before - edges.len()
+        };
+        if removed > 0 {
+            self.rebuild_edge_index();
+            self.invalidate_cache()?;
+        }
+        Ok(removed)
     }
 
     /// Remove edges referencing deleted nodes.
@@ -817,11 +829,10 @@ impl MemoryBackend {
         for (key, value) in &node.properties {
             let key_arc = self.string_interner.intern(key)?;
             let value_arc = self.string_interner.intern(value)?;
-            if let Some(values) = write_lock(&self.node_property_index)?.get_mut(key_arc.as_ref()) {
-                if let Some(ids) = values.get_mut(value_arc.as_ref()) {
+            if let Some(values) = write_lock(&self.node_property_index)?.get_mut(key_arc.as_ref())
+                && let Some(ids) = values.get_mut(value_arc.as_ref()) {
                     ids.retain(|&x| x != node.id);
                 }
-            }
         }
         Ok(())
     }

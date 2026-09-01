@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 const guides = [
   {
     title: "All guides",
-    blurb: "CoolStore walkthroughs for discover, GQL, blast-radius, CPG, semantic, MCP, install --skill, and more.",
+    blurb: "CoolStore walkthroughs for discover, GQL, blast-radius, CPG, semantic, install --skill, and more.",
     href: "/docs/guides/",
   },
   {
@@ -36,11 +36,6 @@ const guides = [
     title: "Agent skill",
     blurb: "rgctl install --skill for Claude Code and Cursor.",
     href: "/docs/guides/agent-skill/",
-  },
-  {
-    title: "MCP server",
-    blurb: "serve --mode mcp: stdio status tool and auto full pipeline.",
-    href: "/docs/guides/mcp-server/",
   },
 ];
 

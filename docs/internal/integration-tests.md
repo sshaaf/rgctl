@@ -1,11 +1,11 @@
 # rgctl integration test matrix
 
-How to verify daemon, no-daemon, MCP stdio, and OpenCode host integration before shipping CLI/MCP changes. Shared harness: `tests/rgctl_harness.rs`.
+How to verify CLI subprocess integration before shipping changes. Shared harness: `tests/rgctl_harness.rs`.
 
 **Quick PR gate (Tier A):**
 
 ```bash
-cargo test --test rgctl_no_daemon --test rgctl_daemon --test mcp_tools -- --test-threads=1
+cargo test --test rgctl_no_daemon -- --test-threads=1
 ```
 
 ---
@@ -14,9 +14,8 @@ cargo test --test rgctl_no_daemon --test rgctl_daemon --test mcp_tools -- --test
 
 | Tier | When | Corpus | Confidence |
 |------|------|--------|------------|
-| **A** | Every PR | `tests/fixtures/tiny_polyglot_repo` (temp copy) | Daemon layout, `--no-daemon`, MCP 7-tool contract |
+| **A** | Every PR | `tests/fixtures/tiny_polyglot_repo` (temp copy) | In-repo `.rgctl/` layout, gql/metrics, discover target pitfalls |
 | **B** | Manual / nightly | `example/linux`, metasfresh, … | Scale + cold perf baselines |
-| **C** | Manual / optional CI | OpenCode + fixture or `rgctl-tests/ecommerce-java` | Real MCP host spawns `rgctl`; full tool-call matrix |
 
 ---
 
@@ -27,29 +26,20 @@ cargo test --test rgctl_no_daemon --test rgctl_daemon --test mcp_tools -- --test
 | File | Tests | What it proves |
 |------|-------|----------------|
 | `tests/rgctl_no_daemon.rs` | 5 (+ 1 ignored) | Artifacts under `{repo}/.rgctl/`; gql/metrics; `-r` + `discover .` pitfall; absolute-path discover |
-| `tests/rgctl_daemon.rs` | 13 | Daemon start/stop, auto-start discover → cache (not source tree), HTTP catalog, HTTP MCP, storage override, stdio bridge, **session roundtrip** |
-| `tests/mcp_tools.rs` | 2 | All **7** MCP tools via stdio; JSON matches CLI `-f json` |
-| `tests/opencode_mcp_smoke.rs` | 1 (+ 2 ignored) | Script skip when `opencode` missing |
 
 ### Commands
 
 ```bash
-cargo test --test rgctl_no_daemon --test rgctl_daemon --test mcp_tools -- --test-threads=1
-cargo test --test opencode_mcp_smoke opencode_smoke_script_skips -- --nocapture
+cargo test --test rgctl_no_daemon -- --test-threads=1
 ```
-
-Daemon tests must use **`--test-threads=1`** (ports + temp `RGCTL_HOME`).
 
 ### Harness conventions
 
 | Pattern | Use |
 |---------|-----|
-| `cd repo && rgctl --no-daemon discover .` | Correct no-daemon indexing |
+| `cd repo && rgctl discover .` | Correct indexing into `{repo}/.rgctl/` |
 | `-r OTHER discover .` from another cwd | **Indexes cwd, not `-r`** — regression test documents this |
 | `discover /abs/path/to/repo` | Works from any cwd |
-| Temp `RGCTL_HOME` + `DaemonGuard` | Daemon tests; stop + cleanup on drop |
-| `daemon_discover_auto_start()` | `RGCTL_HOME` only (no `--daemon-home` on discover) |
-| `daemon_discover()` | After daemon already running |
 
 ### Tier A corpora
 
@@ -77,70 +67,21 @@ Override paths: `RGCTL_LINUX_REPO`, `METASFRESH_REPO`.
 
 ---
 
-## Tier C — OpenCode + MCP tool matrix
+## Golden ecommerce corpus
 
-### C1 — OpenCode connect smoke (tiny fixture)
-
-Script: `scripts/integration/opencode-mcp-smoke.sh`
-
-| Mode | Env | Transport |
-|------|-----|-----------|
-| stdio (default) | — | Local `rgctl serve --mode mcp --no-pipeline` |
-| daemon | `RGCTL_OPENCODE_MODE=daemon` | Remote `http://127.0.0.1:PORT/mcp` |
-
-```bash
-chmod +x scripts/integration/opencode-mcp-smoke.sh
-cargo build --bin rgctl
-./scripts/integration/opencode-mcp-smoke.sh
-RGCTL_REQUIRE_OPENCODE=1 ./scripts/integration/opencode-mcp-smoke.sh
-cargo test --release --test opencode_mcp_smoke -- --ignored --nocapture
-```
-
-**Pass:** `[opencode-smoke] OK — rgctl connected`  
-**Skip:** `skip: opencode not on PATH` (exit 0 unless `RGCTL_REQUIRE_OPENCODE=1`)
-
-See also [MCP server guide §11](../guides/mcp-server.md#11-opencode-smoke-test-host-integration).
-
-### C2 — Full 7-tool matrix (`ecommerce-java`)
-
-Golden ecommerce corpus: `rgctl-tests/ecommerce-java/` (~993 nodes, Java). Use when validating MCP tool payloads on a real indexed app (not just connect smoke).
-
-**Prep (once per fresh checkout or after deleting `.rgctl`):**
+`rgctl-tests/ecommerce-java/` (~993 nodes, Java). Use when validating CLI JSON payloads on a real indexed app:
 
 ```bash
 export RGCTL=/path/to/rbuilder/target/debug/rgctl
 export ECOMM=/path/to/rbuilder/rgctl-tests/ecommerce-java
 
 cd "$ECOMM"
-"$RGCTL" --no-daemon discover . --languages java -e target,data
-"$RGCTL" --no-daemon semantic index
-cp ../rgctl-policy.json ./policy.json
+"$RGCTL" discover . --languages java -e target,data
+"$RGCTL" semantic index
+"$RGCTL" -f json gql 'MATCH (n:Function) RETURN n LIMIT 5'
 ```
 
-**OpenCode connect (optional):** scratch `opencode.json` in a temp dir with `cwd` = `$ECOMM` and the same `rgctl` command as C1. As of Aug 2026, **`opencode mcp list` may time out at 60s** on this repo while direct stdio MCP succeeds in ~1s — treat OpenCode timeout as a **host issue**, not proof that rgctl MCP is broken.
-
-**Direct stdio tool calls (authoritative for tool matrix):** use `cargo test --test mcp_tools` pattern or a one-off client:
-
-| # | Tool | Arguments | Expected highlights (ecommerce-java) |
-|---|------|-----------|-------------------------------------|
-| 1 | `rgctl_status` | `{}` | `command: pipeline_status`, `cfg_ready: true`, `semantic_ready: true` |
-| 2 | `rgctl_query` | `query: "MATCH (n:Function) RETURN n LIMIT 5"` | `count: 5`, `schema_version: 1` |
-| 3 | `rgctl_search` | `text: "order"`, `scope: "function"`, `limit: 5` | hits include `User.getOrders`, `OrderController.checkout` |
-| 4 | `rgctl_impact` | `symbol: "findByEmail"` | resolves `UserRepository::findByEmail`, score ~41, 3 callers |
-| 5 | `rgctl_metrics` | `pagerank: true` | `pagerank.top` array |
-| 6 | `rgctl_cpg` | `op: "status"` | `archive_present: true`, ~308 functions |
-| 7 | `rgctl_cpg` | `op: "function"`, `symbol: "findByEmail"` | FQN under `UserRepository` |
-| 8 | `rgctl_check` | `policy_file: "<ECOMM>/policy.json"` | `passed: true`, `violations: []` |
-
 Reference symbols from [ecommerce-java README](../../rgctl-tests/ecommerce-java/README.md).
-
-**Recorded run (Aug 2026, M3 Pro):** all 8 calls above passed via direct stdio; OpenCode `mcp list` failed with 60s timeout on the same binary.
-
----
-
-## MCP protocol note
-
-OpenCode’s MCP SDK may send `protocolVersion: "2025-03-26"`. `rgctl-mcp` echoes supported client versions (`2025-03-26`, `2024-11-05`, `2024-10-07`). Unit test: `initialize_echoes_supported_client_protocol_version` in `crates/rgctl-mcp`.
 
 ---
 
@@ -148,17 +89,14 @@ OpenCode’s MCP SDK may send `protocolVersion: "2025-03-26"`. `rgctl-mcp` echoe
 
 | File | Role |
 |------|------|
-| `tests/discover_full_serve.rs` | `--full` pipeline + foreground serve + MCP unreadiness |
+| `tests/discover_full_serve.rs` | `--full` pipeline + foreground serve |
 | `tests/cold_profile_gates.rs` | kafka, k8s-website markdown, obsidian export gates |
 | Dashboard `tests/dashboard_ecommerce_*.rs` | Per-language dashboard bundles |
 
 ---
 
-## Checklist before merging CLI/daemon/MCP changes
+## Checklist before merging CLI changes
 
 - [ ] Tier A green with `--test-threads=1`
-- [ ] No new writes to source-tree `.rgctl` on daemon discover (see `auto_start_discover_writes_cache`)
-- [ ] MCP tools still return CLI-shaped JSON (`mcp_tools.rs`)
-- [ ] If touching OpenCode path: C1 smoke on tiny fixture
-- [ ] If touching tool dispatch: C2 matrix on `ecommerce-java` (direct stdio)
+- [ ] CLI `-f json` payloads still match [json-api.md](../json-api.md) shapes
 - [ ] If touching discover perf: Tier B cold gate on reference machine (optional)

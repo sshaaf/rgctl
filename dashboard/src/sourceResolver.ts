@@ -3,6 +3,21 @@ import type { SliceBundlePayload } from "./types";
 
 const sourceTextCache = new Map<string, string>();
 
+/** Load deduplicated source text from the dashboard bundle. */
+export async function loadSourceText(sourceId: string): Promise<string> {
+  const cached = sourceTextCache.get(sourceId);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const res = await fetch(bundleDataUrl(`sources/${sourceId}.txt`));
+  if (!res.ok) {
+    throw new Error(`sources/${sourceId}.txt: HTTP ${res.status}`);
+  }
+  const text = await res.text();
+  sourceTextCache.set(sourceId, text);
+  return text;
+}
+
 /** Resolve display source for a slice bundle (inline v1 or deduplicated v2). */
 export async function resolveSliceSource(
   bundle: SliceBundlePayload,
@@ -13,17 +28,7 @@ export async function resolveSliceSource(
   if (!bundle.source_id) {
     return "";
   }
-  const cached = sourceTextCache.get(bundle.source_id);
-  if (cached !== undefined) {
-    return cached;
-  }
-  const res = await fetch(bundleDataUrl(`sources/${bundle.source_id}.txt`));
-  if (!res.ok) {
-    throw new Error(`sources/${bundle.source_id}.txt: HTTP ${res.status}`);
-  }
-  const text = await res.text();
-  sourceTextCache.set(bundle.source_id, text);
-  return text;
+  return loadSourceText(bundle.source_id);
 }
 
 /** Optional function body excerpt when start/end lines are known. */

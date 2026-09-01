@@ -107,27 +107,7 @@ curl -s http://127.0.0.1:8080/api/semantic/query \
   -d '{"query": "shopping cart checkout", "limit": 5}'
 ```
 
-### 7. Background daemon (HTTP + MCP)
-
-Start a shared background daemon (catalog, per-repo HTTP, MCP at `/mcp`). Default cache: `~/.rgctl/cache/{reponame}/` (override with `--daemon-home` / `RGCTL_HOME`).
-
-```bash
-rgctl daemon start --host 127.0.0.1 --port 8080
-# or foreground bootstrap:
-rgctl -r example/coolstore serve --daemon
-```
-
-Cached repos are served under `http://127.0.0.1:8080/{reponame}/…`. Foreground `rgctl serve` (without `--daemon`) stays `127.0.0.1:8080` with unprefixed `/api/*` for one repo.
-
-### 8. Daemon idle timeout
-
-`--idle-secs` applies to **`serve --daemon`** only (default 300s). The HTTP server does not auto-exit on idle.
-
-```bash
-rgctl -r example/coolstore serve --daemon --idle-secs 3600
-```
-
-## Dashboard Tabs
+### 7. Dashboard tabs
 
 When the dashboard opens in your browser, you will see several tabs:
 
@@ -165,11 +145,8 @@ See the [HTTP API Reference](../http-api.md) for complete endpoint documentation
 | `--open` | off | Open dashboard in browser (preparing page if the bundle is not ready) |
 | `--query-only` | off | Serve API only, no dashboard |
 | `--dashboard-only` | off | Serve dashboard only, no API |
-| `--mode` | `standard` | `standard` (HTTP) or `mcp` (stdio, no HTTP) |
 | `--no-pipeline` | off | Fail fast if artifacts are missing (old `serve` behavior) |
 | `--dashboard-dir` | `.rgctl/dashboard` | Dashboard directory |
-| `--daemon` | off | Background HTTP+MCP daemon (`daemon start` / `serve --daemon`) |
-| `--idle-secs` | `300` | Daemon auto-exit after N seconds idle (`serve --daemon` only) |
 
 ## Benefits
 
@@ -177,12 +154,11 @@ See the [HTTP API Reference](../http-api.md) for complete endpoint documentation
 - **Dual interface.** Visual dashboard for humans, HTTP API for agents and scripts.
 - **Session persistence.** The server keeps the graph in memory, making repeated queries fast.
 - **Team accessible.** Bind to `0.0.0.0` to share the dashboard across a network.
-- **Low resource.** HTTP `serve` stays up until Ctrl+C. `--daemon` idle-exits (default 300s).
+- **Low resource.** HTTP `serve` stays up until Ctrl+C.
 
 ## Related Guides
 
 - [Discovering and Indexing a Codebase](discovering-and-indexing.md) -- `discover --with-dashboard` generates the dashboard bundle
-- [MCP Server](mcp-server.md) -- `serve --mode mcp` for Cursor / Claude Code (no HTTP)
 - [Graph Query Language](graph-query-language.md) -- the query language used by the API
 - [Semantic Search](semantic-search.md) -- semantic queries available via `/api/semantic/*`
 - [Blast Radius Analysis](blast-radius-analysis.md) -- blast-radius visualization in the dashboard

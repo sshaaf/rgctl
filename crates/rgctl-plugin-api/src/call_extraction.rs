@@ -79,6 +79,7 @@ pub fn callee_name(root: Node, source: &[u8]) -> Option<String> {
 }
 
 /// Push a `Calls` relation when `node` is a recognized call site.
+#[allow(clippy::too_many_arguments)]
 pub fn push_call_relation(
     node: Node,
     source: &[u8],
@@ -125,12 +126,12 @@ pub fn push_call_relation(
     };
 
     let mut meta = serde_json::json!({ "language": language });
-    if language == "go" {
-        if let Some((recv_ty, field)) = go_field_selector_meta(node, source, from_fn) {
-            meta["go_recv_type"] = serde_json::Value::String(recv_ty);
-            meta["go_field"] = serde_json::Value::String(field);
-            meta["go_callee"] = serde_json::Value::String(callee.clone());
-        }
+    if language == "go"
+        && let Some((recv_ty, field)) = go_field_selector_meta(node, source, from_fn)
+    {
+        meta["go_recv_type"] = serde_json::Value::String(recv_ty);
+        meta["go_field"] = serde_json::Value::String(field);
+        meta["go_callee"] = serde_json::Value::String(callee.clone());
     }
 
     // Prefer a unique same-file match; if ambiguous, keep bare name and rely on hints.
@@ -221,14 +222,13 @@ fn go_call_type_hint(
             .metadata
             .get("receiver_name")
             .and_then(|v| v.as_str())
+            && rt == recv_name
         {
-            if rt == recv_name {
-                return from_fn
-                    .metadata
-                    .get("receiver_type")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.trim_start_matches('*').to_string());
-            }
+            return from_fn
+                .metadata
+                .get("receiver_type")
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim_start_matches('*').to_string());
         }
         return None;
     }

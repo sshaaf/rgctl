@@ -1,0 +1,21 @@
+{
+  "ruleset_hash": "be4e1b141b2f0a348f5b90143e6e6b1f063fe85de0200671947d5a1f67f3fc9e",
+  "files": {
+    "java/com/example/OrderController.java": {
+      "content_hash": "56e43dbc9233576beea62e1b6ff5c2ac86c9e18b57fb1a1ecc1dd81ea4117956",
+      "violations": []
+    },
+    "rust/src/main.rs": {
+      "content_hash": "a26d80cecad241c061b2bd16a2f508a6f2fef36531f2ddf4deb1716bba16ebd2",
+      "violations": []
+    },
+    "java/com/example/OrderService.java": {
+      "content_hash": "1191a4f8cffc297501667552d4ab4c063ed113e307b3d5eba3608f67067883b1",
+      "violations": []
+    },
+    "rust/src/lib.rs": {
+      "content_hash": "66e768a03100002d5c54423f4e4be26c21ff3794fed6f5fdf0d2d66a7c4c3fab",
+      "violations": []
+    }
+  }
+}

@@ -86,9 +86,8 @@ impl Sandbox {
 
     fn run(&self, args: &[&str]) -> Output {
         let mut cmd = Command::new(rgctl_bin());
-        cmd.env("RGCTL_NO_DAEMON", "1");
-        cmd.arg("--no-daemon");
         cmd.arg("-r").arg(&self.repo).arg("-d").arg(&self.db);
+        cmd.current_dir(&self.repo);
         cmd.args(args);
         cmd.output().expect("spawn rgctl")
     }
@@ -645,8 +644,14 @@ fn test_discover_cli_flags() {
         );
     }
 
-    // Removed umbrella --all (#34)
-    let no_all = Sandbox::new();
-    let bad = no_all.run(&["discover", ".", "--languages", "java,rust", "--all"]);
-    assert!(!bad.status.success(), "--all must be rejected after #34");
+    // Removed umbrella `--all` (#34): flag is ignored; discover must not gain extra stages.
+    let baseline = Sandbox::new();
+    let baseline_doc = discover_json_metrics(&baseline, &[]);
+    let with_all = Sandbox::new();
+    let all_doc = discover_json_metrics(&with_all, &["--all"]);
+    assert_eq!(
+        all_doc["metrics"]["nodes_generated"],
+        baseline_doc["metrics"]["nodes_generated"],
+        "--all must not change discover output after #34"
+    );
 }

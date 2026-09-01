@@ -71,7 +71,6 @@ fn http_serve_serves_dashboard_and_query_api() {
 
     let child = Command::new(&bin)
         .args([
-            "--no-daemon",
             "-r",
             repo.to_str().unwrap(),
             "serve",

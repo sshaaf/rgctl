@@ -6,8 +6,8 @@
 | **Community** | Densely connected cluster from **label propagation**; named via `communities` / GQL `:Community`. |
 | **CPG** | Code Property Graph — hybrid of L_repo (CALL/type) and L_proc (CFG/PDG). CLI: `cpg`. |
 | **CFG** | Control-flow graph of a function (basic blocks and branches). |
-| **Discover** | Index a repository into `.rgctl/` artifacts (default daemon: `~/.rgctl/cache/{reponame}/.rgctl/`; `--no-daemon`: `{repo}/.rgctl/`). |
-| **Daemon** | Background process (default) that caches indexed repos under `~/.rgctl/`; CLI commands route through it unless `--no-daemon`. |
+| **Discover** | Index a repository into `{repo}/.rgctl/` artifacts. |
+| **migrate-cache** | Copy legacy `~/.rgctl/cache/{name}/.rgctl/` into the current repo. |
 | **Fusion** | Late re-ranking of semantic hits with graph signals (blast, PageRank, sketches). |
 | **GQL** | rgctl graph query language (`MATCH` / macros) over the knowledge graph. |
 | **Hamming distance** | Bitwise distance used for packed semantic embedding retrieval. |

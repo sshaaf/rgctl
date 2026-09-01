@@ -7,7 +7,7 @@ import { HeroDemoPanel } from "@/components/hero-demo-panel";
 import { TerminalBlock } from "@/components/terminal";
 import { GITHUB_REPO } from "@/lib/utils";
 
-/** 3×3 capability matrix — rows = depth, cells = differentiators vs graph-only MCP tools. */
+/** 3×3 capability matrix — rows = depth, cells = differentiators vs grep-only tooling. */
 const capabilityRows = [
   {
     label: "Index & ask",

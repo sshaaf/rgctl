@@ -126,4 +126,41 @@ mod tests {
             );
         }
     }
+
+    /// Worker bundle must reference a `rgctl_wasm_bg-*.wasm` asset that exists in dist.
+    #[test]
+    fn dist_worker_wasm_asset_exists() {
+        if !dist_embedded() {
+            eprintln!("skip: dashboard/dist not built");
+            return;
+        }
+        let assets = workspace_dist_dir().join("assets");
+        let worker = fs::read_dir(&assets)
+            .map_err(|e| e.to_string())
+            .unwrap()
+            .filter_map(Result::ok)
+            .find(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .starts_with("worker-")
+                    && e.path().extension().is_some_and(|ext| ext == "js")
+            })
+            .map(|e| e.path())
+            .expect("worker-*.js in dashboard/dist/assets");
+        let worker_src = fs::read_to_string(&worker).expect("read worker bundle");
+        let wasm_name = worker_src
+            .split("rgctl_wasm_bg-")
+            .nth(1)
+            .and_then(|rest| rest.split('"').next())
+            .map(|hash| format!("rgctl_wasm_bg-{hash}"))
+            .expect("worker references rgctl_wasm_bg-*.wasm");
+        assert!(
+            assets.join(&wasm_name).is_file(),
+            "missing WASM asset {wasm_name} referenced by {}",
+            worker
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+        );
+    }
 }

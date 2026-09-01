@@ -1,0 +1,265 @@
+{
+  "ruleset_hash": "be4e1b141b2f0a348f5b90143e6e6b1f063fe85de0200671947d5a1f67f3fc9e",
+  "files": {
+    "src/main/java/com/example/ecommerce/entity/Review.java": {
+      "content_hash": "adf6834ac6d045e03fc8388b439531a909900f524e090971d25840b889907070",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/security/JwtTokenProvider.java": {
+      "content_hash": "e3126a6682e2d3e9e78d3f7cc0ce28510bf57d47e0df8706ed656152b21cbc83",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/rest/CartEndpoint.java": {
+      "content_hash": "917cce28ec4e300787230df49aae76e0d6f942015ec285eca9d0ffbb5fc1cb0e",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/CartItemDto.java": {
+      "content_hash": "d42153282ac2ba4b1ef9dabbdcfb1825e875e1357f64d46534d4c69b793678fb",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/service/ShoppingCartService.java": {
+      "content_hash": "8b49f9728cc55cdbec330805914b200e615d842d52608fa9b70e01f380bf40b6",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/repository/ProductRepository.java": {
+      "content_hash": "a4640cc06676213745262699fa5e1a26f2850a5a95dafc4ad9ed204f51f3351f",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/RegisterRequest.java": {
+      "content_hash": "378217c8190d7c0d2ad94db455656aadf9093cfc753270789fc9f8972cb71afc",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/entity/Order.java": {
+      "content_hash": "f08a003493715f42135938fb3668422c324216fa6290d9c1a3fd74c0a52c932b",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/ReviewDto.java": {
+      "content_hash": "a07dc59d557eac3e0722de43f18517b6991253111cbae2c3e1ef01fb3f66b881",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/repository/UserRepository.java": {
+      "content_hash": "c67ee39fb3c8aea023ce64366aa29e5fc772386382c455475fd09198521f1ef9",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/entity/Product.java": {
+      "content_hash": "c5a5198d187c61588dfe0c5d2eaee210874e29c6b9cabc7db3d3dde7b53e74a0",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/service/ShippingService.java": {
+      "content_hash": "6d974d0d9a97f2d7a095702b8450b101e50cc3dcca5b4e2bbdc646f7c9563092",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/entity/Inventory.java": {
+      "content_hash": "01e9925ba9d921e20ef0bda6550872fff4aad6ab1c4f797839ee4b4013c9a629",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/controller/AuthController.java": {
+      "content_hash": "05f58ab7c72003bd0b4acbd823f8dbbf3c775afe037fba06b1788c704ad3c49c",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/CategoryDto.java": {
+      "content_hash": "35ed063d7c41bd9538fee39488c9f4d187f2a21fac672a6975c1ba47d4796551",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/EcommerceApplication.java": {
+      "content_hash": "a8c5371cb2c8e18fbfc7aa2c4599972c40ee31d5b72093cd70d9e1f757bb6fb8",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/service/CoolstoreProductService.java": {
+      "content_hash": "acc652921c8b68dd4f4dcbadff2c88418f8a1fa6f11e207475e4f29ae87e4c96",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/LoginRequest.java": {
+      "content_hash": "f1dd0e5cc11bfc7482c8d28c950577ccecf13aaafb4501c06a35b12d5cf46528",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/controller/CartController.java": {
+      "content_hash": "3d374b3449701b7021d7dc73834c18b6a03a29a210a8f49450834c42d1830d48",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/correctness/CorrectnessHarness.java": {
+      "content_hash": "5b3ab23fc229b87d797a2718cf099b76b8f7e783a1c3a360233af1b3078e1ee2",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/service/OrderService.java": {
+      "content_hash": "bf41a126579c129f3c14c558ef6f3393527390f8bfddcc48d12d29e834c03572",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/ProductDto.java": {
+      "content_hash": "f9aefd68268ce4af2ee90ed6df9c9895136f7854d5331962f0f2241ced01a883",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/controller/CategoryController.java": {
+      "content_hash": "ce32d3c735079caf437b514b88f1ea3296421e76360361731c4bef7eb91be13d",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/controller/HealthController.java": {
+      "content_hash": "591e376233b35c87c2bcf1b759d3669caffe12721f3019cc94764d21ce54f1c9",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/entity/CartItem.java": {
+      "content_hash": "881fd7d63514a6df263611da79374b7937568321861d6acaa35c6ff55a5c8188",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/repository/CategoryRepository.java": {
+      "content_hash": "36b4b37be28a2a032e18378b9dba93abe65421f29e4e89b893a754a119f4dd7c",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/model/ShoppingCartItem.java": {
+      "content_hash": "19de129c723389fc112b2bdfb05be03018692a12b8d475c791bac9566480fd8c",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/controller/InventoryController.java": {
+      "content_hash": "389e07be6ab3b1fe68980ff8daaa507a75424bd7e33600ebaf600eca15c7fb23",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/service/CategoryService.java": {
+      "content_hash": "0837b71100217c535ae40f87774e36c9b655f4b9c13605e1c407b97b46475009",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/service/ReviewService.java": {
+      "content_hash": "759d47c5d8ff0dadb2a111517214587af227dd41423109ac680d676721c786ad",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/service/ProductService.java": {
+      "content_hash": "ce975651055bd8cf7d33d43dc349825b0308863ee4e045ec2566df813f7b890e",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/rest/ProductEndpoint.java": {
+      "content_hash": "efa39a8618500cd15902e65e80c4fb0dacb457293f8d8124074f5868cc61a9bd",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/config/SecurityConfig.java": {
+      "content_hash": "d550282eb190fedcac9d0026274af0c2725192af01dfc9a3e8482f1d6276d6e4",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/model/ShoppingCart.java": {
+      "content_hash": "5a6c8546d3a37c25c5f320d7fc0e5eef32fa6607afa27187c097630cdf74f886",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/service/CoolstoreOrderService.java": {
+      "content_hash": "f8a512026bc5b6a357c43806bd04316a212f7d69c2e06c576b9c4d85727b1401",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/entity/OrderItem.java": {
+      "content_hash": "134fde808eefa1c309d445028a1b4ebe015b5744f3b841d2594d381b1afbb0ff",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/entity/User.java": {
+      "content_hash": "45ef0df27291d24536165a8e0b9a54b7fca42919b3cb5192838bf1d445d73ec4",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/service/CartService.java": {
+      "content_hash": "5f386ae092bc2f6f87ace27a1c02e929e7b22a73f82169e98514ef5d7741dbbd",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/repository/CartRepository.java": {
+      "content_hash": "e97aba9e5c1ea8df0ba58e753334a8f01f64f23018a8540267624c7bbe331ff6",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/model/CoolstoreOrderItem.java": {
+      "content_hash": "8b2b316d2f7767c21933e54caa0947597821352f21b96c603ffa1d1e2849e5b5",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/service/AuthService.java": {
+      "content_hash": "503449c2d52c9a5d721e9bfe474317b21ca5c37e4eff26d7441dc08fbeb8a250",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/OrderItemDto.java": {
+      "content_hash": "536f1446bcf8250ebb8ca974fed4d4f9caeb2b1a8058ab6e6825ff7a5eea4018",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/service/PromoService.java": {
+      "content_hash": "0410ef21d77853abff3e4dd0db1071a0f19bc01177cc355ad17f84cb1340e3c0",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/OrderDto.java": {
+      "content_hash": "67d91717de662ca48071afd62881d22af71881548170444d4c61eaf92c24a313",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/rest/OrderEndpoint.java": {
+      "content_hash": "34b43aa6193f1cad69da6d787a8f2ada249bde025de8e858610fca206f5cf09b",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/entity/Category.java": {
+      "content_hash": "ad0dcdf544392819faaf50c2382218de298f49dba0fe56099a1c05f79b956428",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/model/CoolstoreOrder.java": {
+      "content_hash": "b7dd26f7251a678cf9a4c4bffd5131fc75c32677cecaf69c09e2bed152eb537b",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/entity/Cart.java": {
+      "content_hash": "602cde082a4a017b44d33cfa4325f7321b1fd77e09af2faada8b0aaa4c29e152",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/coolstore/model/CatalogProduct.java": {
+      "content_hash": "2168eb180154279c39bc0ce5e51a420a03c83475239f530869554ca2504e67c4",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/controller/ReviewController.java": {
+      "content_hash": "9c13c5ca6fbacca3779e06712fe4dc58370b917c6ebe99ca8a532c3e62390594",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/correctness/CfgFeatures.java": {
+      "content_hash": "dd92217242df2e20fafd57ab478b042739c61c28c420c65a707889f5a3e07587",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/repository/OrderRepository.java": {
+      "content_hash": "2891258e720c85bfacf111f1ef35b1af990ca985d4f840acb6c6fab0bdc5bf31",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/InventoryDto.java": {
+      "content_hash": "b5ff8d56457c2cc62a0a87f7f9548ec771d6fb09ae3cb1fc6d4de859ef943d1d",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/controller/OrderController.java": {
+      "content_hash": "949d5736c72fe75d4e3610de1404174b5f2f985c244f5dadd1ea0b1d4324b9bf",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/exception/GlobalExceptionHandler.java": {
+      "content_hash": "47de60e770bfce356b224b1b9aedf1e0ca4982ffb38e64eea508e85b5e83a33e",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/repository/ReviewRepository.java": {
+      "content_hash": "89dd7c2bc577f352fe0f7cc142b753e3335fe153b5a4f452fedf8f7b90a8f62c",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/security/JwtAuthenticationFilter.java": {
+      "content_hash": "aff191ef322cd1978f70167ecace780801d493c1466300717ae4f53d35bf8de7",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/config/DataSeeder.java": {
+      "content_hash": "69855ce24c5d09a10a8fcba7d89f9ca6d54c53d3ddd43070f0b1e675e3f3f2f9",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/CartDto.java": {
+      "content_hash": "aad339a6a9de9d2a02999cb60e80b429c8ec004a2fb8dc6052a602fdb70d80e9",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/controller/ProductController.java": {
+      "content_hash": "3771ffb0412c666fdc038cfa6b3f48f47b0e41dfa76ab501157c4f3a004e59f9",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/security/CustomUserDetailsService.java": {
+      "content_hash": "b2c363543997ede9c54ac29c4a2a3de2607525fc804015cc54e296a4cf10772e",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/dto/AuthResponse.java": {
+      "content_hash": "4ffe6ed1f76e6cf0651187594ccb716f7a819bb91e0aaacc5b6b56f2e3c2e5b5",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/repository/InventoryRepository.java": {
+      "content_hash": "852c5495300793cccfcff9f515c66768b658009d0cbc622c99360c035903838b",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/exception/ResourceNotFoundException.java": {
+      "content_hash": "f6b41852fce2f6f6429af2fe6f42831e98c86dfd967a39e5a7a52fb555e8fb5d",
+      "violations": []
+    },
+    "src/main/java/com/example/ecommerce/service/InventoryService.java": {
+      "content_hash": "5c77dc1bdbf374435d1d4a4bd11e6f77f52e181f1498cf7ac82ec8002db119ef",
+      "violations": []
+    }
+  }
+}

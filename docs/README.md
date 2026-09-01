@@ -13,9 +13,9 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 | CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
 | Concepts (what / why) | [Introduction](Introduction.md) |
 
-**Agent loop:** [AGENTS.md](../AGENTS.md) → `discover` once (see [daemon vs `--no-daemon`](installation.md#daemon-vs-no-daemon)) → `gql` / `blast-radius` / `cpg` with `-f json`.  
+**Agent loop:** [AGENTS.md](../AGENTS.md) → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json`.  
 **First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.  
-**Upgrading from v0.4.6:** [v0.4.7 release notes](releases/v0.4.7.md) (`rg-build` → `rgctl`, daemon, MCP).
+**Upgrading from v0.4.8:** [Unreleased notes](releases/unreleased.md) (daemon/MCP removed; in-repo `.rgctl/` only).
 
 ## Secondary
 
@@ -44,7 +44,7 @@ Internals and contribution bars — not the default agent reading path.
 | [Analysis architecture](analysis-architecture.md) | CFG / PDG / taint |
 | [Graph storage architecture](graph-storage-architecture.md) | Snapshots, blast cache |
 | [CLI I/O sanity QE](cli-io-sanity-qe.md) | Golden-path test contract |
-| [Integration test matrix](internal/integration-tests.md) | Tier A/B/C — daemon, MCP, OpenCode |
+| [Integration test matrix](internal/integration-tests.md) | Tier A/B/C — in-repo artifacts, HTTP serve, CLI subprocess |
 | [Dashboard design](dashboard-design.md) | WASM export pipeline |
 | [Migration planner design](design/migration-planner-design.md) · [Migration algorithms](migration-algorithms.md) · [Harmonic centrality](harmonic-centrality.md) | Migration internals |
 | [Releasing](releasing.md) | Versioned binaries |

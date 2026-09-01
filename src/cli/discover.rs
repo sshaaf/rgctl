@@ -28,6 +28,16 @@ pub struct DiscoverArgs {
     pub export_migration_hints: bool,
     /// Compute harmonic centrality (HyperBall on large graphs). Default off.
     pub with_harmonic: bool,
+    /// Native Kantra rule evaluation during discover.
+    pub with_kantra: bool,
+    /// Override embedded catalog with a single ruleset directory.
+    pub kantra_rules: Option<String>,
+    /// Override embedded catalog with a ruleset tree (`ruleset.yaml` dirs).
+    pub kantra_catalog: Option<String>,
+    /// Evaluate only rules with `konveyor.io/target=<name>`.
+    pub kantra_target: Option<String>,
+    /// Hydrate Kantra rule nodes only; skip violation eval.
+    pub kantra_index_only: bool,
     /// Staged full pipeline (`--full`).
     pub full: bool,
     /// Preset strategy for `--export-migration-hints` (default: hybrid_default).
@@ -57,9 +67,11 @@ pub fn resolve_session_root(ctx: &CliContext, path: Option<&str>) -> String {
 }
 
 pub fn run(ctx: &CliContext, args: DiscoverArgs) -> Result<()> {
-    if args.artifact_root.is_none() && super::daemon::route_discover(ctx, args.clone())? {
-        return Ok(());
-    }
+    super::kantra_discover::validate_kantra_flags(
+        args.with_kantra,
+        &args.kantra_rules,
+        &args.kantra_catalog,
+    )?;
     let path = resolve_session_root(ctx, args.path.as_deref());
 
     if args.full {
@@ -82,6 +94,11 @@ pub fn run(ctx: &CliContext, args: DiscoverArgs) -> Result<()> {
             with_dashboard: args.with_dashboard,
             export_migration_hints: args.export_migration_hints,
             with_harmonic: args.with_harmonic,
+            with_kantra: args.with_kantra,
+            kantra_rules: args.kantra_rules.clone(),
+            kantra_catalog: args.kantra_catalog.clone(),
+            kantra_target: args.kantra_target.clone(),
+            kantra_index_only: args.kantra_index_only,
             migration_preset: &args.migration_preset,
             migration_order: &args.migration_order,
             db_path: &ctx.db,

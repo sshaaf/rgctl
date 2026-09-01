@@ -31,6 +31,15 @@ const METASFRESH_COLD_WALL_BASELINE_SECS: f64 = 74.0;
 const KAFKA_COLD_WALL_BASELINE_SECS: f64 = 600.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
 const K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS: f64 = 3.0;
+/// ecommerce-java default discover cold wall (inheritance stub gate).
+/// Baseline: **0.31 s** on maintainer machine (2026-08-31, `--no-daemon`).
+const ECOMMERCE_JAVA_COLD_WALL_BASELINE_SECS: f64 = 0.31;
+/// `index_graph_build` stage for the same corpus (relation commit + stubs).
+const ECOMMERCE_JAVA_COLD_INDEX_GRAPH_BUILD_BASELINE_SECS: f64 = 0.008;
+/// ecommerce-java discover with `--with-kantra` fixture ruleset (2026-08-31).
+const ECOMMERCE_JAVA_KANTRA_COLD_WALL_BASELINE_SECS: f64 = 0.36;
+const ECOMMERCE_JAVA_KANTRA_COLD_EVAL_BASELINE_SECS: f64 = 0.005;
+const ECOMMERCE_JAVA_KANTRA_ENRICH_BASELINE_SECS: f64 = 0.05;
 const K8S_WEBSITE_MIN_HEADING_MODULES: u64 = 500;
 /// Obsidian vault export on warm k8s index (~15–25s on maintainer machine).
 const K8S_WEBSITE_OBSIDIAN_EXPORT_BASELINE_SECS: f64 = 30.0;
@@ -44,6 +53,8 @@ pub struct ProfileSummary {
     pub nodes: u64,
     pub functions: u64,
     pub index_graph_build_secs: Option<f64>,
+    pub kantra_eval_secs: Option<f64>,
+    pub kantra_enrich_secs: Option<f64>,
 }
 
 pub fn linux_repo_path() -> PathBuf {
@@ -62,6 +73,14 @@ pub fn k8s_website_repo_path() -> PathBuf {
     std::env::var("RGCTL_K8S_WEBSITE_REPO")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/k8s-website"))
+}
+
+pub fn ecommerce_java_repo_path() -> PathBuf {
+    std::env::var("RGCTL_ECOMMERCE_JAVA_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests/ecommerce-java")
+        })
 }
 
 pub fn parse_profile_summary(log: &str) -> Option<ProfileSummary> {
@@ -86,6 +105,14 @@ pub fn parse_profile_summary(log: &str) -> Option<ProfileSummary> {
         } else if line.contains("[profile] stage") && line.contains("index_graph_build") {
             if let Some(secs) = parse_field_f64(line, "secs=") {
                 summary.index_graph_build_secs = Some(secs);
+            }
+        } else if line.contains("[profile] stage") && line.contains("kantra_eval") {
+            if let Some(secs) = parse_field_f64(line, "secs=") {
+                summary.kantra_eval_secs = Some(secs);
+            }
+        } else if line.contains("[profile] stage") && line.contains("kantra_enrich") {
+            if let Some(secs) = parse_field_f64(line, "secs=") {
+                summary.kantra_enrich_secs = Some(secs);
             }
         }
     }
@@ -194,8 +221,7 @@ pub fn run_cold_discover_timed(repo: &Path, extra_args: &[&str]) -> (Output, Dur
     let output = Command::new(&bin)
         .current_dir(repo)
         .env("RUST_LOG", "info,profile=info")
-        .env("RGCTL_NO_DAEMON", "1")
-        .args(["--no-daemon", "-f", "json", "discover", ".", "-v"])
+        .args(["-f", "json", "discover", ".", "-v"])
         .args(extra_args)
         .output()
         .expect("spawn rgctl discover");
@@ -352,6 +378,138 @@ fn kafka_cold_discover_within_baseline() {
         profile.wall_secs, profile.nodes, profile.functions, baseline
     );
     assert_within_baseline("kafka cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on rgctl-tests/ecommerce-java (inheritance stubs)"]
+fn ecommerce_java_inheritance_cold_discover_within_baseline() {
+    let repo = ecommerce_java_repo_path();
+    if !repo.is_dir() {
+        eprintln!("skip: ecommerce-java not at {}", repo.display());
+        return;
+    }
+
+    let wall_baseline = std::env::var("RGCTL_ECOMMERCE_JAVA_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(ECOMMERCE_JAVA_COLD_WALL_BASELINE_SECS);
+    let index_baseline = std::env::var("RGCTL_ECOMMERCE_JAVA_INDEX_GRAPH_BUILD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(ECOMMERCE_JAVA_COLD_INDEX_GRAPH_BUILD_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &[]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "ecommerce-java cold: wall={:.3}s nodes={} index_graph_build={:?} peak_rss_mb={:.1} (wall baseline {:.3}s, index_graph_build baseline {:.4}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.index_graph_build_secs,
+        profile.peak_rss_mb,
+        wall_baseline,
+        index_baseline
+    );
+    assert_within_baseline(
+        "ecommerce-java cold discover",
+        Duration::from_secs_f64(profile.wall_secs),
+        wall_baseline,
+    );
+    if let Some(index_secs) = profile.index_graph_build_secs {
+        let limit = index_baseline * TOLERANCE;
+        assert!(
+            index_secs <= limit,
+            "index_graph_build {:.4}s exceeds baseline {:.4}s (+10% = {:.4}s)",
+            index_secs,
+            index_baseline,
+            limit
+        );
+    } else {
+        panic!("index_graph_build stage missing from profile output");
+    }
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on rgctl-tests/ecommerce-java (--with-kantra)"]
+fn ecommerce_java_kantra_cold_discover_within_baseline() {
+    let repo = ecommerce_java_repo_path();
+    if !repo.is_dir() {
+        eprintln!("skip: ecommerce-java not at {}", repo.display());
+        return;
+    }
+    let rules = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/kantra-rules");
+    let wall_baseline = std::env::var("RGCTL_ECOMMERCE_JAVA_KANTRA_COLD_WALL_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(ECOMMERCE_JAVA_KANTRA_COLD_WALL_BASELINE_SECS);
+    let kantra_baseline = std::env::var("RGCTL_ECOMMERCE_JAVA_KANTRA_EVAL_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(ECOMMERCE_JAVA_KANTRA_COLD_EVAL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(
+        &repo,
+        &[
+            "--languages",
+            "java",
+            "--with-kantra",
+            "--kantra-rules",
+            rules.to_str().unwrap(),
+        ],
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "ecommerce-java kantra cold: wall={:.3}s kantra_eval={:?} kantra_enrich={:?} peak_rss_mb={:.1}",
+        profile.wall_secs, profile.kantra_eval_secs, profile.kantra_enrich_secs, profile.peak_rss_mb
+    );
+    assert_within_baseline(
+        "ecommerce-java kantra cold discover",
+        Duration::from_secs_f64(profile.wall_secs),
+        wall_baseline,
+    );
+    if let Some(kantra_secs) = profile.kantra_eval_secs {
+        let limit = kantra_baseline * TOLERANCE;
+        assert!(
+            kantra_secs <= limit,
+            "kantra_eval {:.4}s exceeds baseline {:.4}s (+10% = {:.4}s)",
+            kantra_secs,
+            kantra_baseline,
+            limit
+        );
+    } else {
+        panic!("kantra_eval stage missing from profile output");
+    }
+    let enrich_baseline = std::env::var("RGCTL_ECOMMERCE_JAVA_KANTRA_ENRICH_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(ECOMMERCE_JAVA_KANTRA_ENRICH_BASELINE_SECS);
+    if let Some(enrich_secs) = profile.kantra_enrich_secs {
+        let limit = enrich_baseline * TOLERANCE;
+        assert!(
+            enrich_secs <= limit,
+            "kantra_enrich {:.4}s exceeds baseline {:.4}s (+10% = {:.4}s)",
+            enrich_secs,
+            enrich_baseline,
+            limit
+        );
+    } else {
+        panic!("kantra_enrich stage missing from profile output");
+    }
+    assert!(
+        repo.join(".rgctl/kantra_findings.json").is_file(),
+        "kantra_findings.json missing"
+    );
 }
 
 fn parse_gql_json(stdout: &[u8]) -> Option<Value> {
@@ -520,160 +678,3 @@ fn k8s_website_obsidian_export_to_vault() {
     assert_within_baseline("k8s-website obsidian export", elapsed, baseline);
 }
 
-
-#[test]
-fn profile_parser_reads_daemon_stage_names() {
-    let snippet = r#"
-INFO profile: [profile] stage stage="daemon_spawn" secs=0.120
-INFO profile: [profile] stage stage="daemon_bind_http" secs=0.040
-INFO profile: [profile] stage stage="daemon_connect" secs=0.010
-INFO profile: [profile] stage stage="daemon_session_open" secs=0.015
-INFO profile: [profile] stage stage="daemon_execute" secs=0.030
-INFO profile: [profile] discover summary wall_secs=1.25 peak_rss_mb=80.0 functions=3 nodes=40 cfg=false security=false
-"#;
-    let parsed = parse_profile_summary(snippet).expect("parse");
-    assert!((parsed.wall_secs - 1.25).abs() < 0.01);
-    assert_eq!(parsed.nodes, 40);
-    for name in [
-        "daemon_spawn",
-        "daemon_bind_http",
-        "daemon_connect",
-        "daemon_session_open",
-        "daemon_execute",
-    ] {
-        assert!(
-            snippet.contains(name),
-            "snippet should include stage {name}"
-        );
-    }
-}
-
-#[test]
-#[ignore]
-fn daemon_start_within_baseline() {
-    let home = tempfile::tempdir().expect("tmp home");
-    let bin = rgctl_bin();
-    let start = Instant::now();
-    let output = Command::new(&bin)
-        .env("RUST_LOG", "info,profile=info")
-        .args([
-            "--daemon-home",
-            home.path().to_str().unwrap(),
-            "daemon",
-            "start",
-            "--host",
-            "127.0.0.1",
-        ])
-        .output()
-        .expect("daemon start");
-    let elapsed = start.elapsed();
-    let _ = Command::new(&bin)
-        .args(["--daemon-home", home.path().to_str().unwrap(), "daemon", "stop"])
-        .output();
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    eprintln!("daemon start wall={:.3}s stderr={stderr}", elapsed.as_secs_f64());
-    assert!(output.status.success(), "{stderr}");
-    let baseline = std::env::var("RGCTL_DAEMON_START_BASELINE_SECS")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(2.0);
-    assert_within_baseline("daemon start", elapsed, baseline);
-}
-
-#[test]
-#[ignore]
-fn daemon_cold_discover_tiny_polyglot() {
-    let home = tempfile::tempdir().expect("tmp home");
-    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo");
-    let cache = home.path().join(".rgctl/cache");
-    if cache.exists() {
-        std::fs::remove_dir_all(&cache).ok();
-    }
-    let bin = rgctl_bin();
-    let _ = Command::new(&bin)
-        .args([
-            "--daemon-home",
-            home.path().to_str().unwrap(),
-            "daemon",
-            "start",
-            "--host",
-            "127.0.0.1",
-        ])
-        .output();
-    let start = Instant::now();
-    let output = Command::new(&bin)
-        .env("RUST_LOG", "info,profile=info")
-        .current_dir(&repo)
-        .args([
-            "--daemon-home",
-            home.path().to_str().unwrap(),
-            "-f",
-            "json",
-            "discover",
-            ".",
-            "-v",
-        ])
-        .output()
-        .expect("daemon discover");
-    let elapsed = start.elapsed();
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    eprintln!(
-        "daemon tiny discover wall={:.3}s success={} stderr_tail={}",
-        elapsed.as_secs_f64(),
-        output.status.success(),
-        stderr.chars().rev().take(800).collect::<String>().chars().rev().collect::<String>()
-    );
-    let _ = Command::new(&bin)
-        .args(["--daemon-home", home.path().to_str().unwrap(), "daemon", "stop"])
-        .output();
-    assert!(output.status.success(), "{stderr}");
-}
-
-#[test]
-#[ignore]
-fn daemon_warm_gql_and_http_query() {
-    let home = tempfile::tempdir().expect("tmp home");
-    let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo");
-    let bin = rgctl_bin();
-    let _ = Command::new(&bin)
-        .args([
-            "--daemon-home",
-            home.path().to_str().unwrap(),
-            "daemon",
-            "start",
-            "--host",
-            "127.0.0.1",
-        ])
-        .output();
-    let _ = Command::new(&bin)
-        .current_dir(&repo)
-        .args([
-            "--daemon-home",
-            home.path().to_str().unwrap(),
-            "discover",
-            ".",
-        ])
-        .output();
-    let gql = Command::new(&bin)
-        .env("RUST_LOG", "info,profile=info")
-        .current_dir(&repo)
-        .args([
-            "--daemon-home",
-            home.path().to_str().unwrap(),
-            "-f",
-            "json",
-            "gql",
-            "MATCH (n:Function) RETURN n LIMIT 3",
-        ])
-        .output()
-        .expect("gql");
-    eprintln!(
-        "warm gql status={} stderr={}",
-        gql.status,
-        String::from_utf8_lossy(&gql.stderr)
-    );
-    assert!(gql.status.success());
-    let _ = Command::new(&bin)
-        .args(["--daemon-home", home.path().to_str().unwrap(), "daemon", "stop"])
-        .output();
-}

@@ -335,11 +335,10 @@ impl SnapshotNodeStore {
     pub fn filter_function_impact(&self, impact_zone_ids: &[Uuid]) -> Result<Vec<Uuid>> {
         let mut out = Vec::new();
         for id in impact_zone_ids {
-            if let Some(node) = self.get_node(*id)? {
-                if node.node_type == NodeType::Function {
+            if let Some(node) = self.get_node(*id)?
+                && node.node_type == NodeType::Function {
                     out.push(*id);
                 }
-            }
         }
         Ok(out)
     }

@@ -137,8 +137,8 @@ flowchart TB
 
 - **`src/main.rs`** — process entry, dispatches to CLI.
 - **`src/cli/`** — subcommands: `discover`, `blast-radius`, `serve`, `gql`, `slice`, `inspect`, `metrics`, `semantic`, `communities`, `cpg`, `check`, `export`.
-- **`src/cli/http_serve.rs`** — default `serve`: dashboard + `POST /api/query`.
-- **`src/cli/query_daemon.rs`** — legacy blast-radius socket client (retired in v0.4.7; see [v0.4.7 release notes](releases/v0.4.7.md)). Background daemon lives under `src/cli/daemon/`.
+- **`src/cli/http_serve.rs`** — `serve`: dashboard + `POST /api/query` (foreground HTTP for one repo).
+- **`src/cli/migrate_cache.rs`** — `migrate-cache`: copy legacy `~/.rgctl/cache/` into in-repo `.rgctl/`.
 - **`src/cli/*_output.rs`** — typed JSON serializers (`blast_radius_output`, `discover_output`, `gql_output`, …). Commands assemble domain results from workspace crates and serialize here; **do not** embed algorithm logic in output modules.
 - **`src/languages/`** — wires the active language **bundle** into a `LanguageRegistry` at runtime.
 - Re-exports **`rgctl-core`** for library users (`use rgctl::analysis`, etc.).
@@ -226,8 +226,9 @@ Single home for **graph algorithms and semantic analysis**:
 | Command | Primary crates |
 |---|---|
 | `discover` | `pipeline`, `extraction`, `registry`, `graph`, `analysis`, `incremental`, `export`, `project-config`; stdout JSON via `discover_output` when `-f json` |
-| `blast-radius` | `analysis` (engine + macro index + depth filter), `graph` (columnar snapshot mmap), daemon client (default); CLI orchestration in `blast_radius.rs` |
-| `serve` | `http_serve` (default HTTP) + `daemon` (`--daemon` / `daemon start`); HTTP dashboard + `/api/query` + optional `/mcp` |
+| `blast-radius` | `analysis` (engine + macro index + depth filter), `graph` (columnar snapshot mmap); CLI orchestration in `blast_radius.rs` |
+| `serve` | `http_serve` — foreground HTTP dashboard + `/api/query` |
+| `migrate-cache` | `rgctl-graph` paths + filesystem copy from legacy daemon cache |
 | `gql` | `gql`, `graph` |
 | `slice` | `analysis` (CFG, PDG, slicing), reads source from disk |
 | `inspect` | `graph`, `analysis` |
@@ -246,7 +247,7 @@ Understanding files helps avoid duplicating cache layers:
 | `blast_engine.snapshot.bin` | `discover` | `try_load_engine`, lite blast-radius path, `serve` |
 | `macro_call_index.db` / `.bin` | `discover` | `blast-radius` T0 fast path only — SQLite/bincode lookup cache, not the graph |
 | `cfg_pdg.archive.bin` | `discover --with-cfg` | `blast-radius --with-slices`, slice hand-offs |
-| `query.sock` | *(retired)* | Former blast-radius auto-connect; use HTTP+MCP daemon or `--no-daemon` |
+| `query.sock` | *(retired)* | Former blast-radius Unix-socket client (v0.4.7); removed with daemon mode |
 | `analysis_results.bin` | `discover` | Columnar metrics (`CentralityTable`, community, blast); blast columns may stay empty on flat/on-demand graphs (bulk fill skipped — #28 won't-fix; use live `blast-radius`) |
 | `dashboard/` (bundle) | `discover` | Browser static dashboard (`index.html`, `manifest.json`, `graph_payload.bin`) |
 
@@ -301,7 +302,7 @@ When adding or fixing language support:
 | Add a graph edge type or node property | `rgctl-graph` schema + migration |
 | Add a graph algorithm (impact, metrics, flow) | `rgctl-analysis` |
 | Add a CLI flag or subcommand | `src/cli/` + call into library crate |
-| Add `--depth` or query-tier behavior | `graph_utils` filter + `blast_radius.rs` paths (cache, daemon, lite, full) |
+| Add `--depth` or query-tier behavior | `graph_utils` filter + `blast_radius.rs` paths (cache, lite, full) |
 | Add CLI JSON schema / field | `src/cli/<command>_output.rs` + `tests/cli_output/` (Layer 1) |
 | Add subprocess regression for CLI | `subprocess_golden_path.rs` (narrow) or `all_commands_sanity.rs` (full audit) + `tests/fixtures/` — see [`cli-io-sanity-qe.md`](cli-io-sanity-qe.md) |
 | Add a query syntax or optimizer rule | `rgctl-gql` |

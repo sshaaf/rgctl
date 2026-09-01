@@ -169,64 +169,6 @@ pub fn serve(ctx: &CliContext, args: HttpServeArgs) -> Result<()> {
     rt.block_on(run_server(ctx, args, state))
 }
 
-pub(crate) fn try_load_state(repo: PathBuf) -> Result<Arc<AppState>> {
-    let dashboard_dir = default_dashboard_path(&repo);
-    let (graph, community) = if let Ok(graph) = {
-        let ctx = CliContext::new(
-            Some(repo.clone()),
-            None,
-            super::OutputFormat::Json,
-            None,
-            false,
-        );
-        ctx.load_graph()
-    } {
-        let ctx = CliContext::new(
-            Some(repo.clone()),
-            None,
-            super::OutputFormat::Json,
-            None,
-            false,
-        );
-        let community = super::gql::load_community_context(&ctx, graph.backend());
-        (Some(graph), community)
-    } else {
-        (None, None)
-    };
-    let semantic = load_semantic_index(&repo);
-    Ok(Arc::new(AppState {
-        repo,
-        dashboard_dir,
-        graph: RwLock::new(graph),
-        registry: QueryMacroRegistry::with_defaults(),
-        semantic: RwLock::new(semantic.map(Arc::new)),
-        community: RwLock::new(community),
-        dashboard_announced: AtomicBool::new(false),
-    }))
-}
-
-pub(crate) fn router_for_state(
-    state: Arc<AppState>,
-    query_only: bool,
-    dashboard_only: bool,
-) -> Router {
-    let app = Router::new()
-        .route("/health", get(health))
-        .route("/api/health", get(health));
-    let mut rest = Router::new().route("/api/status", get(api_pipeline_status));
-    if !dashboard_only {
-        rest = rest
-            .route("/api/query", post(api_query))
-            .route("/graphql", post(api_query))
-            .route("/api/semantic/status", get(api_semantic_status))
-            .route("/api/semantic/query", post(api_semantic_query));
-    }
-    if !query_only {
-        rest = rest.fallback(dashboard_fallback);
-    }
-    app.merge(rest.with_state(state))
-}
-
 fn load_semantic_index(repo: &Path) -> Option<SemanticIndex> {
     let path = semantic_index_path(repo);
     if !path.is_file() {

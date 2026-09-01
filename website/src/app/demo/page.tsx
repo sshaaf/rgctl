@@ -45,7 +45,7 @@ export default function DemoPage() {
         >
           user-guide-cli.tape
         </a>
-        , plus dashboard.
+        , plus dashboard (Playwright).
       </p>
 
       <div className="mt-8 space-y-14">
@@ -53,12 +53,12 @@ export default function DemoPage() {
           kind="cli"
           preferGif
           className="mx-auto max-w-4xl"
-          caption="CLI (VHS) — discover → GQL → communities → blast → CPG → semantic."
+          caption="CLI (VHS) — discover, GQL, Kantra, blast → CPG → semantic."
         />
         <DemoMedia
           kind="dashboard"
           className="mx-auto max-w-4xl"
-          caption="Dashboard — Graph, Search, CFG, Blast, Migration, and more."
+          caption="Dashboard — Graph, Search, CFG, Blast, Migration, Migration Rules, and more."
         />
       </div>
 

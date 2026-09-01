@@ -32,15 +32,6 @@ The `communities` command reveals **implicit architecture** — functional clust
 rgctl -f json communities list
 ```
 
-**MCP:**
-```json
-{
-  "name": "rgctl_query",
-  "arguments": {
-    "macro": "all_communities"
-  }
-}
-```
 
 **Sample output:**
 ```json
@@ -81,15 +72,6 @@ Once you have a community ID, list its members:
 rgctl -f json gql "MATCH (f:Function) WHERE f.community_id = '12715' RETURN f LIMIT 20"
 ```
 
-**MCP:**
-```json
-{
-  "name": "rgctl_query",
-  "arguments": {
-    "query": "MATCH (f:Function) WHERE f.community_id = '12715' RETURN f LIMIT 20"
-  }
-}
-```
 
 #### Refresh Community Labels
 
@@ -102,7 +84,6 @@ rgctl communities label --write
 
 This recomputes heuristic labels and persists them into `analysis_results.bin`. Check `written: true` in response.
 
-**MCP:** Not available (use CLI)
 
 ### Community-Scoped Semantic Search
 
@@ -113,17 +94,6 @@ Find which subsystem owns a feature:
 rgctl -f json semantic query "checkout flow" --scope community --limit 10
 ```
 
-**MCP:**
-```json
-{
-  "name": "rgctl_search",
-  "arguments": {
-    "text": "checkout flow",
-    "scope": "community",
-    "limit": 10
-  }
-}
-```
 
 Returns hits pooled by community rather than individual functions.
 
@@ -215,15 +185,6 @@ Example `policy.json`:
 rgctl -f json check --policy-file policy.json
 ```
 
-**MCP:**
-```json
-{
-  "name": "rgctl_check",
-  "arguments": {
-    "policy_file": "/absolute/path/to/policy.json"
-  }
-}
-```
 
 **Sample output (violations):**
 
@@ -289,17 +250,6 @@ You can also check policy on individual symbols without full codebase scan:
 rgctl -f json blast-radius updateQuantity --policy-file policy.json
 ```
 
-**MCP:**
-```json
-{
-  "name": "rgctl_impact",
-  "arguments": {
-    "symbol": "updateQuantity",
-    "depth": 2
-  }
-}
-```
-(Note: MCP `rgctl_impact` doesn't take `policy_file` arg — use `rgctl_check` for full policy)
 
 The `gatekeeping` field in blast-radius response shows per-symbol policy status:
 

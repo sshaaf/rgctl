@@ -4,7 +4,7 @@ Programmatic reference for parsing rgctl output. Every structured CLI command em
 
 **Canonical JSON reference** (includes field catalogs formerly in `cli-output-schemas.md`).
 
-**Source of truth (Rust types):** `crates/rgctl-service` JSON modules (CLI `src/cli/*_output.rs` re-exports). MCP tools return the same `schema_version` payloads via `structuredContent`.
+**Source of truth (Rust types):** `crates/rgctl-service` JSON modules (CLI `src/cli/*_output.rs` re-exports).
 
 ---
 
@@ -56,16 +56,6 @@ rgctl -r "$REPO" -f json blast-radius ShoppingCartService -o /tmp/blast.json
 | Default text | Human-readable tables | Progress / info logs |
 
 **Rule:** parse **stdout only** for JSON. Do not scrape stderr.
-
-### MCP (`serve --mode mcp`)
-
-Stdio JSON-RPC; no HTTP. Tools: `rgctl_status`, `rgctl_query`, `rgctl_search`, `rgctl_impact`, `rgctl_metrics`, `rgctl_cpg`, `rgctl_check`. Successful `tools/call` results use the same documents as CLI `-f json` (pretty text plus `structuredContent`).
-
-`rgctl_query` and `rgctl_search` apply **`limit` 20** when the client omits `limit`. CLI `-f json gql` / `semantic query` do **not** add that default.
-
-If the graph, CFG archive, or semantic index is missing, those tools return pipeline status (`command`: `pipeline_status`, `schema_version` 1) as the **tool result**, not a JSON-RPC error. `cpg export` is CLI-only (`rgctl_cpg` `op` `export` is unknown).
-
-Resources: `rgctl://status`, `rgctl://manifest`, `rgctl://migration-plan`. Walkthrough: [MCP Server](guides/mcp-server.md).
 
 ### Prerequisites
 
@@ -122,15 +112,17 @@ if (doc.schema_version !== 2) {
 | `cpg` | ✅ | varies by subcommand | Hybrid CPG façade |
 | `install` | ✅ | `writes` | Install bundled agent skill |
 | `export` | ❌ (file) | — | Full-graph serialization |
-| `serve` | ❌ | — | HTTP dashboard + `/api/query` (default); `--mode mcp` stdio; `--daemon` background HTTP+MCP daemon bootstrap |
+| `serve` | ❌ | — | HTTP dashboard + `/api/query` (foreground) |
 
 ---
 
 ## 4. `discover`
 
 ```bash
-rgctl -f json discover PATH [-l LANGS] [-e PATTERNS] [--with-cfg] [--with-taint] [--full]
+rgctl -f json discover PATH [-l LANGS] [-e PATTERNS] [--with-cfg] [--with-taint] [--with-kantra] [--kantra-target NAME] [--full]
 ```
+
+Kantra flags (`--with-kantra`, `--kantra-rules`, `--kantra-catalog`, `--kantra-target`, `--kantra-index-only`) do not change stdout JSON shape; they add `.rgctl/kantra_findings.json` and `KantraRule` nodes in `graph.snapshot.bin`. See [`kantra_findings.json`](#kantra_findingsjson).
 
 ### TypeScript shape
 
@@ -151,7 +143,7 @@ interface DiscoverResponse {
 }
 ```
 
-With `--full`, stdout is still **one** JSON object (`full: true` + `plan`). Live stage updates go to `.rgctl/pipeline_status.json` (`schema_version` 1, `command: "pipeline_status"`). `GET /api/status` on HTTP `serve` and MCP `rgctl_status` (`structuredContent`) return the same document. See [MCP Server](guides/mcp-server.md).
+With `--full`, stdout is still **one** JSON object (`full: true` + `plan`). Live stage updates go to `.rgctl/pipeline_status.json` (`schema_version` 1, `command: "pipeline_status"`). `GET /api/status` on HTTP `serve` returns the same document.
 
 ### Example
 
@@ -183,8 +175,6 @@ rgctl -f json discover . | jq '.metrics | {nodes: .nodes_generated, ms: .duratio
 ```bash
 rgctl -f json gql "<QUERY>" [--macro-name NAME] [--explain]
 ```
-
-CLI JSON does not default-limit rows. MCP `rgctl_query` applies `limit` 20 when omitted.
 
 ### TypeScript shape
 
@@ -630,6 +620,7 @@ These files are written under `.rgctl/` (and copied into `.rgctl/dashboard/` for
 | `dashboard/taint/{uuid}.json` | 1 | Per-function taint flows |
 | `dashboard/slice/{uuid}.json` | 1 | Per-function source + PDG bundle |
 | `dashboard/cfg/{uuid}.json` | 1 | Per-function CFG preview |
+| `kantra_findings.json` | 2 | Kantra violations + enrichment + skipped rules (`discover --with-kantra`) |
 | `file_hashes.json` | — | Incremental discover state |
 | `content_store.bin` | — | Blake3-keyed blob store for truncated markdown bodies / large files (`body_ref`, `blob_ref`) |
 
@@ -699,6 +690,73 @@ These files are written under `.rgctl/` (and copied into `.rgctl/dashboard/` for
   "path_statements": ["...", "...", "..."]
 }
 ```
+
+### `kantra_findings.json`
+
+Written by `discover --with-kantra` (eval + enrich stages). Rule nodes are indexed into `graph.snapshot.bin` (`KantraRuleset`, `KantraRule`); `VIOLATES` edges link rules to resolved code nodes after enrich.
+
+Incremental filecontent results are cached under `.rgctl/kantra_cache/` (content-hash keyed; invalidated on ruleset change).
+
+```json
+{
+  "schema_version": 2,
+  "command": "kantra_findings",
+  "catalog_id": "stable-java@022bbd34b34eca53d04b6cb2b97b27e47fef479b",
+  "ruleset": "embedded-stable-java",
+  "target_filter": "quarkus",
+  "evaluated_rules": 2656,
+  "violations": [
+    {
+      "rule_id": "springboot-00001",
+      "category": "mandatory",
+      "file": "src/main/java/com/example/Foo.java",
+      "line": 12,
+      "message": "…",
+      "matched_by": "java.referenced",
+      "symbol": "org.springframework.stereotype.Service",
+      "enrichment": {
+        "node_id": "550e8400-e29b-41d4-a716-446655440000",
+        "community_id": 12,
+        "pagerank": 0.0042,
+        "blast_radius_score": 18.5,
+        "impact_zone_size": 47
+      }
+    }
+  ],
+  "skipped_rules": [
+    {
+      "rule_id": "some-xml-rule",
+      "reason": "unsupported: builtin.xml"
+    }
+  ],
+  "cache_hits": 120,
+  "cache_misses": 3
+}
+```
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `schema_version` | `2` | Artifact version |
+| `command` | `"kantra_findings"` | Discriminator |
+| `catalog_id` | string? | Embedded: `stable-java@<rulesets-git-sha>`; fixture: `fixture@<hash>`; override paths use `dir@…` / tree id |
+| `ruleset` | string | Display name from catalog |
+| `target_filter` | string? | Set when `--kantra-target` is active |
+| `evaluated_rules` | number | Rules in catalog before per-rule skip |
+| `violations` | array | Matches with `rule_id`, `file`, `line`, `matched_by` (`filecontent`, `java.referenced`, …) |
+| `violations[].symbol` | string? | Import or symbol name when resolved by referenced rules |
+| `violations[].enrichment` | object? | Graph linkage + metrics (after blast engine build) |
+| `violations[].enrichment.node_id` | string? | UUID of matched graph node (used for `VIOLATES` edges) |
+| `violations[].enrichment.community_id` | number? | Louvain community |
+| `violations[].enrichment.pagerank` | number? | PageRank centrality |
+| `violations[].enrichment.blast_radius_score` | number? | Blast-radius score for the node |
+| `violations[].enrichment.impact_zone_size` | number? | Transitive impact zone size |
+| `skipped_rules` | array | Unsupported providers, invalid regex, or eval errors (`rule_id`, `reason`) |
+| `cache_hits` | number? | Per-file cache hits (`builtin.filecontent` warmup); omitted when zero |
+| `cache_misses` | number? | Stale cache entries re-evaluated; omitted when zero |
+
+Query violation edges: `MATCH (r:KantraRule)-[:VIOLATES]->(n) RETURN r, n LIMIT 20`.
+
+Fixture override (`--kantra-rules`) omits full Konveyor `catalog_id` unless the ruleset was compiled from the submodule.
 
 Binary artifacts (`graph.snapshot.bin`, `graph_payload.bin`, `blast_engine.snapshot.bin`) use internal columnar formats — use CLI JSON or `export --export-format json` for portable graph access.
 
@@ -1234,7 +1292,7 @@ rgctl -f json blast-radius <SYMBOL> [--depth N] [--policy-file PATH] [--with-sli
 
 ---
 
-## 1b. `serve` — HTTP dashboard + background daemon
+## 1b. `serve` — HTTP dashboard
 
 **Foreground HTTP (one repo):**
 
@@ -1244,18 +1302,7 @@ rgctl serve -r REPO [--open]
 
 Binds `http://127.0.0.1:8080/` — dashboard at `/`, GQL at `POST /api/query`. See [http-api.md](http-api.md).
 
-**Background HTTP+MCP daemon:**
-
-```bash
-rgctl daemon start [--host HOST] [--port PORT]
-rgctl serve -r REPO --daemon [--idle-secs SECS]
-```
-
-Default bind `0.0.0.0:8080`; catalog at `/`, per-repo routes under `/{reponame}/`, MCP at `/mcp`. Cache lives under `~/.rgctl/cache/{reponame}/` unless `--daemon-home` / storage override is set.
-
-**Role:** Shared in-memory graph + command service for CLI routing, HTTP, and MCP. Opt out with **`--no-daemon`** (in-process, `{repo}/.rgctl/`).
-
-**Requires:** prior `discover` (via daemon or `--no-daemon`) producing `graph.snapshot.bin`.
+**Requires:** prior `discover` producing `graph.snapshot.bin` under `{repo}/.rgctl/`.
 
 ---
 

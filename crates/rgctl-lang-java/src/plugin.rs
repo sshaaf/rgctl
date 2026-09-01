@@ -49,6 +49,8 @@ const NESTING_CONTAINER_KINDS: &[&str] = &[
 /// relations walk (both walks may share one tree via `extract_all`).
 struct ExtractCtx {
     package: Option<String>,
+    /// Simple import name → fully qualified type (e.g. `OncePerRequestFilter` → `org.springframework...`).
+    imports: HashMap<String, String>,
     /// Maps an anonymous class's `class_body` node id to a synthetic owner
     /// name (`$AnonymousN`), assigned in document order.
     anon_names: HashMap<usize, String>,
@@ -64,10 +66,37 @@ impl ExtractCtx {
     fn new(root: Node, source: &[u8]) -> Self {
         Self {
             package: Self::find_package_name(root, source),
+            imports: Self::collect_imports(root, source),
             anon_names: Self::collect_anonymous_names(root),
             initblock_counters: RefCell::new(HashMap::new()),
             lambda_counters: RefCell::new(HashMap::new()),
         }
+    }
+
+    fn import_qualified_hint(&self, simple: &str) -> Option<String> {
+        self.imports.get(simple).cloned()
+    }
+
+    fn collect_imports(root: Node, source: &[u8]) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+        let mut stack = vec![root];
+        while let Some(node) = stack.pop() {
+            if node.kind() == "import_declaration" {
+                let mut cursor = node.walk();
+                if let Some(name_node) = node.children(&mut cursor).find(|c| {
+                    c.kind() == "identifier" || c.kind() == "scoped_identifier"
+                }) && let Ok(fqn) = name_node.utf8_text(source)
+                {
+                    let simple = fqn.rsplit('.').next().unwrap_or(fqn).to_string();
+                    map.insert(simple, fqn.to_string());
+                }
+            }
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor).collect::<Vec<_>>().into_iter().rev() {
+                stack.push(child);
+            }
+        }
+        map
     }
 
     fn find_package_name(root: Node, source: &[u8]) -> Option<String> {
@@ -1177,7 +1206,7 @@ impl JavaPlugin {
         let mut relations = Vec::new();
 
         self.extract_calls(root, source, file_path, symbols, &mut relations)?;
-        self.extract_inheritance(root, source, file_path, symbols, &mut relations)?;
+        self.extract_inheritance(root, source, file_path, &ctx, symbols, &mut relations)?;
         self.extract_annotated_with(root, source, file_path, &ctx, &mut relations)?;
         self.extract_object_creation(root, source, file_path, &ctx, &mut relations)?;
         self.extract_method_references(root, source, file_path, &ctx, &mut relations)?;
@@ -1557,6 +1586,7 @@ impl JavaPlugin {
         node: Node,
         source: &[u8],
         file_path: &Path,
+        ctx: &ExtractCtx,
         _symbols: &[Symbol],
         relations: &mut Vec<Relation>,
     ) -> Result<()> {
@@ -1565,31 +1595,36 @@ impl JavaPlugin {
         // Handle class declarations
         if node.kind() == "class_declaration" {
             let class_name = self.find_class_name(node, source)?;
+            let owner = ctx.qualify_type(&class_name);
 
             // Look for "extends" clause
             if let Some(superclass) = node.child_by_field_name("superclass") {
                 // The superclass node contains "extends" keyword and type_identifier
                 let mut sc_cursor = superclass.walk();
                 for child in superclass.children(&mut sc_cursor) {
-                    if child.kind() == "type_identifier" || child.kind() == "generic_type" {
-                        let parent_class = child.utf8_text(source).unwrap_or("").to_string();
-                        if !parent_class.is_empty() {
-                            relations.push(Relation {
-                                from: class_name.clone(),
-                                to: parent_class,
-                                relation_type: RelationType::Extends,
-                                location: SourceLocation {
-                                    file: file_path.to_string_lossy().to_string(),
-                                    start_line: child.start_position().row + 1,
-                                    end_line: child.end_position().row + 1,
-                                    start_column: child.start_position().column,
-                                    end_column: child.end_position().column,
-                                },
-                                metadata: serde_json::json!({ "language": "java" }),
-                                to_qualified_hint: None,
-                                to_type_hint: None,
-                            });
-                        }
+                    if matches!(
+                        child.kind(),
+                        "type_identifier" | "generic_type" | "scoped_type_identifier"
+                    ) {
+                        let Some(parent_class) = Self::inheritance_type_name(child, source)
+                        else {
+                            continue;
+                        };
+                        relations.push(Relation {
+                            from: owner.clone(),
+                            to: parent_class.clone(),
+                            relation_type: RelationType::Extends,
+                            location: SourceLocation {
+                                file: file_path.to_string_lossy().to_string(),
+                                start_line: child.start_position().row + 1,
+                                end_line: child.end_position().row + 1,
+                                start_column: child.start_position().column,
+                                end_column: child.end_position().column,
+                            },
+                            metadata: serde_json::json!({ "language": "java" }),
+                            to_qualified_hint: ctx.import_qualified_hint(&parent_class),
+                            to_type_hint: None,
+                        });
                     }
                 }
             }
@@ -1602,65 +1637,70 @@ impl JavaPlugin {
                     if interface_node.kind() == "type_list" {
                         let mut type_cursor = interface_node.walk();
                         for type_node in interface_node.children(&mut type_cursor) {
-                            if type_node.kind() == "type_identifier"
-                                || type_node.kind() == "generic_type"
-                            {
-                                let interface_name =
-                                    type_node.utf8_text(source).unwrap_or("").to_string();
-                                if !interface_name.is_empty() {
-                                    relations.push(Relation {
-                                        from: class_name.clone(),
-                                        to: interface_name,
-                                        relation_type: RelationType::Implements,
-                                        location: SourceLocation {
-                                            file: file_path.to_string_lossy().to_string(),
-                                            start_line: type_node.start_position().row + 1,
-                                            end_line: type_node.end_position().row + 1,
-                                            start_column: type_node.start_position().column,
-                                            end_column: type_node.end_position().column,
-                                        },
-                                        metadata: serde_json::json!({ "language": "java" }),
-                                        to_qualified_hint: None,
-                                        to_type_hint: None,
-                                    });
-                                }
+                            if matches!(
+                                type_node.kind(),
+                                "type_identifier" | "generic_type" | "scoped_type_identifier"
+                            ) {
+                                let Some(interface_name) =
+                                    Self::inheritance_type_name(type_node, source)
+                                else {
+                                    continue;
+                                };
+                                relations.push(Relation {
+                                    from: owner.clone(),
+                                    to: interface_name.clone(),
+                                    relation_type: RelationType::Implements,
+                                    location: SourceLocation {
+                                        file: file_path.to_string_lossy().to_string(),
+                                        start_line: type_node.start_position().row + 1,
+                                        end_line: type_node.end_position().row + 1,
+                                        start_column: type_node.start_position().column,
+                                        end_column: type_node.end_position().column,
+                                    },
+                                    metadata: serde_json::json!({ "language": "java" }),
+                                    to_qualified_hint: ctx.import_qualified_hint(&interface_name),
+                                    to_type_hint: None,
+                                });
                             }
                         }
                     }
                     // Also handle direct type identifiers
-                    else if interface_node.kind() == "type_identifier"
-                        || interface_node.kind() == "generic_type"
-                    {
-                        let interface_name =
-                            interface_node.utf8_text(source).unwrap_or("").to_string();
-                        if !interface_name.is_empty() {
-                            relations.push(Relation {
-                                from: class_name.clone(),
-                                to: interface_name,
-                                relation_type: RelationType::Implements,
-                                location: SourceLocation {
-                                    file: file_path.to_string_lossy().to_string(),
-                                    start_line: interface_node.start_position().row + 1,
-                                    end_line: interface_node.end_position().row + 1,
-                                    start_column: interface_node.start_position().column,
-                                    end_column: interface_node.end_position().column,
-                                },
-                                metadata: serde_json::json!({ "language": "java" }),
-                                to_qualified_hint: None,
-                                to_type_hint: None,
-                            });
-                        }
+                    else if matches!(
+                        interface_node.kind(),
+                        "type_identifier" | "generic_type" | "scoped_type_identifier"
+                    ) {
+                        let Some(interface_name) =
+                            Self::inheritance_type_name(interface_node, source)
+                        else {
+                            continue;
+                        };
+                        relations.push(Relation {
+                            from: owner.clone(),
+                            to: interface_name.clone(),
+                            relation_type: RelationType::Implements,
+                            location: SourceLocation {
+                                file: file_path.to_string_lossy().to_string(),
+                                start_line: interface_node.start_position().row + 1,
+                                end_line: interface_node.end_position().row + 1,
+                                start_column: interface_node.start_position().column,
+                                end_column: interface_node.end_position().column,
+                            },
+                            metadata: serde_json::json!({ "language": "java" }),
+                            to_qualified_hint: ctx.import_qualified_hint(&interface_name),
+                            to_type_hint: None,
+                        });
                     }
                 }
             }
 
-            self.extract_permits_from(node, &class_name, source, file_path, relations)?;
+            self.extract_permits_from(node, &owner, source, file_path, relations)?;
         }
 
         // Handle interface declarations: `extends_interfaces` (child, not
         // field) wraps a `type_list`, and `permits` for sealed interfaces.
         if node.kind() == "interface_declaration" {
             let iface_name = self.find_class_name(node, source)?;
+            let owner = ctx.qualify_type(&iface_name);
 
             let mut icursor = node.walk();
             if let Some(ext) = node
@@ -1675,40 +1715,54 @@ impl JavaPlugin {
                         if matches!(
                             t.kind(),
                             "type_identifier" | "generic_type" | "scoped_type_identifier"
-                        ) && let Ok(raw) = t.utf8_text(source)
-                        {
-                            let name = raw.split('<').next().unwrap_or(raw).to_string();
-                            if !name.is_empty() {
-                                relations.push(Relation {
-                                    from: iface_name.clone(),
-                                    to: name,
-                                    relation_type: RelationType::Extends,
-                                    location: SourceLocation {
-                                        file: file_path.to_string_lossy().to_string(),
-                                        start_line: t.start_position().row + 1,
-                                        end_line: t.end_position().row + 1,
-                                        start_column: t.start_position().column,
-                                        end_column: t.end_position().column,
-                                    },
-                                    metadata: serde_json::json!({ "language": "java" }),
-                                    to_qualified_hint: None,
-                                    to_type_hint: None,
-                                });
-                            }
+                        ) {
+                            let Some(name) = Self::inheritance_type_name(t, source) else {
+                                continue;
+                            };
+                            relations.push(Relation {
+                                from: owner.clone(),
+                                to: name.clone(),
+                                relation_type: RelationType::Extends,
+                                location: SourceLocation {
+                                    file: file_path.to_string_lossy().to_string(),
+                                    start_line: t.start_position().row + 1,
+                                    end_line: t.end_position().row + 1,
+                                    start_column: t.start_position().column,
+                                    end_column: t.end_position().column,
+                                },
+                                metadata: serde_json::json!({ "language": "java" }),
+                                to_qualified_hint: ctx.import_qualified_hint(&name),
+                                to_type_hint: None,
+                            });
                         }
                     }
                 }
             }
 
-            self.extract_permits_from(node, &iface_name, source, file_path, relations)?;
+            self.extract_permits_from(node, &owner, source, file_path, relations)?;
         }
 
         // Recurse into children
         for child in node.children(&mut cursor) {
-            self.extract_inheritance(child, source, file_path, _symbols, relations)?;
+            self.extract_inheritance(child, source, file_path, ctx, _symbols, relations)?;
         }
 
         Ok(())
+    }
+
+    /// Simple type name for inheritance relations (`Foo` from `Foo<Bar>` or `a.b.Foo`).
+    fn inheritance_type_name(node: Node, source: &[u8]) -> Option<String> {
+        let raw = node.utf8_text(source).ok()?.trim();
+        if raw.is_empty() {
+            return None;
+        }
+        let base = raw.split('<').next().unwrap_or(raw).trim();
+        let simple = base.rsplit('.').next().unwrap_or(base).trim();
+        if simple.is_empty() {
+            None
+        } else {
+            Some(simple.to_string())
+        }
     }
 
     /// Emit `Permits` relations for a sealed class/interface's `permits`
@@ -2787,6 +2841,28 @@ public class Example {
                 .iter()
                 .any(|r| matches!(r.relation_type, RelationType::Extends)),
             "Should extract an Extends relation"
+        );
+    }
+
+    #[test]
+    fn test_jwt_filter_extends_once_per_request() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../rgctl-tests/ecommerce-java/src/main/java/com/example/ecommerce/security/JwtAuthenticationFilter.java"
+        );
+        let source = std::fs::read(path).expect("jwt filter fixture");
+        let relations = relations_of(&source, "JwtAuthenticationFilter.java");
+        assert!(
+            relations.iter().any(|r| {
+                matches!(r.relation_type, RelationType::Extends)
+                    && r.to == "OncePerRequestFilter"
+                    && r.from.contains("JwtAuthenticationFilter")
+            }),
+            "extends relations: {:?}",
+            relations
+                .iter()
+                .filter(|r| matches!(r.relation_type, RelationType::Extends))
+                .collect::<Vec<_>>()
         );
     }
 

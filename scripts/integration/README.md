@@ -1,7 +1,3 @@
 # Integration scripts
 
-| Script | Tier | Purpose |
-|--------|------|---------|
-| [opencode-mcp-smoke.sh](opencode-mcp-smoke.sh) | C1 | OpenCode `mcp list` against tiny polyglot fixture |
-
-Full matrix: [docs/internal/integration-tests.md](../../docs/internal/integration-tests.md).
+No standalone scripts at this path. See [docs/internal/integration-tests.md](../../docs/internal/integration-tests.md) for the test matrix.

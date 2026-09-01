@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-analysis"
-version = "0.4.8"
+version = "0.4.9"
 edition.workspace = true
 rust-version.workspace = true
 description = "Graph analysis algorithms for rgctl"

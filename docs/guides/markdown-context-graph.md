@@ -41,7 +41,7 @@ Maintainers who already fetch profile corpora can skip the clone: `./scripts/fet
 
 **Prerequisites:** `rgctl` on your `PATH`. For large exports (17k+ Obsidian notes), use a **release** binary — [download the latest release](https://github.com/sshaaf/rgctl/releases) or [build from source](../installation.md) (`cargo build --release --bin rgctl`). See [Installation](../installation.md).
 
-This walkthrough sets `RGCTL_NO_DAEMON=1` (same as `--no-daemon`) so snapshots land in `{repo}/.rgctl/` next to the checkout. Default CLI mode otherwise uses a background daemon and caches under `~/.rgctl/cache/{reponame}/`. See [Daemon vs no-daemon](../installation.md#daemon-vs-no-daemon).
+Artifacts are written to `{repo}/.rgctl/` next to the checkout. If you still have a legacy daemon cache under `~/.rgctl/cache/`, run `rgctl migrate-cache`. See [Installation — Migrating from daemon cache](../installation.md#migrating-from-daemon-cache).
 
 ## What rgctl indexes
 
@@ -96,7 +96,7 @@ rgctl -r "$REPO" discover . -l markdown
 **What happened:**
 
 - rgctl parsed the sparse checkout of kubernetes/website `content/en` — thousands of `.md` files, **17,244 heading modules** (`:Module` with `kind=heading`), zero `:Function` nodes.
-- The graph snapshot was written to `$REPO/.rgctl/graph.snapshot.bin` (`RGCTL_NO_DAEMON=1` / `--no-daemon`).
+- The graph snapshot was written to `$REPO/.rgctl/graph.snapshot.bin`.
 - Section bodies larger than 32 KiB inline were stored in `$REPO/.rgctl/content_store.bin` (Blake3-keyed).
 
 Confirm the heading count (read `"count"` from the JSON envelope — property projection in `RETURN` is not supported):
@@ -396,7 +396,7 @@ Code-graph formats (`json`, `graphml`, `graphviz`, `mermaid`) also include doc n
 
 ## Related Guides
 
-- [Installation](../installation.md) — `rgctl` binary, PATH, daemon vs `--no-daemon`
+- [Installation](../installation.md) — `rgctl` binary, PATH, artifact layout
 - [Discovering and Indexing a Codebase](discovering-and-indexing.md) — `discover` flags and artifacts
 - [Graph Query Language](graph-query-language.md) — GQL syntax and macros
 - [Exporting Graphs](exporting-graphs.md) — JSON, GraphML, Mermaid, and filter queries

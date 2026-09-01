@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-lang-runtime"
-version = "0.4.8"
+version = "0.4.9"
 edition.workspace = true
 rust-version.workspace = true
 description = "Generic tree-sitter and regex language plugins for rgctl"

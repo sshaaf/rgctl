@@ -368,16 +368,6 @@ fn emit_output(ctx: &CliContext, response: &BlastRadiusResponse) -> Result<()> {
 
 pub fn run(ctx: &CliContext, args: BlastRadiusArgs) -> Result<()> {
     if ctx.format == OutputFormat::Json && args.policy_file.is_none() && !args.with_slices {
-        if super::daemon::route_impact(
-            ctx,
-            &args.symbol,
-            args.depth,
-            args.class.clone(),
-            args.file.clone(),
-        )? {
-            return Ok(());
-        }
-
         let mut session = rgctl_service::Session::new(&ctx.repo);
         if !session.graph_ready() {
             anyhow::bail!("Graph not found (run `rgctl discover` first)");

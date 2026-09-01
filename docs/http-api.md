@@ -4,7 +4,7 @@
 
 **CLI reference:** [User Guide §15](user-guide.md#15-http-server-serve)
 
-Default `rgctl serve` **starts the full discover pipeline** (unless `--no-pipeline`) and binds HTTP even if the dashboard bundle is not ready yet. `GET /` returns a preparing page until `index.html` exists. `GET /api/status` is the pipeline document (`schema_version` 1). `--mode mcp` speaks MCP on stdio and does **not** bind HTTP (seven workflow tools). Walkthrough: [MCP Server](guides/mcp-server.md). `--daemon` does not auto-discover.
+Default `rgctl serve` **starts the full discover pipeline** (unless `--no-pipeline`) and binds HTTP even if the dashboard bundle is not ready yet. `GET /` returns a preparing page until `index.html` exists. `GET /api/status` is the pipeline document (`schema_version` 1).
 
 ---
 
@@ -39,9 +39,7 @@ rgctl -r "$REPO" serve --open
 | `--dashboard-dir DIR` | Override `.rgctl/dashboard` |
 | `--query-only` | API only, no static files |
 | `--dashboard-only` | Dashboard only, no query API |
-| `--mode standard\|mcp` | HTTP (default) or MCP stdio |
 | `--no-pipeline` | Do not auto-discover; fail if dashboard/graph missing |
-| `--daemon` | Start or attach to the **background HTTP+MCP daemon** (no HTTP bind in this process; no auto-discover). Same model as `rgctl daemon start`. |
 
 ---
 
@@ -149,26 +147,6 @@ WASM requires HTTP (not `file://`). The in-browser worker cannot run full GQL �
 
 ---
 
-## Background HTTP+MCP daemon
-
-Shared daemon for multi-repo cache, catalog, and MCP:
-
-```bash
-rgctl daemon start [--host HOST] [--port PORT]
-rgctl -r "$REPO" discover
-rgctl -r "$REPO" serve --daemon   # foreground bootstrap; same daemon model
-```
-
-- **Catalog:** `GET http://127.0.0.1:8080/`
-- **Per-repo API:** `POST http://127.0.0.1:8080/{reponame}/api/query`
-- **MCP:** `POST http://127.0.0.1:8080/mcp`
-
-CLI commands route through the daemon by default (cache under `~/.rgctl/`). Use **`--no-daemon`** for in-process execution and `{repo}/.rgctl/` artifacts.
-
-The legacy blast-radius-only **`query.sock`** auto-connect path is **retired** in v0.4.7+ (see [v0.4.7 release notes](releases/v0.4.7.md)).
-
----
-
 ## Not exposed over HTTP
 
 These CLI surfaces are **not** available as HTTP routes today (use `-f json` on the CLI instead):
@@ -184,5 +162,4 @@ These CLI surfaces are **not** available as HTTP routes today (use `-f json` on 
 ## See also
 
 - [AGENTS.md](../AGENTS.md) — agent integration patterns
-- [MCP Server](guides/mcp-server.md) — `serve --mode mcp` (stdio, no HTTP)
 - [Dashboard user guide](dashboard-user-guide.md) — browser UI

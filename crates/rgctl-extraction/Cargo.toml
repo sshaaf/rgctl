@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-extraction"
-version = "0.4.8"
+version = "0.4.9"
 edition.workspace = true
 rust-version.workspace = true
 description = "Code extraction layer for rgctl"

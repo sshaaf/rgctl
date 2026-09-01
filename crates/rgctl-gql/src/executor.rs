@@ -301,21 +301,19 @@ fn node_matches_pattern(
         if !is_virtual_community(node) {
             return false;
         }
-    } else if let Some(node_type) = pattern.node_type {
-        if node.node_type != node_type {
+    } else if let Some(node_type) = pattern.node_type
+        && node.node_type != node_type {
             return false;
         }
-    }
     for (key, matcher) in &pattern.properties {
         if !property_matches(node, key, matcher, community) {
             return false;
         }
     }
-    if let Some(bound) = binding.get(&pattern.variable) {
-        if bound.id != node.id {
+    if let Some(bound) = binding.get(&pattern.variable)
+        && bound.id != node.id {
             return false;
         }
-    }
     true
 }
 

@@ -56,7 +56,9 @@ fn materialize_fixture() -> tempfile::TempDir {
 
 fn run_rgctl(repo: &Path, args: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(rgctl_bin());
-    cmd.arg("-r").arg(repo);
+    cmd.current_dir(repo)
+        .arg("-r")
+        .arg(repo);
     cmd.args(args);
     cmd.output().expect("spawn rgctl")
 }

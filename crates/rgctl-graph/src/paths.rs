@@ -114,6 +114,66 @@ pub fn env_flag_set(suffix: &str) -> bool {
     env_var_os(suffix).is_some()
 }
 
+/// Default user home for legacy daemon cache layout (`$HOME` / `%USERPROFILE%`).
+pub fn default_user_home() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        if let Ok(p) = env::var("USERPROFILE") {
+            if !p.is_empty() {
+                return Some(PathBuf::from(p));
+            }
+        }
+    }
+    env::var("HOME")
+        .ok()
+        .filter(|p| !p.is_empty())
+        .map(PathBuf::from)
+}
+
+/// Legacy daemon workspace root (`RGCTL_HOME` or user home).
+pub fn legacy_daemon_home() -> Option<PathBuf> {
+    if let Ok(p) = env::var("RGCTL_HOME") {
+        if !p.is_empty() {
+            return Some(PathBuf::from(p));
+        }
+    }
+    default_user_home()
+}
+
+/// One-shot migrate `~/.rgbuilder/` → `~/.rgctl/` when the new dir is absent.
+pub fn migrate_legacy_daemon_home(home_root: &Path) -> std::io::Result<()> {
+    let neu = home_root.join(".rgctl");
+    let old = home_root.join(".rgbuilder");
+    if neu.exists() || !old.exists() {
+        return Ok(());
+    }
+    match std::fs::rename(&old, &neu) {
+        Ok(()) => {
+            eprintln!(
+                "[rgctl] migrated daemon home {} → {}",
+                old.display(),
+                neu.display()
+            );
+        }
+        Err(e) => {
+            eprintln!(
+                "[rgctl] warning: could not migrate daemon home {} → {}: {e}",
+                old.display(),
+                neu.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Path to cached artifacts for a daemon-era repo name: `~/.rgctl/cache/{name}/.rgctl/`.
+pub fn daemon_cache_artifacts(name: &str) -> Option<PathBuf> {
+    let home = legacy_daemon_home()?;
+    let _ = migrate_legacy_daemon_home(&home);
+    let root = home.join(".rgctl").join("cache").join(name);
+    Some(root.join(ARTIFACT_DIR_NAME))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

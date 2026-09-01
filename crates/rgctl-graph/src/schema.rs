@@ -236,6 +236,10 @@ pub enum NodeType {
     PuppetVariable,
     /// Puppet fact reference
     PuppetFact,
+    /// Konveyor Kantra ruleset container (discover `--with-kantra`)
+    KantraRuleset,
+    /// Konveyor Kantra migration rule
+    KantraRule,
 }
 
 /// Edge types representing relationships between nodes
@@ -301,6 +305,8 @@ pub enum EdgeType {
     AnnotatedWith,
     /// Sealed type permits another type
     Permits,
+    /// Kantra rule violation on a code graph node
+    Violates,
     /// Unknown or forward-compatible edge type; excluded from call-graph traversals.
     #[serde(other)]
     Unknown,
@@ -711,8 +717,10 @@ mod tests {
             NodeType::PuppetResource,
             NodeType::PuppetVariable,
             NodeType::PuppetFact,
+            NodeType::KantraRuleset,
+            NodeType::KantraRule,
         ];
-        assert_eq!(types.len(), 36);
+        assert_eq!(types.len(), 38);
     }
 
     #[test]
@@ -748,9 +756,10 @@ mod tests {
             EdgeType::UsesFact,
             EdgeType::AnnotatedWith,
             EdgeType::Permits,
+            EdgeType::Violates,
             EdgeType::Unknown,
         ];
-        assert_eq!(types.len(), 31);
+        assert_eq!(types.len(), 32);
     }
 
     #[test]

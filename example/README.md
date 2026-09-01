@@ -9,7 +9,7 @@
 | `kafka/` | Kafka source tree | `kafka_cold_discover_within_baseline` |
 | `k8s-website/` | [kubernetes/website](https://github.com/kubernetes/website) `content/en` | `./scripts/fetch-profile-repos.sh` then `k8s_website_markdown_cold_discover_within_baseline -- --ignored` or `k8s_website_obsidian_export_to_vault -- --ignored` (after discover) |
 
-Manual stage breakdown: [docs/internal/profile.md](../docs/internal/profile.md) (`example/linux` + `example/metasfresh-4.9.8b`, `--no-daemon`, run from inside the corpus dir).
+Manual stage breakdown: [docs/internal/profile.md](../docs/internal/profile.md) (`example/linux` + `example/metasfresh-4.9.8b`; run from inside the corpus dir).
 
 **k8s Obsidian export (manual):**
 

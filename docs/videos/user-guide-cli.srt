@@ -34,61 +34,71 @@ blast-radius -f json
 Same answer as structured metrics for CI / agents
 
 8
-00:00:40,000 --> 00:00:45,000
+00:00:40,000 --> 00:00:45,500
+KantraRule inventory
+Konveyor migration rules indexed with discover --with-kantra
+
+9
+00:00:45,500 --> 00:00:50,500
+Kantra VIOLATES
+Rule → code matches via GQL
+
+10
+00:00:50,500 --> 00:00:56,000
 cpg status
 Hybrid CPG — L_proc archive + field-write index ready?
 
-9
-00:00:45,000 --> 00:00:51,000
+11
+00:00:56,000 --> 00:01:02,000
 cpg mutations
 ShoppingCart field writes (CoolStore /services pricing)
 
-10
-00:00:51,000 --> 00:00:56,500
+12
+00:01:02,000 --> 00:01:07,500
 blast-radius (CoolStore)
 Impact of ShoppingCartService::priceShoppingCart
 
-11
-00:00:56,500 --> 00:01:02,000
+13
+00:01:07,500 --> 00:01:13,000
 metrics --pagerank
 Architectural hotspots on the call graph
 
-12
-00:01:02,000 --> 00:01:07,500
+14
+00:01:13,000 --> 00:01:18,500
 inspect
 CFG for checkout — control-flow inside one function
 
-13
-00:01:07,500 --> 00:01:13,000
+15
+00:01:18,500 --> 00:01:24,000
 slice
 Backward slice: which lines influence item at addItem:53?
 
-14
-00:01:13,000 --> 00:01:19,000
+16
+00:01:24,000 --> 00:01:30,000
 semantic index
 Opt-in Hamming index (vocab = offline, no ONNX)
 
-15
-00:01:19,000 --> 00:01:24,500
+17
+00:01:30,000 --> 00:01:35,500
 semantic query
 Natural-language search over functions (fusion on by default)
 
-16
-00:01:24,500 --> 00:01:29,500
+18
+00:01:35,500 --> 00:01:40,500
 semantic --scope community
 Pool member embeddings — find subsystems by theme
 
-17
-00:01:29,500 --> 00:01:33,500
+19
+00:01:40,500 --> 00:01:44,500
 export
 Filter syntax (not GQL): name:clearCart → Mermaid subgraph
 
-18
-00:01:33,500 --> 00:01:37,000
+20
+00:01:44,500 --> 00:01:48,000
 export (preview)
 Show the Mermaid subgraph
 
-19
-00:01:37,000 --> 00:01:40,700
+21
+00:01:48,000 --> 00:01:51,700
 check
 CI gate: blast-radius policy on changed symbols

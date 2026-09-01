@@ -79,7 +79,7 @@ impl FixtureRepo {
     fn run(&self, args: &[&str]) -> Output {
         let mut cmd = Command::new(rgctl_bin());
         cmd.current_dir(&self.path)
-            .arg("--no-daemon")
+            
             .arg("-r")
             .arg(&self.path);
         cmd.args(args);

@@ -14,14 +14,15 @@ const assets = {
     gif: "/demos/user-guide-cli.gif",
     label: "CLI walkthrough (VHS)",
     blurb:
-      "Recorded from docs/videos/user-guide-cli.tape — discover, GQL, blast-radius, CPG, semantic.",
-    alt: "rgctl CLI demo: discover, query, blast-radius, and semantic search",
+      "Recorded from docs/videos/user-guide-cli.tape — discover, GQL, Kantra, blast-radius, CPG, semantic.",
+    alt: "rgctl CLI demo: discover, query, Kantra rules, blast-radius, and semantic search",
   },
   dashboard: {
     mp4: "/demos/feature-demo.mp4",
     gif: null as string | null,
     label: "Dashboard tour",
-    blurb: "Tab montage over ecommerce-java after discover --with-dashboard.",
+    blurb:
+      "Tab montage over ecommerce-java after discover --with-dashboard (includes Migration Rules / Kantra).",
     alt: "rgctl dashboard feature demo across main tabs",
   },
 } as const;

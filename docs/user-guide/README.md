@@ -6,10 +6,10 @@ covered by Rust integration tests:
 
 | Test crate | Scope |
 |------------|--------|
-| `tests/user_guide_scenarios.rs` | Full workflow on all nine `rgctl-tests/ecommerce-*` projects via isolated temp daemon |
+| `tests/user_guide_scenarios.rs` | Full workflow on all nine `rgctl-tests/ecommerce-*` projects (each copied to an isolated temp repo) |
 | `tests/markdown_context_cli.rs` | Markdown fixture GQL queries + VHS tape `jq` pipes |
 
-Each project run uses an isolated temp `--daemon-home` (see `tests/user_guide_harness.rs`).
+Each project run copies the fixture into a temp directory so `.rgctl/` artifacts stay isolated (see `tests/support/user_guide_harness.rs`).
 Requires `jq` on `PATH`. Uses `CARGO_BIN_EXE_rgctl` when set (CI builds release first).
 
 ## Per-project symbols

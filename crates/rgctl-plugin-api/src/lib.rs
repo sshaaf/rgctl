@@ -432,10 +432,10 @@ pub trait LanguagePlugin: Send + Sync {
     fn matches_path(&self, path: &str) -> bool {
         let normalized = path.replace('\\', "/");
         let path_obj = Path::new(&normalized);
-        if let Some(ext) = path_obj.extension().and_then(|e| e.to_str()) {
-            if self.file_extensions().contains(&ext) {
-                return true;
-            }
+        if let Some(ext) = path_obj.extension().and_then(|e| e.to_str())
+            && self.file_extensions().contains(&ext)
+        {
+            return true;
         }
         if path_obj
             .file_name()

@@ -2,6 +2,7 @@
 .cursor/
 .claude/
 .opencode/
+# OpenSpec change proposals (local only — do not commit)
 openspec/
 .scratch/
 .playwright-mcp/

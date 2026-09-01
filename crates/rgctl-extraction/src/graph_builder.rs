@@ -1134,6 +1134,9 @@ fn relation_allows_external_stub(relation_type: RelationType) -> bool {
             | RelationType::Uses
             | RelationType::AnnotatedWith
             | RelationType::References
+            | RelationType::Extends
+            | RelationType::Implements
+            | RelationType::Permits
     )
 }
 
@@ -1361,6 +1364,187 @@ mod tests {
                 .edges
                 .iter()
                 .any(|e| { e.edge_type == EdgeType::Instantiates && e.to == stub.id })
+        );
+    }
+
+    #[test]
+    fn extends_unresolved_superclass_creates_stub_and_edge() {
+        let mut builder = GraphBuilder::new();
+        let file_id = builder.ensure_file_node(Path::new("App.java"));
+        let class = Symbol {
+            name: "App".to_string(),
+            symbol_type: SymbolType::Class,
+            qualified_name: Some("com.example.App".to_string()),
+            location: SourceLocation {
+                file: "App.java".to_string(),
+                start_line: 1,
+                end_line: 5,
+                start_column: 0,
+                end_column: 1,
+            },
+            signature: None,
+            return_type: None,
+            parameters: vec![],
+            fields: vec![],
+            modifiers: vec![],
+            documentation: None,
+            metadata: serde_json::json!({ "language": "java" }),
+        };
+        builder.add_symbol(&class, file_id);
+        builder.build_resolution_indexes();
+        builder
+            .add_relation(&Relation {
+                from: "com.example.App".to_string(),
+                to: "RuntimeException".to_string(),
+                relation_type: RelationType::Extends,
+                location: SourceLocation {
+                    file: "App.java".to_string(),
+                    start_line: 1,
+                    end_line: 1,
+                    start_column: 0,
+                    end_column: 1,
+                },
+                metadata: serde_json::json!({ "language": "java" }),
+                to_qualified_hint: None,
+                to_type_hint: None,
+            })
+            .unwrap();
+
+        let stub = builder
+            .nodes()
+            .iter()
+            .find(|n| {
+                n.name == "RuntimeException"
+                    && n.properties.get("is_external_stub").map(String::as_str) == Some("true")
+            })
+            .expect("RuntimeException stub");
+        assert_eq!(stub.node_type, NodeType::Class);
+        assert!(
+            builder
+                .edges
+                .iter()
+                .any(|e| e.edge_type == EdgeType::Extends && e.to == stub.id)
+        );
+    }
+
+    #[test]
+    fn implements_unresolved_interface_creates_stub_and_edge() {
+        let mut builder = GraphBuilder::new();
+        let file_id = builder.ensure_file_node(Path::new("Svc.java"));
+        let class = Symbol {
+            name: "Svc".to_string(),
+            symbol_type: SymbolType::Class,
+            qualified_name: Some("com.example.Svc".to_string()),
+            location: SourceLocation {
+                file: "Svc.java".to_string(),
+                start_line: 1,
+                end_line: 5,
+                start_column: 0,
+                end_column: 1,
+            },
+            signature: None,
+            return_type: None,
+            parameters: vec![],
+            fields: vec![],
+            modifiers: vec![],
+            documentation: None,
+            metadata: serde_json::json!({ "language": "java" }),
+        };
+        builder.add_symbol(&class, file_id);
+        builder.build_resolution_indexes();
+        builder
+            .add_relation(&Relation {
+                from: "com.example.Svc".to_string(),
+                to: "UserDetailsService".to_string(),
+                relation_type: RelationType::Implements,
+                location: SourceLocation {
+                    file: "Svc.java".to_string(),
+                    start_line: 1,
+                    end_line: 1,
+                    start_column: 0,
+                    end_column: 1,
+                },
+                metadata: serde_json::json!({ "language": "java" }),
+                to_qualified_hint: Some(
+                    "org.springframework.security.core.userdetails.UserDetailsService".to_string(),
+                ),
+                to_type_hint: None,
+            })
+            .unwrap();
+
+        let stub = builder
+            .nodes()
+            .iter()
+            .find(|n| {
+                n.name == "UserDetailsService"
+                    && n.properties.get("is_external_stub").map(String::as_str) == Some("true")
+            })
+            .expect("UserDetailsService stub");
+        assert_eq!(stub.node_type, NodeType::Interface);
+        assert!(
+            builder
+                .edges
+                .iter()
+                .any(|e| e.edge_type == EdgeType::Implements && e.to == stub.id)
+        );
+    }
+
+    #[test]
+    fn permits_unresolved_type_creates_stub_and_edge() {
+        let mut builder = GraphBuilder::new();
+        let file_id = builder.ensure_file_node(Path::new("Shape.java"));
+        let class = Symbol {
+            name: "Shape".to_string(),
+            symbol_type: SymbolType::Class,
+            qualified_name: Some("com.example.Shape".to_string()),
+            location: SourceLocation {
+                file: "Shape.java".to_string(),
+                start_line: 1,
+                end_line: 5,
+                start_column: 0,
+                end_column: 1,
+            },
+            signature: None,
+            return_type: None,
+            parameters: vec![],
+            fields: vec![],
+            modifiers: vec![],
+            documentation: None,
+            metadata: serde_json::json!({ "language": "java" }),
+        };
+        builder.add_symbol(&class, file_id);
+        builder.build_resolution_indexes();
+        builder
+            .add_relation(&Relation {
+                from: "com.example.Shape".to_string(),
+                to: "Circle".to_string(),
+                relation_type: RelationType::Permits,
+                location: SourceLocation {
+                    file: "Shape.java".to_string(),
+                    start_line: 1,
+                    end_line: 1,
+                    start_column: 0,
+                    end_column: 1,
+                },
+                metadata: serde_json::json!({ "language": "java" }),
+                to_qualified_hint: None,
+                to_type_hint: None,
+            })
+            .unwrap();
+
+        let stub = builder
+            .nodes()
+            .iter()
+            .find(|n| {
+                n.name == "Circle"
+                    && n.properties.get("is_external_stub").map(String::as_str) == Some("true")
+            })
+            .expect("Circle stub");
+        assert!(
+            builder
+                .edges
+                .iter()
+                .any(|e| e.edge_type == EdgeType::Permits && e.to == stub.id)
         );
     }
 

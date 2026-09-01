@@ -301,6 +301,8 @@ pub fn run_query(ctx: &CliContext, args: SemanticQueryArgs) -> Result<()> {
     let index = SemanticIndex::load(&path)
         .with_context(|| format!("load semantic index {}", path.display()))?;
 
+    super::semantic_api::validate_index_scope(&index, args.scope)?;
+
     let graph = ctx.load_graph()?;
     let response = if ctx.format == OutputFormat::Json && args.expand.is_none() {
         let mut session = rgctl_service::Session::new(&ctx.repo);

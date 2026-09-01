@@ -77,7 +77,7 @@ fn test_gitignore_excluded_from_graph() {
         .find_by_type(NodeType::Function)
         .unwrap()
         .into_iter()
-        .map(|n| n.to_string())
+        .map(|n| n.name.to_string())
         .collect();
 
     assert!(functions.iter().any(|n| n == "kept"));

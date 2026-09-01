@@ -40,7 +40,7 @@ End-to-end guide for installing rgctl, indexing an in-tree example, and querying
 
 ## 1. Installation
 
-> **Standalone guide:** [Installation](installation.md) covers prerequisites, all operating modes (CLI / HTTP / MCP), daemon vs no-daemon, agent skill setup, upgrading, and troubleshooting.
+> **Standalone guide:** [Installation](installation.md) covers prerequisites, CLI and HTTP modes, agent skill setup, upgrading, and troubleshooting.
 
 ### Option A — GitHub release (recommended)
 
@@ -212,14 +212,7 @@ All commands below assume `REPO` points at `ecommerce-java`, or that you run fro
 
 ## 4. Index with `discover`
 
-`discover` scans source files, builds the knowledge graph, runs analytics (complexity, communities, centrality, blast-radius scoring), and writes artifacts under **`.rgctl/`**.
-
-**Where that directory lives** depends on daemon mode (see [Installation — Daemon vs no-daemon](installation.md#daemon-vs-no-daemon)):
-
-| Mode | Artifact path |
-|------|----------------|
-| **Default (background daemon)** | `~/.rgctl/cache/{reponame}/.rgctl/` — source tree is not written |
-| **`--no-daemon`** | `{repo}/.rgctl/` — use for CI, cold profiles, or checked-in fixtures |
+`discover` scans source files, builds the knowledge graph, runs analytics (complexity, communities, centrality, blast-radius scoring), and writes artifacts under **`{repo}/.rgctl/`**.
 
 **Choosing the discover target** (common pitfall):
 
@@ -323,6 +316,7 @@ Harmonic, dashboard, migration export, security, CFG/PDG, and discover-time tain
 | `--with-harmonic` | Harmonic centrality (migration ranking) |
 | `--with-dashboard` | Static dashboard bundle under `.rgctl/dashboard/` |
 | `--export-migration-hints` | Migration roadmap JSON (alias: `--export-migration-plan`) |
+| `--with-kantra` | Konveyor Kantra rule evaluation + rules graph index (see below) |
 
 ```bash
 # CFG so inspect / slice have rich PDG context
@@ -345,6 +339,52 @@ Example lines from that richer run:
 ```
 
 Use `--with-cfg` when you need `inspect` / slice overlays; add `--with-taint` for discover-time taint flows. On large monorepos (100k+ functions) expect minutes to hours.
+
+### Kantra migration rules (`--with-kantra`)
+
+Evaluate [Konveyor Kantra](https://github.com/konveyor/kantra) rules natively against the indexed graph and source cache — no Kantra CLI, LSP, or containers. Release binaries embed the Konveyor `stable/java` catalog (~2.6k rules); `discover --with-kantra` uses it by default.
+
+```bash
+# Default: embedded catalog + eval + index rules into graph.snapshot.bin
+rgctl discover . -l java -e target --with-kantra
+
+# Migration target filter (konveyor.io/target=<NAME> labels)
+rgctl discover . -l java --with-kantra --kantra-target quarkus
+
+# CI / fixtures: override with a local ruleset directory
+rgctl discover . --with-kantra --kantra-rules tests/fixtures/kantra-rules
+
+# Dev: local konveyor/rulesets checkout instead of embedded blob
+rgctl discover . --with-kantra --kantra-catalog /path/to/rulesets/stable/java
+
+# Index rules into graph only (skip eval)
+rgctl discover . --with-kantra --kantra-index-only
+```
+
+| Flag | Purpose |
+|------|---------|
+| `--with-kantra` | Run Kantra eval and index `KantraRule` / `KantraRuleset` nodes into the session graph |
+| `--kantra-target NAME` | Evaluate only rules labeled `konveyor.io/target=NAME` |
+| `--kantra-rules DIR` | Single ruleset directory (`ruleset.yaml` + `*.yaml`); overrides embedded catalog |
+| `--kantra-catalog ROOT` | Rulesets tree (e.g. `stable/java`); overrides embedded catalog |
+| `--kantra-index-only` | Skip eval; still index catalog rules into the graph |
+
+**Artifacts:** `.rgctl/kantra_findings.json` (violations + skipped rules). Rule nodes are queryable via GQL after index:
+
+```bash
+rgctl gql "MATCH (r:KantraRule) RETURN r LIMIT 10"
+rgctl gql 'MATCH (r:KantraRule) WHERE r.`konveyor.io/target` = '\''quarkus'\'' RETURN r'
+```
+
+Konveyor labels (`konveyor.io/target`, `konveyor.io/source`, …) are stored as node `properties`; use backtick-quoted property names in GQL `WHERE` clauses.
+
+**Source builds:** full embedded catalog requires the git submodule — `git submodule update --init crates/rgctl-kantra/assets/rulesets` or `./scripts/init-kantra-rulesets.sh`. Without it, the build falls back to `tests/fixtures/kantra-rules/`. See [`crates/rgctl-kantra/README.md`](../crates/rgctl-kantra/README.md).
+
+**Further reading:** [Kantra integration exploration](design/kantra-integration-exploration.md) · [Architecture options (embedded catalog + rules graph)](../KANTRA_ARCHITECTURE_OPTIONS.md) · [JSON schema](json-api.md#kantra_findingsjson)
+
+Does **not** require `--with-cfg`. Unsupported rule providers and invalid regex patterns are skipped with reasons in `skipped_rules`. After full eval, `VIOLATES` edges link each `KantraRule` to matched code nodes (queryable via GQL).
+
+**Dashboard:** `discover --with-kantra --with-dashboard` exports `kantra_index.json` and per-file violation shards. Open **Migration Rules** in the dashboard (category + Konveyor target filters, syntax-highlighted snippets). See [Dashboard user guide — Migration Rules](dashboard-user-guide.md#migration-rules-kantra).
 
 ### Verbose logging and stage profiling
 
@@ -386,16 +426,17 @@ rgctl discover . --write-json-graph
 
 ### What `discover` creates
 
-After a successful run, the layout below appears under the **artifact root** (daemon cache or in-repo `.rgctl/`). Examples use the in-repo path for readability:
+After a successful run, the layout below appears under **`{repo}/.rgctl/`**:
 
 ```
-{artifact-root}/.rgctl/          # e.g. ~/.rgctl/cache/ecommerce-java/.rgctl/  or  ecommerce-java/.rgctl/
+{repo}/.rgctl/
 ├── graph.snapshot.bin          # Columnar mmap graph (primary cache for queries)
 ├── content_store.bin           # Large markdown bodies / files (body_ref / blob_ref; Obsidian + doc semantic)
 ├── blast_engine.snapshot.bin   # Pre-built blast-radius engine
 ├── macro_call_index.db         # Blast-radius lookup cache (SQLite; not the graph)
 ├── macro_call_index.bin        # Same index in bincode (companion to .db)
 ├── analysis_results.bin        # Columnar analysis properties
+├── kantra_findings.json        # With --with-kantra (violations + skipped rules)
 ├── file_hashes.json            # Incremental file tracker
 ├── migration_plan.json         # With --export-migration-hints
 ├── analysis/                   # Per-function CFG/PDG/taint (with --with-cfg / --with-taint)
@@ -409,15 +450,13 @@ After a successful run, the layout below appears under the **artifact root** (da
 
 Query commands read `graph.snapshot.bin` when present. You do **not** need `graph.db` for normal CLI use.
 
-Point every subsequent command at the **same repo root** you indexed (daemon routing resolves the cache automatically):
+Point every subsequent command at the **same repo root** you indexed:
 
 ```bash
 export REPO="$PWD"   # after cd into the repo
 # or pass -r on each command:
 rgctl -r "$REPO" gql 'MATCH (n:Function) RETURN n LIMIT 5'
 ```
-
-For CI or scripts that need artifacts in the tree: `rgctl --no-daemon discover .` then `-r "$REPO"` as usual.
 
 ---
 
@@ -428,9 +467,6 @@ These apply to **every** subcommand:
 | Flag | Purpose |
 |------|---------|
 | `-r, --repo PATH` | Repository root (default: current directory) |
-| `--no-daemon` | Skip background daemon; use in-process execution and `{repo}/.rgctl/` artifacts |
-| `--daemon-home PATH` | Override daemon state directory (default `~/.rgctl/`; env `RGCTL_HOME`) |
-| `--fail-if-no-daemon` | Exit if the background daemon cannot be started or reached |
 | `-d, --db PATH` | Legacy graph JSON path (default: `.rgctl/graph.db`) |
 | `-f, --format FORMAT` | Output: `text`, `json`, `graphviz`, `mermaid` |
 | `-o, --output FILE` | Write command output to a file instead of stdout |
@@ -1109,7 +1145,7 @@ The fixture also ships a shared policy at [`rgctl-tests/rgctl-policy.json`](../r
 
 ## 15. HTTP server (`serve`) — optional
 
-`serve` binds HTTP immediately and, unless `--no-pipeline`, starts the same staged full pipeline as `discover --full`. The dashboard at `/` shows a preparing page until the bundle exists. Prefer CLI `-f json` for agents and CI; use [`serve --mode mcp`](guides/mcp-server.md) in the IDE for the seven workflow tools.
+`serve` binds HTTP immediately and, unless `--no-pipeline`, starts the same staged full pipeline as `discover --full`. The dashboard at `/` shows a preparing page until the bundle exists. Prefer CLI `-f json` for agents and CI.
 
 ```bash
 # Starts indexing if needed; preparing page until dashboard exists
@@ -1136,29 +1172,6 @@ curl -sS -X POST http://127.0.0.1:8080/api/query \
 
 Full reference: [http-api.md](http-api.md). CoolStore walkthrough: [HTTP Server and Dashboard](guides/http-server-and-dashboard.md).
 
-### MCP stdio (`--mode mcp`)
-
-No HTTP bind. The host (Cursor, Claude Code) speaks JSON-RPC on stdin/stdout. Tools: `rgctl_status`, `rgctl_query`, `rgctl_search`, `rgctl_impact`, `rgctl_metrics`, `rgctl_cpg`, `rgctl_check`. Query/search default `limit` 20. Unready artifacts return pipeline status JSON as the tool result.
-
-```bash
-rgctl -r "$REPO" serve --mode mcp
-```
-
-Walkthrough (Cursor / Claude Code config): [MCP Server](guides/mcp-server.md).
-
-### Background HTTP+MCP daemon
-
-Shared daemon for catalog, per-repo HTTP API, and `/mcp` (default cache under `~/.rgctl/`):
-
-```bash
-rgctl daemon start --host 127.0.0.1 --port 8080
-rgctl -r "$REPO" discover
-# Terminal 2 — CLI routes through daemon unless --no-daemon
-rgctl -r "$REPO" -f json blast-radius 'CartService::clearCart'
-```
-
-Foreground start: `rgctl serve --daemon`. Opt out: `--no-daemon` (in-process, `{repo}/.rgctl/`). See [HTTP Server and Dashboard](guides/http-server-and-dashboard.md) and [installation.md](installation.md#daemon-vs-no-daemon).
-
 ---
 
 ## 16. Recommended workflow
@@ -1169,9 +1182,9 @@ cd /path/to/rgctl
 export REPO="$PWD/rgctl-tests/ecommerce-java"
 cd "$REPO"
 
-# 2. Index (add CFG + dashboard for the rest of this walkthrough)
+# 2. Index (add CFG + dashboard + Kantra for the rest of this walkthrough)
 rgctl discover . -l java -e target \
-  --with-cfg --with-dashboard --with-harmonic --export-migration-hints
+  --with-cfg --with-dashboard --with-harmonic --with-kantra --export-migration-hints
 
 # 3. Explore structure
 rgctl -r "$REPO" -f json gql --macro-name all_functions unused | jq '.count'
@@ -1188,6 +1201,13 @@ rgctl -r "$REPO" -f json blast-radius 'CartService::clearCart' | jq '.metrics'
 rgctl -r "$REPO" cpg status
 rgctl -r "$REPO" cpg mutations --type ShoppingCart --exclude-ctors
 rgctl -r "$REPO" blast-radius 'ShoppingCartService::priceShoppingCart'
+
+# 5b. Konveyor Kantra migration rules (optional target filter)
+rgctl -r "$REPO" -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 5" | jq '.count'
+rgctl -r "$REPO" -f json gql \
+  'MATCH (r:KantraRule)-[:VIOLATES]->(n) RETURN r, n LIMIT 10' | jq '.count'
+jq '{violations: (.violations|length), evaluated_rules, target_filter}' \
+  "$REPO/.rgctl/kantra_findings.json"
 
 # 6. Architectural hotspots
 rgctl -r "$REPO" -f json metrics --communities | jq .
@@ -1225,7 +1245,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgctl/migration_p
 | `check` | CI policy gateway |
 | `install` | Copy the bundled agent skill into `.claude/skills/` and `.cursor/skills/` |
 | `semantic` | Opt-in semantic index + query (`--scope community`, `docs`, `all`) |
-| `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--mode mcp` stdio; `--no-pipeline` fail-fast; `--daemon` background HTTP+MCP daemon bootstrap |
+| `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--no-pipeline` fail-fast |
 
 ### `discover` flags
 
@@ -1246,6 +1266,11 @@ Migration hints (with `--export-migration-hints`) land under `.rgctl/migration_p
 | `--migration-preset` | Preset for migration hints (`hybrid`, `foundational`, …) |
 | `--migration-order` | `scheduled` (topological) or `priority` |
 | `--write-json-graph` | Also write legacy `graph.db` / `graph.json` |
+| `--with-kantra` | Konveyor Kantra eval + rules graph index (embedded catalog by default) |
+| `--kantra-target NAME` | Filter eval to `konveyor.io/target=NAME` |
+| `--kantra-rules DIR` | Override embedded catalog with one ruleset directory |
+| `--kantra-catalog ROOT` | Override embedded catalog with a rulesets tree |
+| `--kantra-index-only` | Index rules into graph; skip eval |
 
 There is no umbrella `--all` flag — combine `--with-cfg --with-security --with-taint` explicitly when you want the former deep pass.
 
@@ -1261,10 +1286,6 @@ If you ran `rgctl -r /path/to/repo discover .` from another directory, artifacts
 cd /path/to/repo && rgctl discover .
 # or: rgctl -r /path/to/repo discover    # no trailing .
 ```
-
-### `empty control message` / daemon worker died
-
-Usually the daemon worker crashed (OOM, panic) or indexed an unintended huge tree. Check you indexed the repo you meant (see above). Retry with `--no-daemon -v` for a direct error, or inspect `~/.rgctl/` logs if present.
 
 ### `Graph not found` / `run discover first`
 
@@ -1311,13 +1332,13 @@ On **very large repos** (500k+ graph nodes), discover automatically:
 - Skips per-function rows in `function_metrics.json` (community/metagraph view instead)
 - Uses on-demand blast reachability for flat call graphs (no eager multi-hundred-GB bitsets)
 
-Profile a cold run (use `--no-daemon` so artifacts land in-repo for `rm -rf`):
+Profile a cold run (delete in-repo artifacts first):
 
 ```bash
-rgctl --no-daemon discover . -v   # from repo root
-# or to reset in-repo artifacts:
 rm -rf .rgctl
-RUST_LOG=info,profile=info rgctl --no-daemon discover . -v 2>&1 | grep '\[profile\]'
+rgctl discover . -v   # from repo root
+# or:
+RUST_LOG=info,profile=info rgctl discover . -v 2>&1 | grep '\[profile\]'
 ```
 
 ### Further reading
