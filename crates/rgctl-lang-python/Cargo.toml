@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-lang-python"
-version = "0.4.8"
+version = "0.4.9"
 edition.workspace = true
 rust-version.workspace = true
 description = "rgctl language plugin: python"
