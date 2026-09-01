@@ -167,8 +167,8 @@ rgctl ships with deep, enterprise-ready features for heavy modernization workloa
 | --- | --- |
 | **[Documentation index](docs/README.md)** | Map of all docs by persona |
 | **[Installation](docs/installation.md)** | Install rgctl, CLI / HTTP modes, verify setup |
-| **[v0.4.8 release notes](docs/releases/v0.4.8.md)** | Latest changes — agent docs, daemon/discover guidance |
-| **[v0.4.7 release notes](docs/releases/v0.4.7.md)** | rgctl rename, daemon era, upgrade from v0.4.6 |
+| **[v0.4.9 release notes](docs/releases/v0.4.9.md)** | Kantra migration rules, CLI-first artifacts, daemon/MCP removed |
+| **[v0.4.8 release notes](docs/releases/v0.4.8.md)** | Agent docs (historical — daemon era) |
 | **[Introduction](docs/Introduction.md)** | Concepts — graph, reachability, capability map |
 | **[User Guide](docs/user-guide.md)** | ecommerce-java fixture, every CLI command |
 | **[Agent skill](skills/rgctl/SKILL.md)** | **Canonical agent playbook** — NL routing + CLI samples. |

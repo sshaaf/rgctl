@@ -15,7 +15,7 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 
 **Agent loop:** [AGENTS.md](../AGENTS.md) → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json`.  
 **First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.  
-**Upgrading from v0.4.8:** [Unreleased notes](releases/unreleased.md) (daemon/MCP removed; in-repo `.rgctl/` only).
+**Upgrading from v0.4.8:** [v0.4.9 release notes](releases/v0.4.9.md) (daemon/MCP removed; Kantra; in-repo `.rgctl/` only).
 
 ## Secondary
 
