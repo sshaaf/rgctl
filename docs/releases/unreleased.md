@@ -32,4 +32,4 @@ rgctl discover .                 # refresh artifacts in-repo
 ## Documentation
 
 - User guide, installation, HTTP API, agent skill, and integration-test docs updated for CLI-first workflow.
-- Removed [MCP Server guide](../guides/mcp-server.md).
+- Removed MCP Server guide (`docs/guides/mcp-server.md`).
