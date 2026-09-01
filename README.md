@@ -1,4 +1,4 @@
-# rgctl
+# Reachability Graph Control (rgctl)
 
 **A code knowledge graph built for LLM agents — accurate answers, minimal tokens, maximum speed.**
 
@@ -6,17 +6,11 @@
 
 AI coding agents default to reading files sequentially. That burns context, misses structure, and produces confident wrong answers about impact and dependencies. **rgctl indexes the whole repository once** into a rich graph with pre-computed **reachability**, then serves **compact, deterministic query results** — so agents (and humans) get the right slice of the codebase without loading it into the prompt.
 
-## Demo
-
-Quick CLI tour ([full recording](https://shaaf.dev/rgctl/demos/user-guide-cli.mp4)):
-
-https://shaaf.dev/rgctl/demos/user-guide-cli.gif
-
-Dashboard tour ([full recording](https://shaaf.dev/rgctl/demos/feature-demo.mp4)):
-
-https://shaaf.dev/rgctl/demos/feature-demo.mp4
-
-Regenerate locally: [docs/videos/README.md](docs/videos/README.md).
+<div align="center">
+  <a href="https://youtu.be/SXxI-w9pOR0">
+    <img src="https://markdown-videos-api.jorgenkh.no/youtube/SXxI-w9pOR0" alt="Watch the video" width="100%">
+  </a>
+</div>
 
 ---
 
