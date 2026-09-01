@@ -382,7 +382,9 @@ Konveyor labels (`konveyor.io/target`, `konveyor.io/source`, …) are stored as 
 
 **Further reading:** [Kantra integration exploration](design/kantra-integration-exploration.md) · [Architecture options (embedded catalog + rules graph)](../KANTRA_ARCHITECTURE_OPTIONS.md) · [JSON schema](json-api.md#kantra_findingsjson)
 
-Does **not** require `--with-cfg`. Unsupported rule providers and invalid regex patterns are skipped with reasons in `skipped_rules`. `VIOLATES` edges (rule → code node) are planned for a later phase.
+Does **not** require `--with-cfg`. Unsupported rule providers and invalid regex patterns are skipped with reasons in `skipped_rules`. After full eval, `VIOLATES` edges link each `KantraRule` to matched code nodes (queryable via GQL).
+
+**Dashboard:** `discover --with-kantra --with-dashboard` exports `kantra_index.json` and per-file violation shards. Open **Migration Rules** in the dashboard (category + Konveyor target filters, syntax-highlighted snippets). See [Dashboard user guide — Migration Rules](dashboard-user-guide.md#migration-rules-kantra).
 
 ### Verbose logging and stage profiling
 
@@ -1180,9 +1182,9 @@ cd /path/to/rgctl
 export REPO="$PWD/rgctl-tests/ecommerce-java"
 cd "$REPO"
 
-# 2. Index (add CFG + dashboard for the rest of this walkthrough)
+# 2. Index (add CFG + dashboard + Kantra for the rest of this walkthrough)
 rgctl discover . -l java -e target \
-  --with-cfg --with-dashboard --with-harmonic --export-migration-hints
+  --with-cfg --with-dashboard --with-harmonic --with-kantra --export-migration-hints
 
 # 3. Explore structure
 rgctl -r "$REPO" -f json gql --macro-name all_functions unused | jq '.count'
@@ -1199,6 +1201,13 @@ rgctl -r "$REPO" -f json blast-radius 'CartService::clearCart' | jq '.metrics'
 rgctl -r "$REPO" cpg status
 rgctl -r "$REPO" cpg mutations --type ShoppingCart --exclude-ctors
 rgctl -r "$REPO" blast-radius 'ShoppingCartService::priceShoppingCart'
+
+# 5b. Konveyor Kantra migration rules (optional target filter)
+rgctl -r "$REPO" -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 5" | jq '.count'
+rgctl -r "$REPO" -f json gql \
+  'MATCH (r:KantraRule)-[:VIOLATES]->(n) RETURN r, n LIMIT 10' | jq '.count'
+jq '{violations: (.violations|length), evaluated_rules, target_filter}' \
+  "$REPO/.rgctl/kantra_findings.json"
 
 # 6. Architectural hotspots
 rgctl -r "$REPO" -f json metrics --communities | jq .

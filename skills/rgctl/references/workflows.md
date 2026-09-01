@@ -118,7 +118,7 @@ rgctl -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 20"
 rgctl -f json gql 'MATCH (r:KantraRule) WHERE r.`konveyor.io/target` = '\''quarkus'\'' RETURN r'
 ```
 
-`KantraRuleset` nodes link to rules via `CONTAINS` edges. Phase 1 has no `VIOLATES` edges from rules to code nodes — use `kantra_findings.json` for matches.
+`KantraRuleset` nodes link to rules via `CONTAINS` edges. After full eval, `VIOLATES` edges connect rules to code nodes; `kantra_findings.json` has line-level detail and enrichment.
 
 ### 5d. Fixture / CI override
 

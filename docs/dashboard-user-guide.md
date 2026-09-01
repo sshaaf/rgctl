@@ -39,7 +39,7 @@ Do **not** open `index.html` via `file://` — the graph worker cannot load `gra
 | Area | Description |
 |------|-------------|
 | **Stat cards** | Node/edge/function counts from `manifest.json` |
-| **Tab bar** | Graph, Search, Functions, CFG, Dataflow, Slice, Blast, Taint, Migration, Query Guide |
+| **Tab bar** | Graph, Search, Functions, CFG, Dataflow, Slice, Blast, Taint, Migration, **Migration Rules**, Query Guide |
 | **Tab panels** | Collapsible help text per tab (click header to expand) |
 | **Notification menu** | Engine/WASM status, manifest errors |
 
@@ -110,6 +110,13 @@ Screenshot placeholders (capture with `dashboard/scripts/capture-migration-scree
 - Screenshots: [design/README.md](design/README.md) (figures under `docs/images/design/`).
 - **CLI:** `discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints`
 
+### Migration Rules (Kantra)
+
+- Konveyor rule violations from `discover --with-kantra --with-dashboard`.
+- File sidebar, category filters (mandatory / potential / optional), optional **Konveyor target** filter when discover did not use `--kantra-target`.
+- Click a violation row for rule message and a syntax-highlighted source snippet (line highlighted by category).
+- **CLI:** `discover . --with-kantra` · `rgctl gql "MATCH (r:KantraRule)-[:VIOLATES]->(n) RETURN r, n LIMIT 20"` · `.rgctl/kantra_findings.json`
+
 ### Query Guide
 
 - Scrollable **CLI cookbook** organized by tab (prerequisites, commands, notes).
@@ -137,6 +144,7 @@ Screenshot placeholders (capture with `dashboard/scripts/capture-migration-scree
 | Stale data after git pull | Re-run `discover` (with `--with-dashboard` if using UI) |
 | Semantic search empty / warning | `rgctl semantic index` then `rgctl serve --open` |
 | Migration tab empty | `rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints` |
+| Migration Rules tab empty | `rgctl discover . --with-kantra --with-dashboard` (add `-l java` as needed) |
 
 ---
 

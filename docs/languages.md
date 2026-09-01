@@ -35,6 +35,8 @@ Config format plugins (JSON, YAML, TOML, properties, …) add structure nodes; t
 
 **Markdown / docs:** custom markup plugin `rgctl-lang-markdown` (tree-sitter-md). Not Tier 1, not generic Tier 2. See [markdown-context.md](markdown-context.md). `.md` and `.mdx` are indexed by default when registered via `rgctl-languages`.
 
+**Konveyor Kantra migration rules:** not a source-language plugin — evaluates the embedded [Konveyor](https://github.com/konveyor/kantra) `stable/java` rule catalog against indexed Java (and source cache) after `discover --with-kantra`. Optional `--kantra-target` filters by `konveyor.io/target`. See [User Guide §4 — Kantra](user-guide.md#kantra-migration-rules---with-kantra) and [`crates/rgctl-kantra/README.md`](../crates/rgctl-kantra/README.md).
+
 ## Discover depth
 
 | Flags | Use |
@@ -43,6 +45,7 @@ Config format plugins (JSON, YAML, TOML, properties, …) add structure nodes; t
 | `--with-security` | Secret scanning on config-like files |
 | `--with-cfg` | CFG/PDG for slice/inspect/cpg (slower on huge repos) |
 | `--with-taint` | Discover-time taint (with CFG) |
+| `--with-kantra` | Konveyor rule eval + `kantra_findings.json` + `KantraRule` graph index |
 | `--export-migration-hints` | Migration plan JSON |
 | `--with-dashboard` | Optional static UI assets |
 

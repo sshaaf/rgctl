@@ -92,7 +92,7 @@ Samples below are truncated where noted. Field names match live CLI / `docs/json
 
 **GQL companion:** After discover, query indexed rules with `gql "MATCH (r:KantraRule) RETURN r"`. Konveyor labels are properties — filter with backticks: `` r.`konveyor.io/target` ``.
 
-**Pitfalls:** Full embedded catalog skips many rules (unsupported providers, Windup regex). Phase 1 has no `VIOLATES` graph edges — violations are only in this file.
+**Pitfalls:** Full embedded catalog skips many rules (unsupported providers, Windup regex). Use `kantra_findings.json` for violation details; GQL `VIOLATES` edges link rules to code nodes after full eval (not `--kantra-index-only`).
 
 **Agent should report:** `catalog_id`, `target_filter`, violation count, representative hits, skip summary — not full JSON dump.
 

@@ -1,6 +1,6 @@
 # Terminal + dashboard demos
 
-Aligned with the [User Guide](../user-guide.md) (named communities, CoolStore `/services/*` + `cpg mutations --type ShoppingCart`, semantic `--scope community`). Pattern for both:
+Aligned with the [User Guide](../user-guide.md) (named communities, CoolStore `/services/*` + `cpg mutations --type ShoppingCart`, Kantra `--with-kantra`, semantic `--scope community`). Pattern for both:
 
 1. Record a **clean** video (no on-screen caption chrome)
 2. Keep `*-no-captions.mp4` for comparison

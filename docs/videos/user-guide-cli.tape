@@ -41,9 +41,9 @@ Show
 Sleep 1s
 
 # 1. discover
-Type "rgctl discover . -l java -e target --with-cfg --export-migration-hints"
+Type "rgctl discover . -l java -e target --with-cfg --with-kantra --export-migration-hints"
 Enter
-Sleep 8s
+Sleep 9s
 
 # 2. gql inventory
 Ctrl+L
@@ -75,6 +75,17 @@ Enter
 Sleep 3s
 
 Type "rgctl -f json blast-radius 'CartService::clearCart' | jq '{score: .metrics.score, callers: .topology.direct_callers}'"
+Enter
+Sleep 3s
+
+# 5b. Kantra migration rules
+Ctrl+L
+Sleep 300ms
+Type `rgctl -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 5" | jq '.count'`
+Enter
+Sleep 2.5s
+
+Type `rgctl -f json gql "MATCH (r:KantraRule)-[:VIOLATES]->(n) RETURN r, n LIMIT 5" | jq '.count'`
 Enter
 Sleep 3s
 
