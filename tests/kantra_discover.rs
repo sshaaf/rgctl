@@ -389,3 +389,44 @@ fn kantra_file_cache_records_hits_on_second_discover() {
         "expected cache_hits > 0 on second discover, got {hits}"
     );
 }
+
+#[test]
+fn kantra_dashboard_export_writes_index() {
+    let _guard = TINY_REPO_LOCK.lock().unwrap();
+    let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny_polyglot_repo");
+    if !repo.is_dir() {
+        return;
+    }
+    let rules = rules_dir();
+    let out = Command::new(rgctl_bin())
+        .args([
+            "discover",
+            ".",
+            "-l",
+            "java,rust",
+            "--with-kantra",
+            "--kantra-rules",
+            rules.to_str().unwrap(),
+            "--with-dashboard",
+        ])
+        .current_dir(&repo)
+        .output()
+        .expect("discover");
+    assert!(
+        out.status.success(),
+        "discover failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let dash = repo.join(".rgctl/dashboard");
+    assert!(
+        dash.join("kantra_index.json").is_file(),
+        "kantra_index.json missing from dashboard bundle"
+    );
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dash.join("manifest.json")).unwrap()).unwrap();
+    assert_eq!(manifest["kantra"]["available"], true);
+    let index: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dash.join("kantra_index.json")).unwrap()).unwrap();
+    assert_eq!(index["available"], true);
+    assert!(index.get("files").and_then(|v| v.as_array()).is_some());
+}

@@ -32,6 +32,20 @@ pub struct KantraSection {
     pub cache_misses: usize,
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub by_category: std::collections::HashMap<String, usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub index_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail_dir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub catalog_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ruleset: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_filter: Option<String>,
+    #[serde(default)]
+    pub file_count: usize,
+    #[serde(default)]
+    pub rule_count: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

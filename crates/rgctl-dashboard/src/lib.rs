@@ -11,6 +11,7 @@ mod export_context;
 mod export_util;
 mod function_meta;
 mod function_metrics_export;
+mod kantra_export;
 mod manifest;
 mod metagraph;
 mod migration_export;
@@ -35,6 +36,7 @@ pub use migration_export::{
     write_migration_plan_from_repo, write_migration_plan_from_repo_with_context,
 };
 pub use mutations_export::{MUTATIONS_INDEX_FILE, MutationsExportSummary};
+pub use kantra_export::{KANTRA_INDEX_FILE, KantraExportSummary};
 pub use slice_export::{SLICE_INDEX_FILE, SliceExportSummary};
 pub use taint_export::{TAINT_INDEX_FILE, TaintExportSummary};
 
@@ -52,6 +54,7 @@ use rgctl_graph::schema::{EdgeType, NodeType};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use kantra_export::export_kantra_bundle;
 use taint_export::export_taint_bundle;
 
 /// Write dashboard bundle: static UI, manifest, graph payload copy.
@@ -203,6 +206,7 @@ fn export_dashboard_bundle_inner(
         })?;
     }
     let semantic_summary = semantic_section(repo_root);
+    let kantra_summary = profile_stage("export_kantra", || export_kantra_bundle(repo_root, &out_dir))?;
     let mut manifest = Manifest::with_phases(
         node_count,
         edge_count,
@@ -219,7 +223,7 @@ fn export_dashboard_bundle_inner(
         &sidecars.migration,
         semantic_summary,
     );
-    manifest.kantra = kantra_section(repo_root);
+    manifest.kantra = kantra_summary.manifest_section();
     let (manifest_json, manifest_serialize_secs) = profile_stage("manifest_serialize", || {
         let start = std::time::Instant::now();
         let json = serde_json::to_string_pretty(&manifest).map_err(|e| e.to_string())?;
@@ -509,22 +513,3 @@ fn semantic_section(repo_root: &Path) -> Option<manifest::SemanticSection> {
     })
 }
 
-fn kantra_section(repo_root: &Path) -> Option<manifest::KantraSection> {
-    let path = rgctl_graph::paths::artifact_path(repo_root, "kantra_findings.json");
-    let bytes = std::fs::read(path).ok()?;
-    let findings = rgctl_kantra::KantraFindings::from_json(&bytes).ok()?;
-    let mut by_category = std::collections::HashMap::new();
-    for v in &findings.violations {
-        if let Some(cat) = &v.category {
-            *by_category.entry(cat.clone()).or_insert(0) += 1;
-        }
-    }
-    Some(manifest::KantraSection {
-        available: true,
-        violation_count: findings.violations.len(),
-        evaluated_rules: findings.evaluated_rules,
-        cache_hits: findings.cache_hits,
-        cache_misses: findings.cache_misses,
-        by_category,
-    })
-}

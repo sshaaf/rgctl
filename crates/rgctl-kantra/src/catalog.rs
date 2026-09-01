@@ -234,6 +234,19 @@ pub fn rule_matches_target(rule: &KantraRule, target: &str) -> bool {
     rule.labels.iter().any(|l| l == &needle)
 }
 
+/// All `konveyor.io/target` values on a rule (ruleset + rule labels).
+pub fn rule_konveyor_targets(rule: &KantraRule) -> Vec<String> {
+    let mut out = Vec::new();
+    for label in &rule.labels {
+        if let Some(target) = label.strip_prefix("konveyor.io/target=") {
+            if !out.iter().any(|t| t == target) {
+                out.push(target.to_string());
+            }
+        }
+    }
+    out
+}
+
 fn collect_ruleset_dirs(root: &std::path::Path) -> Vec<std::path::PathBuf> {
     if root.join("ruleset.yaml").is_file() {
         return vec![root.to_path_buf()];
@@ -286,6 +299,22 @@ mod tests {
         let catalog = KantraCatalog::embedded().expect("embedded catalog");
         assert!(!catalog.catalog_id.is_empty());
         assert!(!catalog.rules.is_empty());
+    }
+
+    #[test]
+    fn konveyor_targets_deduped_from_labels() {
+        let rule = sample_rule(
+            "r1",
+            &[
+                "konveyor.io/target=quarkus",
+                "konveyor.io/target=quarkus",
+                "konveyor.io/target=spring-boot3+",
+            ],
+        );
+        assert_eq!(
+            rule_konveyor_targets(&rule),
+            vec!["quarkus", "spring-boot3+"]
+        );
     }
 
     #[test]
