@@ -6,6 +6,7 @@
 # - metasfresh
 # - coolstore-weblogic
 # - kubernetes
+# - magento2 (Magento Open Source — PHP migration stress corpus)
 # - k8s-website (kubernetes/website content/en via sparse checkout)
 set -euo pipefail
 
@@ -52,6 +53,7 @@ clone_if_missing "https://github.com/apache/kafka.git" "$EXAMPLE_DIR/kafka"
 clone_if_missing "https://github.com/metasfresh/metasfresh.git" "$EXAMPLE_DIR/metasfresh-4.9.8b"
 clone_if_missing "https://github.com/konveyor-ecosystem/coolstore.git" "$EXAMPLE_DIR/coolstore-weblogic"
 clone_if_missing "https://github.com/kubernetes/kubernetes.git" "$EXAMPLE_DIR/kubernetes"
+clone_if_missing "https://github.com/magento/magento2.git" "$EXAMPLE_DIR/magento2"
 
 # Sparse docs corpus
 clone_sparse_k8s_website_if_missing "$EXAMPLE_DIR/k8s-website"

@@ -7,6 +7,8 @@
 | `linux/` | Linux kernel tree (maintainer checkout) | `linux_cold_discover_within_baseline` — default discover, wall ≤ **145 s** (+10%) |
 | `metasfresh-4.9.8b/` | metasfresh ERP checkout | `metasfresh_cold_discover_within_baseline` — `discover --full`, wall ≤ **74 s** (+10%) |
 | `kafka/` | Kafka source tree | `kafka_cold_discover_within_baseline` |
+| `kubernetes/` | Kubernetes source tree | manual / future gate |
+| `magento2/` | [Magento Open Source](https://github.com/magento/magento2) | PHP stress corpus — `discover app lib setup -l php` (exclude `vendor/`, `generated/`) |
 | `k8s-website/` | [kubernetes/website](https://github.com/kubernetes/website) `content/en` | `./scripts/fetch-profile-repos.sh` then `k8s_website_markdown_cold_discover_within_baseline -- --ignored` or `k8s_website_obsidian_export_to_vault -- --ignored` (after discover) |
 
 Manual stage breakdown: [docs/internal/profile.md](../docs/internal/profile.md) (`example/linux` + `example/metasfresh-4.9.8b`; run from inside the corpus dir).
@@ -29,8 +31,9 @@ The fetch script now pulls all large profiling fixtures in one go:
 - `example/metasfresh-4.9.8b`
 - `example/coolstore-weblogic`
 - `example/kubernetes`
+- `example/magento2`
 - `example/k8s-website` (sparse `content/en`)
 
-Override paths with `RGCTL_LINUX_REPO`, `RGCTL_KAFKA_REPO`, or `RGCTL_K8S_WEBSITE_REPO`.
+Override paths with `RGCTL_LINUX_REPO`, `RGCTL_KAFKA_REPO`, `RGCTL_K8S_WEBSITE_REPO`, or `RGCTL_MAGENTO2_REPO`.
 
 **Cold profile:** gates remove `example/<repo>/.rgctl/` before discover and require `target/release/rgctl` (`cargo build --release --bin rgctl`). Do not profile against a warm or partial cache — numbers will be wrong.
