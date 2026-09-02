@@ -38,3 +38,40 @@ fn php_cfg_builds_process_order_field_write() {
     let cfg = build_cfg_for_function("php", &source, "processOrder").expect("processOrder CFG");
     assert!(!cfg.blocks.is_empty());
 }
+
+#[test]
+fn php_cfg_do_while_has_cycle() {
+    let code = r#"<?php
+function looped($x) {
+    do {
+        $x--;
+    } while ($x > 0);
+}
+"#;
+    let cfg = build_cfg_for_function("php", code, "looped").expect("do-while CFG");
+    assert!(cfg.has_cycle(), "do-while must produce a back-edge");
+}
+
+#[test]
+fn php_cfg_yield_expression_builds() {
+    let code = r#"<?php
+function gen() {
+    yield 1;
+    yield from [2, 3];
+}
+"#;
+    let cfg = build_cfg_for_function("php", code, "gen").expect("yield CFG");
+    assert!(!cfg.blocks.is_empty());
+}
+
+#[test]
+fn php_cfg_declare_strict_types_builds() {
+    let code = r#"<?php
+declare(strict_types=1);
+function f(): int {
+    return 1;
+}
+"#;
+    let cfg = build_cfg_for_function("php", code, "f").expect("declare CFG");
+    assert!(!cfg.blocks.is_empty());
+}

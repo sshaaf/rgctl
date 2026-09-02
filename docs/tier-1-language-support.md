@@ -414,7 +414,7 @@ Copy into your PR description:
 | Python | 1 custom | ✅ | ✅ | ✅ richest | `dashboard_ecommerce_python` | ✅ F1–F6 |
 | Rust | 1 custom | ✅ | ✅ | ✅ rich | `dashboard_ecommerce_rust` | ✅ F1–F6 |
 | JS / TS | 1 custom | ✅ | ✅ | ✅ rich | `dashboard_ecommerce_javascript`, `dashboard_ecommerce_typescript` | ✅ F1–F6 (JS weaker types) |
-| PHP | 1 custom | ✅ | ✅ | ✅ | `dashboard_ecommerce_php` | ✅ F1–F6 |
+| PHP | 1 custom | ✅ + Uses (traits), Import, attributes, anonymous classes | ✅ | ✅ + `$_FILES`, `filter_input`, `prepare` | `dashboard_ecommerce_php` | ✅ F1–F6 |
 
 Layer F golden coverage lives in `crates/rgctl-analysis/src/field_write.rs` (`*_cfg_captures_field_write_and_query`). Update this table when promoting a language or when F tests regress.
 

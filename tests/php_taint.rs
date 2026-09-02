@@ -22,3 +22,21 @@ function handle_request() {
     assert_eq!(flows[0].source_type, TaintSource::HttpParameter);
     assert_eq!(flows[0].sink_type, TaintSink::SqlQuery);
 }
+
+#[test]
+fn php_taint_files_to_shell() {
+    let code = r#"<?php
+function upload() {
+    $name = $_FILES['upload']['name'];
+    system("process " . $name);
+}
+"#;
+    let cfg = build_cfg_for_function("php", code, "upload").unwrap();
+    let pdg = ProgramDependenceGraph::build(&cfg, code.as_bytes()).unwrap();
+    let mut analyzer = TaintAnalyzer::new(&pdg, &cfg);
+    analyzer.detect_patterns("php");
+    let flows = analyzer.vulnerable_flows();
+    assert!(!flows.is_empty(), "expected $_FILES -> system flow");
+    assert_eq!(flows[0].source_type, TaintSource::HttpParameter);
+    assert_eq!(flows[0].sink_type, TaintSink::ShellCommand);
+}

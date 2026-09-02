@@ -1,7 +1,10 @@
 //! PHP language plugin for rgctl (Tier 1).
 //!
-//! Honesty limits: no `include`/`require` resolution, no trait linearization,
-//! no magic-method dispatch (`__call`, `__get`), best-effort dynamic call targets.
+//! Honesty limits: no `include`/`require` resolution, no trait linearization or
+//! `insteadof` alias precedence, no magic-method dispatch (`__call`, `__get`),
+//! best-effort dynamic call targets (`metadata.unresolved`), no assignment tracking
+//! for first-class callables beyond direct patterns, no Composer autoload graph.
+//! Set `RGCTL_PHP_ONLY=1` to parse `.php` with `LANGUAGE_PHP_ONLY` (pure PHP, no HTML).
 
 use rgctl_registry::LanguageRegistry;
 use std::sync::Arc;

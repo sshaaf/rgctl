@@ -3,9 +3,14 @@ namespace App\Service;
 
 use App\Repository\UserRepository;
 use App\Model\OrderDTO;
+use App\Traits\Timestampable;
 
 class AuthService
 {
+    use Timestampable;
+
+    public const VERSION = '1.0';
+
     public function __construct(private UserRepository $repository) {}
 
     public function login(string $email): ?array

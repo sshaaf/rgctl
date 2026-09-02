@@ -1,7 +1,8 @@
 //! PHP language plugin using Tree-sitter.
 
-use rgctl_plugin_api::{PHP_CALL_KINDS, *};
+use rgctl_plugin_api::{callee_name, containing_function, PHP_CALL_KINDS, *};
 use rgctl_plugin_helpers::ComplexityCalculator;
+use std::collections::HashMap;
 use std::path::Path;
 use tree_sitter::{Node, Parser};
 
@@ -28,12 +29,20 @@ pub struct PhpPlugin {
     _parser: Parser,
 }
 
+fn php_grammar() -> tree_sitter::Language {
+    if std::env::var("RGCTL_PHP_ONLY").is_ok() {
+        tree_sitter_php::LANGUAGE_PHP_ONLY.into()
+    } else {
+        tree_sitter_php::LANGUAGE_PHP.into()
+    }
+}
+
 impl PhpPlugin {
     /// Create a new PHP plugin.
     pub fn new() -> Result<Self> {
         let mut parser = Parser::new();
         parser
-            .set_language(&tree_sitter_php::LANGUAGE_PHP.into())
+            .set_language(&php_grammar())
             .map_err(|e| Error::PluginError(format!("Failed to set PHP grammar: {e}")))?;
         Ok(Self { _parser: parser })
     }
@@ -41,7 +50,7 @@ impl PhpPlugin {
     fn parse(&self, file_path: &Path, source: &[u8]) -> Result<tree_sitter::Tree> {
         let mut parser = Parser::new();
         parser
-            .set_language(&tree_sitter_php::LANGUAGE_PHP.into())
+            .set_language(&php_grammar())
             .map_err(|e| Error::PluginError(format!("Failed to set PHP grammar: {e}")))?;
         parser.parse(source, None).ok_or_else(|| Error::ParseError {
             file: file_path.to_path_buf(),
@@ -93,6 +102,7 @@ impl PhpPlugin {
                 {
                     symbols.push(sym);
                 }
+                self.extract_embedded_symbols(node, source, file_path, namespace.as_deref(), symbols)?;
             }
             "method_declaration" => {
                 if self.find_enclosing_class_name(node, source).is_none() {
@@ -101,6 +111,7 @@ impl PhpPlugin {
                     {
                         symbols.push(sym);
                     }
+                    self.extract_embedded_symbols(node, source, file_path, namespace.as_deref(), symbols)?;
                 }
             }
             "arrow_function" | "anonymous_function" => {
@@ -122,6 +133,9 @@ impl PhpPlugin {
             }
             "enum_declaration" => {
                 symbols.push(self.extract_enum(node, source, file_path, namespace.as_deref())?);
+            }
+            "namespace_use_declaration" => {
+                self.extract_namespace_imports(node, source, file_path, symbols)?;
             }
             _ => {
                 let mut cursor = node.walk();
@@ -162,6 +176,7 @@ impl PhpPlugin {
                 )? {
                     symbols.push(sym);
                 }
+                self.extract_embedded_symbols(child, source, file_path, namespace, symbols)?;
             }
         }
         Ok(())
@@ -185,6 +200,7 @@ impl PhpPlugin {
             .and_then(|n| n.utf8_text(source).ok())
             .map(str::to_string);
         let qualified_name = qualify(namespace, &name);
+        let metadata = php_metadata(node, source);
         Ok(Some(Symbol {
             name,
             symbol_type: SymbolType::Function,
@@ -196,7 +212,7 @@ impl PhpPlugin {
             fields: vec![],
             modifiers: visibility_modifiers(node, source),
             documentation: None,
-            metadata: serde_json::json!({ "language": "php" }),
+            metadata,
         }))
     }
 
@@ -236,7 +252,7 @@ impl PhpPlugin {
                 .or_else(|| Some(qualify(namespace, &name)))
         };
 
-        let mut metadata = serde_json::json!({ "language": "php" });
+        let mut metadata = php_metadata(node, source);
         if is_constructor {
             metadata["is_constructor"] = serde_json::json!(true);
         }
@@ -313,7 +329,7 @@ impl PhpPlugin {
             fields,
             modifiers: visibility_modifiers(node, source),
             documentation: None,
-            metadata: serde_json::json!({ "language": "php" }),
+            metadata: php_metadata(node, source),
         })
     }
 
@@ -427,9 +443,38 @@ impl PhpPlugin {
                     }
                     if let Some(name_node) = elem.child_by_field_name("name") {
                         if let Some(name) = variable_text(name_node, source) {
+                            let mut visibility = vis.clone();
+                            if find_child_kind(elem, "property_hook_list").is_some() {
+                                visibility = visibility.map(|v| format!("{v} hooks"));
+                            }
                             fields.push(Field {
                                 name,
                                 field_type: field_type.clone(),
+                                visibility,
+                            });
+                        }
+                    }
+                }
+            } else if child.kind() == "const_declaration" {
+                let visibility = visibility_modifiers(child, source).join(" ");
+                let vis = if visibility.is_empty() {
+                    Some("const".to_string())
+                } else {
+                    Some(format!("{visibility} const"))
+                };
+                let mut elem_cursor = child.walk();
+                for elem in child.children(&mut elem_cursor) {
+                    if elem.kind() != "const_element" {
+                        continue;
+                    }
+                    if let Some(name_node) = elem
+                        .children(&mut elem.walk())
+                        .find(|c| c.kind() == "name")
+                    {
+                        if let Ok(name) = name_node.utf8_text(source) {
+                            fields.push(Field {
+                                name: name.to_string(),
+                                field_type: None,
                                 visibility: vis.clone(),
                             });
                         }
@@ -546,16 +591,16 @@ impl PhpPlugin {
         symbols: &[Symbol],
     ) -> Result<Vec<Relation>> {
         let mut relations = Vec::new();
-        walk_calls(
+        let import_map = import_map_from_symbols(symbols);
+        walk_php_calls(
             root,
             source,
             file_path,
             symbols,
-            PHP_CALL_KINDS,
-            "php",
+            &import_map,
             &mut relations,
         );
-        self.extract_inheritance(root, source, file_path, &mut relations)?;
+        self.extract_inheritance(root, source, file_path, None, &mut relations)?;
         Ok(relations)
     }
 
@@ -564,6 +609,7 @@ impl PhpPlugin {
         node: Node,
         source: &[u8],
         file_path: &Path,
+        namespace: Option<&str>,
         relations: &mut Vec<Relation>,
     ) -> Result<()> {
         if node.kind() == "class_declaration" {
@@ -597,13 +643,83 @@ impl PhpPlugin {
                         _ => {}
                     }
                 }
+                if let Some(body) = node
+                    .child_by_field_name("body")
+                    .or_else(|| find_child_kind(node, "declaration_list"))
+                {
+                    let mut body_cursor = body.walk();
+                    for child in body.children(&mut body_cursor) {
+                        if child.kind() == "use_declaration" {
+                            for trait_name in trait_names_from_use(child, source) {
+                                let resolved = qualify(namespace, &trait_name);
+                                relations.push(relation(
+                                    &name,
+                                    &resolved,
+                                    RelationType::Uses,
+                                    child,
+                                    file_path,
+                                ));
+                            }
+                        }
+                    }
+                }
             }
         }
 
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            self.extract_inheritance(child, source, file_path, relations)?;
+            let child_ns = if child.kind() == "namespace_definition" {
+                child
+                    .child_by_field_name("name")
+                    .and_then(|n| normalize_namespace(n, source))
+                    .or_else(|| namespace.map(str::to_string))
+            } else {
+                namespace.map(str::to_string)
+            };
+            self.extract_inheritance(child, source, file_path, child_ns.as_deref(), relations)?;
         }
+        Ok(())
+    }
+
+    fn extract_namespace_imports(
+        &self,
+        node: Node,
+        source: &[u8],
+        file_path: &str,
+        symbols: &mut Vec<Symbol>,
+    ) -> Result<()> {
+        let prefix = find_child_kind(node, "namespace_name")
+            .and_then(|n| normalize_namespace(n, source));
+        if let Some(body) = node.child_by_field_name("body") {
+            if body.kind() == "namespace_use_group" {
+                let mut cursor = body.walk();
+                for child in body.children(&mut cursor) {
+                    if child.kind() == "namespace_use_clause" {
+                        push_import_symbol(child, source, file_path, prefix.as_deref(), symbols);
+                    }
+                }
+                return Ok(());
+            }
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if child.kind() == "namespace_use_clause" {
+                push_import_symbol(child, source, file_path, None, symbols);
+            }
+        }
+        Ok(())
+    }
+
+    fn extract_embedded_symbols(
+        &self,
+        node: Node,
+        source: &[u8],
+        file_path: &str,
+        namespace: Option<&str>,
+        symbols: &mut Vec<Symbol>,
+    ) -> Result<()> {
+        let owner = enclosing_owner_name(node, symbols);
+        walk_anonymous_classes(self, node, source, file_path, namespace, owner.as_deref(), symbols);
         Ok(())
     }
 }
@@ -624,7 +740,7 @@ impl LanguagePlugin for PhpPlugin {
     }
 
     fn grammar(&self) -> Option<tree_sitter::Language> {
-        Some(tree_sitter_php::LANGUAGE_PHP.into())
+        Some(php_grammar())
     }
 
     fn extract_symbols(&self, file_path: &Path, source: &[u8]) -> Result<Vec<Symbol>> {
@@ -807,6 +923,408 @@ fn relation(
     }
 }
 
+fn php_metadata(node: Node, source: &[u8]) -> serde_json::Value {
+    let mut meta = serde_json::json!({ "language": "php" });
+    let attrs = collect_attributes(node, source);
+    if !attrs.is_empty() {
+        meta["attributes"] = serde_json::json!(attrs);
+    }
+    meta
+}
+
+fn collect_attributes(node: Node, source: &[u8]) -> Vec<String> {
+    let mut attrs = Vec::new();
+    if let Some(list) = node.child_by_field_name("attributes") {
+        collect_attributes_from_list(list, source, &mut attrs);
+    }
+    attrs
+}
+
+fn collect_attributes_from_list(list: Node, source: &[u8], attrs: &mut Vec<String>) {
+    let mut cursor = list.walk();
+    for child in list.children(&mut cursor) {
+        match child.kind() {
+            "attribute_group" => {
+                let mut gc = child.walk();
+                for attr in child.children(&mut gc) {
+                    if attr.kind() == "attribute" {
+                        push_attribute_text(attr, source, attrs);
+                    }
+                }
+            }
+            "attribute" => push_attribute_text(child, source, attrs),
+            _ => {}
+        }
+    }
+}
+
+fn push_attribute_text(attr: Node, source: &[u8], attrs: &mut Vec<String>) {
+    let name = attr
+        .child_by_field_name("name")
+        .or_else(|| {
+            attr.children(&mut attr.walk())
+                .find(|c| matches!(c.kind(), "name" | "qualified_name" | "relative_name"))
+        })
+        .and_then(|n| n.utf8_text(source).ok())
+        .map(|s| s.trim_start_matches('\\').to_string());
+    if let Some(name) = name {
+        if let Some(params) = attr.child_by_field_name("parameters") {
+            if let Ok(args) = params.utf8_text(source) {
+                attrs.push(format!("{name}{args}"));
+                return;
+            }
+        }
+        attrs.push(name);
+    }
+}
+
+fn import_map_from_symbols(symbols: &[Symbol]) -> HashMap<String, String> {
+    symbols
+        .iter()
+        .filter(|s| s.symbol_type == SymbolType::Import)
+        .filter_map(|s| {
+            let qn = s.qualified_name.as_ref()?;
+            Some((s.name.clone(), qn.clone()))
+        })
+        .collect()
+}
+
+fn push_import_symbol(
+    clause: Node,
+    source: &[u8],
+    file_path: &str,
+    prefix: Option<&str>,
+    symbols: &mut Vec<Symbol>,
+) {
+    let Some((local, qualified)) = clause_import_names(clause, source, prefix) else {
+        return;
+    };
+    symbols.push(Symbol {
+        name: local,
+        symbol_type: SymbolType::Import,
+        qualified_name: Some(qualified),
+        location: source_location(clause, file_path),
+        signature: Some(first_line(clause, source)),
+        return_type: None,
+        parameters: vec![],
+        fields: vec![],
+        modifiers: vec![],
+        documentation: None,
+        metadata: serde_json::json!({ "language": "php", "kind": "import" }),
+    });
+}
+
+fn clause_import_names(
+    clause: Node,
+    source: &[u8],
+    prefix: Option<&str>,
+) -> Option<(String, String)> {
+    let alias = clause
+        .child_by_field_name("alias")
+        .and_then(|n| n.utf8_text(source).ok())
+        .map(str::to_string);
+    let base = clause
+        .children(&mut clause.walk())
+        .find(|c| matches!(c.kind(), "name" | "qualified_name" | "relative_name"))
+        .and_then(|n| n.utf8_text(source).ok())
+        .map(|s| s.trim_start_matches('\\').to_string())?;
+    let qualified = match prefix {
+        Some(p) if !base.contains('\\') => format!("{p}\\{base}"),
+        _ => base.clone(),
+    };
+    let local = alias.unwrap_or_else(|| {
+        qualified
+            .rsplit('\\')
+            .next()
+            .unwrap_or(&qualified)
+            .to_string()
+    });
+    Some((local, qualified))
+}
+
+fn trait_names_from_use(node: Node, source: &[u8]) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "name" | "qualified_name" | "relative_name" => {
+                if let Ok(text) = child.utf8_text(source) {
+                    names.push(text.trim_start_matches('\\').to_string());
+                }
+            }
+            "use_list" => {
+                let mut lc = child.walk();
+                for item in child.children(&mut lc) {
+                    if item.kind() == "use_as_clause" {
+                        if let Some(n) = item
+                            .children(&mut item.walk())
+                            .find(|c| matches!(c.kind(), "name" | "qualified_name"))
+                        {
+                            if let Ok(text) = n.utf8_text(source) {
+                                names.push(text.trim_start_matches('\\').to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    names
+}
+
+fn enclosing_owner_name(node: Node, symbols: &[Symbol]) -> Option<String> {
+    let line = node.start_position().row + 1;
+    symbols
+        .iter()
+        .filter(|s| s.symbol_type == SymbolType::Function)
+        .filter(|s| line >= s.location.start_line && line <= s.location.end_line)
+        .min_by_key(|s| s.location.end_line - s.location.start_line)
+        .and_then(|s| s.qualified_name.clone())
+}
+
+fn walk_anonymous_classes(
+    plugin: &PhpPlugin,
+    root: Node,
+    source: &[u8],
+    file_path: &str,
+    namespace: Option<&str>,
+    owner: Option<&str>,
+    symbols: &mut Vec<Symbol>,
+) {
+    const MAX_DEPTH: usize = 2048;
+    let mut stack = vec![(root, 0usize)];
+    while let Some((node, depth)) = stack.pop() {
+        if depth > MAX_DEPTH {
+            continue;
+        }
+        if node.kind() == "anonymous_class" {
+            let line = node.start_position().row + 1;
+            let anon_name = format!("$Anonymous{line}");
+            let qualified = owner
+                .map(|o| format!("{o}.{anon_name}"))
+                .unwrap_or_else(|| qualify(namespace, &anon_name));
+            symbols.push(Symbol {
+                name: anon_name.clone(),
+                symbol_type: SymbolType::Class,
+                qualified_name: Some(qualified.clone()),
+                location: source_location(node, file_path),
+                signature: None,
+                return_type: None,
+                parameters: vec![],
+                fields: vec![],
+                modifiers: vec![],
+                documentation: None,
+                metadata: serde_json::json!({
+                    "language": "php",
+                    "is_anonymous": true,
+                    "owner": owner,
+                }),
+            });
+            if let Some(body) = node
+                .child_by_field_name("body")
+                .or_else(|| find_child_kind(node, "declaration_list"))
+            {
+                let mut cursor = body.walk();
+                for child in body.children(&mut cursor) {
+                    if child.kind() == "method_declaration" {
+                        if let Ok(Some(method)) = plugin.extract_method(
+                            child,
+                            source,
+                            file_path,
+                            namespace,
+                            Some(qualified.as_str()),
+                        ) {
+                            symbols.push(method);
+                        }
+                    }
+                }
+            }
+        }
+        for i in (0..node.child_count()).rev() {
+            if let Some(child) = node.child(i) {
+                stack.push((child, depth + 1));
+            }
+        }
+    }
+}
+
+fn walk_php_calls(
+    root: Node,
+    source: &[u8],
+    file_path: &Path,
+    symbols: &[Symbol],
+    import_map: &HashMap<String, String>,
+    relations: &mut Vec<Relation>,
+) {
+    const MAX_DEPTH: usize = 2048;
+    let function_symbols: Vec<&Symbol> = symbols
+        .iter()
+        .filter(|s| s.symbol_type == SymbolType::Function)
+        .collect();
+    let mut stack = vec![(root, 0usize)];
+    while let Some((node, depth)) = stack.pop() {
+        if depth > MAX_DEPTH {
+            continue;
+        }
+        if PHP_CALL_KINDS.contains(&node.kind()) {
+            push_php_call_relation(
+                node,
+                source,
+                file_path,
+                symbols,
+                &function_symbols,
+                import_map,
+                relations,
+            );
+        }
+        for i in (0..node.child_count()).rev() {
+            if let Some(child) = node.child(i) {
+                stack.push((child, depth + 1));
+            }
+        }
+    }
+}
+
+fn push_php_call_relation(
+    node: Node,
+    source: &[u8],
+    file_path: &Path,
+    symbols: &[Symbol],
+    function_symbols: &[&Symbol],
+    import_map: &HashMap<String, String>,
+    relations: &mut Vec<Relation>,
+) {
+    let Some((callee, unresolved, scope_class)) = php_call_target(node, source) else {
+        return;
+    };
+    if callee.is_empty() {
+        return;
+    }
+    let Some(from_fn) = containing_function(node, function_symbols) else {
+        return;
+    };
+    let from = from_fn
+        .qualified_name
+        .clone()
+        .unwrap_or_else(|| from_fn.name.clone());
+
+    let to_qualified_hint = scope_class.as_ref().and_then(|cls| {
+        import_map
+            .get(cls)
+            .map(|fqn| format!("{fqn}.{callee}"))
+    });
+
+    let mut meta = serde_json::json!({ "language": "php" });
+    if unresolved {
+        meta["unresolved"] = serde_json::json!(true);
+    }
+
+    let same_file_matches: Vec<_> = symbols
+        .iter()
+        .filter(|s| {
+            s.name == callee
+                && s.symbol_type == SymbolType::Function
+                && s.location.file == file_path.to_string_lossy()
+        })
+        .collect();
+    let local_target = match same_file_matches.as_slice() {
+        [only] => only
+            .qualified_name
+            .clone()
+            .unwrap_or_else(|| callee.clone()),
+        _ => to_qualified_hint.clone().unwrap_or_else(|| callee.clone()),
+    };
+
+    relations.push(Relation {
+        from,
+        to: local_target,
+        relation_type: RelationType::Calls,
+        location: SourceLocation {
+            file: file_path.to_string_lossy().to_string(),
+            start_line: node.start_position().row + 1,
+            end_line: node.end_position().row + 1,
+            start_column: node.start_position().column,
+            end_column: node.end_position().column,
+        },
+        metadata: meta,
+        to_qualified_hint,
+        to_type_hint: None,
+    });
+}
+
+fn php_call_target(node: Node, source: &[u8]) -> Option<(String, bool, Option<String>)> {
+    match node.kind() {
+        "scoped_call_expression" => {
+            let scope = node.child_by_field_name("scope")?;
+            let name_node = node.child_by_field_name("name")?;
+            let class = type_text(scope, source)?;
+            let (method, unresolved) = method_name_from_node(name_node, source);
+            Some((method, unresolved, Some(class)))
+        }
+        "member_call_expression" | "nullsafe_member_call_expression" => {
+            let name_node = node.child_by_field_name("name")?;
+            let (method, unresolved) = method_name_from_node(name_node, source);
+            let target = if unresolved {
+                format!("${method}")
+            } else {
+                method
+            };
+            Some((target, unresolved, None))
+        }
+        "function_call_expression" => {
+            let func = node.child_by_field_name("function")?;
+            if matches!(
+                func.kind(),
+                "variable_name" | "dynamic_variable_name" | "expression"
+            ) {
+                let name = func
+                    .utf8_text(source)
+                    .ok()
+                    .map(|s| s.trim_start_matches('$').to_string())
+                    .unwrap_or_else(|| "dynamic".to_string());
+                return Some((name, true, None));
+            }
+            callee_name(node, source).map(|c| (c, false, None))
+        }
+        _ => callee_name(node, source).map(|c| (c, false, None)),
+    }
+}
+
+fn method_name_from_node(name_node: Node, source: &[u8]) -> (String, bool) {
+    match name_node.kind() {
+        "name" => (
+            name_node
+                .utf8_text(source)
+                .unwrap_or("")
+                .to_string(),
+            false,
+        ),
+        "variable_name" | "dynamic_variable_name" => (
+            name_node
+                .utf8_text(source)
+                .unwrap_or("")
+                .trim_start_matches('$')
+                .to_string(),
+            true,
+        ),
+        _ => (
+            callee_name(name_node, source).unwrap_or_else(|| "$dynamic".to_string()),
+            true,
+        ),
+    }
+}
+
+fn type_text(node: Node, source: &[u8]) -> Option<String> {
+    if let Ok(text) = node.utf8_text(source) {
+        return Some(text.trim_start_matches('\\').to_string());
+    }
+    node.child_by_field_name("name")
+        .and_then(|n| n.utf8_text(source).ok())
+        .map(|s| s.trim_start_matches('\\').to_string())
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -902,6 +1420,153 @@ class User extends BaseUser implements JsonSerializable {
         assert!(relations
             .iter()
             .any(|r| r.relation_type == RelationType::Calls));
+    }
+
+    #[test]
+    fn test_trait_use_relations() {
+        let source = br#"<?php
+namespace App;
+class C {
+    use A, B;
+}
+"#;
+        let plugin = PhpPlugin::new().unwrap();
+        let path = Path::new("C.php");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(relations.iter().any(|r| {
+            r.relation_type == RelationType::Uses && r.to == "A"
+        }));
+        assert!(relations.iter().any(|r| {
+            r.relation_type == RelationType::Uses && r.to == "B"
+        }));
+    }
+
+    #[test]
+    fn test_namespace_import_symbols() {
+        let source = br#"<?php
+namespace App;
+use App\Service\AuthService;
+use App\Model\OrderDTO as Order;
+use Foo\{Bar, Baz as Q};
+"#;
+        let plugin = PhpPlugin::new().unwrap();
+        let symbols = plugin
+            .extract_symbols(Path::new("imports.php"), source)
+            .unwrap();
+        let imports: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Import)
+            .collect();
+        assert_eq!(imports.len(), 4);
+        assert!(imports.iter().any(|s| {
+            s.name == "AuthService" && s.qualified_name.as_deref() == Some("App\\Service\\AuthService")
+        }));
+        assert!(imports.iter().any(|s| s.name == "Order"));
+        assert!(imports.iter().any(|s| s.name == "Bar"));
+        assert!(imports.iter().any(|s| s.name == "Q"));
+    }
+
+    #[test]
+    fn test_import_aware_static_call_hint() {
+        let source = br#"<?php
+namespace App;
+use App\Service\AuthService;
+function run() {
+    AuthService::login('x');
+}
+"#;
+        let plugin = PhpPlugin::new().unwrap();
+        let path = Path::new("run.php");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        let call = relations
+            .iter()
+            .find(|r| r.relation_type == RelationType::Calls)
+            .expect("call");
+        assert_eq!(
+            call.to_qualified_hint.as_deref(),
+            Some("App\\Service\\AuthService.login")
+        );
+    }
+
+    #[test]
+    fn test_anonymous_class_and_attributes() {
+        let source = br#"<?php
+namespace App;
+#[Route('/api')]
+class C {
+    public function factory() {
+        return new class {
+            public function m(): void {}
+        };
+    }
+}
+"#;
+        let plugin = PhpPlugin::new().unwrap();
+        let path = Path::new("Anon.php");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let class = symbols
+            .iter()
+            .find(|s| s.name == "C")
+            .expect("class");
+        assert!(class
+            .metadata
+            .get("attributes")
+            .and_then(|v| v.as_array())
+            .is_some_and(|a| a.iter().any(|v| v.as_str().is_some_and(|s| s.contains("Route")))));
+        assert!(symbols.iter().any(|s| s.name.starts_with("$Anonymous")));
+        assert!(symbols.iter().any(|s| s.name == "m"));
+    }
+
+    #[test]
+    fn test_dynamic_call_unresolved() {
+        let source = br#"<?php
+function dyn($obj, $method) {
+    $obj->$method();
+}
+"#;
+        let plugin = PhpPlugin::new().unwrap();
+        let path = Path::new("dyn.php");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        let call = relations
+            .iter()
+            .find(|r| r.relation_type == RelationType::Calls)
+            .expect("call");
+        assert_eq!(call.metadata.get("unresolved").and_then(|v| v.as_bool()), Some(true));
+    }
+
+    #[test]
+    fn test_class_const_field() {
+        let source = br#"<?php
+class C {
+    public const VERSION = '1.0';
+}
+"#;
+        let plugin = PhpPlugin::new().unwrap();
+        let symbols = plugin
+            .extract_symbols(Path::new("C.php"), source)
+            .unwrap();
+        let class = symbols.iter().find(|s| s.name == "C").expect("class");
+        assert!(class.fields.iter().any(|f| f.name == "VERSION"));
+    }
+
+    #[test]
+    fn test_first_class_callable_strlen() {
+        let source = br#"<?php
+function f() {
+    $g = strlen(...);
+    $g('x');
+}
+"#;
+        let plugin = PhpPlugin::new().unwrap();
+        let path = Path::new("fcc.php");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(relations.iter().any(|r| {
+            r.relation_type == RelationType::Calls && r.to == "strlen"
+        }));
     }
 
     #[test]

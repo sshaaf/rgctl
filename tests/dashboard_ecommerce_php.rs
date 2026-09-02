@@ -55,7 +55,7 @@ fn discover_all_writes_php_cfg_dashboard_bundle() {
         "cfg_index should list analyzed PHP functions"
     );
 
-    let calls_count = manifest["graph"]["calls_count"].as_u64().unwrap_or(0);
+    let calls_count = manifest["metrics"]["calls_count"].as_u64().unwrap_or(0);
     assert!(calls_count > 0, "expected non-zero call graph edges");
 
     eprintln!(

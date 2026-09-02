@@ -566,7 +566,10 @@ impl<'a> TaintAnalyzer<'a> {
                 || text.contains("$_REQUEST")
                 || text.contains("$_COOKIE")
                 || text.contains("$_SERVER")
+                || text.contains("$_FILES")
                 || text.contains("php://input")
+                || text.contains("filter_input(")
+                || text.contains("filter_input_array(")
             {
                 self.sources.insert(*node_id, TaintSource::HttpParameter);
             } else if text.contains("file_get_contents(")
@@ -606,7 +609,7 @@ impl<'a> TaintAnalyzer<'a> {
 
             if text.contains("htmlspecialchars(") || text.contains("filter_var(") {
                 self.sanitizers.insert(*node_id, Sanitizer::HtmlEscape);
-            } else if text.contains("mysqli_real_escape_string(") {
+            } else if text.contains("mysqli_real_escape_string(") || text.contains("->prepare(") {
                 self.sanitizers.insert(*node_id, Sanitizer::SqlParameterize);
             }
         }
