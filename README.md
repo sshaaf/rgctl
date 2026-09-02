@@ -161,6 +161,7 @@ rgctl ships with deep, enterprise-ready features for heavy modernization workloa
 | --- | --- |
 | **[Documentation index](docs/README.md)** | Map of all docs by persona |
 | **[Installation](docs/installation.md)** | Install rgctl, CLI / HTTP modes, verify setup |
+| **[v0.4.10 release notes](docs/releases/v0.4.10.md)** | PHP Tier 1 language support (CFG, taint, CPG parity) |
 | **[v0.4.9 release notes](docs/releases/v0.4.9.md)** | Kantra migration rules, CLI-first artifacts, daemon/MCP removed |
 | **[v0.4.8 release notes](docs/releases/v0.4.8.md)** | Agent docs (historical — daemon era) |
 | **[Introduction](docs/Introduction.md)** | Concepts — graph, reachability, capability map |
