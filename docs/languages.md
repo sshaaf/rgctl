@@ -25,6 +25,7 @@ rgctl indexes source through **language plugins**. Tier metadata: [`languages.to
 | C# | `.cs` | |
 | C | `.c`, `.h` | |
 | C++ | `.cpp`, `.cc`, `.cxx`, `.hpp`, … | |
+| PHP | `.php` | |
 
 ```bash
 rgctl discover . -l java,go,rust

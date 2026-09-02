@@ -308,16 +308,17 @@ fn collect_def_use(
         }
 
         // Shared identifiers
-        "identifier" | "shorthand_field_identifier" | "field_identifier" | "type_identifier" => {
+        "identifier" | "shorthand_field_identifier" | "field_identifier" | "type_identifier"
+        | "variable_name" => {
             if is_def_target {
                 if let Ok(name) = node.utf8_text(source) {
-                    if kind == "identifier" || kind == "shorthand_field_identifier" {
-                        defined.insert(name.to_string());
+                    if kind == "identifier" || kind == "shorthand_field_identifier" || kind == "variable_name" {
+                        defined.insert(name.trim_start_matches('$').to_string());
                     }
                 }
-            } else if kind == "identifier" || kind == "shorthand_field_identifier" {
+            } else if kind == "identifier" || kind == "shorthand_field_identifier" || kind == "variable_name" {
                 if let Ok(name) = node.utf8_text(source) {
-                    used.insert(name.to_string());
+                    used.insert(name.trim_start_matches('$').to_string());
                 }
             }
         }

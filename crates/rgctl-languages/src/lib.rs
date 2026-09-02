@@ -14,6 +14,7 @@ pub fn register_languages(registry: &mut LanguageRegistry) {
     rgctl_lang_c::register(registry);
     rgctl_lang_cpp::register(registry);
     rgctl_lang_markdown::register(registry);
+    rgctl_lang_php::register(registry);
 }
 
 /// Default registry with config formats and all built-in languages.
@@ -49,6 +50,16 @@ mod tests {
         assert!(registry.can_process_file(Path::new("notes/page.mdx")));
         let langs = registry.supported_languages();
         assert!(langs.iter().any(|l| l == "markdown"));
+    }
+
+    #[test]
+    fn default_registry_can_process_php_files() {
+        let registry = default_registry();
+        assert!(registry.can_process_file(Path::new("app/Service.php")));
+        let plugin = registry
+            .get_plugin_for_file(Path::new("src/User.php"))
+            .expect("php plugin");
+        assert_eq!(plugin.language_id(), "php");
     }
 
     #[test]

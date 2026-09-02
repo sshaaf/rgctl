@@ -114,6 +114,19 @@ const PROFILES: &[LanguageAnalysisProfile] = &[
         taint_enabled: true,
     },
     LanguageAnalysisProfile {
+        id: "php",
+        aliases: &[],
+        extensions: &["php"],
+        function_kinds: &[
+            "function_definition",
+            "method_declaration",
+            "arrow_function",
+            "anonymous_function",
+        ],
+        cfg_enabled: true,
+        taint_enabled: true,
+    },
+    LanguageAnalysisProfile {
         id: "ruby",
         aliases: &["rb"],
         extensions: &["rb"],
@@ -189,6 +202,7 @@ fn grammar_for(profile: &LanguageAnalysisProfile) -> Result<Language> {
         "cpp" => Ok(tree_sitter_cpp::LANGUAGE.into()),
         "javascript" => Ok(tree_sitter_javascript::LANGUAGE.into()),
         "typescript" => Ok(tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()),
+        "php" => Ok(tree_sitter_php::LANGUAGE_PHP.into()),
         other => Err(Error::UnsupportedLanguage(other.to_string())),
     }
 }

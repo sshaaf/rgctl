@@ -13,6 +13,12 @@ pub const C_CALL_KINDS: &[&str] = &["call_expression"];
 pub const CPP_CALL_KINDS: &[&str] = &["call_expression"];
 pub const JS_CALL_KINDS: &[&str] = &["call_expression"];
 pub const TS_CALL_KINDS: &[&str] = &["call_expression"];
+pub const PHP_CALL_KINDS: &[&str] = &[
+    "function_call_expression",
+    "member_call_expression",
+    "scoped_call_expression",
+    "nullsafe_member_call_expression",
+];
 
 /// Find the innermost function symbol containing `node`.
 ///
@@ -38,8 +44,12 @@ pub fn callee_name(root: Node, source: &[u8]) -> Option<String> {
 
         match node.kind() {
             // Go method/field selectors use `field_identifier` (not `identifier`).
-            "identifier" | "type_identifier" | "field_identifier" | "property_identifier" => {
-                return node.utf8_text(source).ok().map(str::to_string);
+            // PHP method names use the `name` node kind.
+            "identifier" | "type_identifier" | "field_identifier" | "property_identifier"
+            | "name" | "variable_name" => {
+                return node.utf8_text(source).ok().map(|s| {
+                    s.trim_start_matches('$').to_string()
+                });
             }
             "field_expression" | "selector_expression" | "attribute" | "member_expression" => {
                 if let Some(n) = node

@@ -34,6 +34,7 @@ members = [
     "crates/rgctl-lang-c",
     "crates/rgctl-lang-cpp",
     "crates/rgctl-lang-markdown",
+    "crates/rgctl-lang-php",
     "crates/rgctl-languages",
 ]
 resolver = "2"
@@ -78,6 +79,7 @@ rgctl-lang-csharp = { path = "crates/rgctl-lang-csharp", version = "0.4.9" }
 rgctl-lang-c = { path = "crates/rgctl-lang-c", version = "0.4.9" }
 rgctl-lang-cpp = { path = "crates/rgctl-lang-cpp", version = "0.4.9" }
 rgctl-lang-markdown = { path = "crates/rgctl-lang-markdown", version = "0.4.9" }
+rgctl-lang-php = { path = "crates/rgctl-lang-php", version = "0.4.9" }
 rgctl-languages = { path = "crates/rgctl-languages", version = "0.4.9" }
 tree-sitter = "0.25"
 
@@ -333,6 +335,18 @@ path = "tests/dashboard_ecommerce_javascript.rs"
 [[test]]
 name = "dashboard_ecommerce_typescript"
 path = "tests/dashboard_ecommerce_typescript.rs"
+
+[[test]]
+name = "php_cfg_analysis"
+path = "tests/php_cfg_analysis.rs"
+
+[[test]]
+name = "php_taint"
+path = "tests/php_taint.rs"
+
+[[test]]
+name = "dashboard_ecommerce_php"
+path = "tests/dashboard_ecommerce_php.rs"
 
 [[test]]
 name = "js_taint"
