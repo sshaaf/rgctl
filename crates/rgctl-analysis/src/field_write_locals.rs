@@ -57,6 +57,7 @@ fn language_visit(language: &str) -> Option<(tree_sitter::Language, VisitFn)> {
         ),
         "c" => (tree_sitter_c::LANGUAGE.into(), visit_c_family),
         "cpp" => (tree_sitter_cpp::LANGUAGE.into(), visit_c_family),
+        "php" => (tree_sitter_php::LANGUAGE_PHP.into(), visit_php),
         _ => return None,
     })
 }
@@ -397,7 +398,6 @@ fn visit_python(
         now_in = name == function_name;
     }
     if now_in && matches!(kind, "typed_parameter" | "typed_default_parameter") {
-        // typed_parameter: identifier + type
         let mut name = None;
         let mut ty = None;
         let mut cursor = node.walk();
@@ -416,17 +416,9 @@ fn visit_python(
             insert_ty(env, &name, &ty);
         }
     }
-    if now_in && kind == "assignment" {
-        // `other: OrderDTO = order` — left may be typed via annotation sibling; skip untyped.
-        if let Some(left) = node.child_by_field_name("left") {
-            if left.kind() == "identifier" {
-                // look for type on annotated assignment: actually python uses `annotated_assignment`?
-            }
-        }
-    }
     if now_in && kind == "annotated_assignment" {
         let name = node
-            .child_by_field_name("left") // or name?
+            .child_by_field_name("left")
             .and_then(|n| text_of(n, source));
         let ty = node
             .child_by_field_name("type")
@@ -443,6 +435,65 @@ fn visit_python(
         now_in,
         visit_python,
         &["function_definition"],
+    );
+}
+
+fn visit_php(
+    node: Node,
+    source: &[u8],
+    function_name: &str,
+    env: &mut HashMap<String, String>,
+    in_target: bool,
+) {
+    let kind = node.kind();
+    let mut now_in = in_target;
+    if matches!(kind, "function_definition" | "method_declaration") {
+        let name = node
+            .child_by_field_name("name")
+            .and_then(|n| text_of(n, source))
+            .unwrap_or_default();
+        now_in = name == function_name;
+    }
+    if now_in
+        && matches!(
+            kind,
+            "simple_parameter" | "property_promotion_parameter" | "optional_parameter"
+        )
+    {
+        let name = node
+            .child_by_field_name("name")
+            .and_then(|n| text_of(n, source))
+            .map(|s| s.trim_start_matches('$').to_string());
+        let ty = node
+            .child_by_field_name("type")
+            .and_then(|n| text_of(n, source));
+        if let (Some(name), Some(ty)) = (name, ty) {
+            insert_ty(env, &name, &ty);
+        }
+    }
+    if now_in && kind == "assignment_expression" {
+        if let (Some(left), Some(right)) = (
+            node.child_by_field_name("left"),
+            node.child_by_field_name("right"),
+        ) {
+            if left.kind() == "variable_name" {
+                if let (Some(dst), Some(src)) = (text_of(left, source), text_of(right, source)) {
+                    let dst = dst.trim_start_matches('$');
+                    if let Some(ty) = env.get(&src.trim_start_matches('$').to_string()).cloned() {
+                        insert_ty(env, dst, &ty);
+                    }
+                }
+            }
+        }
+    }
+    walk_children(
+        node,
+        source,
+        function_name,
+        env,
+        now_in,
+        visit_php,
+        &["function_definition", "method_declaration"],
     );
 }
 

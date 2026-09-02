@@ -157,6 +157,7 @@ impl<'a> TaintAnalyzer<'a> {
             "csharp" => self.detect_csharp_patterns(),
             "c" => self.detect_c_patterns(),
             "cpp" => self.detect_cpp_patterns(),
+            "php" => self.detect_php_patterns(),
             _ => {}
         }
     }
@@ -557,6 +558,63 @@ impl<'a> TaintAnalyzer<'a> {
         }
     }
 
+    fn detect_php_patterns(&mut self) {
+        for (node_id, node) in &self.pdg.nodes {
+            let text = &node.statement.text;
+            if text.contains("$_GET")
+                || text.contains("$_POST")
+                || text.contains("$_REQUEST")
+                || text.contains("$_COOKIE")
+                || text.contains("$_SERVER")
+                || text.contains("$_FILES")
+                || text.contains("php://input")
+                || text.contains("filter_input(")
+                || text.contains("filter_input_array(")
+            {
+                self.sources.insert(*node_id, TaintSource::HttpParameter);
+            } else if text.contains("file_get_contents(")
+                || text.contains("fgets(")
+                || text.contains("readfile(")
+                || text.contains("fopen(")
+            {
+                self.sources.insert(*node_id, TaintSource::FileInput);
+            }
+
+            if text.contains("mysqli_query(")
+                || text.contains("mysql_query(")
+                || text.contains("->query(")
+                || text.contains("->exec(")
+            {
+                self.sinks.insert(*node_id, TaintSink::SqlQuery);
+            } else if text.contains("exec(")
+                || text.contains("shell_exec(")
+                || text.contains("system(")
+                || text.contains("passthru(")
+                || text.contains("proc_open(")
+            {
+                self.sinks.insert(*node_id, TaintSink::ShellCommand);
+            } else if text.contains("eval(") || text.contains("assert(") {
+                self.sinks.insert(*node_id, TaintSink::CodeEval);
+            } else if text.contains("include(")
+                || text.contains("require(")
+                || text.contains("include_once(")
+                || text.contains("require_once(")
+            {
+                self.sinks.insert(*node_id, TaintSink::FileWrite);
+            } else if text.contains("unserialize(") {
+                self.sinks.insert(*node_id, TaintSink::CodeEval);
+            } else if text.contains("echo ") || text.contains("print ") {
+                self.sinks.insert(*node_id, TaintSink::HtmlRender);
+            }
+
+            if text.contains("htmlspecialchars(") || text.contains("filter_var(") {
+                self.sanitizers.insert(*node_id, Sanitizer::HtmlEscape);
+            } else if text.contains("mysqli_real_escape_string(") || text.contains("->prepare(") {
+                self.sanitizers.insert(*node_id, Sanitizer::SqlParameterize);
+            }
+        }
+    }
+
     /// Run forward taint analysis.
     pub fn analyze(&self) -> Vec<TaintFlow> {
         let mut flows = Vec::new();
@@ -795,6 +853,25 @@ def handle_request(request):
         analyzer.detect_patterns("python");
         let flows = analyzer.vulnerable_flows();
         assert!(!flows.is_empty(), "expected vulnerable SQL flow");
+        assert_eq!(flows[0].source_type, TaintSource::HttpParameter);
+        assert_eq!(flows[0].sink_type, TaintSink::SqlQuery);
+    }
+
+    #[test]
+    fn test_taint_sql_injection_php() {
+        let code = r#"<?php
+function handle_request() {
+    $username = $_GET['username'];
+    $query = "SELECT * FROM users WHERE name = '" . $username . "'";
+    mysqli_query($conn, $query);
+}
+"#;
+        let cfg = build_cfg_for_function("php", code, "handle_request").unwrap();
+        let pdg = ProgramDependenceGraph::build(&cfg, code.as_bytes()).unwrap();
+        let mut analyzer = TaintAnalyzer::new(&pdg, &cfg);
+        analyzer.detect_patterns("php");
+        let flows = analyzer.vulnerable_flows();
+        assert!(!flows.is_empty(), "expected vulnerable PHP SQL flow");
         assert_eq!(flows[0].source_type, TaintSource::HttpParameter);
         assert_eq!(flows[0].sink_type, TaintSink::SqlQuery);
     }

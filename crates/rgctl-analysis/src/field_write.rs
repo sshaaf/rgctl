@@ -280,6 +280,9 @@ fn normalize_type_name(name: &str) -> String {
         .rsplit("::")
         .next()
         .unwrap_or(bare)
+        .rsplit('\\')
+        .next()
+        .unwrap_or(bare)
         .trim()
         .to_string()
 }
@@ -360,6 +363,7 @@ fn language_from_path(path: &str) -> String {
             "ts" | "tsx" => "typescript",
             "c" | "h" => "c",
             "cpp" | "cc" | "cxx" | "hpp" | "hh" => "cpp",
+            "php" => "php",
             _ => "unknown",
         })
         .unwrap_or("unknown")
@@ -384,7 +388,11 @@ fn extract_writes_from_cfg(
                 if member.is_empty() {
                     continue;
                 }
-                let receiver_type = type_env.get(receiver).cloned();
+                let receiver_key = receiver.trim_start_matches('$');
+                let receiver_type = type_env
+                    .get(receiver)
+                    .or_else(|| type_env.get(receiver_key))
+                    .cloned();
                 let kind = if receiver == "this" || receiver == "self" {
                     if receiver_type.is_some() {
                         FieldWriteKind::ThisField
@@ -968,6 +976,39 @@ function process(order) {
                 "process",
                 "process",
                 "order.js",
+                false,
+                vec![("order", "OrderDTO")],
+            ),
+            "OrderDTO",
+            "status",
+        );
+    }
+
+    #[test]
+    fn php_cfg_captures_field_write_and_query() {
+        let source = r#"<?php
+class OrderDTO {
+    public function __construct(private string $status) {}
+
+    public function getStatus(): string {
+        return $this->status;
+    }
+}
+
+function process(OrderDTO $order): void {
+    $order->status = "PROCESSED";
+}
+"#;
+        mutation_hit_helper(
+            "php",
+            source,
+            "__construct",
+            "process",
+            fn_node("__construct", "OrderDTO.<init>", "order.php", true, vec![]),
+            fn_node(
+                "process",
+                "process",
+                "order.php",
                 false,
                 vec![("order", "OrderDTO")],
             ),

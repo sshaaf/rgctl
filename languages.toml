@@ -123,3 +123,16 @@ class_kinds = ["struct_specifier", "enum_specifier"]
 import_kinds = ["preprocessor_include"]
 enable_complexity = true
 enable_type_inference = false
+
+[languages.php]
+handler = "custom"
+plugin = "PhpPlugin"
+module = "crate::languages::builtin::php"
+crate = "tree-sitter-php"
+extensions = ["php"]
+aliases = ["php"]
+function_kinds = ["function_definition", "method_declaration", "arrow_function", "anonymous_function"]
+class_kinds = ["class_declaration", "interface_declaration", "trait_declaration", "enum_declaration"]
+import_kinds = ["namespace_use_declaration", "use_declaration"]
+enable_complexity = true
+enable_type_inference = false

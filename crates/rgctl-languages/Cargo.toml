@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-languages"
-version = "0.4.9"
+version = "0.4.10"
 edition.workspace = true
 rust-version.workspace = true
 description = "Built-in Tier 1 language plugins for rgctl"
@@ -19,3 +19,4 @@ rgctl-lang-csharp = { workspace = true }
 rgctl-lang-c = { workspace = true }
 rgctl-lang-cpp = { workspace = true }
 rgctl-lang-markdown = { workspace = true }
+rgctl-lang-php = { workspace = true }

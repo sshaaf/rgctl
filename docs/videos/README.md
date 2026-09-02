@@ -60,3 +60,22 @@ cargo build --release
 Defaults: one beat per main tab (Dataflow shows mutations + PDG + dominator). Hold `DEMO_HOLD_SEC` (default 6.5). Override symbols with `CAPTURE_FN_*` / `CAPTURE_SEMANTIC_QUERY` / `MUTATIONS_TYPE`.
 
 Captions need ffmpeg with `subtitles` (`brew install ffmpeg-full`).
+
+---
+
+## CoolStore microservice decomposition (VHS)
+
+Blog walkthrough for [Decomposing a Monolith into Microservices](https://shaaf.dev/post/decomposing-a-monolith-into-microservices-with-call-graph-analysis/) on `example/coolstore-weblogic`.
+
+| File | Purpose |
+|------|---------|
+| [`microservices-decomposition-cli.tape`](microservices-decomposition-cli.tape) | VHS script |
+| [`record-microservices-decomposition-cli.sh`](record-microservices-decomposition-cli.sh) | Record → `microservices-decomposition-cli-no-captions.{gif,mp4}` |
+| [`microservices-decomposition-cli.srt`](microservices-decomposition-cli.srt) | Subtitle cues |
+| [`burn-microservices-decomposition-cli.sh`](burn-microservices-decomposition-cli.sh) | Burn → `microservices-decomposition-cli.mp4` |
+
+```bash
+cargo build --release
+./docs/videos/record-microservices-decomposition-cli.sh
+./docs/videos/burn-microservices-decomposition-cli.sh
+```

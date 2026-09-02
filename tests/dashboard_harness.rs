@@ -62,6 +62,11 @@ pub fn default_typescript_repo() -> PathBuf {
     in_tree_ecommerce("ecommerce-typescript")
 }
 
+/// Default PHP ecommerce test repo (override with env).
+pub fn default_php_repo() -> PathBuf {
+    in_tree_ecommerce("ecommerce-php")
+}
+
 pub fn golden_repo_path() -> PathBuf {
     env_rg("DASHBOARD_GOLDEN_REPO")
         .map(PathBuf::from)

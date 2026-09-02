@@ -6474,4 +6474,32 @@ public class Printer {
             java_texts(&cfg)
         );
     }
+
+    #[test]
+    fn test_php_if_else_branching() {
+        let code = r#"<?php
+function example($x) {
+    if ($x > 0) {
+        return 1;
+    } else {
+        return 2;
+    }
+}
+"#;
+        let cfg = build_cfg_for_function("php", code, "example").unwrap();
+        assert!(cfg.blocks.len() >= 4, "expected branching CFG for PHP if/else");
+    }
+
+    #[test]
+    fn test_php_foreach_cycle() {
+        let code = r#"<?php
+function example($items) {
+    foreach ($items as $item) {
+        process($item);
+    }
+}
+"#;
+        let cfg = build_cfg_for_function("php", code, "example").unwrap();
+        assert!(cfg.has_cycle(), "foreach must cycle");
+    }
 }
