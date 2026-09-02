@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-plugin-api"
-version = "0.4.9"
+version = "0.4.10"
 edition.workspace = true
 rust-version.workspace = true
 description = "Stable plugin API for rgctl language and config format plugins"

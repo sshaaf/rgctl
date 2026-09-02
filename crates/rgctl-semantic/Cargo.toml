@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-semantic"
-version = "0.4.9"
+version = "0.4.10"
 edition.workspace = true
 rust-version.workspace = true
 description = "Semantic analysis and IDL generation for rgctl"
