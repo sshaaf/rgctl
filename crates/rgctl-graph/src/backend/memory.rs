@@ -228,24 +228,49 @@ impl MemoryBackend {
             .collect())
     }
 
+    /// Invoke `f` for nodes in sorted UUID order without cloning nodes.
+    pub fn for_each_node_by_ids<F>(&self, ids: &[Uuid], mut f: F) -> Result<()>
+    where
+        F: FnMut(&Node) -> Result<()>,
+    {
+        let nodes = read_lock(&self.nodes)?;
+        for id in ids {
+            let node = nodes
+                .get(id)
+                .ok_or_else(|| Error::NodeNotFound(id.to_string()))?;
+            f(node)?;
+        }
+        Ok(())
+    }
+
     /// Get outgoing edge target IDs (returns UUIDs, not cloned edges).
     pub fn get_outgoing_edge_targets(&self, node_id: Uuid) -> Result<Vec<Uuid>> {
         let edges = read_lock(&self.edges)?;
-        Ok(edges
-            .iter()
-            .filter(|e| e.from == node_id)
-            .map(|e| e.to)
-            .collect())
+        let adj = read_lock(&self.outgoing_adj)?;
+        Ok(adj
+            .get(&node_id)
+            .map(|indices| {
+                indices
+                    .iter()
+                    .filter_map(|&i| edges.get(i).map(|e| e.to))
+                    .collect()
+            })
+            .unwrap_or_default())
     }
 
     /// Get incoming edge source IDs (returns UUIDs, not cloned edges).
     pub fn get_incoming_edge_sources(&self, node_id: Uuid) -> Result<Vec<Uuid>> {
         let edges = read_lock(&self.edges)?;
-        Ok(edges
-            .iter()
-            .filter(|e| e.to == node_id)
-            .map(|e| e.from)
-            .collect())
+        let adj = read_lock(&self.incoming_adj)?;
+        Ok(adj
+            .get(&node_id)
+            .map(|indices| {
+                indices
+                    .iter()
+                    .filter_map(|&i| edges.get(i).map(|e| e.from))
+                    .collect()
+            })
+            .unwrap_or_default())
     }
 
     // ========== LEGACY API (clones nodes - avoid in hot paths) ==========
@@ -716,29 +741,29 @@ impl MemoryBackend {
     }
 
     fn intern_node(&self, node: &mut Node) {
-        self.string_interner.intern_shared(&mut node.name);
+        let _ = self.string_interner.intern_shared(&mut node.name);
         if let Some(qn) = &mut node.qualified_name {
-            self.string_interner.intern_shared(qn);
+            let _ = self.string_interner.intern_shared(qn);
         }
         if let Some(sig) = &mut node.signature {
-            self.string_interner.intern_shared(sig);
+            let _ = self.string_interner.intern_shared(sig);
         }
         if let Some(rt) = &mut node.return_type {
-            self.string_interner.intern_shared(rt);
+            let _ = self.string_interner.intern_shared(rt);
         }
         if let Some(hash) = &mut node.code_hash {
-            self.string_interner.intern_shared(hash);
+            let _ = self.string_interner.intern_shared(hash);
         }
         if let Some(fp) = &mut node.file_path {
-            self.string_interner.intern_shared(fp);
+            let _ = self.string_interner.intern_shared(fp);
         }
         for label in &mut node.labels {
-            self.string_interner.intern_string(label);
+            let _ = self.string_interner.intern_string(label);
         }
         let props: Vec<(String, String)> = node.properties.drain().collect();
         for (mut k, mut v) in props {
-            self.string_interner.intern_string(&mut k);
-            self.string_interner.intern_string(&mut v);
+            let _ = self.string_interner.intern_string(&mut k);
+            let _ = self.string_interner.intern_string(&mut v);
             node.properties.insert(k, v);
         }
     }

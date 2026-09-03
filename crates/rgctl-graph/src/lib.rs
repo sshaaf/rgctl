@@ -19,6 +19,8 @@ pub mod export;
 pub mod graph_compactor;
 /// String interning for index keys.
 pub mod intern;
+/// Lazy heap-backed collections for graph schema types.
+pub mod lazy_collections;
 /// Snapshot version migration helpers.
 pub mod migration;
 /// On-disk `.rgctl/` artifact paths and `RGCTL_*` env helpers.
@@ -43,7 +45,8 @@ pub use content_store::{
     CONTENT_STORE_FILE, ContentStore, INLINE_BODY_MAX_BYTES, hash_bytes, hash_text,
 };
 pub use csr::{CodeGraphCsr, edge_type_from_u8, edge_type_to_u8};
-pub use export::{GraphSnapshot, export_json, import_json};
+pub use export::{GraphSnapshot, export_json, export_json_to, import_json};
+pub use query::{execute, execute_chunks, stream_query, QueryStream};
 pub use graph_compactor::{
     CompactStats, DeltaSegment, GraphCompactor, compact_repo_snapshot, compact_snapshot_file,
 };

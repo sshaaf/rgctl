@@ -2,8 +2,8 @@
 //!
 //! Defines the schema for the code knowledge graph including node and edge types.
 
+use crate::lazy_collections::LazyStringMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -402,7 +402,8 @@ pub struct Node {
     pub end_line: Option<usize>,
 
     /// Additional properties as key-value pairs
-    pub properties: HashMap<String, String>,
+    #[serde(default)]
+    pub properties: LazyStringMap,
 
     /// Labels for categorization
     pub labels: Vec<String>,
@@ -424,7 +425,7 @@ impl Node {
             file_path: None,
             start_line: None,
             end_line: None,
-            properties: HashMap::new(),
+            properties: LazyStringMap::new(),
             labels: Vec::new(),
         }
     }
@@ -536,7 +537,8 @@ pub struct Edge {
     pub access_type: Option<AccessType>,
 
     /// Additional properties
-    pub properties: HashMap<String, String>,
+    #[serde(default)]
+    pub properties: LazyStringMap,
 
     /// Weight (for analysis algorithms)
     pub weight: f64,
@@ -551,7 +553,7 @@ impl Edge {
             edge_type,
             call_type: None,
             access_type: None,
-            properties: HashMap::new(),
+            properties: LazyStringMap::new(),
             weight: 1.0,
         }
     }

@@ -3,21 +3,24 @@
 //! Hot columns (node ids, types, edge topology) are fixed-width in the mmap.
 //! Open parses only the header + small index sections — not the full node/edge vectors.
 //!
-//! **Complexity:** open is O(N) for id→index map only; `find_nodes_by_name` uses the embedded
-//! name index without hydrating a [`MemoryBackend`] or calling [`Self::to_prepared`].
+//! **Complexity:** open is O(1) for node columns; UUID lookup is O(log N) binary search on sorted rows;
+//! `find_nodes_by_name` uses the embedded name index (lazy-parsed) without hydrating a [`MemoryBackend`].
 
 use crate::backend::MemoryBackend;
-use crate::backend::trait_def::GraphBackend;
 use crate::csr::{edge_type_from_u8, edge_type_to_u8};
+use crate::lazy_collections::LazyStringMap;
 use crate::normalize_path_str;
 use crate::schema::{Edge, EdgeType, GraphParameter, Node, NodeType, SharedStr};
 use crate::snapshot::{PreparedGraphSnapshot, PreparedIndexes, SNAPSHOT_MAGIC};
 use memmap2::Mmap;
 use rgctl_error::{Error, Result};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
+use std::hash::{Hash, Hasher};
 use std::path::Path;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 /// Snapshot file format version for columnar layout.
 pub const COLUMNAR_SNAPSHOT_VERSION: u32 = 2;
@@ -113,10 +116,9 @@ pub struct ColumnarGraphMmap {
     offset_edges: u64,
     offset_strings: u64,
     offset_strings_len: u64,
-    name_index: HashMap<String, Vec<Uuid>>,
-    type_index: HashMap<NodeType, Vec<Uuid>>,
+    index_tail_off: usize,
     offset_extensions: u64,
-    id_to_index: OnceLock<HashMap<Uuid, usize>>,
+    parsed_indexes: Mutex<Option<Arc<(HashMap<String, Vec<Uuid>>, HashMap<NodeType, Vec<Uuid>>)>>>,
 }
 
 impl ColumnarGraphMmap {
@@ -151,8 +153,8 @@ impl ColumnarGraphMmap {
         let offset_extensions = u64::from_le_bytes(mmap[128..136].try_into().unwrap());
 
         let tail = &mmap[HEADER_SIZE..];
-        let (name_index, name_consumed) = read_index_section(tail, 0)?;
-        let (type_index, _type_consumed) = read_type_index_section(tail, name_consumed)?;
+        let name_section = index_section_byte_len(tail, 0)?;
+        index_section_byte_len(tail, name_section)?;
 
         let expected_nodes_end = offset_nodes as usize + node_count * NODE_ROW_SIZE;
         let expected_edges_end = offset_edges as usize + edge_count * EDGE_ROW_SIZE;
@@ -172,24 +174,44 @@ impl ColumnarGraphMmap {
             offset_edges,
             offset_strings,
             offset_strings_len,
-            name_index,
-            type_index,
+            index_tail_off: HEADER_SIZE,
             offset_extensions,
-            id_to_index: OnceLock::new(),
+            parsed_indexes: Mutex::new(None),
         })
     }
 
-    fn id_to_index_map(&self) -> &HashMap<Uuid, usize> {
-        self.id_to_index.get_or_init(|| {
-            let mut map = HashMap::with_capacity(self.node_count);
-            for idx in 0..self.node_count {
-                if let Ok(row) = read_node_row(self.mmap.as_ref(), self.offset_nodes as usize, idx)
-                {
-                    map.insert(Uuid::from_bytes(row.id), idx);
-                }
+    fn parsed_indexes(
+        &self,
+    ) -> Result<Arc<(HashMap<String, Vec<Uuid>>, HashMap<NodeType, Vec<Uuid>>)>> {
+        let mut guard = self
+            .parsed_indexes
+            .lock()
+            .map_err(|e| Error::SerdeError(e.to_string()))?;
+        if guard.is_none() {
+            let tail = &self.mmap[self.index_tail_off..];
+            let (name_index, name_consumed) = read_index_section(tail, 0)?;
+            let (type_index, _) = read_type_index_section(tail, name_consumed)?;
+            *guard = Some(Arc::new((name_index, type_index)));
+        }
+        Ok(Arc::clone(guard.as_ref().unwrap()))
+    }
+
+    /// O(log N) lookup in the sorted node column (no reverse index heap allocation).
+    pub fn find_node_index(&self, target_id: Uuid) -> Option<usize> {
+        let target_bytes = target_id.as_bytes();
+        let base = self.offset_nodes as usize;
+        let mut low = 0usize;
+        let mut high = self.node_count;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let row = read_node_row(self.mmap.as_ref(), base, mid).ok()?;
+            match row.id.as_slice().cmp(target_bytes) {
+                Ordering::Less => low = mid + 1,
+                Ordering::Greater => high = mid,
+                Ordering::Equal => return Some(mid),
             }
-            map
-        })
+        }
+        None
     }
 
     /// Graph schema version stored in the snapshot header.
@@ -212,27 +234,30 @@ impl ColumnarGraphMmap {
         &self.digest_hex
     }
 
-    /// Name → node id index parsed at open time.
-    pub fn name_index(&self) -> &HashMap<String, Vec<Uuid>> {
-        &self.name_index
+    /// Name → node id index (lazy-parsed from mmap on first access).
+    pub fn name_index(&self) -> Result<HashMap<String, Vec<Uuid>>> {
+        Ok(self.parsed_indexes()?.0.clone())
     }
 
-    /// Node type → node id index parsed at open time.
-    pub fn type_index(&self) -> &HashMap<NodeType, Vec<Uuid>> {
-        &self.type_index
+    /// Node type → node id index (lazy-parsed from mmap on first access).
+    pub fn type_index(&self) -> Result<HashMap<NodeType, Vec<Uuid>>> {
+        Ok(self.parsed_indexes()?.1.clone())
     }
 
     /// Clone embedded indexes for backend hydration.
-    pub fn prepared_indexes(&self) -> PreparedIndexes {
-        PreparedIndexes {
-            name_index: self.name_index.clone(),
-            type_index: self.type_index.clone(),
-        }
+    pub fn prepared_indexes(&self) -> Result<PreparedIndexes> {
+        let indexes = self.parsed_indexes()?;
+        Ok(PreparedIndexes {
+            name_index: indexes.0.clone(),
+            type_index: indexes.1.clone(),
+        })
     }
 
     /// Iterate `(column_index, node_id)` pairs without materializing nodes.
     pub fn node_ids_by_index(&self) -> impl Iterator<Item = (usize, Uuid)> + '_ {
-        self.id_to_index_map().iter().map(|(id, idx)| (*idx, *id))
+        (0..self.node_count).filter_map(|idx| {
+            self.node_id_at(idx).ok().map(|id| (idx, id))
+        })
     }
 
     /// Read typed edge topology directly from mmap columns.
@@ -373,7 +398,7 @@ impl ColumnarGraphMmap {
 
     /// Materialize a single node by id (reads cold extension blob).
     pub fn get_node(&self, id: Uuid) -> Result<Option<Node>> {
-        let Some(&idx) = self.id_to_index_map().get(&id) else {
+        let Some(idx) = self.find_node_index(id) else {
             return Ok(None);
         };
         Ok(Some(self.materialize_node(idx)?))
@@ -381,15 +406,17 @@ impl ColumnarGraphMmap {
 
     /// Find nodes by exact name via the embedded name index.
     pub fn find_nodes_by_name(&self, name: &str) -> Result<Vec<Node>> {
-        let Some(ids) = self.name_index.get(name) else {
+        let indexes = self.parsed_indexes()?;
+        let Some(ids) = indexes.0.get(name) else {
             return Ok(Vec::new());
         };
-        ids.iter()
-            .map(|id| {
-                let idx = self.id_to_index_map()[id];
-                self.materialize_node(idx)
+        Ok(ids
+            .iter()
+            .filter_map(|id| {
+                let idx = self.find_node_index(*id)?;
+                self.materialize_node(idx).ok()
             })
-            .collect()
+            .collect())
     }
 
     fn materialize_node(&self, idx: usize) -> Result<Node> {
@@ -440,7 +467,7 @@ impl ColumnarGraphMmap {
             file_path: file_path.map(SharedStr::from),
             start_line: (row.start_line > 0).then_some(row.start_line as usize),
             end_line: (row.end_line > 0).then_some(row.end_line as usize),
-            properties: extension.properties,
+            properties: LazyStringMap::from_hashmap(extension.properties),
             labels: extension.labels,
         })
     }
@@ -464,7 +491,7 @@ impl ColumnarGraphMmap {
             schema_version: self.schema_version,
             nodes,
             edges,
-            indexes: self.prepared_indexes(),
+            indexes: self.prepared_indexes()?,
             content_digest: self.digest_hex.clone(),
         })
     }
@@ -491,7 +518,7 @@ impl PreparedGraphSnapshot {
                 code_hash: node.code_hash.as_ref().map(|s| s.to_string()),
                 token_bloom: node.token_bloom,
                 parameters: node.parameters.clone(),
-                properties: node.properties.clone(),
+                properties: node.properties.to_hashmap(),
                 labels: node.labels.clone(),
             };
             let ext_bytes = bincode::serialize(&extension).map_err(bincode_err)?;
@@ -580,7 +607,7 @@ impl PreparedGraphSnapshot {
 
 pub(crate) struct StringPool {
     pub(crate) bytes: Vec<u8>,
-    offsets: HashMap<String, StrRef>,
+    offsets: HashMap<u64, StrRef>,
 }
 
 #[derive(Clone, Copy)]
@@ -598,8 +625,11 @@ impl StringPool {
     }
 
     pub(crate) fn intern(&mut self, s: &str) -> StrRef {
-        if let Some(&existing) = self.offsets.get(s) {
-            return existing;
+        let hash = hash_string_key(s);
+        if let Some(&existing) = self.offsets.get(&hash) {
+            if self.str_at(existing) == s {
+                return existing;
+            }
         }
         let off = self.bytes.len() as u32;
         let bytes = s.as_bytes();
@@ -608,7 +638,7 @@ impl StringPool {
             off,
             len: bytes.len() as u32,
         };
-        self.offsets.insert(s.to_string(), str_ref);
+        self.offsets.insert(hash, str_ref);
         str_ref
     }
 
@@ -618,6 +648,18 @@ impl StringPool {
             None => StrRef { off: 0, len: 0 },
         }
     }
+
+    fn str_at(&self, reference: StrRef) -> &str {
+        let start = reference.off as usize;
+        let end = start + reference.len as usize;
+        std::str::from_utf8(&self.bytes[start..end]).expect("string pool utf8")
+    }
+}
+
+fn hash_string_key(s: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    s.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn read_node_row(mmap: &[u8], base: usize, idx: usize) -> Result<NodeRow> {
@@ -702,6 +744,18 @@ fn node_matches_invalidated_path(
 
     norm.rsplit_once('/')
         .is_some_and(|(_, basename)| invalidated.contains(basename))
+}
+
+fn index_section_byte_len(tail: &[u8], cursor: usize) -> Result<usize> {
+    if cursor + 8 > tail.len() {
+        return Err(Error::SerdeError("index section truncated".into()));
+    }
+    let len = u64::from_le_bytes(tail[cursor..cursor + 8].try_into().unwrap()) as usize;
+    let end = cursor + 8 + len;
+    if end > tail.len() {
+        return Err(Error::SerdeError("index section payload truncated".into()));
+    }
+    Ok(end - cursor)
 }
 
 fn read_index_section(tail: &[u8], cursor: usize) -> Result<(HashMap<String, Vec<Uuid>>, usize)> {
@@ -913,7 +967,7 @@ pub(crate) fn append_node_columnar_prehashed(
                 code_hash: node.code_hash.as_ref().map(|s| s.to_string()),
                 token_bloom: node.token_bloom,
                 parameters: node.parameters.clone(),
-                properties: node.properties.clone(),
+                properties: node.properties.to_hashmap(),
                 labels: node.labels.clone(),
             };
             bincode::serialize(&extension).map_err(bincode_err)?
@@ -1104,12 +1158,9 @@ pub fn write_columnar_from_backend(backend: &MemoryBackend, path: &Path) -> Resu
     let mut name_index: HashMap<String, Vec<Uuid>> = HashMap::new();
     let mut type_index: HashMap<NodeType, Vec<Uuid>> = HashMap::new();
 
-    for id in &ids {
-        let node = backend
-            .get_node(*id)?
-            .ok_or_else(|| Error::NodeNotFound(id.to_string()))?;
+    backend.for_each_node_by_ids(&ids, |node| {
         append_node_columnar(
-            &node,
+            node,
             &mut hasher,
             &mut strings,
             &mut extensions_blob,
@@ -1117,7 +1168,8 @@ pub fn write_columnar_from_backend(backend: &MemoryBackend, path: &Path) -> Resu
             &mut type_index,
             &mut node_rows,
         )?;
-    }
+        Ok(())
+    })?;
 
     let mut edge_meta: Vec<(Uuid, Uuid, EdgeType)> = Vec::with_capacity(backend.edge_count());
     backend.for_each_edge(|edge| {
@@ -1182,7 +1234,7 @@ mod tests {
         assert_eq!(col.node_count(), 1);
         assert_eq!(col.edge_count(), 1);
         assert_eq!(col.content_digest(), prepared.content_digest);
-        assert!(col.name_index().contains_key("main"));
+        assert!(col.name_index().unwrap().contains_key("main"));
         assert_eq!(col.find_nodes_by_name("main").unwrap().len(), 1);
 
         let loaded = col.to_prepared().unwrap();
@@ -1204,7 +1256,7 @@ mod tests {
         let mmap = Arc::new(unsafe { Mmap::map(&file).unwrap() });
         let col = ColumnarGraphMmap::open(mmap).unwrap();
         assert_eq!(col.find_nodes_by_name("lookup_me").unwrap().len(), 1);
-        assert!(!col.name_index().is_empty());
+        assert!(!col.name_index().unwrap().is_empty());
     }
 
     #[test]
