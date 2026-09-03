@@ -6,7 +6,11 @@ use crate::language_profile::{function_kinds_for, parse_source};
 use rgctl_error::{Error, Result};
 use rgctl_plugin_helpers::extract_name_from_node;
 use std::collections::{HashMap, HashSet};
+use tracing::warn;
 use tree_sitter::{Node, Tree};
+
+/// Maximum AST recursion depth for CFG expression walks (matches C++ extraction cap).
+const AST_WALK_MAX_DEPTH: usize = 2048;
 
 /// Build a CFG for a named function in source text.
 pub fn build_cfg_for_function(
@@ -87,22 +91,25 @@ pub fn index_function_locations(
 }
 
 fn collect_function_locations(
-    node: Node<'_>,
+    root: Node<'_>,
     source: &[u8],
     function_kinds: &[&str],
     out: &mut HashMap<String, FunctionLocation>,
 ) {
-    if function_kinds.contains(&node.kind()) {
-        if let Ok(Some(func_name)) = extract_name_from_node(node, source) {
-            out.entry(func_name).or_insert(FunctionLocation {
-                start_byte: node.start_byte(),
-                end_byte: node.end_byte(),
-            });
+    let mut stack = vec![root];
+    while let Some(node) = stack.pop() {
+        if function_kinds.contains(&node.kind()) {
+            if let Ok(Some(func_name)) = extract_name_from_node(node, source) {
+                out.entry(func_name).or_insert(FunctionLocation {
+                    start_byte: node.start_byte(),
+                    end_byte: node.end_byte(),
+                });
+            }
         }
-    }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        collect_function_locations(child, source, function_kinds, out);
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            stack.push(child);
+        }
     }
 }
 
@@ -137,17 +144,18 @@ fn find_function_by_name<'a>(
         }
     }
 
-    if function_kinds.contains(&node.kind()) {
-        if let Ok(Some(func_name)) = extract_name_from_node(node, source) {
-            if func_name == name {
-                return Some(node);
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        if function_kinds.contains(&node.kind()) {
+            if let Ok(Some(func_name)) = extract_name_from_node(node, source) {
+                if func_name == name {
+                    return Some(node);
+                }
             }
         }
-    }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if let Some(found) = find_function_by_name(child, source, name, function_kinds) {
-            return Some(found);
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            stack.push(child);
         }
     }
     None
@@ -155,22 +163,23 @@ fn find_function_by_name<'a>(
 
 /// Nth direct `block` child of a Java `class_body` (instance initializer).
 fn find_java_instance_initblock<'a>(node: Node<'a>, index: usize) -> Option<Node<'a>> {
-    if node.kind() == "class_body" {
-        let mut seen = 0usize;
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            if child.kind() == "block" {
-                if seen == index {
-                    return Some(child);
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        if node.kind() == "class_body" {
+            let mut seen = 0usize;
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "block" {
+                    if seen == index {
+                        return Some(child);
+                    }
+                    seen += 1;
                 }
-                seen += 1;
             }
         }
-    }
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if let Some(found) = find_java_instance_initblock(child, index) {
-            return Some(found);
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            stack.push(child);
         }
     }
     None
@@ -178,23 +187,22 @@ fn find_java_instance_initblock<'a>(node: Node<'a>, index: usize) -> Option<Node
 
 /// Nth `lambda_expression` in the whole tree, document (pre-)order.
 fn find_java_lambda_expression<'a>(node: Node<'a>, index: usize) -> Option<Node<'a>> {
-    fn walk<'a>(node: Node<'a>, index: usize, seen: &mut usize) -> Option<Node<'a>> {
+    let mut stack = vec![node];
+    let mut seen = 0usize;
+    while let Some(node) = stack.pop() {
         if node.kind() == "lambda_expression" {
-            if *seen == index {
+            if seen == index {
                 return Some(node);
             }
-            *seen += 1;
+            seen += 1;
         }
         let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            if let Some(found) = walk(child, index, seen) {
-                return Some(found);
-            }
+        let children: Vec<_> = node.children(&mut cursor).collect();
+        for child in children.into_iter().rev() {
+            stack.push(child);
         }
-        None
     }
-    let mut seen = 0usize;
-    walk(node, index, &mut seen)
+    None
 }
 
 fn build_cfg_from_function_node(
@@ -240,6 +248,8 @@ struct CfgBuilder<'a> {
     next_block_serial: u64,
     /// Pending exception edges to avoid scanning all CFG edges on each statement.
     pending_exception_edges: HashSet<(BlockId, BlockId)>,
+    /// One-time warn when expression walk hits [`AST_WALK_MAX_DEPTH`].
+    expr_walk_depth_warned: bool,
 }
 
 struct BreakableContext {
@@ -278,6 +288,7 @@ impl<'a> CfgBuilder<'a> {
             nested_exits: Vec::new(),
             next_block_serial: 1,
             pending_exception_edges: HashSet::new(),
+            expr_walk_depth_warned: false,
         }
     }
 
@@ -602,86 +613,85 @@ impl<'a> CfgBuilder<'a> {
 
     /// Lower nested `?` / `.await` / control-flow expressions inside a larger expression.
     fn visit_expr_for_control_flow(&mut self, node: Node, source: &[u8]) -> Result<()> {
-        if !self.flow_active {
-            return Ok(());
-        }
-        match node.kind() {
-            "try_expression" => self.visit_try_expression(node, source),
-            "await_expression" => self.visit_await_expression(node, source),
-            "conditional_access_expression" => self.visit_conditional_access(node, source),
-            "switch_expression" => self.visit_switch_expression(node, source),
-            "lambda_expression" | "anonymous_method_expression" => {
-                self.visit_nested_subcfg(node, source)
+        self.visit_expr_for_control_flow_depth(node, source, 0)
+    }
+
+    fn visit_expr_for_control_flow_depth(
+        &mut self,
+        node: Node,
+        source: &[u8],
+        depth: usize,
+    ) -> Result<()> {
+        let mut stack = vec![(node, depth)];
+        while let Some((node, depth)) = stack.pop() {
+            if depth > AST_WALK_MAX_DEPTH {
+                if !self.expr_walk_depth_warned {
+                    self.expr_walk_depth_warned = true;
+                    warn!(
+                        depth = depth,
+                        language = self.language,
+                        "CFG expression walk depth limit exceeded; skipping deep branches"
+                    );
+                }
+                continue;
             }
-            "binary_expression" if null_coalesce_operator(node, source) => {
-                self.visit_null_coalesce(node, source)
+            if !self.flow_active {
+                return Ok(());
             }
-            "if_expression"
-            | "if_statement"
-            | "match_expression"
-            | "loop_expression"
-            | "while_expression"
-            | "while_statement"
-            | "for_expression"
-            | "for_statement"
-            | "return_expression"
-            | "return_statement"
-            | "break_expression"
-            | "continue_expression"
-            | "macro_invocation"
-            | "conditional_expression" => self.visit_statement(node, source),
-            _ => {
-                // Detect setjmp/longjmp/abort nested in larger expressions (e.g. if cond).
-                if is_setjmp_call(node, source) {
-                    self.add_statement(node, source, StatementKind::Branch)?;
-                    self.setjmp_sites.push(self.current_block);
-                    return Ok(());
+            match node.kind() {
+                "try_expression" => self.visit_try_expression(node, source)?,
+                "await_expression" => self.visit_await_expression(node, source)?,
+                "conditional_access_expression" => self.visit_conditional_access(node, source)?,
+                "switch_expression" => self.visit_switch_expression(node, source)?,
+                "lambda_expression" | "anonymous_method_expression" => {
+                    self.visit_nested_subcfg(node, source)?
                 }
-                if is_longjmp_call(node, source) {
-                    self.add_statement(node, source, StatementKind::Jump)?;
-                    self.wire_longjmp_edges();
-                    return Ok(());
+                "binary_expression" if null_coalesce_operator(node, source) => {
+                    self.visit_null_coalesce(node, source)?
                 }
-                if is_terminating_call(node, source) {
-                    self.add_statement(node, source, StatementKind::Jump)?;
-                    self.unwind_defers_to_exit(CfgEdgeType::Exception);
-                    return Ok(());
-                }
-                let mut cursor = node.walk();
-                for child in node.children(&mut cursor) {
-                    if !child.is_named() {
+                "if_expression"
+                | "if_statement"
+                | "match_expression"
+                | "loop_expression"
+                | "while_expression"
+                | "while_statement"
+                | "for_expression"
+                | "for_statement"
+                | "return_expression"
+                | "return_statement"
+                | "break_expression"
+                | "continue_expression"
+                | "macro_invocation"
+                | "conditional_expression" => self.visit_statement(node, source)?,
+                _ => {
+                    if is_setjmp_call(node, source) {
+                        self.add_statement(node, source, StatementKind::Branch)?;
+                        self.setjmp_sites.push(self.current_block);
                         continue;
                     }
-                    if matches!(
-                        child.kind(),
-                        "try_expression"
-                            | "await_expression"
-                            | "if_expression"
-                            | "match_expression"
-                            | "loop_expression"
-                            | "while_expression"
-                            | "for_expression"
-                            | "macro_invocation"
-                            | "return_expression"
-                            | "break_expression"
-                            | "continue_expression"
-                            | "conditional_expression"
-                            | "call_expression"
-                    ) {
-                        self.visit_expr_for_control_flow(child, source)?;
-                        if !self.flow_active {
-                            return Ok(());
-                        }
-                    } else {
-                        self.visit_expr_for_control_flow(child, source)?;
-                        if !self.flow_active {
-                            return Ok(());
+                    if is_longjmp_call(node, source) {
+                        self.add_statement(node, source, StatementKind::Jump)?;
+                        self.wire_longjmp_edges();
+                        continue;
+                    }
+                    if is_terminating_call(node, source) {
+                        self.add_statement(node, source, StatementKind::Jump)?;
+                        self.unwind_defers_to_exit(CfgEdgeType::Exception);
+                        continue;
+                    }
+                    let mut cursor = node.walk();
+                    for child in node.children(&mut cursor) {
+                        if child.is_named() {
+                            stack.push((child, depth + 1));
                         }
                     }
                 }
-                Ok(())
+            }
+            if !self.flow_active {
+                return Ok(());
             }
         }
+        Ok(())
     }
 
     fn visit_conditional_expression(&mut self, node: Node, source: &[u8]) -> Result<()> {
@@ -3137,37 +3147,46 @@ fn is_switch_default_case(case: Node, source: &[u8]) -> bool {
 }
 
 fn find_child_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == kind {
-            return Some(child);
+    let mut stack = vec![node];
+    while let Some(node) = stack.pop() {
+        if node.kind() == kind {
+            return Some(node);
         }
-        if let Some(found) = find_child_kind(child, kind) {
-            return Some(found);
+        let mut cursor = node.walk();
+        let children: Vec<_> = node.children(&mut cursor).collect();
+        for child in children.into_iter().rev() {
+            stack.push(child);
         }
     }
     None
 }
 
 fn collect_switch_cases<'a>(node: Node<'a>, cases: &mut Vec<Node<'a>>) {
-    match node.kind() {
-        "expression_case"
-        | "type_case"
-        | "case_clause"
-        | "default_case"
-        | "default_statement"
-        | "case_statement"
-        | "communication_case"
-        | "switch_section"
-        | "switch_case"
-        | "switch_default"
-        | "switch_block_statement_group"
-        | "switch_rule" => cases.push(node),
-        _ => {
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if child.is_named() {
-                    collect_switch_cases(child, cases);
+    let mut stack = vec![(node, 0usize)];
+    while let Some((node, depth)) = stack.pop() {
+        if depth > AST_WALK_MAX_DEPTH {
+            continue;
+        }
+        match node.kind() {
+            "expression_case"
+            | "type_case"
+            | "case_clause"
+            | "default_case"
+            | "default_statement"
+            | "case_statement"
+            | "communication_case"
+            | "switch_section"
+            | "switch_case"
+            | "switch_default"
+            | "switch_block_statement_group"
+            | "switch_rule" => cases.push(node),
+            _ => {
+                let mut cursor = node.walk();
+                let children: Vec<_> = node.children(&mut cursor).collect();
+                for child in children.into_iter().rev() {
+                    if child.is_named() {
+                        stack.push((child, depth + 1));
+                    }
                 }
             }
         }
@@ -3435,6 +3454,34 @@ mod tests {
     use crate::cfg::CfgEdgeType;
 
     #[test]
+    fn annotate_deep_statements_cfg_does_not_overflow() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../example/llvm-project/clang/test/Index/annotate-deep-statements.cpp"
+        );
+        if !std::path::Path::new(path).exists() {
+            return;
+        }
+        let source = std::fs::read_to_string(path).unwrap();
+        let cfg = build_cfg_for_function("cpp", &source, "foo").unwrap();
+        assert!(!cfg.blocks.is_empty());
+        let dom = crate::DominatorTree::build(&cfg);
+        let pdg = crate::ProgramDependenceGraph::build_with_dominator_options(
+            &cfg,
+            source.as_bytes(),
+            &dom,
+            crate::PdgBuildOptions::default(),
+        )
+        .unwrap();
+        assert!(!pdg.nodes.is_empty());
+
+        let parsed = ParsedSourceFile::parse("cpp", source.as_bytes()).unwrap();
+        assert!(parsed.contains("foo"));
+        let cfg2 = parsed.build_cfg("cpp", source.as_bytes(), "foo").unwrap();
+        assert!(!cfg2.blocks.is_empty());
+    }
+
+    #[test]
     fn test_rust_if_else_cfg() {
         let code = r#"
 fn example(x: i32) -> i32 {
@@ -3468,6 +3515,15 @@ fn loop_example(n: i32) -> i32 {
 "#;
         let cfg = build_cfg_for_function("rust", code, "loop_example").unwrap();
         assert!(cfg.has_cycle());
+    }
+
+    #[test]
+    fn deep_cpp_call_chain_cfg_does_not_overflow() {
+        let depth = 3000;
+        let chain = (0..depth).fold(String::from("s()"), |acc, _| format!("{acc}()"));
+        let code = format!("int s() {{ return 0; }}\nint deep() {{ return {chain}; }}");
+        let cfg = build_cfg_for_function("cpp", &code, "deep").unwrap();
+        assert!(!cfg.blocks.is_empty());
     }
 
     fn rust_texts(cfg: &ControlFlowGraph) -> Vec<String> {

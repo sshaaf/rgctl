@@ -321,6 +321,10 @@ name = "dashboard_ecommerce_cpp"
 path = "tests/dashboard_ecommerce_cpp.rs"
 
 [[test]]
+name = "cpp_langfeatures"
+path = "tests/cpp_langfeatures.rs"
+
+[[test]]
 name = "dashboard_ecommerce_python"
 path = "tests/dashboard_ecommerce_python.rs"
 

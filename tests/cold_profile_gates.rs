@@ -31,6 +31,8 @@ const METASFRESH_COLD_WALL_BASELINE_SECS: f64 = 74.0;
 const KAFKA_COLD_WALL_BASELINE_SECS: f64 = 600.0;
 /// `rust-lang/rust` full tree with `-l rust`. Baseline: **25 s** on reference M3 Pro (2026-09-03).
 const RUST_COLD_WALL_BASELINE_SECS: f64 = 25.0;
+/// llvm/llvm-project `clang/` sparse checkout with `-l cpp`. Baseline recorded on reference M3 Pro (2026-09-03).
+const LLVM_CPP_COLD_WALL_BASELINE_SECS: f64 = 120.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
 const K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS: f64 = 3.0;
 /// ecommerce-java default discover cold wall (inheritance stub gate).
@@ -89,6 +91,14 @@ pub fn rust_repo_path() -> PathBuf {
     std::env::var("RGCTL_RUST_REPO")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/rust"))
+}
+
+pub fn llvm_cpp_repo_path() -> PathBuf {
+    std::env::var("RGCTL_LLVM_CPP_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/llvm-project/clang")
+        })
 }
 
 pub fn parse_profile_summary(log: &str) -> Option<ProfileSummary> {
@@ -419,6 +429,42 @@ fn rust_cold_discover_within_baseline() {
         baseline
     );
     assert_within_baseline("rust cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/llvm-project/clang (-l cpp)"]
+fn llvm_cpp_cold_discover_within_baseline() {
+    let repo = llvm_cpp_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: llvm clang not at {} (run ./scripts/fetch-profile-repos.sh)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_LLVM_CPP_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(LLVM_CPP_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "cpp"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "llvm cpp cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("llvm cpp cold discover", elapsed, baseline);
 }
 
 #[test]

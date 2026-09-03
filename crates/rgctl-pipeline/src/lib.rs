@@ -4,7 +4,10 @@ pub mod parallel;
 mod pipeline;
 pub mod stream;
 
-pub use parallel::{par_filter_map, par_map, thread_pool, with_pool};
+pub use parallel::{
+    large_stack_thread_pool, par_filter_map, par_map, thread_pool, with_large_pool,
+    with_large_stack, with_pool,
+};
 pub use pipeline::{PipelineConfig, PipelineStats, ProcessingPipeline};
 pub use stream::{DEFAULT_STREAM_CHANNEL_CAPACITY, stream_into_graph};
 

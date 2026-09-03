@@ -9,7 +9,7 @@ use crate::analysis::{
 use rayon::prelude::*;
 use rgctl_graph::code_index::hash_code;
 use rgctl_graph::schema::Node;
-use rgctl_pipeline::with_pool;
+use rgctl_pipeline::{with_large_pool, with_large_stack, with_pool};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -190,11 +190,13 @@ pub fn run_cfg_analysis_batch(
         dfg_loops: options.dfg_loops,
     };
 
-    let nested: Vec<Vec<Option<CfgFunctionWork>>> = with_pool(options.thread_count, || {
-        groups
-            .par_iter()
-            .map(|group| process_file_group(group, &ctx))
-            .collect()
+    let nested: Vec<Vec<Option<CfgFunctionWork>>> = with_large_stack(|| {
+        with_large_pool(options.thread_count, || {
+            groups
+                .par_iter()
+                .map(|group| process_file_group(group, &ctx))
+                .collect()
+        })
     });
     let flat: Vec<Option<CfgFunctionWork>> = nested.into_iter().flatten().collect();
 
@@ -235,9 +237,11 @@ pub fn run_cfg_analysis_batch(
         }
     }
 
-    with_pool(options.thread_count, || {
-        saves.par_iter().for_each(|analysis| {
-            let _ = storage.save_function_no_index(analysis);
+    with_large_stack(|| {
+        with_large_pool(options.thread_count, || {
+            saves.par_iter().for_each(|analysis| {
+                let _ = storage.save_function_no_index(analysis);
+            });
         });
     });
     let _ = storage.refresh_analysis_index_from_analyses(&saves);

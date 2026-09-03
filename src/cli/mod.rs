@@ -93,6 +93,8 @@ pub enum Commands {
 
         /// Per-function CFG, dominators, and PDG → `.rgctl/analysis/` + cfg_pdg archive.
         /// Off by default. Does **not** include discover-time taint (see `--with-taint`).
+        /// Large C++ corpora (e.g. llvm `clang/`) run CFG on parallel workers with a 16 MiB
+        /// stack; pathological deep ASTs are skipped at depth 2048 (see `docs/internal/profile.md`).
         #[arg(long = "with-cfg", visible_alias = "cfg")]
         with_cfg: bool,
 

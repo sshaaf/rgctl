@@ -7,7 +7,6 @@
 use crate::cfg::ControlFlowGraph;
 use crate::cfg_pdg_archive::{CfgPdgArchive, CfgPdgRecord};
 use crate::field_write_locals::LocalsParseContext;
-use rayon::prelude::*;
 use rgctl_error::{Error, Result};
 use rgctl_graph::schema::Node;
 use serde::{Deserialize, Serialize};
@@ -116,7 +115,7 @@ impl FieldWriteIndex {
 
         let repo_root = repo_root.map(Path::to_path_buf);
         let mut writes: Vec<FieldWrite> = by_file
-            .into_par_iter()
+            .into_iter()
             .flat_map(|(file, records)| {
                 let source = if file.is_empty() {
                     None

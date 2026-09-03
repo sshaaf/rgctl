@@ -76,7 +76,7 @@ Copy-paste **PR checklist** block: [tier-1 §7](tier-1-language-support.md#7-pr-
 | Java | `dashboard_gbuilder` (gbuilder golden) |
 | C# | `dashboard_ecommerce_csharp` |
 | C | `dashboard_ecommerce_c` |
-| C++ | `dashboard_ecommerce_cpp` |
+| C++ | `dashboard_ecommerce_cpp`, `cpp_langfeatures` |
 | Python | `dashboard_ecommerce_python` |
 | Rust | `dashboard_ecommerce_rust` |
 | JavaScript | `dashboard_ecommerce_javascript` |

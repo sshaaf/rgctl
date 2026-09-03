@@ -562,6 +562,12 @@ impl GraphBuilder {
         let mut from_id =
             self.resolve_symbol_tracked(&relation.from, &relation.location.file, None, None);
         if from_id.is_none() {
+            from_id = self
+                .symbols_by_qualified
+                .get(&relation.from)
+                .and_then(|ids| unique_resolved(ids));
+        }
+        if from_id.is_none() {
             from_id = self.lookup_file_node(&relation.from, &relation.location.file);
         }
 
@@ -1121,17 +1127,6 @@ fn single_c_preferred_impl(ids: &[Uuid], symbol_files: &HashMap<Uuid, String>) -
         }
     }
     c_impl
-}
-
-/// When a C symbol appears in both `.h` and `.c`, prefer the `.c` definition.
-fn unique_resolved_prefer_source_file(
-    ids: &[Uuid],
-    symbol_files: &HashMap<Uuid, String>,
-) -> Option<Uuid> {
-    if let Some(id) = unique_resolved(ids) {
-        return Some(id);
-    }
-    single_c_preferred_impl(ids, symbol_files)
 }
 
 fn should_sketch_symbol(symbol_type: SymbolType) -> bool {
@@ -1824,6 +1819,77 @@ mod tests {
         let before = builder.edge_count();
         builder.add_relation(&rel).unwrap();
         assert_eq!(builder.edge_count(), before + 1);
+    }
+
+    #[test]
+    fn cpp_cross_namespace_call_resolves_with_qualified_hint() {
+        let mut builder = GraphBuilder::new();
+        let checkout_file = builder.ensure_file_node(Path::new("order_service.cpp"));
+        let repo_file = builder.ensure_file_node(Path::new("order_repository.cpp"));
+        let checkout = Symbol {
+            name: "checkout".to_string(),
+            symbol_type: SymbolType::Function,
+            qualified_name: Some("ecommerce::services::checkout".to_string()),
+            location: SourceLocation {
+                file: "order_service.cpp".to_string(),
+                start_line: 2,
+                end_line: 6,
+                start_column: 0,
+                end_column: 1,
+            },
+            signature: None,
+            return_type: None,
+            parameters: vec![],
+            fields: vec![],
+            modifiers: vec![],
+            documentation: None,
+            metadata: serde_json::json!({ "language": "cpp" }),
+        };
+        let order_create = Symbol {
+            name: "order_create".to_string(),
+            symbol_type: SymbolType::Function,
+            qualified_name: Some("ecommerce::repositories::order_create".to_string()),
+            location: SourceLocation {
+                file: "order_repository.cpp".to_string(),
+                start_line: 2,
+                end_line: 4,
+                start_column: 0,
+                end_column: 1,
+            },
+            signature: None,
+            return_type: None,
+            parameters: vec![],
+            fields: vec![],
+            modifiers: vec![],
+            documentation: None,
+            metadata: serde_json::json!({ "language": "cpp" }),
+        };
+        builder.add_symbol(&checkout, checkout_file);
+        builder.add_symbol(&order_create, repo_file);
+        builder.build_resolution_indexes();
+
+        let rel = Relation {
+            from: "ecommerce::services::checkout".to_string(),
+            to: "repositories::order_create".to_string(),
+            relation_type: RelationType::Calls,
+            location: SourceLocation {
+                file: "order_service.cpp".to_string(),
+                start_line: 4,
+                end_line: 4,
+                start_column: 0,
+                end_column: 1,
+            },
+            metadata: serde_json::json!({ "language": "cpp" }),
+            to_qualified_hint: Some("ecommerce::repositories::order_create".to_string()),
+            to_type_hint: None,
+        };
+        let before = builder.edge_count();
+        builder.add_relation(&rel).unwrap();
+        assert_eq!(
+            builder.edge_count(),
+            before + 1,
+            "expected CALLS edge for cross-namespace C++ hint"
+        );
     }
 
     #[test]

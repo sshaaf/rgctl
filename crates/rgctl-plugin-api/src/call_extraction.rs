@@ -61,10 +61,18 @@ pub fn callee_name(root: Node, source: &[u8]) -> Option<String> {
                     stack.push((n, depth + 1));
                 }
             }
-            "scoped_identifier" | "qualified_type" => {
+            "scoped_identifier" | "qualified_type" | "qualified_identifier" => {
+                if let Some(n) = last_named_child_by_field(node, "name") {
+                    stack.push((n, depth + 1));
+                }
+            }
+            "template_function" | "template_method" => {
                 if let Some(n) = node.child_by_field_name("name") {
                     stack.push((n, depth + 1));
                 }
+            }
+            "operator_name" => {
+                return node.utf8_text(source).ok().map(str::to_string);
             }
             "parenthesized_expression" => {
                 if let Some(inner) = node.named_child(0) {
@@ -151,10 +159,17 @@ pub fn push_call_relation(
             let qh = ty.as_ref().map(|t| format!("{t}.{callee}"));
             (ty, qh)
         }
+        "cpp" => {
+            let qh = cpp_call_qualified_hint(node, source);
+            (None, qh)
+        }
         _ => (None, None),
     };
 
     let mut meta = serde_json::json!({ "language": language });
+    if language == "cpp" && cpp_call_is_operator(node, source) {
+        meta["is_operator"] = serde_json::Value::Bool(true);
+    }
     if language == "go"
         && let Some((recv_ty, field)) = go_field_selector_meta(node, source, from_fn)
     {
@@ -205,6 +220,108 @@ pub fn push_call_relation(
         to_qualified_hint,
         to_type_hint,
     });
+}
+
+/// Last child bound to a multi-valued tree-sitter field (e.g. C++ `qualified_identifier::name`).
+fn last_named_child_by_field<'a>(node: Node<'a>, field: &str) -> Option<Node<'a>> {
+    let mut last = None;
+    for i in 0..node.child_count() {
+        if node.field_name_for_child(i as u32) == Some(field) {
+            let child = node.child(i)?;
+            if child.is_named() {
+                last = Some(child);
+            }
+        }
+    }
+    last
+}
+
+/// Best-effort fully-qualified callee for C++ `call_expression` sites.
+fn cpp_call_qualified_hint(call: Node, source: &[u8]) -> Option<String> {
+    let func = call
+        .child_by_field_name("function")
+        .or_else(|| call.child_by_field_name("name"))?;
+    match func.kind() {
+        "qualified_identifier" => qualified_identifier_text(func, source),
+        "field_expression" => {
+            let value = func.child_by_field_name("value")?;
+            let field = func.child_by_field_name("field")?;
+            let val = cpp_expression_hint_text(value, source)?;
+            let field_name = field.utf8_text(source).ok()?.trim().to_string();
+            Some(format!("{val}.{field_name}"))
+        }
+        "template_function" | "template_method" => {
+            let name = func
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(source).ok().map(str::to_string))?;
+            let scope = func
+                .child_by_field_name("scope")
+                .and_then(|s| cpp_expression_hint_text(s, source));
+            scope.map(|s| format!("{s}::{name}")).or(Some(name))
+        }
+        _ => None,
+    }
+}
+
+fn cpp_call_is_operator(call: Node, source: &[u8]) -> bool {
+    let Some(func) = call.child_by_field_name("function") else {
+        return false;
+    };
+    if func.kind() == "operator_name" {
+        return true;
+    }
+    if func.kind() == "qualified_identifier" {
+        return last_named_child_by_field(func, "name")
+            .is_some_and(|n| n.kind() == "operator_name");
+    }
+    func.kind() == "field_expression"
+        && func
+            .child_by_field_name("field")
+            .is_some_and(|f| f.kind() == "operator_name")
+        || func
+            .child_by_field_name("field")
+            .and_then(|f| f.utf8_text(source).ok())
+            .is_some_and(|t| t.starts_with("operator"))
+}
+
+fn qualified_identifier_text(node: Node, source: &[u8]) -> Option<String> {
+    let scope = node
+        .child_by_field_name("scope")
+        .and_then(|s| cpp_expression_hint_text(s, source));
+    let name = last_named_child_by_field(node, "name")
+        .and_then(|n| cpp_name_component_text(n, source))?;
+    scope.map(|s| format!("{s}::{name}")).or(Some(name))
+}
+
+fn cpp_expression_hint_text(node: Node, source: &[u8]) -> Option<String> {
+    match node.kind() {
+        "identifier" | "namespace_identifier" | "type_identifier" | "field_identifier" => {
+            node.utf8_text(source).ok().map(str::to_string)
+        }
+        "qualified_identifier" => qualified_identifier_text(node, source),
+        "field_expression" => {
+            let value = node.child_by_field_name("value")?;
+            let field = node.child_by_field_name("field")?;
+            let val = cpp_expression_hint_text(value, source)?;
+            let field_name = field.utf8_text(source).ok()?.trim().to_string();
+            Some(format!("{val}.{field_name}"))
+        }
+        _ => node.utf8_text(source).ok().map(str::trim).map(str::to_string),
+    }
+}
+
+fn cpp_name_component_text(node: Node, source: &[u8]) -> Option<String> {
+    match node.kind() {
+        "identifier" | "field_identifier" | "namespace_identifier" | "type_identifier"
+        | "destructor_name" | "operator_name" => {
+            node.utf8_text(source).ok().map(str::trim).map(str::to_string)
+        }
+        "template_function" | "template_method" => node
+            .child_by_field_name("name")
+            .and_then(|n| n.utf8_text(source).ok().map(str::trim).map(str::to_string)),
+        "qualified_identifier" => qualified_identifier_text(node, source),
+        _ => node.utf8_text(source).ok().map(str::trim).map(str::to_string),
+    }
 }
 
 /// `recv.field.Method` → (receiver_type, field_name) for late resolution in GraphBuilder.
