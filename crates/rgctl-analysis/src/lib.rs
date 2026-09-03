@@ -3,6 +3,7 @@
 #![warn(missing_docs)]
 
 pub mod alias;
+pub mod analysis_pack;
 pub mod ast_skeleton;
 pub mod blast_engine_snapshot;
 pub mod blast_radius;
@@ -29,6 +30,7 @@ pub mod field_write;
 pub mod field_write_locals;
 pub mod flow_cache;
 pub mod graph_utils;
+pub mod hash_maps;
 pub mod interprocedural_cfg;
 pub mod interprocedural_slicing;
 pub mod language_profile;
@@ -78,7 +80,7 @@ pub use blast_slice_handoff::{
 pub use callgraph::CallGraph;
 pub use centrality::{
     BetweennessCentrality, CentralityAnalyzer, CentralityReport, CentralityRunSummary,
-    CentralityScore, CentralityScores, DegreeCentrality, FastPageRank, FlatGraphIndex,
+    CentralityScore, CentralityScores, CsrOutAdj, DegreeCentrality, FastPageRank, FlatGraphIndex,
     HarmonicCentrality, LARGE_GRAPH_PAGERANK_ITERATIONS, LARGE_GRAPH_PAGERANK_NODE_LIMIT,
     LARGE_GRAPH_PAGERANK_TOLERANCE, PAGERANK_TOLERANCE, PageRankStats, STRUCTURAL_EDGE_TYPES,
     adaptive_pagerank_config, default_behavioral_edges, degree_centrality,

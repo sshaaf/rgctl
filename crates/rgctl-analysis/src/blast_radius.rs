@@ -311,10 +311,11 @@ fn average_complexity(backend: &MemoryBackend, ids: &HashSet<Uuid>) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cfg::{Statement, StatementKind};
+    use crate::cfg::{BlockId, Statement, StatementKind};
     use crate::pdg::{DataDepType, DataDependency, PdgNode, ProgramDependenceGraph};
     use rgctl_graph::backend::GraphBackend;
     use rgctl_graph::schema::{Edge, EdgeType, Node, NodeType};
+    use smallvec::SmallVec;
     use std::collections::HashSet;
 
     fn build_chain() -> (MemoryBackend, Uuid, Uuid, Uuid) {
@@ -338,7 +339,7 @@ mod tests {
     }
 
     fn test_pdg_for_caller() -> ProgramDependenceGraph {
-        let block = Uuid::new_v4();
+        let block = BlockId(0);
         let n1 = Uuid::new_v4();
         let n2 = Uuid::new_v4();
         let mut pdg = ProgramDependenceGraph::default();
@@ -350,8 +351,8 @@ mod tests {
                     kind: StatementKind::Expression,
                     line: 1,
                     text: "let tmp = c()".into(),
-                    defined_vars: HashSet::new(),
-                    used_vars: HashSet::new(),
+                    defined_vars: SmallVec::new(),
+                    used_vars: SmallVec::new(),
                 },
                 block,
                 defined_vars: ["tmp"].into_iter().map(String::from).collect(),
@@ -366,8 +367,8 @@ mod tests {
                     kind: StatementKind::Return,
                     line: 2,
                     text: "return tmp".into(),
-                    defined_vars: HashSet::new(),
-                    used_vars: HashSet::new(),
+                    defined_vars: SmallVec::new(),
+                    used_vars: SmallVec::new(),
                 },
                 block,
                 defined_vars: HashSet::new(),

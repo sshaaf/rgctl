@@ -5,6 +5,7 @@ use crate::def_use::extract_def_use;
 use crate::language_profile::{function_kinds_for, parse_source};
 use rgctl_error::{Error, Result};
 use rgctl_plugin_helpers::extract_name_from_node;
+use smallvec::SmallVec;
 use std::collections::{HashMap, HashSet};
 use tracing::warn;
 use tree_sitter::{Node, Tree};
@@ -52,6 +53,15 @@ impl ParsedSourceFile {
         source: &[u8],
         function_name: &str,
     ) -> Result<ControlFlowGraph> {
+        if let Some(loc) = self.locations.get(function_name) {
+            if let Some(func_node) = self
+                .tree
+                .root_node()
+                .descendant_for_byte_range(loc.start_byte, loc.end_byte)
+            {
+                return build_cfg_from_function_node(language, func_node, source, function_name);
+            }
+        }
         build_cfg_for_function_in_tree(language, &self.tree, source, function_name)
     }
 }
@@ -322,7 +332,7 @@ impl<'a> CfgBuilder<'a> {
     }
 
     fn new_block(&mut self) -> BlockId {
-        let id = BlockId::from_u128(self.next_block_serial as u128);
+        let id = BlockId(self.next_block_serial as u32);
         self.next_block_serial += 1;
         self.cfg.add_block(BasicBlock {
             id,
@@ -774,8 +784,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let ok_block = self.new_block();
         let err_block = self.new_block();
@@ -809,8 +819,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let from = self.current_block;
         let resume = self.new_block();
@@ -851,8 +861,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let resume = self.new_block();
         self.cfg
@@ -925,8 +935,8 @@ impl<'a> CfgBuilder<'a> {
                     kind: StatementKind::Expression,
                     line: d.line,
                     text: d.text.clone(),
-                    defined_vars: HashSet::new(),
-                    used_vars: HashSet::new(),
+                    defined_vars: SmallVec::new(),
+                    used_vars: SmallVec::new(),
                 });
             }
         }
@@ -964,8 +974,8 @@ impl<'a> CfgBuilder<'a> {
                     kind: StatementKind::Expression,
                     line: d.line,
                     text: d.text.clone(),
-                    defined_vars: HashSet::new(),
-                    used_vars: HashSet::new(),
+                    defined_vars: SmallVec::new(),
+                    used_vars: SmallVec::new(),
                 });
             }
         }
@@ -984,8 +994,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text: format!("{text}?."),
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let non_null = self.new_block();
         let null_path = self.new_block();
@@ -1035,8 +1045,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text: format!("{left_text} ??"),
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let non_null = self.new_block();
         let null_path = self.new_block();
@@ -1128,8 +1138,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::Branch,
                 line: node.start_position().row + 1,
                 text: "if".to_string(),
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             self.cfg
                 .add_edge(cond_block, true_block, CfgEdgeType::IfTrue);
@@ -1211,8 +1221,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::Branch,
                 line: node.start_position().row + 1,
                 text: "while".to_string(),
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             self.cfg.add_edge(header, body, CfgEdgeType::IfTrue);
             self.cfg.add_edge(header, exit, CfgEdgeType::IfFalse);
@@ -1273,8 +1283,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::Branch,
                 line: node.start_position().row + 1,
                 text: "do".to_string(),
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             self.cfg.add_edge(header, body, CfgEdgeType::IfTrue);
             self.cfg.add_edge(header, exit, CfgEdgeType::IfFalse);
@@ -1390,8 +1400,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::Branch,
                 line: node.start_position().row + 1,
                 text: cond_text,
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             self.cfg.add_edge(header, body, CfgEdgeType::IfTrue);
             self.cfg.add_edge(header, exit, CfgEdgeType::IfFalse);
@@ -1481,8 +1491,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text: header_text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let body = self.new_block();
         let exit = self.new_block();
@@ -1534,8 +1544,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text: header_text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let body = self.new_block();
         let exit = self.new_block();
@@ -1586,8 +1596,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text: header_text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let body = self.new_block();
         let exit = self.new_block();
@@ -1630,8 +1640,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text: header_text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let body = self.new_block();
         let exit = self.new_block();
@@ -1708,8 +1718,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::Return,
                 line: node.start_position().row + 1,
                 text: "return".to_string(),
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             self.unwind_finallies(source)?;
             self.unwind_defers_to_exit(CfgEdgeType::Return);
@@ -1736,8 +1746,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::Return,
                 line: node.start_position().row + 1,
                 text: "return".to_string(),
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             self.unwind_finallies(source)?;
             self.unwind_defers_to_exit(CfgEdgeType::Return);
@@ -1797,8 +1807,8 @@ impl<'a> CfgBuilder<'a> {
                     kind: StatementKind::Expression,
                     line: d.line,
                     text: d.text,
-                    defined_vars: HashSet::new(),
-                    used_vars: HashSet::new(),
+                    defined_vars: SmallVec::new(),
+                    used_vars: SmallVec::new(),
                 });
             }
         }
@@ -1911,8 +1921,8 @@ impl<'a> CfgBuilder<'a> {
                         kind: StatementKind::Expression,
                         line: d.line,
                         text: d.text.clone(),
-                        defined_vars: HashSet::new(),
-                        used_vars: HashSet::new(),
+                        defined_vars: SmallVec::new(),
+                        used_vars: SmallVec::new(),
                     });
                 }
             }
@@ -1944,8 +1954,8 @@ impl<'a> CfgBuilder<'a> {
             kind,
             line: node.start_position().row + 1,
             text: parent_text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
 
         let body = node
@@ -2056,8 +2066,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::FunctionCall,
                 line: d.line,
                 text: d.text,
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             prev = b;
         }
@@ -2381,8 +2391,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::Branch,
                 line: cond.start_position().row + 1,
                 text,
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             self.cfg
                 .add_edge(self.current_block, false_dest, CfgEdgeType::IfFalse);
@@ -2393,8 +2403,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::Branch,
                 line: cond.start_position().row + 1,
                 text,
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             self.cfg
                 .add_edge(self.current_block, true_dest, CfgEdgeType::IfTrue);
@@ -2405,8 +2415,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: cond.start_position().row + 1,
             text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         self.note_setjmp_in_expr(cond, source);
         let from = self.current_block;
@@ -2440,8 +2450,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text: subject,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let cond_block = self.current_block;
         let merge = self.new_block();
@@ -2496,8 +2506,8 @@ impl<'a> CfgBuilder<'a> {
                     kind: StatementKind::Branch,
                     line: arm.start_position().row + 1,
                     text: pat_text,
-                    defined_vars: HashSet::new(),
-                    used_vars: HashSet::new(),
+                    defined_vars: SmallVec::new(),
+                    used_vars: SmallVec::new(),
                 });
                 self.cfg.add_edge(test, body, CfgEdgeType::IfTrue);
                 self.cfg.add_edge(test, fail, CfgEdgeType::IfFalse);
@@ -2568,8 +2578,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text: branch_text,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
 
         let merge = self.new_block();
@@ -2696,8 +2706,8 @@ impl<'a> CfgBuilder<'a> {
             kind: StatementKind::Branch,
             line: node.start_position().row + 1,
             text: subject,
-            defined_vars: HashSet::new(),
-            used_vars: HashSet::new(),
+            defined_vars: SmallVec::new(),
+            used_vars: SmallVec::new(),
         });
         let cond_block = self.current_block;
         let merge = self.new_block();
@@ -2728,8 +2738,8 @@ impl<'a> CfgBuilder<'a> {
                 kind: StatementKind::Branch,
                 line: arm.start_position().row + 1,
                 text: pat_text,
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             });
             if let Some(w) = when {
                 let mid = self.new_block();
@@ -2990,8 +3000,8 @@ impl<'a> CfgBuilder<'a> {
                         kind: StatementKind::Expression,
                         line: d.line,
                         text: d.text.clone(),
-                        defined_vars: HashSet::new(),
-                        used_vars: HashSet::new(),
+                        defined_vars: SmallVec::new(),
+                        used_vars: SmallVec::new(),
                     });
                 }
             }
@@ -3004,8 +3014,8 @@ impl<'a> CfgBuilder<'a> {
                         kind: StatementKind::Expression,
                         line: d.line,
                         text: d.text.clone(),
-                        defined_vars: HashSet::new(),
-                        used_vars: HashSet::new(),
+                        defined_vars: SmallVec::new(),
+                        used_vars: SmallVec::new(),
                     });
                 }
             }
@@ -3547,7 +3557,7 @@ fn loop_example(n: i32) -> i32 {
             .collect()
     }
 
-    fn rust_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<uuid::Uuid> {
+    fn rust_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<BlockId> {
         cfg.blocks
             .values()
             .filter(|b| b.statements.iter().any(|s| s.text.contains(needle)))
@@ -4122,7 +4132,7 @@ func Pick(err error) int {
         );
     }
 
-    fn block_ids_containing(cfg: &ControlFlowGraph, needle: &str) -> Vec<uuid::Uuid> {
+    fn block_ids_containing(cfg: &ControlFlowGraph, needle: &str) -> Vec<BlockId> {
         cfg.blocks
             .values()
             .filter(|b| b.statements.iter().any(|s| s.text.contains(needle)))
@@ -4272,7 +4282,7 @@ func AndOr(a, b, c bool) int {
         );
     }
 
-    fn can_reach(cfg: &ControlFlowGraph, from: uuid::Uuid, to: uuid::Uuid) -> bool {
+    fn can_reach(cfg: &ControlFlowGraph, from: BlockId, to: BlockId) -> bool {
         use std::collections::{HashSet, VecDeque};
         let mut seen = HashSet::new();
         let mut q = VecDeque::from([from]);
@@ -4563,7 +4573,7 @@ public class Demo {
             .collect()
     }
 
-    fn cs_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<uuid::Uuid> {
+    fn cs_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<BlockId> {
         cfg.blocks
             .values()
             .filter(|b| b.statements.iter().any(|s| s.text.contains(needle)))
@@ -5245,7 +5255,7 @@ int classify(int x) {
             .collect()
     }
 
-    fn c_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<uuid::Uuid> {
+    fn c_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<BlockId> {
         cfg.blocks
             .values()
             .filter(|b| b.statements.iter().any(|s| s.text.contains(needle)))
@@ -5613,7 +5623,7 @@ int sum_vec(int* arr, int n) {
             .collect()
     }
 
-    fn cpp_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<uuid::Uuid> {
+    fn cpp_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<BlockId> {
         cfg.blocks
             .values()
             .filter(|b| b.statements.iter().any(|s| s.text.contains(needle)))
@@ -5938,7 +5948,7 @@ function classify(v) {
             .collect()
     }
 
-    fn java_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<uuid::Uuid> {
+    fn java_block_ids(cfg: &ControlFlowGraph, needle: &str) -> Vec<BlockId> {
         cfg.blocks
             .values()
             .filter(|b| b.statements.iter().any(|s| s.text.contains(needle)))

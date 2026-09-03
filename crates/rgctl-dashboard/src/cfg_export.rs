@@ -194,14 +194,14 @@ fn dominance_frontiers_view(
     out
 }
 
-fn ordered_block_ids(index: &HashMap<Uuid, usize>) -> Vec<(usize, Uuid)> {
-    let mut ordered: Vec<(usize, Uuid)> = index.iter().map(|(id, idx)| (*idx, *id)).collect();
+fn ordered_block_ids(index: &HashMap<BlockId, usize>) -> Vec<(usize, BlockId)> {
+    let mut ordered: Vec<(usize, BlockId)> = index.iter().map(|(id, idx)| (*idx, *id)).collect();
     ordered.sort_by_key(|(idx, _)| *idx);
     ordered
 }
 
-fn index_blocks(cfg: &ControlFlowGraph) -> HashMap<Uuid, usize> {
-    let mut ids: Vec<Uuid> = cfg.blocks.keys().copied().collect();
+fn index_blocks(cfg: &ControlFlowGraph) -> HashMap<BlockId, usize> {
+    let mut ids: Vec<BlockId> = cfg.blocks.keys().copied().collect();
     ids.sort_by_key(|id| {
         cfg.blocks
             .get(id)
@@ -250,15 +250,15 @@ pub(crate) fn write_empty_cfg_index(index_path: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
     use rgctl_analysis::cfg::{
-        BasicBlock, CfgEdge, ControlFlowGraph, Statement, StatementKind,
+        BasicBlock, BlockId, CfgEdge, ControlFlowGraph, Statement, StatementKind,
     };
-    use std::collections::HashSet;
+    use smallvec::SmallVec;
 
     #[test]
     fn cfg_detail_assigns_block_indices() {
         let mut cfg = ControlFlowGraph::new();
         let entry = cfg.entry;
-        let exit = uuid::Uuid::new_v4();
+        let exit = BlockId(1);
         cfg.blocks.insert(
             exit,
             BasicBlock {
@@ -267,8 +267,8 @@ mod tests {
                     kind: StatementKind::Return,
                     line: 2,
                     text: "return x;".into(),
-                    defined_vars: HashSet::new(),
-                    used_vars: HashSet::new(),
+                    defined_vars: SmallVec::new(),
+                    used_vars: SmallVec::new(),
                 }],
                 start_line: 2,
                 end_line: 2,

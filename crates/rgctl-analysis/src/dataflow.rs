@@ -4,17 +4,20 @@
 //! **Complexity:** O(b · d) blocks × definition-set size; gen/kill built in O(total defs).
 
 use crate::cfg::{BasicBlock, BlockId, ControlFlowGraph};
+use crate::hash_maps::FxHashMap;
 use crate::pdg::ProgramDependenceGraph;
 use bit_set::BitSet;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 /// Result of reaching-definitions analysis.
 #[derive(Debug, Clone, Default)]
 pub struct ReachingDefs {
-    /// Definitions reaching the entry of each block.
-    pub in_set: HashMap<BlockId, HashSet<Definition>>,
-    /// Definitions reaching the exit of each block.
-    pub out_set: HashMap<BlockId, HashSet<Definition>>,
+    /// Definitions reaching the entry of each block (indices into [`Self::catalog`]).
+    pub in_set: FxHashMap<BlockId, BitSet>,
+    /// Definitions reaching the exit of each block (indices into [`Self::catalog`]).
+    pub out_set: FxHashMap<BlockId, BitSet>,
+    /// Definition catalog indexed by bit positions in the sets above.
+    pub catalog: DefCatalog,
 }
 
 /// A definition of a variable at a specific statement.
@@ -30,9 +33,12 @@ pub struct Definition {
     pub pdg_node: uuid::Uuid,
 }
 
-struct DefCatalog {
-    defs: Vec<Definition>,
-    by_var: HashMap<String, Vec<usize>>,
+/// Catalog of definitions with variable index for kill sets.
+#[derive(Debug, Clone, Default)]
+pub struct DefCatalog {
+    /// All definitions in stable index order.
+    pub defs: Vec<Definition>,
+    by_var: FxHashMap<String, Vec<usize>>,
 }
 
 impl DefCatalog {
@@ -47,17 +53,38 @@ impl DefCatalog {
     }
 }
 
+impl ReachingDefs {
+    /// Iterate definitions reaching the entry of `block`.
+    pub fn in_definitions<'a>(
+        &'a self,
+        block: BlockId,
+    ) -> impl Iterator<Item = &'a Definition> + 'a {
+        self.in_set
+            .get(&block)
+            .into_iter()
+            .flat_map(|bits| bits.iter().map(|idx| &self.catalog.defs[idx]))
+    }
+
+    /// Iterate definitions reaching the exit of `block`.
+    pub fn out_definitions<'a>(
+        &'a self,
+        block: BlockId,
+    ) -> impl Iterator<Item = &'a Definition> + 'a {
+        self.out_set
+            .get(&block)
+            .into_iter()
+            .flat_map(|bits| bits.iter().map(|idx| &self.catalog.defs[idx]))
+    }
+}
+
 /// Compute reaching definitions for all blocks in `cfg`.
 pub fn compute_reaching_definitions(
     cfg: &ControlFlowGraph,
     pdg: &ProgramDependenceGraph,
 ) -> ReachingDefs {
-    let mut catalog = DefCatalog {
-        defs: Vec::new(),
-        by_var: HashMap::new(),
-    };
-    let mut block_local_defs: HashMap<BlockId, Vec<usize>> =
-        HashMap::with_capacity(cfg.blocks.len());
+    let mut catalog = DefCatalog::default();
+    let mut block_local_defs: FxHashMap<BlockId, Vec<usize>> =
+        FxHashMap::with_capacity_and_hasher(cfg.blocks.len(), Default::default());
 
     for (&block_id, block) in &cfg.blocks {
         let mut local = Vec::new();
@@ -68,10 +95,14 @@ pub fn compute_reaching_definitions(
         block_local_defs.insert(block_id, local);
     }
 
-    let mut gen_sets: HashMap<BlockId, BitSet> = HashMap::with_capacity(cfg.blocks.len());
-    let mut kill_sets: HashMap<BlockId, BitSet> = HashMap::with_capacity(cfg.blocks.len());
-    let mut in_set_bits: HashMap<BlockId, BitSet> = HashMap::with_capacity(cfg.blocks.len());
-    let mut out_set_bits: HashMap<BlockId, BitSet> = HashMap::with_capacity(cfg.blocks.len());
+    let mut gen_sets: FxHashMap<BlockId, BitSet> =
+        FxHashMap::with_capacity_and_hasher(cfg.blocks.len(), Default::default());
+    let mut kill_sets: FxHashMap<BlockId, BitSet> =
+        FxHashMap::with_capacity_and_hasher(cfg.blocks.len(), Default::default());
+    let mut in_set_bits: FxHashMap<BlockId, BitSet> =
+        FxHashMap::with_capacity_and_hasher(cfg.blocks.len(), Default::default());
+    let mut out_set_bits: FxHashMap<BlockId, BitSet> =
+        FxHashMap::with_capacity_and_hasher(cfg.blocks.len(), Default::default());
 
     for &block_id in cfg.blocks.keys() {
         let local_defs = &block_local_defs[&block_id];
@@ -138,20 +169,11 @@ pub fn compute_reaching_definitions(
         }
     }
 
-    let bitset_to_hashset = |bits: &BitSet| -> HashSet<Definition> {
-        bits.iter().map(|idx| catalog.defs[idx].clone()).collect()
-    };
-
-    let in_set = in_set_bits
-        .into_iter()
-        .map(|(block, bits)| (block, bitset_to_hashset(&bits)))
-        .collect();
-    let out_set = out_set_bits
-        .into_iter()
-        .map(|(block, bits)| (block, bitset_to_hashset(&bits)))
-        .collect();
-
-    ReachingDefs { in_set, out_set }
+    ReachingDefs {
+        in_set: in_set_bits,
+        out_set: out_set_bits,
+        catalog,
+    }
 }
 
 fn collect_block_definitions(block: &BasicBlock, pdg: &ProgramDependenceGraph) -> Vec<Definition> {
@@ -200,8 +222,8 @@ fn example(condition: bool) {
             .find(|b| b.statements.iter().any(|s| s.text.contains("_y")))
             .expect("use block");
 
-        let x_defs: Vec<_> = reaching.in_set[&use_block.id]
-            .iter()
+        let x_defs: Vec<_> = reaching
+            .in_definitions(use_block.id)
             .filter(|d| d.variable == "x")
             .collect();
         assert!(x_defs.len() >= 2);
@@ -231,8 +253,8 @@ fn diamond(cond: bool) {
             .find(|b| b.statements.iter().any(|s| s.text.contains("_z")))
             .expect("merge block");
 
-        let x_defs: Vec<_> = reaching.in_set[&merge_block.id]
-            .iter()
+        let x_defs: Vec<_> = reaching
+            .in_definitions(merge_block.id)
             .filter(|d| d.variable == "x")
             .collect();
         assert!(
@@ -264,8 +286,8 @@ fn shadow() {
                 continue;
             }
             saw_double_def_block = true;
-            let out_x: Vec<_> = reaching.out_set[block_id]
-                .iter()
+            let out_x: Vec<_> = reaching
+                .out_definitions(*block_id)
                 .filter(|d| d.variable == "x")
                 .collect();
             assert_eq!(

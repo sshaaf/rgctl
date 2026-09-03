@@ -39,12 +39,14 @@ pub struct CodeSlice {
 fn variable_on_node(n: &crate::pdg::PdgNode, variable: &str) -> bool {
     n.defined_vars.contains(variable)
         || n.used_vars.contains(variable)
-        || n.defined_vars
-            .iter()
-            .any(|d| d.starts_with(&format!("{variable}.")))
-        || n.used_vars
-            .iter()
-            .any(|u| u.starts_with(&format!("{variable}.")))
+        || n.defined_vars.iter().any(|d| {
+            d.strip_prefix(variable)
+                .is_some_and(|rest| rest.starts_with('.'))
+        })
+        || n.used_vars.iter().any(|u| {
+            u.strip_prefix(variable)
+                .is_some_and(|rest| rest.starts_with('.'))
+        })
 }
 
 /// Options for [`compute_slice`].

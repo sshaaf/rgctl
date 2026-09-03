@@ -286,12 +286,8 @@ impl ProgramDependenceGraph {
                     id,
                     statement: stmt.clone(),
                     block: block.id,
-                    defined_vars: stmt
-                        .defined_vars
-                        .iter()
-                        .map(|d| d.name())
-                        .collect(),
-                    used_vars: stmt.used_vars.clone(),
+                    defined_vars: stmt.defined_vars.iter().map(|d| d.name()).collect(),
+                    used_vars: stmt.used_vars.iter().cloned().collect(),
                 };
                 self.block_nodes.entry(block.id).or_default().push(id);
                 self.nodes.insert(id, node);
@@ -312,18 +308,13 @@ impl ProgramDependenceGraph {
                 let used_vars = use_node.used_vars.clone();
 
                 for var in used_vars {
-                    if reaching.in_set.contains_key(&block.id) {
-                        for def in reaching.in_set[&block.id]
-                            .iter()
-                            .filter(|d| d.variable == var)
-                        {
-                            self.push_data_dep(
-                                def.pdg_node,
-                                use_id,
-                                var.clone(),
-                                DataDepType::Flow,
-                            );
-                        }
+                    for def in reaching.in_definitions(block.id).filter(|d| d.variable == var) {
+                        self.push_data_dep(
+                            def.pdg_node,
+                            use_id,
+                            var.clone(),
+                            DataDepType::Flow,
+                        );
                     }
 
                     for def_idx in 0..idx {

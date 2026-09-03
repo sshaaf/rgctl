@@ -232,8 +232,9 @@ fn type_matches(have: &str, want: &str) -> bool {
     }
     let have_n = normalize_type_name(have);
     have_n == want
-        || have_n.ends_with(&format!(".{want}"))
-        || have_n.ends_with(&format!("::{want}"))
+        || have_n
+            .strip_suffix(want)
+            .is_some_and(|prefix| prefix.ends_with('.') || prefix.ends_with("::"))
 }
 
 fn normalize_type_name(name: &str) -> String {
@@ -496,8 +497,8 @@ mod tests {
                 kind: StatementKind::Assignment,
                 line,
                 text: text.to_string(),
-                defined_vars,
-                used_vars: HashSet::new(),
+                defined_vars: defined_vars.into_iter().collect(),
+                used_vars: SmallVec::new(),
             });
             block.start_line = line;
             block.end_line = line;

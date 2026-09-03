@@ -35,6 +35,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 zstd = { workspace = true }
 memmap2 = "0.9"
 rayon = { workspace = true }
+smallvec = { version = "1", features = ["serde"] }
+rustc-hash = "2"
 
 [features]
 default = []

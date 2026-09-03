@@ -242,13 +242,18 @@ pub fn run_cfg_analysis_batch(
         }
     }
 
+    let pack = storage.open_pack_writer().unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "analysis pack writer failed; skipping CFG persistence");
+        Mutex::new(None)
+    });
     with_large_stack(|| {
         with_large_pool(options.thread_count, || {
             saves.par_iter().for_each(|analysis| {
-                let _ = storage.save_function_no_index(analysis);
+                let _ = storage.save_function_no_index_packed(analysis, &pack);
             });
         });
     });
+    let _ = AnalysisStorage::finish_pack(pack);
     let _ = storage.refresh_analysis_index_from_analyses(&saves);
 
     let active_keys = active_stable_keys(functions, Some(&sources));

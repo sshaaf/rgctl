@@ -149,8 +149,8 @@ fn pdg_node_label(index: usize) -> String {
     format!("node_{index}")
 }
 
-fn index_cfg_blocks(cfg: &ControlFlowGraph) -> HashMap<uuid::Uuid, usize> {
-    let mut ids: Vec<uuid::Uuid> = cfg.blocks.keys().copied().collect();
+fn index_cfg_blocks(cfg: &ControlFlowGraph) -> HashMap<rgctl_analysis::cfg::BlockId, usize> {
+    let mut ids: Vec<rgctl_analysis::cfg::BlockId> = cfg.blocks.keys().copied().collect();
     ids.sort_by_key(|id| {
         cfg.blocks
             .get(id)
@@ -178,6 +178,7 @@ mod tests {
     use super::*;
     use rgctl_analysis::cfg::{ControlFlowGraph, DefVar, Statement, StatementKind};
     use rgctl_analysis::pdg::ProgramDependenceGraph;
+    use smallvec::SmallVec;
     use std::collections::HashSet;
 
     #[test]
@@ -192,7 +193,7 @@ mod tests {
                 kind: StatementKind::Assignment,
                 line: 1,
                 text: "x = 1".into(),
-                defined_vars: HashSet::from([DefVar::local("x")]),
+                defined_vars: SmallVec::from([DefVar::local("x")]),
                 used_vars: HashSet::new(),
             });
         let pdg = ProgramDependenceGraph::build(&cfg, b"x = 1\n").unwrap();

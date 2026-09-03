@@ -1,6 +1,7 @@
 //! Definition and use extraction from tree-sitter AST nodes.
 
 use crate::cfg::DefVar;
+use smallvec::SmallVec;
 use std::collections::HashSet;
 use tree_sitter::Node;
 
@@ -8,7 +9,7 @@ use tree_sitter::Node;
 const AST_WALK_MAX_DEPTH: usize = 2048;
 
 /// Extract variables defined and used in a statement node.
-pub fn extract_def_use(node: Node, source: &[u8]) -> (HashSet<DefVar>, HashSet<String>) {
+pub fn extract_def_use(node: Node, source: &[u8]) -> (SmallVec<[DefVar; 2]>, SmallVec<[String; 3]>) {
     let mut defined = HashSet::new();
     let mut used = HashSet::new();
     let mut stack = vec![(node, false, 0usize)];
@@ -23,7 +24,7 @@ pub fn extract_def_use(node: Node, source: &[u8]) -> (HashSet<DefVar>, HashSet<S
             &mut stack,
         );
     }
-    (defined, used)
+    (defined.into_iter().collect(), used.into_iter().collect())
 }
 
 type DefUseStack<'a> = Vec<(Node<'a>, bool, usize)>;
@@ -459,7 +460,7 @@ fn collect_pattern_defs(node: Node, source: &[u8], defined: &mut HashSet<DefVar>
 /// Collect all identifier uses under a subtree.
 pub fn extract_used_variables(node: Node, source: &[u8]) -> HashSet<String> {
     let (_, used) = extract_def_use(node, source);
-    used
+    used.into_iter().collect()
 }
 
 #[cfg(test)]
@@ -518,7 +519,7 @@ mod tests {
         let _ = extract_def_use(tree.root_node(), source.as_bytes());
     }
 
-    fn defs_has(defs: &std::collections::HashSet<DefVar>, name: &str) -> bool {
+    fn defs_has(defs: &[DefVar], name: &str) -> bool {
         defs.iter().any(|d| d.defines_name(name))
     }
 
@@ -529,7 +530,7 @@ mod tests {
         let let_node = find_kind(tree.root_node(), "let_declaration").unwrap();
         let (defs, uses) = extract_def_use(let_node, source.as_bytes());
         assert!(defs_has(&defs, "x"));
-        assert!(uses.contains("a"));
+        assert!(uses.iter().any(|u| u == "a"));
     }
 
     #[test]
@@ -539,7 +540,7 @@ mod tests {
         let assign = find_kind(tree.root_node(), "assignment").unwrap();
         let (defs, uses) = extract_def_use(assign, source.as_bytes());
         assert!(defs_has(&defs, "x"));
-        assert!(uses.contains("a"));
+        assert!(uses.iter().any(|u| u == "a"));
     }
 
     #[test]
@@ -566,7 +567,7 @@ mod tests {
             defs_has(&for_defs, "k") || defs_has(&for_defs, "v"),
             "for defs: {for_defs:?}"
         );
-        assert!(for_uses.contains("m"));
+        assert!(for_uses.iter().any(|u| u == "m"));
     }
 
     #[test]
@@ -596,7 +597,7 @@ mod tests {
             "defs should include order.status, got {defs:?}"
         );
         assert!(
-            uses.contains("order"),
+            uses.iter().any(|u| u == "order"),
             "uses should include order, got {uses:?}"
         );
     }
@@ -616,11 +617,11 @@ mod tests {
             "defs should include other, got {defs:?}"
         );
         assert!(
-            uses.contains("order"),
+            uses.iter().any(|u| u == "order"),
             "uses should include order, got {uses:?}"
         );
         assert!(
-            !uses.contains("other"),
+            !uses.iter().any(|u| u == "other"),
             "declarator name must not be a use, got {uses:?}"
         );
     }
