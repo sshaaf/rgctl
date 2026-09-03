@@ -5,6 +5,11 @@
 
 use rgctl_plugin_api::*;
 use rgctl_plugin_api::{Error, Result};
+
+use crate::extract_depth::{
+    extract_mod_symbol, extract_trait_symbols, extract_use_symbols, module_prefix_from_path,
+    qualify_with_module, walk_depth_relations,
+};
 use std::path::Path;
 use tree_sitter::{Node, Parser};
 
@@ -81,16 +86,24 @@ impl RustPlugin {
         })?;
 
         let impl_type = self.find_containing_impl_type(node, source);
+        let module_prefix = module_prefix_from_path(Path::new(file_path));
         let is_constructor = raw_name == "new" && impl_type.is_some();
         let (qualified_name, metadata) = if is_constructor {
             let ty = impl_type.clone().unwrap_or_else(|| "Unknown".to_string());
+            let local = format!("{ty}::<init>");
             (
-                Some(format!("{ty}::<init>")),
+                Some(qualify_with_module(module_prefix.as_deref(), &local)),
                 serde_json::json!({ "language": "rust", "is_constructor": true }),
             )
         } else if let Some(ty) = impl_type {
+            let local = format!("{ty}::{raw_name}");
             (
-                Some(format!("{ty}::{raw_name}")),
+                Some(qualify_with_module(module_prefix.as_deref(), &local)),
+                serde_json::json!({ "language": "rust" }),
+            )
+        } else if let Some(prefix) = module_prefix.as_deref() {
+            (
+                Some(qualify_with_module(Some(prefix), &raw_name)),
                 serde_json::json!({ "language": "rust" }),
             )
         } else {
@@ -240,6 +253,9 @@ impl RustPlugin {
             message: format!("{} missing name", if is_enum { "Enum" } else { "Struct" }),
         })?;
 
+        let module_prefix = module_prefix_from_path(Path::new(file_path));
+        let qn = qualify_with_module(module_prefix.as_deref(), &name);
+
         Ok(Symbol {
             name: name.clone(),
             symbol_type: if is_enum {
@@ -247,7 +263,7 @@ impl RustPlugin {
             } else {
                 SymbolType::Struct
             },
-            qualified_name: None,
+            qualified_name: Some(qn),
             location: SourceLocation {
                 file: file_path.to_string(),
                 start_line: node.start_position().row + 1,
@@ -436,11 +452,13 @@ impl RustPlugin {
     ) -> Result<Vec<Symbol>> {
         let mut symbols = Vec::new();
         let file_path_str = file_path.to_string_lossy();
+        let module_prefix = module_prefix_from_path(file_path);
 
         fn traverse_for_symbols(
             node: Node,
             source: &[u8],
             file_path: &str,
+            module_prefix: Option<&str>,
             symbols: &mut Vec<Symbol>,
             plugin: &RustPlugin,
         ) -> Result<()> {
@@ -454,18 +472,41 @@ impl RustPlugin {
                 "enum_item" => {
                     symbols.push(plugin.extract_type_definition(node, source, file_path, true)?);
                 }
+                "use_declaration" => {
+                    symbols.extend(extract_use_symbols(node, source, file_path));
+                }
+                "mod_item" => {
+                    if let Some(m) = extract_mod_symbol(node, source, file_path) {
+                        symbols.push(m);
+                    }
+                }
+                "trait_item" => {
+                    symbols.extend(extract_trait_symbols(
+                        node,
+                        source,
+                        file_path,
+                        module_prefix,
+                    ));
+                }
                 _ => {}
             }
 
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
-                traverse_for_symbols(child, source, file_path, symbols, plugin)?;
+                traverse_for_symbols(child, source, file_path, module_prefix, symbols, plugin)?;
             }
 
             Ok(())
         }
 
-        traverse_for_symbols(root, source, &file_path_str, &mut symbols, self)?;
+        traverse_for_symbols(
+            root,
+            source,
+            &file_path_str,
+            module_prefix.as_deref(),
+            &mut symbols,
+            self,
+        )?;
         Ok(symbols)
     }
 
@@ -486,6 +527,7 @@ impl RustPlugin {
             "rust",
             &mut relations,
         );
+        walk_depth_relations(root, source, file_path, symbols, &mut relations);
         Ok(relations)
     }
 }
@@ -856,6 +898,66 @@ fn helper() {}
                 .iter()
                 .any(|r| matches!(r.relation_type, RelationType::Calls) && r.to == "helper"),
             "expected Calls -> helper, got {relations:?}"
+        );
+    }
+
+    #[test]
+    fn test_extract_use_imports() {
+        let source = br#"use crate::services::order;
+use uuid::Uuid as Id;
+
+fn main() {}
+"#;
+        let plugin = RustPlugin::new().unwrap();
+        let symbols = plugin
+            .extract_symbols(Path::new("src/main.rs"), source)
+            .unwrap();
+        let imports: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Import)
+            .collect();
+        assert!(imports.len() >= 2, "{imports:?}");
+        assert!(imports.iter().any(|i| i.name == "order"));
+        assert!(imports.iter().any(|i| i.name == "Id"));
+    }
+
+    #[test]
+    fn test_extract_impl_implements_and_derive() {
+        let source = br#"
+#[derive(Debug)]
+struct Item { v: i32 }
+
+impl Default for Item {
+    fn default() -> Self { Item { v: 0 } }
+}
+"#;
+        let plugin = RustPlugin::new().unwrap();
+        let path = Path::new("src/item.rs");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(
+            relations.iter().any(|r| {
+                r.relation_type == RelationType::Implements
+                    && r.from.ends_with("Item")
+                    && r.to == "Default"
+            }),
+            "Implements: {relations:?}"
+        );
+        assert!(
+            relations.iter().any(|r| {
+                r.relation_type == RelationType::AnnotatedWith
+                    && r.from.ends_with("Item")
+                    && r.to == "derive"
+            }),
+            "AnnotatedWith: {relations:?}"
+        );
+        let item = symbols
+            .iter()
+            .find(|s| s.name == "Item" && s.symbol_type == SymbolType::Struct)
+            .expect("struct");
+        assert_eq!(
+            item.qualified_name.as_deref(),
+            Some("item::Item")
         );
     }
 }

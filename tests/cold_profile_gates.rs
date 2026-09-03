@@ -29,6 +29,8 @@ const LINUX_COLD_MAX_NODES: u64 = 2_800_000;
 const METASFRESH_COLD_WALL_BASELINE_SECS: f64 = 74.0;
 /// Establish on maintainer machine; override via `RGCTL_KAFKA_COLD_BASELINE_SECS`.
 const KAFKA_COLD_WALL_BASELINE_SECS: f64 = 600.0;
+/// `rust-lang/rust` `library/` + `compiler/` with `-l rust`. Establish on maintainer machine.
+const RUST_COLD_WALL_BASELINE_SECS: f64 = 900.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
 const K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS: f64 = 3.0;
 /// ecommerce-java default discover cold wall (inheritance stub gate).
@@ -81,6 +83,12 @@ pub fn ecommerce_java_repo_path() -> PathBuf {
         .unwrap_or_else(|_| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests/ecommerce-java")
         })
+}
+
+pub fn rust_repo_path() -> PathBuf {
+    std::env::var("RGCTL_RUST_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/rust"))
 }
 
 pub fn parse_profile_summary(log: &str) -> Option<ProfileSummary> {
@@ -378,6 +386,39 @@ fn kafka_cold_discover_within_baseline() {
         profile.wall_secs, profile.nodes, profile.functions, baseline
     );
     assert_within_baseline("kafka cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/rust (library + compiler, -l rust)"]
+fn rust_cold_discover_within_baseline() {
+    let repo = rust_repo_path();
+    if !repo.is_dir() {
+        eprintln!("skip: rust not at {}", repo.display());
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_RUST_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(RUST_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "rust"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "rust cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("rust cold discover", elapsed, baseline);
 }
 
 #[test]

@@ -127,12 +127,18 @@ pub fn push_call_relation(
         .clone()
         .unwrap_or_else(|| from_fn.name.clone());
 
-    let (to_type_hint, to_qualified_hint) = if language == "go" {
-        let ty = go_call_type_hint(node, source, symbols, from_fn);
-        let qh = ty.as_ref().map(|t| format!("{t}.{callee}"));
-        (ty, qh)
-    } else {
-        (None, None)
+    let (to_type_hint, to_qualified_hint) = match language {
+        "go" => {
+            let ty = go_call_type_hint(node, source, symbols, from_fn);
+            let qh = ty.as_ref().map(|t| format!("{t}.{callee}"));
+            (ty, qh)
+        }
+        "rust" => {
+            let ty = rust_call_type_hint(node, source, symbols, from_fn);
+            let qh = ty.as_ref().map(|t| format!("{t}.{callee}"));
+            (ty, qh)
+        }
+        _ => (None, None),
     };
 
     let mut meta = serde_json::json!({ "language": language });
@@ -142,6 +148,11 @@ pub fn push_call_relation(
         meta["go_recv_type"] = serde_json::Value::String(recv_ty);
         meta["go_field"] = serde_json::Value::String(field);
         meta["go_callee"] = serde_json::Value::String(callee.clone());
+    }
+    if language == "rust" {
+        if let Some(unresolved) = rust_call_unresolved(node, source) {
+            meta["unresolved"] = serde_json::Value::Bool(unresolved);
+        }
     }
 
     // Prefer a unique same-file match; if ambiguous, keep bare name and rely on hints.
@@ -288,6 +299,116 @@ fn go_call_type_hint(
     }
 
     None
+}
+
+/// Best-effort Rust type for `receiver.field.method()` and param-typed calls.
+fn rust_call_type_hint(
+    call: Node,
+    source: &[u8],
+    symbols: &[Symbol],
+    from_fn: &Symbol,
+) -> Option<String> {
+    let func = call
+        .child_by_field_name("function")
+        .or_else(|| call.child_by_field_name("macro"))?;
+    if func.kind() == "field_expression" {
+        let value = func.child_by_field_name("value")?;
+        let field = func.child_by_field_name("field")?;
+        let field_name = field.utf8_text(source).ok()?;
+        if value.kind() == "identifier" {
+            let recv = value.utf8_text(source).ok()?;
+            if let Some(param) = from_fn
+                .parameters
+                .iter()
+                .find(|p| p.name == recv)
+                .and_then(|p| p.param_type.as_deref())
+            {
+                return Some(rust_simple_type_name(param));
+            }
+        }
+        if value.kind() == "field_expression" {
+            let inner = value.child_by_field_name("value")?;
+            let inner_field = value.child_by_field_name("field")?;
+            if inner.kind() == "identifier" {
+                let recv = inner.utf8_text(source).ok()?;
+                let inner_name = inner_field.utf8_text(source).ok()?;
+                if let Some(param) = from_fn
+                    .parameters
+                    .iter()
+                    .find(|p| p.name == recv)
+                    .and_then(|p| p.param_type.as_deref())
+                {
+                    let owner_ty = rust_simple_type_name(param);
+                    let owner = symbols.iter().find(|s| {
+                        matches!(s.symbol_type, SymbolType::Struct | SymbolType::Enum)
+                            && s.name == owner_ty
+                    })?;
+                    return owner
+                        .fields
+                        .iter()
+                        .find(|f| f.name == inner_name)
+                        .and_then(|f| f.field_type.as_deref())
+                        .map(rust_simple_type_name);
+                }
+            }
+        }
+        // `self.field` in inherent methods — match param named self with &Type
+        if value.kind() == "self" || value.utf8_text(source).ok() == Some("self") {
+            if let Some(self_ty) = from_fn
+                .parameters
+                .iter()
+                .find(|p| p.name == "self" || p.name == "&self" || p.name == "&mut self")
+                .and_then(|p| p.param_type.as_deref())
+            {
+                let owner_ty = rust_simple_type_name(self_ty);
+                let owner = symbols.iter().find(|s| {
+                    matches!(s.symbol_type, SymbolType::Struct | SymbolType::Enum)
+                        && s.name == owner_ty
+                })?;
+                return owner
+                    .fields
+                    .iter()
+                    .find(|f| f.name == field_name)
+                    .and_then(|f| f.field_type.as_deref())
+                    .map(rust_simple_type_name);
+            }
+        }
+    }
+    None
+}
+
+fn rust_call_unresolved(call: Node, source: &[u8]) -> Option<bool> {
+    let func = call
+        .child_by_field_name("function")
+        .or_else(|| call.child_by_field_name("macro"))?;
+    if call.kind() == "macro_invocation" {
+        return Some(true);
+    }
+    if func.kind() == "field_expression" {
+        let value = func.child_by_field_name("value")?;
+        if value.kind() != "identifier" && value.kind() != "self" && value.kind() != "field_expression"
+        {
+            return Some(true);
+        }
+    }
+    if func.kind() == "parenthesized_expression" {
+        return Some(true);
+    }
+    let _ = source;
+    None
+}
+
+fn rust_simple_type_name(ty: &str) -> String {
+    ty.trim_start_matches('&')
+        .trim_start_matches("mut ")
+        .trim()
+        .rsplit("::")
+        .next()
+        .unwrap_or(ty)
+        .split('<')
+        .next()
+        .unwrap_or(ty)
+        .to_string()
 }
 
 /// `*pkg.Type` / `pkg.Type` → `Type` for Go resolution indexes.

@@ -134,6 +134,16 @@ Required for high-quality `cpg mutations` / typed field writes. Reference: Java 
 - No full reflection / retention-policy analysis.
 - GQL gates: `cargo test --test java_langfeatures` (fixture `tests/fixtures/java/langfeatures`).
 
+**Rust extract honesty (rust-extraction-depth):**
+
+- `use` / `mod` → `Import` / `Module` symbols; no `cargo` workspace path resolution beyond `crate::` text.
+- `impl Trait for Type` → `Implements`; trait items as `Interface` symbols with `Trait::method` members.
+- `#[derive(...)]` and attribute paths → `AnnotatedWith` (proc-macro bodies not expanded).
+- Module-prefix FQNs from `src/` path (`services::order::Foo::bar`); not full `rustc` name resolution.
+- `struct { ... }`, `Type::new()`, `Type::default()` → `Instantiates`; field reads → `References`.
+- `dyn Trait`, macros, and opaque callees → `metadata.unresolved` on `Calls`.
+- GQL gates: `cargo test --test rust_langfeatures` (fixture `rgctl-tests/ecommerce-rust`).
+
 ---
 
 ## 3. Repository layout
