@@ -51,6 +51,12 @@ pub struct GraphBuilder {
     indexes_built: bool,
     /// `OwnerType.field` → simple field type (for late Go selector resolution; spill-safe).
     field_type_index: HashMap<String, String>,
+    /// Symbol node id → defining file path (for C header/.c disambiguation).
+    symbol_files: HashMap<Uuid, String>,
+    /// Precomputed bare-name → `.c` implementation when header/translation-unit pairs collide.
+    c_preferred_impl: HashMap<String, Uuid>,
+    /// Lazy cache for bare suffix lookups during pass 2 (positive hits only).
+    suffix_resolve_cache: HashMap<String, Uuid>,
     /// When false (default discover), `Symbol.fields` stay on symbols only — no Variable nodes.
     materialize_fields: bool,
 }
@@ -276,11 +282,26 @@ impl GraphBuilder {
         file_id: Uuid,
         body: Option<&str>,
     ) -> Uuid {
-        let key = symbol_key(
+        let mut key = symbol_key(
             &symbol.location.file,
             &symbol.name,
             symbol.qualified_name.as_deref(),
         );
+        // C `#include` paths are per-translation-unit; dedupe globally by path string
+        // so kernel-scale repos do not materialize one Import node per occurrence.
+        if symbol.symbol_type == SymbolType::Import
+            && symbol
+                .metadata
+                .get("kind")
+                .and_then(|v| v.as_str())
+                == Some("include")
+        {
+            key = format!("c_include::{}", symbol.name);
+            if let Some(&id) = self.symbol_index.get(&key) {
+                self.add_edge(file_id, id, EdgeType::Uses);
+                return id;
+            }
+        }
         if let Some(id) = self.symbol_index.get(&key) {
             return *id;
         }
@@ -351,6 +372,8 @@ impl GraphBuilder {
 
         let id = node.id;
         self.symbol_index.insert(key.clone(), id);
+        self.symbol_files
+            .insert(id, symbol.location.file.clone());
         self.index_symbol_resolution(&key, &node);
         self.commit_node(node);
         self.add_edge(id, file_id, EdgeType::DefinedIn);
@@ -465,14 +488,31 @@ impl GraphBuilder {
             }
         }
 
+        self.build_c_preferred_impl();
+
         self.indexes_built = true;
 
         info!(
             symbol_count = self.symbol_index.len(),
             qualified_count = self.symbols_by_qualified.len(),
             suffix_count = self.symbols_by_suffix.len(),
+            c_preferred_impl = self.c_preferred_impl.len(),
             "built resolution indexes"
         );
+    }
+
+    /// Precompute `.c` preference for header/implementation name collisions (C Tier 1).
+    fn build_c_preferred_impl(&mut self) {
+        self.c_preferred_impl.clear();
+        self.suffix_resolve_cache.clear();
+        for (suffix, ids) in &self.symbols_by_suffix {
+            if unique_resolved(ids).is_some() {
+                continue;
+            }
+            if let Some(id) = single_c_preferred_impl(ids, &self.symbol_files) {
+                self.c_preferred_impl.insert(suffix.clone(), id);
+            }
+        }
     }
 
     /// Add a configuration key node linked to its file.
@@ -501,6 +541,24 @@ impl GraphBuilder {
     /// external stub nodes (`is_external_stub`) so Instantiates / JPMS /
     /// AnnotatedWith / References edges survive into GQL.
     pub fn add_relation(&mut self, relation: &Relation) -> Result<()> {
+        // Fast reject: unresolved cross-file C calls (no stub policy for Calls).
+        if relation.relation_type == RelationType::Calls
+            && relation.metadata.get("language").and_then(|v| v.as_str()) == Some("c")
+            && !self.c_preferred_impl.contains_key(&relation.to)
+            && !self.suffix_resolve_cache.contains_key(&relation.to)
+        {
+            let can_resolve = self
+                .symbols_by_suffix
+                .get(&relation.to)
+                .is_some_and(|ids| {
+                    unique_resolved(ids).is_some()
+                        || single_c_preferred_impl(ids, &self.symbol_files).is_some()
+                });
+            if !can_resolve {
+                return Ok(());
+            }
+        }
+
         let mut from_id =
             self.resolve_symbol_tracked(&relation.from, &relation.location.file, None, None);
         if from_id.is_none() {
@@ -859,12 +917,28 @@ impl GraphBuilder {
             }
         }
 
-        // 4. Fallback: suffix index — None when zero or multiple candidates
+        // 4. Fallback: suffix index — `.c` preference map, then lazy cache, then live lookup.
         self.resolution_stats.fuzzy_scans += 1;
-        let result = self
-            .symbols_by_suffix
-            .get(name)
-            .and_then(|ids| unique_resolved(ids));
+        let result = if qualified_hint.is_none() && type_hint.is_none() {
+            if let Some(id) = self.c_preferred_impl.get(name) {
+                Some(*id)
+            } else if let Some(id) = self.suffix_resolve_cache.get(name) {
+                Some(*id)
+            } else {
+                let resolved = self.symbols_by_suffix.get(name).and_then(|ids| {
+                    unique_resolved(ids)
+                        .or_else(|| single_c_preferred_impl(ids, &self.symbol_files))
+                });
+                if let Some(id) = resolved {
+                    self.suffix_resolve_cache.insert(name.to_string(), id);
+                }
+                resolved
+            }
+        } else {
+            self.symbols_by_suffix
+                .get(name)
+                .and_then(|ids| unique_resolved(ids))
+        };
 
         if result.is_some() {
             self.resolution_stats.fuzzy_hits += 1;
@@ -1030,6 +1104,34 @@ fn unique_resolved(ids: &[Uuid]) -> Option<Uuid> {
         [first, rest @ ..] if rest.iter().all(|id| id == first) => Some(*first),
         _ => None,
     }
+}
+
+/// When a C symbol appears in both `.h` and `.c`, prefer the sole `.c` definition.
+fn single_c_preferred_impl(ids: &[Uuid], symbol_files: &HashMap<Uuid, String>) -> Option<Uuid> {
+    let mut c_impl = None;
+    for id in ids {
+        if symbol_files
+            .get(id)
+            .is_some_and(|path| path.ends_with(".c"))
+        {
+            if c_impl.is_some() {
+                return None;
+            }
+            c_impl = Some(*id);
+        }
+    }
+    c_impl
+}
+
+/// When a C symbol appears in both `.h` and `.c`, prefer the `.c` definition.
+fn unique_resolved_prefer_source_file(
+    ids: &[Uuid],
+    symbol_files: &HashMap<Uuid, String>,
+) -> Option<Uuid> {
+    if let Some(id) = unique_resolved(ids) {
+        return Some(id);
+    }
+    single_c_preferred_impl(ids, symbol_files)
 }
 
 fn should_sketch_symbol(symbol_type: SymbolType) -> bool {
@@ -1664,6 +1766,64 @@ mod tests {
                 .iter()
                 .any(|e| { e.edge_type == EdgeType::AnnotatedWith && e.to == stub.id })
         );
+    }
+
+    #[test]
+    fn c_header_and_source_disambiguate_to_dot_c() {
+        let mut builder = GraphBuilder::new();
+        let header = builder.ensure_file_node(Path::new("cart_service.h"));
+        let source = builder.ensure_file_node(Path::new("cart_service.c"));
+        let proto = Symbol {
+            name: "cart_add_item".to_string(),
+            symbol_type: SymbolType::Function,
+            qualified_name: Some("cart_service::cart_add_item".to_string()),
+            location: SourceLocation {
+                file: "cart_service.h".to_string(),
+                start_line: 1,
+                end_line: 1,
+                start_column: 0,
+                end_column: 1,
+            },
+            signature: None,
+            return_type: None,
+            parameters: vec![],
+            fields: vec![],
+            modifiers: vec![],
+            documentation: None,
+            metadata: serde_json::json!({ "language": "c" }),
+        };
+        let defn = Symbol {
+            location: SourceLocation {
+                file: "cart_service.c".to_string(),
+                start_line: 1,
+                end_line: 5,
+                start_column: 0,
+                end_column: 1,
+            },
+            ..proto.clone()
+        };
+        builder.add_symbol(&proto, header);
+        builder.add_symbol(&defn, source);
+        builder.build_resolution_indexes();
+
+        let rel = Relation {
+            from: "cart_service::cart_add_item".to_string(),
+            to: "cart_add_item".to_string(),
+            relation_type: RelationType::Calls,
+            location: SourceLocation {
+                file: "cart_service.c".to_string(),
+                start_line: 2,
+                end_line: 2,
+                start_column: 0,
+                end_column: 1,
+            },
+            metadata: serde_json::json!({ "language": "c" }),
+            to_qualified_hint: None,
+            to_type_hint: None,
+        };
+        let before = builder.edge_count();
+        builder.add_relation(&rel).unwrap();
+        assert_eq!(builder.edge_count(), before + 1);
     }
 
     #[test]

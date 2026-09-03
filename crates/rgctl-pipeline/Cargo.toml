@@ -14,6 +14,7 @@ rgctl-registry = { path = "../rgctl-registry" }
 indicatif = "0.17"
 rayon = "1.7"
 crossbeam = "0.8"
+tracing = "0.1"
 
 [dev-dependencies]
 tempfile = { workspace = true }

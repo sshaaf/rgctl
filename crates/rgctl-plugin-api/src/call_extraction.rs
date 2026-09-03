@@ -71,6 +71,19 @@ pub fn callee_name(root: Node, source: &[u8]) -> Option<String> {
                     stack.push((inner, depth + 1));
                 }
             }
+            "pointer_expression" => {
+                if let Some(arg) = node
+                    .child_by_field_name("argument")
+                    .or_else(|| node.named_child(0))
+                {
+                    stack.push((arg, depth + 1));
+                }
+            }
+            "cast_expression" => {
+                if let Some(inner) = node.child_by_field_name("expression") {
+                    stack.push((inner, depth + 1));
+                }
+            }
             "invocation_expression" => {
                 if let Some(n) = node.named_child(0) {
                     stack.push((n, depth + 1));
@@ -151,6 +164,11 @@ pub fn push_call_relation(
     }
     if language == "rust" {
         if let Some(unresolved) = rust_call_unresolved(node, source) {
+            meta["unresolved"] = serde_json::Value::Bool(unresolved);
+        }
+    }
+    if language == "c" {
+        if let Some(unresolved) = c_call_unresolved(node, source, from_fn) {
             meta["unresolved"] = serde_json::Value::Bool(unresolved);
         }
     }
@@ -395,6 +413,29 @@ fn rust_call_unresolved(call: Node, source: &[u8]) -> Option<bool> {
         return Some(true);
     }
     let _ = source;
+    None
+}
+
+/// Best-effort: function-pointer / indirect C calls.
+fn c_call_unresolved(call: Node, source: &[u8], from_fn: &Symbol) -> Option<bool> {
+    let func = call.child_by_field_name("function")?;
+    match func.kind() {
+        "identifier" => {
+            let name = func.utf8_text(source).ok()?;
+            if from_fn.parameters.iter().any(|p| p.name == name) {
+                return Some(true);
+            }
+        }
+        "pointer_expression" | "parenthesized_expression" => {
+            if let Some(name) = callee_name(func, source) {
+                if from_fn.parameters.iter().any(|p| p.name == name) {
+                    return Some(true);
+                }
+            }
+            return Some(true);
+        }
+        _ => {}
+    }
     None
 }
 

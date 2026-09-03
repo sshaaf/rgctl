@@ -4,6 +4,41 @@ use rgctl_plugin_api::*;
 use std::path::Path;
 use tree_sitter::{Node, Parser};
 
+/// File-scoped qualified name: `{file_stem}::{symbol}`.
+///
+/// Headers and `.c` files that share a stem (e.g. `cart.h` / `cart.c`) may emit
+/// duplicate qualified names — disambiguate with `file_path` or the full
+/// `{file}::{qualified_name}` symbol key in the graph.
+fn file_qualified_name(file_path: &str, symbol_name: &str) -> String {
+    let stem = Path::new(file_path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown");
+    format!("{stem}::{symbol_name}")
+}
+
+/// Strip angle brackets / quotes from a `#include` path token.
+fn normalize_include_path(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let stripped = trimmed
+        .trim_start_matches('#')
+        .trim_start_matches("include")
+        .trim();
+    stripped
+        .trim_matches(|c| c == '<' || c == '>' || c == '"')
+        .trim()
+        .to_string()
+}
+
+fn include_path_from_node(node: Node, source: &[u8]) -> Result<String> {
+    if let Some(path) = node.child_by_field_name("path") {
+        let raw = path.utf8_text(source)?;
+        return Ok(normalize_include_path(raw));
+    }
+    let raw = node.utf8_text(source)?;
+    Ok(normalize_include_path(raw))
+}
+
 /// C language plugin.
 pub struct CPlugin {
     _parser: Parser,
@@ -46,7 +81,7 @@ impl CPlugin {
         Ok(Some(Symbol {
             name: name.clone(),
             symbol_type: SymbolType::Function,
-            qualified_name: None,
+            qualified_name: Some(file_qualified_name(file_path, &name)),
             location: source_location(node, file_path),
             signature: Some(first_line(node, source)),
             return_type: None,
@@ -60,19 +95,36 @@ impl CPlugin {
 
     /// F1: struct fields from `field_declaration` in `field_declaration_list`.
     /// F2: C has no real constructors — do not invent fake ctor symbols.
-    fn extract_struct(&self, node: Node, source: &[u8], file_path: &str) -> Result<Symbol> {
-        let name = struct_name(node, source).ok_or_else(|| Error::ParseError {
-            file: file_path.into(),
-            line: node.start_position().row + 1,
-            message: "Struct missing name".to_string(),
-        })?;
+    fn extract_struct(
+        &self,
+        node: Node,
+        source: &[u8],
+        file_path: &str,
+        typedef_name: Option<&str>,
+    ) -> Result<Symbol> {
+        let struct_tag = struct_name(node, source);
+        let name = typedef_name
+            .map(str::to_string)
+            .or_else(|| struct_tag.clone())
+            .ok_or_else(|| Error::ParseError {
+                file: file_path.into(),
+                line: node.start_position().row + 1,
+                message: "Struct missing name".to_string(),
+            })?;
 
         let fields = extract_struct_fields(node, source)?;
+
+        let mut metadata = serde_json::json!({ "language": "c" });
+        if let (Some(alias), Some(tag)) = (typedef_name, struct_tag.as_deref()) {
+            if alias != tag {
+                metadata["underlying_type"] = serde_json::Value::String(tag.to_string());
+            }
+        }
 
         Ok(Symbol {
             name: name.clone(),
             symbol_type: SymbolType::Struct,
-            qualified_name: None,
+            qualified_name: Some(file_qualified_name(file_path, &name)),
             location: source_location(node, file_path),
             signature: None,
             return_type: None,
@@ -80,24 +132,44 @@ impl CPlugin {
             fields,
             modifiers: vec![],
             documentation: None,
-            metadata: serde_json::json!({ "language": "c" }),
+            metadata,
         })
     }
 
     fn extract_enum(&self, node: Node, source: &[u8], file_path: &str) -> Result<Symbol> {
-        let name = node
+        self.extract_enum_with_typedef(node, source, file_path, None)
+    }
+
+    fn extract_enum_with_typedef(
+        &self,
+        node: Node,
+        source: &[u8],
+        file_path: &str,
+        typedef_name: Option<&str>,
+    ) -> Result<Symbol> {
+        let enum_tag = node
             .child_by_field_name("name")
-            .and_then(|n| n.utf8_text(source).ok().map(str::to_string))
+            .and_then(|n| n.utf8_text(source).ok().map(str::to_string));
+        let name = typedef_name
+            .map(str::to_string)
+            .or_else(|| enum_tag.clone())
             .ok_or_else(|| Error::ParseError {
                 file: file_path.into(),
                 line: node.start_position().row + 1,
                 message: "Enum missing name".to_string(),
             })?;
 
+        let mut metadata = serde_json::json!({ "language": "c" });
+        if let (Some(alias), Some(tag)) = (typedef_name, enum_tag.as_deref()) {
+            if alias != tag {
+                metadata["underlying_type"] = serde_json::Value::String(tag.to_string());
+            }
+        }
+
         Ok(Symbol {
             name: name.clone(),
             symbol_type: SymbolType::Enum,
-            qualified_name: None,
+            qualified_name: Some(file_qualified_name(file_path, &name)),
             location: source_location(node, file_path),
             signature: None,
             return_type: None,
@@ -105,7 +177,7 @@ impl CPlugin {
             fields: vec![],
             modifiers: vec![],
             documentation: None,
-            metadata: serde_json::json!({ "language": "c" }),
+            metadata,
         })
     }
 
@@ -169,7 +241,7 @@ impl CPlugin {
                 }
                 "struct_specifier" => {
                     if struct_name(node, source).is_some() {
-                        symbols.push(self.extract_struct(node, source, file_path)?);
+                        symbols.push(self.extract_struct(node, source, file_path, None)?);
                     }
                 }
                 "enum_specifier" => {
@@ -178,23 +250,34 @@ impl CPlugin {
                     }
                 }
                 "type_definition" => {
+                    let typedef_name = type_definition_typedef_name(node, source);
                     let mut cursor = node.walk();
                     for child in node.children(&mut cursor) {
                         if child.kind() == "struct_specifier"
-                            && struct_name(child, source).is_some()
+                            && (struct_name(child, source).is_some() || typedef_name.is_some())
                         {
-                            symbols.push(self.extract_struct(child, source, file_path)?);
+                            symbols.push(
+                                self.extract_struct(child, source, file_path, typedef_name.as_deref())?,
+                            );
                         } else if child.kind() == "enum_specifier"
-                            && child.child_by_field_name("name").is_some()
+                            && (child.child_by_field_name("name").is_some()
+                                || typedef_name.is_some())
                         {
-                            symbols.push(self.extract_enum(child, source, file_path)?);
+                            symbols.push(
+                                self.extract_enum_with_typedef(
+                                    child,
+                                    source,
+                                    file_path,
+                                    typedef_name.as_deref(),
+                                )?,
+                            );
                         }
                     }
                 }
-                "preprocessor_include" => {
-                    let text = node.utf8_text(source)?.trim().to_string();
+                "preproc_include" | "preprocessor_include" => {
+                    let path = include_path_from_node(node, source)?;
                     symbols.push(Symbol {
-                        name: text,
+                        name: path.clone(),
                         symbol_type: SymbolType::Import,
                         qualified_name: None,
                         location: source_location(node, file_path),
@@ -204,7 +287,10 @@ impl CPlugin {
                         fields: vec![],
                         modifiers: vec![],
                         documentation: None,
-                        metadata: serde_json::json!({ "language": "c" }),
+                        metadata: serde_json::json!({
+                            "language": "c",
+                            "kind": "include",
+                        }),
                     });
                 }
                 _ => {}
@@ -408,6 +494,20 @@ fn struct_name(node: Node, source: &[u8]) -> Option<String> {
         .and_then(|n| n.utf8_text(source).ok().map(str::to_string))
 }
 
+/// Typedef alias from `type_definition` (`typedef struct Foo Bar` → `Bar`).
+fn type_definition_typedef_name(node: Node, source: &[u8]) -> Option<String> {
+    if node.kind() != "type_definition" {
+        return None;
+    }
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "type_identifier" {
+            return child.utf8_text(source).ok().map(str::to_string);
+        }
+    }
+    None
+}
+
 fn source_location(node: Node, file_path: &str) -> SourceLocation {
     SourceLocation {
         file: file_path.to_string(),
@@ -431,7 +531,133 @@ fn first_line(node: Node, source: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rgctl_extraction::graph_builder::GraphBuilder;
     use std::path::Path;
+
+    #[test]
+    fn test_file_qualified_name_cart_init() {
+        assert_eq!(
+            file_qualified_name("cart.c", "cart_init"),
+            "cart::cart_init"
+        );
+    }
+
+    #[test]
+    fn test_normalize_system_include() {
+        assert_eq!(normalize_include_path("#include <stdio.h>"), "stdio.h");
+    }
+
+    #[test]
+    fn test_normalize_local_include() {
+        assert_eq!(normalize_include_path("#include \"cart.h\""), "cart.h");
+    }
+
+    #[test]
+    fn test_extract_c_function_qualified_name() {
+        let source = br#"int init(void) { return 0; }"#;
+        let plugin = CPlugin::new().unwrap();
+        let symbols = plugin.extract_symbols(Path::new("cart.c"), source).unwrap();
+        let init = symbols.iter().find(|s| s.name == "init").expect("init");
+        assert_eq!(init.qualified_name.as_deref(), Some("cart::init"));
+    }
+
+    #[test]
+    fn test_blast_radius_disambiguates_same_name_across_files() {
+        let plugin = CPlugin::new().unwrap();
+        let a_src = br#"int init(void) { return 1; }"#;
+        let b_src = br#"int init(void) { return 2; }"#;
+        let path_a = Path::new("a/init.c");
+        let path_b = Path::new("b/init.c");
+
+        let syms_a = plugin.extract_symbols(path_a, a_src).unwrap();
+        let syms_b = plugin.extract_symbols(path_b, b_src).unwrap();
+
+        let mut builder = GraphBuilder::new();
+        let file_a = builder.ensure_file_node(path_a);
+        let file_b = builder.ensure_file_node(path_b);
+        builder.add_symbol(&syms_a[0], file_a);
+        builder.add_symbol(&syms_b[0], file_b);
+        builder.build_resolution_indexes();
+
+        let rel = Relation {
+            from: "init::init".to_string(),
+            to: "init::init".to_string(),
+            relation_type: RelationType::Calls,
+            location: SourceLocation {
+                file: path_a.to_string_lossy().to_string(),
+                start_line: 1,
+                end_line: 1,
+                start_column: 0,
+                end_column: 1,
+            },
+            metadata: serde_json::json!({}),
+            to_qualified_hint: None,
+            to_type_hint: None,
+        };
+        let before = builder.edge_count();
+        builder.add_relation(&rel).unwrap();
+        assert_eq!(
+            builder.edge_count(),
+            before + 1,
+            "qualified from should resolve within its file"
+        );
+    }
+
+    #[test]
+    fn test_typedef_struct_cart_alias() {
+        let source = br#"typedef struct Cart Cart;"#;
+        let plugin = CPlugin::new().unwrap();
+        let symbols = plugin
+            .extract_symbols(Path::new("cart.h"), source)
+            .unwrap();
+        let cart = symbols
+            .iter()
+            .find(|s| s.name == "Cart" && s.symbol_type == SymbolType::Struct)
+            .expect("Cart typedef struct");
+        assert_eq!(cart.qualified_name.as_deref(), Some("cart::Cart"));
+    }
+
+    #[test]
+    fn test_call_expression_child_kinds_documented() {
+        let source = br#"
+void foo(void (*handler)(void)) {
+    bar();
+    handler();
+    (*handler)();
+}
+void bar(void) {}
+"#;
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&tree_sitter_c::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let root = tree.root_node();
+        let mut stack = vec![root];
+        let mut kinds = Vec::new();
+        while let Some(node) = stack.pop() {
+            if node.kind() == "call_expression" {
+                if let Some(func) = node.child_by_field_name("function") {
+                    kinds.push(func.kind().to_string());
+                }
+            }
+            for i in 0..node.child_count() {
+                if let Some(child) = node.child(i) {
+                    stack.push(child);
+                }
+            }
+        }
+        kinds.sort();
+        kinds.dedup();
+        assert!(
+            kinds.iter().any(|k| k == "identifier"),
+            "expected identifier callee, got {kinds:?}"
+        );
+        assert!(
+            kinds.iter().any(|k| k == "parenthesized_expression"),
+            "expected parenthesized_expression for (*handler)(), got {kinds:?}"
+        );
+    }
 
     #[test]
     fn test_extract_c_function_and_struct() {
@@ -518,6 +744,84 @@ int baz(int x) { return x; }
                 .any(|r| matches!(r.relation_type, RelationType::Calls)),
             "expected Calls relations, got {relations:?}"
         );
+        let foo = symbols.iter().find(|s| s.name == "foo").unwrap();
+        assert!(
+            relations
+                .iter()
+                .any(|r| r.from == foo.qualified_name.as_deref().unwrap()),
+            "Calls should use qualified caller name"
+        );
+    }
+
+    #[test]
+    fn test_extract_fn_pointer_and_unresolved_calls() {
+        let source = br#"
+void callee(void) {}
+
+void dispatch(void (*handler)(void)) {
+    handler();
+    (*handler)();
+    callee();
+}
+"#;
+        let plugin = CPlugin::new().unwrap();
+        let path = Path::new("handlers.c");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        let unresolved: Vec<_> = relations
+            .iter()
+            .filter(|r| r.metadata.get("unresolved").and_then(|v| v.as_bool()) == Some(true))
+            .collect();
+        assert!(
+            unresolved.len() >= 2,
+            "expected unresolved fn-pointer calls, got {relations:?}"
+        );
+        assert!(
+            relations.iter().any(|r| r.to == "handlers::callee"),
+            "direct call should resolve to qualified callee"
+        );
+    }
+
+    #[test]
+    fn test_include_node_kinds() {
+        let source = br#"#include <stdio.h>"#;
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&tree_sitter_c::LANGUAGE.into())
+            .unwrap();
+        let tree = parser.parse(source, None).unwrap();
+        let mut kinds = Vec::new();
+        let mut stack = vec![tree.root_node()];
+        while let Some(node) = stack.pop() {
+            kinds.push(node.kind().to_string());
+            for i in 0..node.child_count() {
+                if let Some(child) = node.child(i) {
+                    stack.push(child);
+                }
+            }
+        }
+        eprintln!("include kinds: {kinds:?}");
+        assert!(kinds.iter().any(|k| k.contains("include")));
+    }
+
+    #[test]
+    fn test_extract_import_symbols_normalized() {
+        let source = br#"
+#include <stdio.h>
+#include "cart.h"
+"#;
+        let plugin = CPlugin::new().unwrap();
+        let symbols = plugin
+            .extract_symbols(Path::new("main.c"), source)
+            .unwrap();
+        assert!(symbols.iter().any(|s| {
+            s.symbol_type == SymbolType::Import
+                && s.name == "stdio.h"
+                && s.metadata.get("kind").and_then(|v| v.as_str()) == Some("include")
+        }));
+        assert!(symbols.iter().any(|s| {
+            s.symbol_type == SymbolType::Import && s.name == "cart.h"
+        }));
     }
 
     #[test]
@@ -528,6 +832,26 @@ int baz(int x) { return x; }
             .extract_symbols(Path::new("order.h"), source)
             .unwrap();
         assert!(symbols.iter().any(|s| s.name == "checkout"));
+    }
+
+    #[test]
+    fn test_main_c_extracts_many_calls() {
+        let path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../rgctl-tests/ecommerce-c/src/main.c"
+        ));
+        let source = std::fs::read(path).unwrap();
+        let plugin = CPlugin::new().unwrap();
+        let symbols = plugin.extract_symbols(path, &source).unwrap();
+        let relations = plugin.extract_relations(path, &source, &symbols).unwrap();
+        let calls: Vec<_> = relations
+            .iter()
+            .filter(|r| r.relation_type == RelationType::Calls)
+            .collect();
+        assert!(
+            calls.len() >= 8,
+            "main.c should emit many Calls relations, got {calls:?}"
+        );
     }
 
     #[test]
