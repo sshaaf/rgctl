@@ -4,6 +4,18 @@ use rgctl_plugin_api::*;
 use std::path::Path;
 use tree_sitter::Node;
 
+/// Maximum AST depth for iterative walks (rustc UI tests include ~2k nested `if`s).
+pub const AST_MAX_DEPTH: usize = 2048;
+
+/// Push children onto a depth-tagged stack (pre-order via LIFO + reverse iteration).
+pub fn push_children<'a>(stack: &mut Vec<(Node<'a>, usize)>, node: Node<'a>, depth: usize) {
+    let mut cursor = node.walk();
+    let children: Vec<Node> = node.children(&mut cursor).collect();
+    for child in children.into_iter().rev() {
+        stack.push((child, depth + 1));
+    }
+}
+
 /// `src/services/order.rs` → `services::order`
 pub fn module_prefix_from_path(path: &Path) -> Option<String> {
     let path_str = path.to_string_lossy();
@@ -27,31 +39,34 @@ pub fn qualify_with_module(prefix: Option<&str>, local: &str) -> String {
 }
 
 pub fn rust_type_name(node: Node, source: &[u8]) -> Option<String> {
-    match node.kind() {
-        "type_identifier" => node.utf8_text(source).ok().map(str::to_string),
-        "identifier" => node.utf8_text(source).ok().map(str::to_string),
-        "scoped_type_identifier" | "scoped_identifier" => node
-            .child_by_field_name("name")
-            .and_then(|n| n.utf8_text(source).ok())
-            .map(str::to_string)
-            .or_else(|| {
-                node.utf8_text(source).ok().map(|s| {
-                    s.rsplit("::")
-                        .next()
-                        .unwrap_or(s)
-                        .trim()
-                        .to_string()
-                })
-            }),
-        "generic_type" => node
-            .child_by_field_name("type")
-            .and_then(|n| rust_type_name(n, source)),
-        "reference_type" | "pointer_type" | "tuple_type" => node
-            .child_by_field_name("type")
-            .and_then(|n| rust_type_name(n, source)),
-        "primitive_type" => node.utf8_text(source).ok().map(str::to_string),
-        _ => None,
+    let mut current = node;
+    for _ in 0..AST_MAX_DEPTH {
+        match current.kind() {
+            "type_identifier" | "identifier" | "primitive_type" => {
+                return current.utf8_text(source).ok().map(str::to_string);
+            }
+            "scoped_type_identifier" | "scoped_identifier" => {
+                return current
+                    .child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(source).ok())
+                    .map(str::to_string)
+                    .or_else(|| {
+                        current.utf8_text(source).ok().map(|s| {
+                            s.rsplit("::")
+                                .next()
+                                .unwrap_or(s)
+                                .trim()
+                                .to_string()
+                        })
+                    });
+            }
+            "generic_type" | "reference_type" | "pointer_type" | "tuple_type" => {
+                current = current.child_by_field_name("type")?;
+            }
+            _ => return None,
+        }
     }
+    None
 }
 
 fn loc(node: Node, file: &str) -> SourceLocation {
@@ -478,11 +493,19 @@ pub fn walk_depth_relations(
     relations: &mut Vec<Relation>,
 ) {
     let file = file_path.to_string_lossy();
-    const MAX_DEPTH: usize = 2048;
     let mut stack = vec![(root, 0usize)];
+    let mut depth_warned = false;
 
     while let Some((node, depth)) = stack.pop() {
-        if depth > MAX_DEPTH {
+        if depth > AST_MAX_DEPTH {
+            if !depth_warned {
+                tracing::warn!(
+                    file = %file,
+                    depth = AST_MAX_DEPTH,
+                    "AST depth limit exceeded during depth relation walk; skipping deep branches"
+                );
+                depth_warned = true;
+            }
             continue;
         }
 
@@ -553,12 +576,7 @@ pub fn walk_depth_relations(
             _ => {}
         }
 
-        let child_count = node.child_count();
-        for i in (0..child_count).rev() {
-            if let Some(child) = node.child(i) {
-                stack.push((child, depth + 1));
-            }
-        }
+        push_children(&mut stack, node, depth);
     }
 }
 

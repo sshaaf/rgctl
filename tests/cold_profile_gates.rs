@@ -29,8 +29,8 @@ const LINUX_COLD_MAX_NODES: u64 = 2_800_000;
 const METASFRESH_COLD_WALL_BASELINE_SECS: f64 = 74.0;
 /// Establish on maintainer machine; override via `RGCTL_KAFKA_COLD_BASELINE_SECS`.
 const KAFKA_COLD_WALL_BASELINE_SECS: f64 = 600.0;
-/// `rust-lang/rust` `library/` + `compiler/` with `-l rust`. Establish on maintainer machine.
-const RUST_COLD_WALL_BASELINE_SECS: f64 = 900.0;
+/// `rust-lang/rust` full tree with `-l rust`. Baseline: **25 s** on reference M3 Pro (2026-09-03).
+const RUST_COLD_WALL_BASELINE_SECS: f64 = 25.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
 const K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS: f64 = 3.0;
 /// ecommerce-java default discover cold wall (inheritance stub gate).
@@ -389,7 +389,7 @@ fn kafka_cold_discover_within_baseline() {
 }
 
 #[test]
-#[ignore = "manual: cold discover profile on example/rust (library + compiler, -l rust)"]
+#[ignore = "manual: cold discover profile on example/rust (rust-lang/rust, -l rust)"]
 fn rust_cold_discover_within_baseline() {
     let repo = rust_repo_path();
     if !repo.is_dir() {

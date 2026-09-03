@@ -65,6 +65,7 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `k8s_website_markdown_cold_discover_within_baseline` | `example/k8s-website` | `-l markdown` | **3 s** |
 | `ecommerce_java_inheritance_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | default | **0.31 s** wall; **0.008 s** `index_graph_build` |
 | `ecommerce_java_kantra_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | `--with-kantra --kantra-rules <fixture>` | env `RGCTL_ECOMMERCE_JAVA_KANTRA_*` (fixture catalog; fast CI path) |
+| `rust_cold_discover_within_baseline` | `example/rust` | `-l rust` | **25 s** |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`-r <corpus>`, `discover . -v`).
 
@@ -168,6 +169,19 @@ Top stages (% of wall): `index_extract` **71.9 s** (50%), `index_graph_build` **
 Stage walls (profile summaries): **basic ~18 s**, **deep ~46 s**, **semantic ~9 s** (inferred from timestamps; semantic has little `[profile]` logging).
 
 Deep-pass hotspots: `cfg_total` **~18 s**, `save_dashboard` **~11 s** (`export_cfg_slice` **~9.7 s**), harmonic centrality **~6.7 s**, `field_write` **~4.6 s**.
+
+### Rust (`example/rust`) — `-l rust`
+
+| Metric | Value |
+|--------|-------|
+| Wall (real / profile) | **~23 s** / **~21 s** |
+| **Gate baseline** | **25 s** (pass ≤ 27.5 s) |
+| Peak RSS | **~3.9 GB** |
+| Nodes / functions | 445,634 / 186,416 |
+| Files indexed | 38,631 / 38,640 discovered |
+| `index_graph_build` | **~4.9 s** |
+
+Top stages (% of wall): `index_extract` **~6.4 s** (30%), `index_graph_build` **~4.9 s** (23%), `save_tracker` **~1.5 s** (7%).
 
 ---
 
