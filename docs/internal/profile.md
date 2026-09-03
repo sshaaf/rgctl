@@ -183,6 +183,13 @@ Deep-pass hotspots: `cfg_total` **~18 s**, `save_dashboard` **~11 s** (`export_c
 
 Top stages (% of wall): `index_extract` **~6.4 s** (30%), `index_graph_build` **~4.9 s** (23%), `save_tracker` **~1.5 s** (7%).
 
+### Roslyn (`example/roslyn/src`) — `-l csharp`
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **90 s** (pass ≤ 99 s; record on reference machine, override `RGCTL_ROSLYN_COLD_BASELINE_SECS`) |
+| Corpus | `dotnet/roslyn` `src/` (~8k+ `.cs`) |
+
 ### CFG on large C++ corpora (`--with-cfg`)
 
 `discover --with-cfg` builds per-function CFGs on a dedicated **16 MiB** Rayon pool (`with_large_pool` / `rgctl-worker-*`) with the pass coordinated on a **`rgctl-large-stack`** thread. Default discover/extract uses the normal pool (OS default ~2 MiB worker stacks). Field-write indexing after CFG also runs on a large-stack thread.

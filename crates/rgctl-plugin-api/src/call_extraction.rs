@@ -51,7 +51,8 @@ pub fn callee_name(root: Node, source: &[u8]) -> Option<String> {
                     s.trim_start_matches('$').to_string()
                 });
             }
-            "field_expression" | "selector_expression" | "attribute" | "member_expression" => {
+            "field_expression" | "selector_expression" | "attribute" | "member_expression"
+            | "member_access_expression" => {
                 if let Some(n) = node
                     .child_by_field_name("field")
                     .or_else(|| node.child_by_field_name("attribute"))

@@ -425,7 +425,7 @@ Copy into your PR description:
 |----------|------|-------|-----|-------|----------------|-------------------------|
 | Java | 1 custom | ✅ + Extends/Implements/AnnotatedWith/Permits/Instantiates | ✅ (+ compact ctor, `<clinit>`) | ✅ rich | gbuilder golden | ✅ F1–F6 |
 | Go | 1 custom | ✅ | ✅ deep | ✅ rich | `dashboard_ecommerce_go` | ✅ F1–F6 |
-| C# | 1 custom | ✅ | ✅ | ✅ | `dashboard_ecommerce_csharp` | ✅ F1–F6 |
+| C# | 1 custom | ✅ + AnnotatedWith/FQN/Instantiates + call type hints | ✅ | ✅ | `dashboard_ecommerce_csharp`, `csharp_langfeatures` | ✅ F1–F6 |
 | C | 1 custom | ✅ FQN + includes | ✅ | ✅ | `dashboard_ecommerce_c` | ✅ F1/F3–F6 (no native ctors) |
 | C++ | 1 custom | ✅ + Extends/Instantiates + qualified call hints | ✅ | ✅ | `dashboard_ecommerce_cpp`, `cpp_langfeatures` | ✅ F1–F6 |
 | Python | 1 custom | ✅ | ✅ | ✅ richest | `dashboard_ecommerce_python` | ✅ F1–F6 |
