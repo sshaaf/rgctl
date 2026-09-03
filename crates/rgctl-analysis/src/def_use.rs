@@ -1,5 +1,6 @@
 //! Definition and use extraction from tree-sitter AST nodes.
 
+use crate::cfg::DefVar;
 use std::collections::HashSet;
 use tree_sitter::Node;
 
@@ -7,7 +8,7 @@ use tree_sitter::Node;
 const AST_WALK_MAX_DEPTH: usize = 2048;
 
 /// Extract variables defined and used in a statement node.
-pub fn extract_def_use(node: Node, source: &[u8]) -> (HashSet<String>, HashSet<String>) {
+pub fn extract_def_use(node: Node, source: &[u8]) -> (HashSet<DefVar>, HashSet<String>) {
     let mut defined = HashSet::new();
     let mut used = HashSet::new();
     let mut stack = vec![(node, false, 0usize)];
@@ -39,8 +40,8 @@ fn is_field_access_kind(kind: &str) -> bool {
     )
 }
 
-/// Build `base.member` (or full node text) for a field-access style AST node.
-fn field_access_compound(node: Node, source: &[u8]) -> Option<String> {
+/// Build a typed field definition for a field-access style AST node.
+fn field_access_def(node: Node, source: &[u8]) -> Option<DefVar> {
     let field = node
         .child_by_field_name("field")
         .or_else(|| node.child_by_field_name("property"))
@@ -48,6 +49,7 @@ fn field_access_compound(node: Node, source: &[u8]) -> Option<String> {
         .or_else(|| node.child_by_field_name("name"));
     let object = node
         .child_by_field_name("object")
+        .or_else(|| node.child_by_field_name("operand"))
         .or_else(|| node.child_by_field_name("argument"))
         .or_else(|| node.child_by_field_name("value"))
         .or_else(|| node.child_by_field_name("expression"));
@@ -55,9 +57,15 @@ fn field_access_compound(node: Node, source: &[u8]) -> Option<String> {
         (Some(obj), Some(fld)) => {
             let obj_txt = obj.utf8_text(source).ok()?;
             let fld_txt = fld.utf8_text(source).ok()?;
-            Some(format!("{obj_txt}.{fld_txt}"))
+            Some(DefVar::Field {
+                receiver: obj_txt.to_string(),
+                member: fld_txt.to_string(),
+            })
         }
-        _ => node.utf8_text(source).ok().map(|s| s.to_string()),
+        _ => node
+            .utf8_text(source)
+            .ok()
+            .map(|s| DefVar::local(s.to_string())),
     }
 }
 
@@ -81,14 +89,14 @@ fn collect_field_access_base_uses<'a>(
 fn collect_assignment_lhs<'a>(
     left: Node<'a>,
     source: &[u8],
-    defined: &mut HashSet<String>,
+    defined: &mut HashSet<DefVar>,
     used: &mut HashSet<String>,
     depth: usize,
     stack: &mut DefUseStack<'a>,
 ) {
     if is_field_access_kind(left.kind()) {
-        if let Some(compound) = field_access_compound(left, source) {
-            defined.insert(compound);
+        if let Some(def) = field_access_def(left, source) {
+            defined.insert(def);
         }
         collect_field_access_base_uses(left, source, used, stack, depth);
     } else {
@@ -100,7 +108,7 @@ fn collect_assignment_lhs<'a>(
 fn collect_go_var_spec<'a>(
     spec: Node<'a>,
     source: &[u8],
-    defined: &mut HashSet<String>,
+    defined: &mut HashSet<DefVar>,
     _used: &mut HashSet<String>,
     depth: usize,
     stack: &mut DefUseStack<'a>,
@@ -131,7 +139,7 @@ fn collect_go_var_spec<'a>(
 fn collect_def_use_node<'a>(
     node: Node<'a>,
     source: &[u8],
-    defined: &mut HashSet<String>,
+    defined: &mut HashSet<DefVar>,
     used: &mut HashSet<String>,
     is_def_target: bool,
     depth: usize,
@@ -316,14 +324,14 @@ fn collect_def_use_node<'a>(
         // Field / member access (Java field_access, Rust field_expression, …)
         k if is_field_access_kind(k) => {
             if is_def_target {
-                if let Some(compound) = field_access_compound(node, source) {
-                    defined.insert(compound);
+                if let Some(def) = field_access_def(node, source) {
+                    defined.insert(def);
                 }
                 collect_field_access_base_uses(node, source, used, stack, depth);
             } else {
                 collect_field_access_base_uses(node, source, used, stack, depth);
-                if let Some(compound) = field_access_compound(node, source) {
-                    used.insert(compound);
+                if let Some(def) = field_access_def(node, source) {
+                    used.insert(def.name());
                 }
             }
         }
@@ -334,7 +342,7 @@ fn collect_def_use_node<'a>(
             if is_def_target {
                 if let Ok(name) = node.utf8_text(source) {
                     if kind == "identifier" || kind == "shorthand_field_identifier" || kind == "variable_name" {
-                        defined.insert(name.trim_start_matches('$').to_string());
+                        defined.insert(DefVar::local(name.trim_start_matches('$')));
                     }
                 }
             } else if kind == "identifier" || kind == "shorthand_field_identifier" || kind == "variable_name" {
@@ -383,11 +391,11 @@ fn is_binding_pattern(kind: &str) -> bool {
     )
 }
 
-fn collect_declarator_defs(node: Node, source: &[u8], defined: &mut HashSet<String>) {
+fn collect_declarator_defs(node: Node, source: &[u8], defined: &mut HashSet<DefVar>) {
     match node.kind() {
         "identifier" => {
             if let Ok(name) = node.utf8_text(source) {
-                defined.insert(name.to_string());
+                defined.insert(DefVar::local(name));
             }
         }
         "pointer_declarator"
@@ -409,11 +417,11 @@ fn collect_declarator_defs(node: Node, source: &[u8], defined: &mut HashSet<Stri
     }
 }
 
-fn collect_pattern_defs(node: Node, source: &[u8], defined: &mut HashSet<String>, depth: usize) {
+fn collect_pattern_defs(node: Node, source: &[u8], defined: &mut HashSet<DefVar>, depth: usize) {
     match node.kind() {
         "identifier" | "shorthand_field_identifier" => {
             if let Ok(name) = node.utf8_text(source) {
-                defined.insert(name.to_string());
+                defined.insert(DefVar::local(name));
             }
         }
         "tuple_pattern"
@@ -457,6 +465,7 @@ pub fn extract_used_variables(node: Node, source: &[u8]) -> HashSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cfg::DefVar;
     use tree_sitter::Parser;
 
     fn parse_rust(source: &str) -> tree_sitter::Tree {
@@ -509,13 +518,17 @@ mod tests {
         let _ = extract_def_use(tree.root_node(), source.as_bytes());
     }
 
+    fn defs_has(defs: &std::collections::HashSet<DefVar>, name: &str) -> bool {
+        defs.iter().any(|d| d.defines_name(name))
+    }
+
     #[test]
     fn test_rust_let_def_use() {
         let source = "fn f(a: i32) { let x = a + 1; x }";
         let tree = parse_rust(source);
         let let_node = find_kind(tree.root_node(), "let_declaration").unwrap();
         let (defs, uses) = extract_def_use(let_node, source.as_bytes());
-        assert!(defs.contains("x"));
+        assert!(defs_has(&defs, "x"));
         assert!(uses.contains("a"));
     }
 
@@ -525,7 +538,7 @@ mod tests {
         let tree = parse_python(source);
         let assign = find_kind(tree.root_node(), "assignment").unwrap();
         let (defs, uses) = extract_def_use(assign, source.as_bytes());
-        assert!(defs.contains("x"));
+        assert!(defs_has(&defs, "x"));
         assert!(uses.contains("a"));
     }
 
@@ -545,15 +558,27 @@ mod tests {
         let tree = parse_go(source);
         let assign = find_kind(tree.root_node(), "short_var_declaration").unwrap();
         let (defs, _uses) = extract_def_use(assign, source.as_bytes());
-        assert!(defs.contains("x"));
+        assert!(defs_has(&defs, "x"));
 
         let for_node = find_kind(tree.root_node(), "for_statement").unwrap();
         let (for_defs, for_uses) = extract_def_use(for_node, source.as_bytes());
         assert!(
-            for_defs.contains("k") || for_defs.contains("v"),
+            defs_has(&for_defs, "k") || defs_has(&for_defs, "v"),
             "for defs: {for_defs:?}"
         );
         assert!(for_uses.contains("m"));
+    }
+
+    #[test]
+    fn test_go_field_assignment_def_use() {
+        let source = "package demo\nfunc Process(order *OrderDTO) {\n  order.Status = \"PROCESSED\"\n}\n";
+        let tree = parse_go(source);
+        let assign = find_kind(tree.root_node(), "assignment_statement").expect("assignment");
+        let (defs, uses) = extract_def_use(assign, source.as_bytes());
+        assert!(
+            defs_has(&defs, "order.Status"),
+            "defs should include order.Status, got {defs:?}"
+        );
     }
 
     #[test]
@@ -567,7 +592,7 @@ mod tests {
         let assign = find_kind(tree.root_node(), "assignment_expression").expect("assignment");
         let (defs, uses) = extract_def_use(assign, source.as_bytes());
         assert!(
-            defs.contains("order.status"),
+            defs_has(&defs, "order.status"),
             "defs should include order.status, got {defs:?}"
         );
         assert!(
@@ -587,7 +612,7 @@ mod tests {
         let decl = find_kind(tree.root_node(), "local_variable_declaration").expect("local decl");
         let (defs, uses) = extract_def_use(decl, source.as_bytes());
         assert!(
-            defs.contains("other"),
+            defs_has(&defs, "other"),
             "defs should include other, got {defs:?}"
         );
         assert!(

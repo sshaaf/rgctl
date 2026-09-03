@@ -90,7 +90,8 @@ pub use centrality_approx::{
     LARGE_GRAPH_HYPERBALL_ROUNDS, SampledBetweenness,
 };
 pub use cfg::{
-    BasicBlock, BlockId, CfgEdge, CfgEdgeType, ControlFlowGraph, Statement, StatementKind,
+    BasicBlock, BlockId, CfgEdge, CfgEdgeType, ControlFlowGraph, DefVar, Statement,
+    StatementKind,
 };
 pub use cfg_builder::{
     FunctionLocation, ParsedSourceFile, build_cfg_for_function, build_cfg_for_function_in_tree,

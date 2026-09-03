@@ -24,7 +24,7 @@ pub fn build_cfg_for_function(
     let func_node =
         find_function_by_name(tree.root_node(), bytes, function_name, function_kinds)
             .ok_or_else(|| Error::NotFound(format!("function '{function_name}' not found")))?;
-    build_cfg_from_function_node(language, func_node, bytes)
+    build_cfg_from_function_node(language, func_node, bytes, function_name)
 }
 
 /// Parsed source file with function name → byte span index (one tree-sitter parse per file).
@@ -75,7 +75,7 @@ pub fn build_cfg_for_function_in_tree(
     let function_kinds = function_kinds_for(language)?;
     let func_node = find_function_by_name(tree.root_node(), source, function_name, function_kinds)
         .ok_or_else(|| Error::NotFound(format!("function '{function_name}' not found")))?;
-    build_cfg_from_function_node(language, func_node, source)
+    build_cfg_from_function_node(language, func_node, source, function_name)
 }
 
 /// Parse a source file once and index function names to source byte spans.
@@ -209,8 +209,15 @@ fn build_cfg_from_function_node(
     language: &str,
     func_node: Node,
     source: &[u8],
+    function_name: &str,
 ) -> Result<ControlFlowGraph> {
     let mut cfg = ControlFlowGraph::new();
+    cfg.local_types = crate::field_write_locals::extract_param_types_in_function(
+        language,
+        func_node,
+        source,
+        function_name,
+    );
     let mut builder = CfgBuilder::new(&mut cfg, language);
     builder.build_function(func_node, source)?;
     Ok(cfg)

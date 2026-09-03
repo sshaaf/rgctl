@@ -176,7 +176,7 @@ pub(crate) fn write_empty_slice_index(index_path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rgctl_analysis::cfg::{ControlFlowGraph, Statement, StatementKind};
+    use rgctl_analysis::cfg::{ControlFlowGraph, DefVar, Statement, StatementKind};
     use rgctl_analysis::pdg::ProgramDependenceGraph;
     use std::collections::HashSet;
 
@@ -192,7 +192,7 @@ mod tests {
                 kind: StatementKind::Assignment,
                 line: 1,
                 text: "x = 1".into(),
-                defined_vars: HashSet::from(["x".into()]),
+                defined_vars: HashSet::from([DefVar::local("x")]),
                 used_vars: HashSet::new(),
             });
         let pdg = ProgramDependenceGraph::build(&cfg, b"x = 1\n").unwrap();

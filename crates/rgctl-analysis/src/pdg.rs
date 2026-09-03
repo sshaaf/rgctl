@@ -286,7 +286,11 @@ impl ProgramDependenceGraph {
                     id,
                     statement: stmt.clone(),
                     block: block.id,
-                    defined_vars: stmt.defined_vars.clone(),
+                    defined_vars: stmt
+                        .defined_vars
+                        .iter()
+                        .map(|d| d.name())
+                        .collect(),
                     used_vars: stmt.used_vars.clone(),
                 };
                 self.block_nodes.entry(block.id).or_default().push(id);

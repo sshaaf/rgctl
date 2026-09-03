@@ -7,6 +7,83 @@ use uuid::Uuid;
 /// Identifier for a basic block in a CFG.
 pub type BlockId = Uuid;
 
+/// A variable definition site on a CFG statement.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum DefVar {
+    /// Simple local / parameter name.
+    Local(String),
+    /// Field assignment target `receiver.member`.
+    Field {
+        /// Base local (`order`, `this`, …).
+        receiver: String,
+        /// Member name (`status`).
+        member: String,
+    },
+}
+
+impl DefVar {
+    /// Construct a local definition.
+    pub fn local(name: impl Into<String>) -> Self {
+        Self::Local(name.into())
+    }
+
+    /// Canonical name for data-flow / PDG (`obj.field` or local name).
+    pub fn name(&self) -> String {
+        match self {
+            Self::Local(s) => s.clone(),
+            Self::Field { receiver, member } => format!("{receiver}.{member}"),
+        }
+    }
+
+    /// True when this definition matches `name` (exact `name()` equality).
+    pub fn defines_name(&self, name: &str) -> bool {
+        self.name() == name
+    }
+
+    /// Receiver local for [`Self::Field`], if any.
+    pub fn field_receiver(&self) -> Option<&str> {
+        match self {
+            Self::Field { receiver, .. } => Some(receiver.as_str()),
+            _ => None,
+        }
+    }
+}
+
+fn def_var_from_wire(s: String) -> DefVar {
+    if let Some((receiver, member)) = s.rsplit_once('.') {
+        if !receiver.is_empty()
+            && !member.is_empty()
+            && !receiver.contains('(')
+            && !member.contains('(')
+        {
+            return DefVar::Field {
+                receiver: receiver.to_string(),
+                member: member.to_string(),
+            };
+        }
+    }
+    DefVar::Local(s)
+}
+
+impl Serialize for DefVar {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.name())
+    }
+}
+
+impl<'de> Deserialize<'de> for DefVar {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(def_var_from_wire(s))
+    }
+}
+
 /// A control-flow graph for a single function body.
 #[derive(Debug, Clone, Serialize)]
 pub struct ControlFlowGraph {
@@ -18,6 +95,9 @@ pub struct ControlFlowGraph {
     pub entry: BlockId,
     /// Exit block ids (returns, implicit fall-through exits).
     pub exits: Vec<BlockId>,
+    /// Typed locals + formals (name → bare type), populated at CFG build (not persisted).
+    #[serde(skip)]
+    pub local_types: HashMap<String, String>,
     /// Successor lists keyed by block id (derived from [`Self::edges`], not serialized).
     #[serde(skip)]
     succ: HashMap<BlockId, Vec<BlockId>>,
@@ -50,10 +130,17 @@ pub struct Statement {
     pub text: String,
     /// Variables defined by this statement (tree-sitter extraction).
     #[serde(default)]
-    pub defined_vars: HashSet<String>,
+    pub defined_vars: HashSet<DefVar>,
     /// Variables used by this statement (tree-sitter extraction).
     #[serde(default)]
     pub used_vars: HashSet<String>,
+}
+
+impl Statement {
+    /// True when this statement defines `name` (local or `obj.field`).
+    pub fn defines(&self, name: &str) -> bool {
+        self.defined_vars.iter().any(|d| d.defines_name(name))
+    }
 }
 
 /// High-level statement categories for CFG/PDG analysis.
@@ -122,6 +209,7 @@ impl ControlFlowGraph {
             edges: Vec::new(),
             entry,
             exits: Vec::new(),
+            local_types: HashMap::new(),
             succ: HashMap::new(),
             pred: HashMap::new(),
         }
@@ -328,6 +416,7 @@ impl<'de> Deserialize<'de> for ControlFlowGraph {
             edges: data.edges,
             entry: data.entry,
             exits: data.exits,
+            local_types: HashMap::new(),
             succ: HashMap::new(),
             pred: HashMap::new(),
         };

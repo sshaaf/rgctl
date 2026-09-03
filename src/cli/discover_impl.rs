@@ -2,7 +2,7 @@
 
 use super::args::OutputFormat;
 use super::context::CliContext;
-use rgctl_pipeline::with_large_stack;
+use rgctl_pipeline::with_large_pool;
 use super::discover_cfg::{
     CfgAnalysisOptions, FileSourceCache, preload_file_sources, run_cfg_analysis_batch,
 };
@@ -528,7 +528,7 @@ pub(crate) fn run_full_analysis(
             debug!("--with-taint implies CFG/PDG pass");
         }
 
-        let file_sources: Option<FileSourceCache> = if with_ast_skeleton {
+        let file_sources: Option<FileSourceCache> = if with_ast_skeleton || with_cfg {
             Some(preload_file_sources(&functions, root, None))
         } else {
             None
@@ -601,7 +601,8 @@ pub(crate) fn run_full_analysis(
 
         // Field-write index for `cpg mutations` (hybrid CPG P1)
         let fw_start = Instant::now();
-        let fw_result = with_large_stack(|| {
+        let preloaded = file_sources.as_ref().map(|cache| cache.sources());
+        let fw_result = with_large_pool(None, || {
             let archive = CfgPdgArchive::open_if_exists(store)?;
             let Some(archive) = archive else {
                 return Ok::<(PathBuf, usize), rgctl_error::Error>((
@@ -614,6 +615,7 @@ pub(crate) fn run_full_analysis(
                 &archive,
                 &functions,
                 Some(graph_digest.clone()),
+                preloaded,
             )
         });
         match fw_result {

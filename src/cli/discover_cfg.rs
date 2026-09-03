@@ -100,6 +100,11 @@ impl FileSourceCache {
     pub fn get(&self, file_path: &str) -> Option<&str> {
         self.sources.get(file_path).map(|s| s.as_str())
     }
+
+    /// All preloaded sources (for field-write fallback indexing).
+    pub fn sources(&self) -> &HashMap<String, Arc<String>> {
+        &self.sources
+    }
 }
 
 fn resolve_read_path(repo_root: &Path, file_path: &str) -> std::path::PathBuf {

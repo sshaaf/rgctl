@@ -76,9 +76,10 @@ pub fn may_alias_names(cfg: &ControlFlowGraph, seed: &str) -> HashSet<String> {
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             for d in &stmt.defined_vars {
-                grow_parent(&mut parent, intern.intern(d));
-                if let Some((base, _)) = d.split_once('.') {
-                    union_names(&mut intern, &mut parent, d, base);
+                let name = d.name();
+                grow_parent(&mut parent, intern.intern(&name));
+                if let Some((base, _)) = name.split_once('.') {
+                    union_names(&mut intern, &mut parent, &name, base);
                 }
             }
             for u in &stmt.used_vars {
@@ -88,10 +89,10 @@ pub fn may_alias_names(cfg: &ControlFlowGraph, seed: &str) -> HashSet<String> {
                 }
             }
             if stmt.defined_vars.len() == 1 && stmt.used_vars.len() == 1 {
-                let d = stmt.defined_vars.iter().next().unwrap();
+                let d = stmt.defined_vars.iter().next().unwrap().name();
                 let u = stmt.used_vars.iter().next().unwrap();
                 if !d.contains('.') && !u.contains('.') {
-                    union_names(&mut intern, &mut parent, d, u);
+                    union_names(&mut intern, &mut parent, &d, u);
                 }
             }
         }
