@@ -15,6 +15,16 @@ rgctl -f json metrics --communities --pagerank
 rgctl -f json check --policy-file ../rgctl-policy.json
 ```
 
+### Extraction-depth GQL
+
+`verify-extraction-gql.sh` — `EXTENDS`, `INSTANTIATES`, `CALLS`. Example: [`example/llvm-project/clang`](../../example/llvm-project/clang).
+
+```bash
+RGCTL=../../target/release/rgctl ../gql-verification-smoke/verify-extraction-gql-cpp.sh
+```
+
+Details: [rgctl-tests README](../README.md#extraction-depth-gql-verification).
+
 | Metric | Value |
 |--------|------:|
 | Files indexed | 81 |

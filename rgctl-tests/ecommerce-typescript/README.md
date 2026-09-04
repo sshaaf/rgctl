@@ -13,6 +13,16 @@ rgctl -f json metrics --communities --pagerank
 rgctl -f json check --policy-file ../rgctl-policy.json
 ```
 
+### Extraction-depth GQL
+
+`verify-extraction-gql.sh` — `Import`, `EXTENDS`, `IMPLEMENTS`, `ANNOTATEDWITH`, `CALLS`. Example: [`example/vscode/src`](../../example/vscode/src).
+
+```bash
+RGCTL=../../target/release/rgctl ../gql-verification-smoke/verify-extraction-gql-typescript.sh
+```
+
+Details: [rgctl-tests README](../README.md#extraction-depth-gql-verification).
+
 | Metric | Value |
 |--------|------:|
 | Files indexed | 61 |

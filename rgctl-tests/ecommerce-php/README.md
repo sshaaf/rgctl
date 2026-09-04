@@ -7,3 +7,13 @@ Small MVC-style app: controller → service → repository, with auth flow, one 
 ```bash
 rgctl discover . --with-cfg --with-taint -l php
 ```
+
+### Extraction-depth GQL
+
+`verify-extraction-gql.sh` — `Import`, `CALLS`, cross-file static calls; soft probes for `USES`, `ANNOTATEDWITH`, `INSTANTIATES`. Example: [`example/magento2`](../../example/magento2) (`app lib setup`).
+
+```bash
+RGCTL=../../target/release/rgctl ../gql-verification-smoke/verify-extraction-gql-php.sh
+```
+
+Details: [rgctl-tests README](../README.md#extraction-depth-gql-verification).

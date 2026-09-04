@@ -13,6 +13,16 @@ rgctl -f json metrics --communities --pagerank
 rgctl -f json check --policy-file ../rgctl-policy.json
 ```
 
+### Extraction-depth GQL
+
+`verify-extraction-gql.sh` — JF-01…JF-07 on [`tests/fixtures/java/langfeatures`](../../tests/fixtures/java/langfeatures); example smoke on [`example/metasfresh-4.9.8b`](../../example/metasfresh-4.9.8b).
+
+```bash
+RGCTL=../../target/release/rgctl ../gql-verification-smoke/verify-extraction-gql-java.sh
+```
+
+Details: [rgctl-tests README](../README.md#extraction-depth-gql-verification).
+
 | Metric | Value |
 |--------|------:|
 | Files indexed | 66 |

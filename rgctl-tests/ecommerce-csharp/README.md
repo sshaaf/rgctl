@@ -24,6 +24,16 @@ rgctl -f json metrics --communities --pagerank
 rgctl -f json check --policy-file ../rgctl-policy.json
 ```
 
+### Extraction-depth GQL
+
+`verify-extraction-gql.sh` — `ANNOTATEDWITH`, `INSTANTIATES`, `CALLS`, namespace FQN. Example: [`example/roslyn/src`](../../example/roslyn/src).
+
+```bash
+RGCTL=../../target/release/rgctl ../gql-verification-smoke/verify-extraction-gql-csharp.sh
+```
+
+Details: [rgctl-tests README](../README.md#extraction-depth-gql-verification).
+
 | Metric | Value |
 |--------|------:|
 | Files indexed | 62 |

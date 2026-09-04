@@ -21,6 +21,16 @@ rgctl -f json metrics --communities --pagerank
 rgctl -f json check --policy-file ../rgctl-policy.json
 ```
 
+### Extraction-depth GQL
+
+`verify-extraction-gql.sh` — `CALLS`, include `Import` graph, `file::symbol` FQN. Example: [`example/linux`](../../example/linux).
+
+```bash
+RGCTL=../../target/release/rgctl ../gql-verification-smoke/verify-extraction-gql-c.sh
+```
+
+Details: [rgctl-tests README](../README.md#extraction-depth-gql-verification).
+
 | Metric | Value |
 |--------|------:|
 | Files indexed | 84 |
