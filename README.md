@@ -6,11 +6,9 @@
 
 AI coding agents default to reading files sequentially. That burns context, misses structure, and produces confident wrong answers about impact and dependencies. **rgctl indexes the whole repository once** into a rich graph with pre-computed **reachability**, then serves **compact, deterministic query results** — so agents (and humans) get the right slice of the codebase without loading it into the prompt.
 
-<div align="center">
-  <a href="https://youtu.be/SXxI-w9pOR0">
-    <img src="https://markdown-videos-api.jorgenkh.no/youtube/SXxI-w9pOR0" alt="Watch the video" width="100%">
-  </a>
-</div>
+
+https://github.com/user-attachments/assets/15ec6d91-f716-4cbd-a873-e982ba3c6dca
+
 
 ---
 
