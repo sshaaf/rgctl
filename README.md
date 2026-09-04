@@ -151,7 +151,7 @@ rgctl ships with deep, enterprise-ready features for heavy modernization workloa
 | `check` | [§14 CI policy check](docs/user-guide.md#14-ci-policy-check) |
 | `serve` | [§15 HTTP server](docs/user-guide.md#15-http-server-serve--optional) |
 
-**Languages supported:** Ten Tier 1 languages (Rust, Python, Java, Go, TypeScript, JavaScript, C#, C, C++, PHP) plus config/IaC plugins and markdown. See [Languages](docs/languages.md) and [Markdown context](docs/markdown-context.md).
+**Languages supported:** Ten Tier 1 languages (Rust, Python, Java, Go, TypeScript, JavaScript, C#, C, C++, PHP) plus config/IaC plugins and markdown. See [Languages](docs/languages/README.md) and [Markdown context](docs/markdown-context.md).
 
 ---
 

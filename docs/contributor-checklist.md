@@ -25,8 +25,8 @@ This doc **does not replace** the deep guides it links to. Use it to pick a path
 | Path | When | Deep guide |
 |------|------|------------|
 | **Tier 1 language** | Custom `LanguagePlugin`, full CFG/PDG/taint + Layer F CPG | [tier-1-language-support.md](tier-1-language-support.md) |
-| **Tier 2 language** | Generic tree-sitter + `LanguageConfig` | [languages.md](languages.md) · scaffold in [tier-1 §3–4](tier-1-language-support.md#3-repository-layout) (Tier 2 uses `config.rs`) |
-| **Tier 3 language** | Regex patterns only | [languages.md](languages.md) |
+| **Tier 2 language** | Generic tree-sitter + `LanguageConfig` | [languages/README.md](languages/README.md) · scaffold in [tier-1 §3–4](tier-1-language-support.md#3-repository-layout) (Tier 2 uses `config.rs`) |
+| **Tier 3 language** | Regex patterns only | [languages/README.md](languages/README.md) |
 | **Config formats** | JSON, YAML, TOML, properties, … | `crates/rgctl-config-formats` |
 | **Markup (Markdown)** | Doc context graph (not Tier 1/2) | [markdown-context.md](markdown-context.md) |
 | **Feature change** | CLI, analysis, graph, dashboard, semantic, … | [§4](#4-feature-updates) + matching [design/](design/README.md) doc |
@@ -93,7 +93,7 @@ Parity snapshot: [tier-1 §8](tier-1-language-support.md#8-current-parity-snapsh
 ### Config format plugins
 
 - Code: `crates/rgctl-config-formats`
-- Tier table: [languages.md](languages.md) (config formats do not run CFG/PDG)
+- Tier table: [languages/README.md](languages/README.md) (config formats do not run CFG/PDG)
 
 Run workspace tests touching the format crate; add fixture tests if you change extraction behavior.
 
@@ -186,7 +186,7 @@ CLI I/O layer reference: [cli-io-sanity-qe.md](cli-io-sanity-qe.md). Workflow mi
 |-------------|--------|
 | User CLI | [user-guide.md](user-guide.md) · validate with `cargo test --test user_guide_scenarios` |
 | Agent / JSON | [AGENTS.md](../AGENTS.md) · [json-api.md](json-api.md) · [agent-recipes.md](agent-recipes.md) |
-| Languages list | [languages.md](languages.md) |
+| Languages list | [languages/README.md](languages/README.md) |
 | Dashboard UX | [dashboard-user-guide.md](dashboard-user-guide.md) |
 | New capability | Matching doc in [design/](design/README.md) |
 

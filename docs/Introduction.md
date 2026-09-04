@@ -71,7 +71,7 @@ Commands and sample output live in the **[User Guide](user-guide.md)**. Short in
 
 **Markdown / docs:** `discover` indexes `.md` and `.mdx` by default (headings, links, frontmatter). GQL on `:Module` (`kind=heading`) and `REFERENCES`; semantic search stays function-only. See [markdown-context.md](markdown-context.md).
 
-Languages: [languages.md](languages.md). Research: [further-reading.md](further-reading.md).
+Languages: [languages/README.md](languages/README.md). Research: [further-reading.md](further-reading.md).
 
 ---
 

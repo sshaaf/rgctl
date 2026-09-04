@@ -340,7 +340,7 @@ If empty, revisit [Add to PATH](#add-to-path). For GUI apps (Cursor, VS Code), n
 
 ### `discover` fails or produces no output
 
-- Ensure you are in a directory with source files in a [supported language](languages.md), or pass an explicit path: `rgctl discover /path/to/repo` or `cd repo && rgctl discover .`.
+- Ensure you are in a directory with source files in a [supported language](languages/README.md), or pass an explicit path: `rgctl discover /path/to/repo` or `cd repo && rgctl discover .`.
 - **Do not** use `rgctl -r PATH discover .` from another cwd — the `.` ignores `-r` and indexes your shell directory instead.
 - Check `rgctl --version` works first.
 - Try verbose mode: `rgctl discover . -v`
@@ -372,4 +372,4 @@ Start with the default mode (no extra flags). Add `--with-cfg`, `--with-taint`, 
 | Step-by-step feature guides | [Guides](guides/README.md) |
 | JSON output reference | [JSON API](json-api.md) |
 | HTTP API details | [HTTP API](http-api.md) |
-| Supported languages | [Languages](languages.md) |
+| Supported languages | [Languages](languages/README.md) |
