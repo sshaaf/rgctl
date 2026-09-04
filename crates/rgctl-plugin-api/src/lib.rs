@@ -8,8 +8,8 @@ mod error;
 mod registrar;
 
 pub use call_extraction::{
-    C_CALL_KINDS, CPP_CALL_KINDS, CSHARP_CALL_KINDS, GO_CALL_KINDS, JS_CALL_KINDS,
-    PHP_CALL_KINDS, PYTHON_CALL_KINDS, RUST_CALL_KINDS, TS_CALL_KINDS, callee_name,
+    infer_python_method_target, C_CALL_KINDS, CPP_CALL_KINDS, CSHARP_CALL_KINDS, GO_CALL_KINDS,
+    JS_CALL_KINDS, PHP_CALL_KINDS, PYTHON_CALL_KINDS, RUST_CALL_KINDS, TS_CALL_KINDS, callee_name,
     containing_function, push_call_relation, walk_calls,
 };
 

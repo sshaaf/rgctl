@@ -428,7 +428,7 @@ Copy into your PR description:
 | C# | 1 custom | ✅ + AnnotatedWith/FQN/Instantiates + call type hints | ✅ | ✅ | `dashboard_ecommerce_csharp`, `csharp_langfeatures` | ✅ F1–F6 |
 | C | 1 custom | ✅ FQN + includes | ✅ | ✅ | `dashboard_ecommerce_c` | ✅ F1/F3–F6 (no native ctors) |
 | C++ | 1 custom | ✅ + Extends/Instantiates + qualified call hints | ✅ | ✅ | `dashboard_ecommerce_cpp`, `cpp_langfeatures` | ✅ F1–F6 |
-| Python | 1 custom | ✅ | ✅ | ✅ richest | `dashboard_ecommerce_python` | ✅ F1–F6 |
+| Python | 1 custom | ✅ Import/Extends/AnnotatedWith/FQN/Instantiates; no `sys.path` resolution; `typing.Protocol` → Implements optional | ✅ | ✅ richest | `dashboard_ecommerce_python`, `python_langfeatures` | ✅ F1–F6 |
 | Rust | 1 custom | ✅ | ✅ | ✅ rich | `dashboard_ecommerce_rust` | ✅ F1–F6 |
 | JS / TS | 1 custom | ✅ Import/Extends/FQN/Instantiates (+ decorators TS); shared `rgctl-plugin-helpers::ecmascript` | ✅ | ✅ rich | `dashboard_ecommerce_javascript`, `javascript_langfeatures`, `typescript_langfeatures` | ✅ F1–F6 (JS weaker types) |
 | PHP | 1 custom | ✅ + Uses (traits), Import, attributes, anonymous classes | ✅ | ✅ + `$_FILES`, `filter_input`, `prepare` | `dashboard_ecommerce_php` | ✅ F1–F6 |

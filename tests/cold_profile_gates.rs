@@ -41,6 +41,8 @@ const VSCODE_TYPESCRIPT_COLD_WALL_BASELINE_SECS: f64 = 120.0;
 const NODE_JAVASCRIPT_COLD_WALL_BASELINE_SECS: f64 = 5.0;
 /// Same corpus with `--with-cfg`. Baseline: **7 s** on reference M3 Pro (2026-09-04).
 const NODE_JAVASCRIPT_COLD_WITH_CFG_WALL_BASELINE_SECS: f64 = 7.0;
+/// home-assistant/core with `-l python`. Baseline: **20 s** on reference M3 Pro (2026-09-04).
+const HOME_ASSISTANT_PYTHON_COLD_WALL_BASELINE_SECS: f64 = 20.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
 const K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS: f64 = 3.0;
 /// ecommerce-java default discover cold wall (inheritance stub gate).
@@ -122,6 +124,14 @@ pub fn vscode_typescript_repo_path() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/vscode/src")
+        })
+}
+
+pub fn home_assistant_python_repo_path() -> PathBuf {
+    std::env::var("RGCTL_HOME_ASSISTANT_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/home-assistant")
         })
 }
 
@@ -642,6 +652,42 @@ fn node_javascript_cold_discover_with_cfg_within_baseline() {
         baseline
     );
     assert_within_baseline("node javascript cfg cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/home-assistant (-l python)"]
+fn home_assistant_python_cold_discover_within_baseline() {
+    let repo = home_assistant_python_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: home-assistant not at {} (run ./scripts/fetch-profile-repos.sh)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_HOME_ASSISTANT_PYTHON_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(HOME_ASSISTANT_PYTHON_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "python"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "home-assistant python cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("home-assistant python cold discover", elapsed, baseline);
 }
 
 #[test]

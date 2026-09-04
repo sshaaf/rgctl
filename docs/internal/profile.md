@@ -68,6 +68,7 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `rust_cold_discover_within_baseline` | `example/rust` | `-l rust` | **25 s** |
 | `node_javascript_cold_discover_within_baseline` | `example/node/test` | `-l javascript` | **5 s** |
 | `node_javascript_cold_discover_with_cfg_within_baseline` | `example/node/test` | `-l javascript --with-cfg` | **7 s** |
+| `home_assistant_python_cold_discover_within_baseline` | `example/home-assistant` | `-l python` | **20 s** |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`-r <corpus>`, `discover . -v`).
 
@@ -218,6 +219,17 @@ Top stages (% of wall): `index_extract` **~6.4 s** (30%), `index_graph_build` **
 | Wall (reference, 2026-09-04) | **~6.2 s** |
 | Peak RSS | **~614 MB** |
 | `cfg_total` | **~1.1 s** |
+
+### Home Assistant (`example/home-assistant`) — `-l python`
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **20 s** (pass ≤ 22 s; override `RGCTL_HOME_ASSISTANT_PYTHON_COLD_BASELINE_SECS`) |
+| Corpus | `home-assistant/core` (~18.6k `.py`) |
+| Wall (reference, 2026-09-04) | **~18.5 s** |
+| Nodes / functions | **558,729** / **122,320** |
+| Files indexed | **18,628** |
+| `index_graph_build` | **~3.4 s** |
 
 ### CFG on large C++ corpora (`--with-cfg`)
 

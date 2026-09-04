@@ -3,8 +3,15 @@
 //! Extracts symbols, relationships, and complexity metrics from Python source code
 //! using TreeSitter.
 
-use rgctl_plugin_api::*;
-use rgctl_plugin_api::{Error, Result};
+use rgctl_plugin_api::{
+    callee_name, containing_function, infer_python_method_target, ComplexityMetrics, Error,
+    ExtractAllResult, Field, LanguagePlugin, Parameter, Relation, RelationType, Result,
+    SourceLocation, Symbol, SymbolType,
+};
+use rgctl_plugin_helpers::{
+    containing_class_name, extract_decorator_relations, extract_python_class_extends_relations,
+    extract_python_import_symbols, python_simple_type_name,
+};
 use rgctl_semantic::type_inference::TypeInferencer;
 use std::path::Path;
 use tree_sitter::{Node, Parser};
@@ -104,6 +111,12 @@ impl PythonPlugin {
                 Some(format!("{class_name}.<init>")),
                 serde_json::json!({ "language": "python", "is_constructor": true }),
             )
+        } else if let Some(class_name) = self.find_containing_class_name(node, source) {
+            (
+                raw_name.clone(),
+                Some(format!("{class_name}.{raw_name}")),
+                serde_json::json!({ "language": "python" }),
+            )
         } else {
             (raw_name, None, serde_json::json!({ "language": "python" }))
         };
@@ -137,19 +150,7 @@ impl PythonPlugin {
     }
 
     fn find_containing_class_name(&self, node: Node, source: &[u8]) -> Option<String> {
-        let mut current = node;
-        while let Some(parent) = current.parent() {
-            if parent.kind() == "class_definition" {
-                let mut cursor = parent.walk();
-                for child in parent.children(&mut cursor) {
-                    if child.kind() == "identifier" {
-                        return child.utf8_text(source).ok().map(str::to_string);
-                    }
-                }
-            }
-            current = parent;
-        }
-        None
+        containing_class_name(node, source)
     }
 
     /// Extract function parameters
@@ -353,6 +354,7 @@ impl PythonPlugin {
                         });
                     if fn_name.as_deref() == Some("__init__") {
                         self.collect_self_assignments(child, source, &mut fields, &mut seen)?;
+                        self.infer_init_param_field_types(child, source, &mut fields)?;
                     }
                 }
                 _ => {}
@@ -360,6 +362,33 @@ impl PythonPlugin {
         }
 
         Ok(fields)
+    }
+
+    fn infer_init_param_field_types(
+        &self,
+        init_node: Node,
+        source: &[u8],
+        fields: &mut [Field],
+    ) -> Result<()> {
+        let params = init_node
+            .child_by_field_name("parameters")
+            .map(|p| self.extract_parameters(p, source))
+            .transpose()?
+            .unwrap_or_default();
+        for param in params {
+            if param.name == "self" {
+                continue;
+            }
+            let Some(param_type) = param.param_type else {
+                continue;
+            };
+            if let Some(field) = fields.iter_mut().find(|f| f.name == param.name) {
+                if field.field_type.is_none() {
+                    field.field_type = Some(param_type);
+                }
+            }
+        }
+        Ok(())
     }
 
     fn collect_self_assignments(
@@ -382,12 +411,21 @@ impl PythonPlugin {
                             .and_then(|a| a.utf8_text(source).ok())
                             .map(str::to_string)
                         {
+                            let field_type = node
+                                .child_by_field_name("right")
+                                .and_then(|r| infer_field_type_from_rhs(r, source));
                             if seen.insert(name.clone()) {
                                 fields.push(Field {
                                     name,
-                                    field_type: None,
+                                    field_type,
                                     visibility: None,
                                 });
+                            } else if let Some(field) =
+                                fields.iter_mut().find(|f| f.name == name)
+                            {
+                                if field.field_type.is_none() {
+                                    field.field_type = field_type;
+                                }
                             }
                         }
                     }
@@ -555,6 +593,15 @@ impl PythonPlugin {
                 "class_definition" => {
                     symbols.push(plugin.extract_class(node, source, file_path)?);
                 }
+                "import_statement" | "import_from_statement" => {
+                    symbols.extend(extract_python_import_symbols(
+                        node,
+                        source,
+                        file_path,
+                        "python",
+                    ));
+                }
+                "decorated_definition" => {}
                 _ => {}
             }
 
@@ -570,6 +617,95 @@ impl PythonPlugin {
         Ok(symbols)
     }
 
+    fn extract_heritage(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        relations: &mut Vec<Relation>,
+    ) -> Result<()> {
+        const MAX_DEPTH: usize = 2048;
+        let mut stack = vec![(root, 0usize)];
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_DEPTH {
+                continue;
+            }
+            if node.kind() == "class_definition" {
+                relations.extend(extract_python_class_extends_relations(
+                    node,
+                    source,
+                    &file_path.to_string_lossy(),
+                    "python",
+                ));
+            }
+            let mut cursor = node.walk();
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                stack.push((child, depth + 1));
+            }
+        }
+        Ok(())
+    }
+
+    fn extract_instantiations(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        symbols: &[Symbol],
+        relations: &mut Vec<Relation>,
+    ) -> Result<()> {
+        const MAX_DEPTH: usize = 2048;
+        let function_symbols: Vec<&Symbol> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Function)
+            .collect();
+        let class_names: std::collections::HashSet<String> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Class)
+            .map(|s| s.name.clone())
+            .collect();
+        let file_path_str = file_path.to_string_lossy().to_string();
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_DEPTH {
+                continue;
+            }
+            if node.kind() == "call" {
+                if let Some(from_fn) = containing_function(node, &function_symbols) {
+                    let from = from_fn
+                        .qualified_name
+                        .clone()
+                        .unwrap_or_else(|| from_fn.name.clone());
+                    if let Some(target) =
+                        instantiation_target(node, source, &class_names)
+                    {
+                        relations.push(Relation {
+                            from,
+                            to: target.clone(),
+                            relation_type: RelationType::Instantiates,
+                            location: rgctl_plugin_helpers::python_source_location(
+                                node,
+                                &file_path_str,
+                            ),
+                            metadata: serde_json::json!({ "language": "python" }),
+                            to_qualified_hint: Some(target),
+                            to_type_hint: None,
+                        });
+                    }
+                }
+            }
+
+            let mut cursor = node.walk();
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                stack.push((child, depth + 1));
+            }
+        }
+        Ok(())
+    }
+
     fn relations_from_tree(
         &self,
         root: Node,
@@ -578,16 +714,155 @@ impl PythonPlugin {
         symbols: &[Symbol],
     ) -> Result<Vec<Relation>> {
         let mut relations = Vec::new();
-        walk_calls(
+        self.walk_python_calls(root, source, file_path, symbols, &mut relations);
+        self.extract_heritage(root, source, file_path, &mut relations)?;
+        extract_decorator_relations(
             root,
             source,
-            file_path,
-            symbols,
-            PYTHON_CALL_KINDS,
+            &file_path.to_string_lossy(),
             "python",
             &mut relations,
         );
+        self.extract_instantiations(root, source, file_path, symbols, &mut relations)?;
         Ok(relations)
+    }
+
+    fn walk_python_calls(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        symbols: &[Symbol],
+        relations: &mut Vec<Relation>,
+    ) {
+        const MAX_DEPTH: usize = 2048;
+        let function_symbols: Vec<&Symbol> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Function)
+            .collect();
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_DEPTH {
+                continue;
+            }
+
+            if node.kind() == "call" {
+                if let Some(from_fn) = containing_function(node, &function_symbols) {
+                    let callee = node
+                        .child_by_field_name("function")
+                        .and_then(|n| callee_name(n, source))
+                        .or_else(|| callee_name(node, source));
+                    if let Some(callee) = callee.filter(|c| !c.is_empty()) {
+                        let from = from_fn
+                            .qualified_name
+                            .clone()
+                            .unwrap_or_else(|| from_fn.name.clone());
+                        let (to_qualified_hint, to_type_hint) =
+                            infer_python_method_target(node, source, symbols, from_fn);
+                        let mut meta = serde_json::json!({ "language": "python" });
+                        if python_call_unresolved_local(node, source) {
+                            meta["unresolved"] = serde_json::Value::Bool(true);
+                        }
+                        let same_file_matches: Vec<_> = symbols
+                            .iter()
+                            .filter(|s| {
+                                s.name == callee
+                                    && s.symbol_type == SymbolType::Function
+                                    && s.location.file == file_path.to_string_lossy()
+                            })
+                            .collect();
+                        let local_target = match same_file_matches.as_slice() {
+                            [only] => only
+                                .qualified_name
+                                .clone()
+                                .unwrap_or_else(|| callee.clone()),
+                            _ => to_qualified_hint
+                                .clone()
+                                .unwrap_or_else(|| callee.clone()),
+                        };
+                        relations.push(Relation {
+                            from,
+                            to: local_target,
+                            relation_type: RelationType::Calls,
+                            location: rgctl_plugin_helpers::python_source_location(
+                                node,
+                                &file_path.to_string_lossy(),
+                            ),
+                            metadata: meta,
+                            to_qualified_hint,
+                            to_type_hint,
+                        });
+                    }
+                }
+            }
+
+            let mut cursor = node.walk();
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                stack.push((child, depth + 1));
+            }
+        }
+    }
+}
+
+fn infer_field_type_from_rhs(node: Node, source: &[u8]) -> Option<String> {
+    match node.kind() {
+        "identifier" | "attribute" => python_simple_type_name(node, source),
+        "call" => node
+            .child_by_field_name("function")
+            .and_then(|f| python_simple_type_name(f, source)),
+        _ => None,
+    }
+}
+
+fn instantiation_target(
+    call: Node,
+    source: &[u8],
+    class_names: &std::collections::HashSet<String>,
+) -> Option<String> {
+    let func = call.child_by_field_name("function")?;
+    match func.kind() {
+        "identifier" => {
+            let name = func.utf8_text(source).ok()?.to_string();
+            if class_names.contains(&name) {
+                Some(name)
+            } else {
+                None
+            }
+        }
+        "attribute" => {
+            let attr = func.child_by_field_name("attribute")?;
+            let method = attr.utf8_text(source).ok()?;
+            if method == "model_validate" {
+                func.child_by_field_name("object")
+                    .and_then(|o| python_simple_type_name(o, source))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn python_call_unresolved_local(call: Node, source: &[u8]) -> bool {
+    let Some(func) = call.child_by_field_name("function") else {
+        return false;
+    };
+    if func.kind() == "subscript" {
+        return true;
+    }
+    if func.kind() != "attribute" {
+        return false;
+    }
+    let attr = func.child_by_field_name("attribute");
+    match attr.map(|a| a.kind()) {
+        Some("identifier") => false,
+        Some(kind) => kind != "identifier"
+            || attr
+                .and_then(|a| a.utf8_text(source).ok())
+                .is_some_and(|t| t.starts_with('[')),
+        None => true,
     }
 }
 
@@ -846,6 +1121,69 @@ def helper():
                 .iter()
                 .any(|r| matches!(r.relation_type, RelationType::Calls) && r.to == "helper"),
             "expected Calls -> helper, got {relations:?}"
+        );
+    }
+
+    #[test]
+    fn test_extraction_depth_import_extends_decorators() {
+        let source = br#"
+from app.repositories.order import OrderRepository
+from pydantic import BaseModel
+
+class OrderService(BaseRepository):
+    def checkout(self):
+        pass
+
+@router.get("")
+def list_orders():
+    pass
+"#;
+        let plugin = PythonPlugin::new().unwrap();
+        let path = Path::new("svc.py");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        assert!(symbols.iter().any(|s| s.symbol_type == SymbolType::Import));
+        let checkout = symbols.iter().find(|s| s.name == "checkout").unwrap();
+        assert_eq!(checkout.qualified_name.as_deref(), Some("OrderService.checkout"));
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(relations.iter().any(|r| r.relation_type == RelationType::Extends));
+        assert!(relations.iter().any(|r| r.relation_type == RelationType::AnnotatedWith));
+    }
+
+    #[test]
+    fn test_instantiates_and_typed_call() {
+        let source = br#"
+class Order:
+    def __init__(self, id: str):
+        self.id = id
+
+class OrderRepository:
+    def list_for_user(self, user_id: str):
+        pass
+
+class OrderService:
+    def __init__(self):
+        self.orders = OrderRepository()
+
+    def checkout(self, user_id: str):
+        self.orders.list_for_user(user_id)
+        return Order(id="1")
+"#;
+        let plugin = PythonPlugin::new().unwrap();
+        let path = Path::new("svc.py");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(
+            relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::Instantiates && r.to == "Order"),
+            "{relations:?}"
+        );
+        assert!(
+            relations.iter().any(|r| {
+                r.relation_type == RelationType::Calls
+                    && r.to_type_hint.as_deref() == Some("OrderRepository")
+            }),
+            "{relations:?}"
         );
     }
 }

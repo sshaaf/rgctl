@@ -164,6 +164,11 @@ pub fn push_call_relation(
             let qh = cpp_call_qualified_hint(node, source);
             (None, qh)
         }
+        "python" => {
+            let ty = python_call_type_hint(node, source, symbols, from_fn);
+            let qh = ty.as_ref().map(|t| format!("{t}.{callee}"));
+            (ty, qh)
+        }
         _ => (None, None),
     };
 
@@ -185,6 +190,11 @@ pub fn push_call_relation(
     }
     if language == "c" {
         if let Some(unresolved) = c_call_unresolved(node, source, from_fn) {
+            meta["unresolved"] = serde_json::Value::Bool(unresolved);
+        }
+    }
+    if language == "python" {
+        if let Some(unresolved) = python_call_unresolved(node, source) {
             meta["unresolved"] = serde_json::Value::Bool(unresolved);
         }
     }
@@ -577,6 +587,107 @@ fn go_simple_type_name(ty: &str) -> String {
         .next()
         .unwrap_or(ty)
         .to_string()
+}
+
+/// Best-effort Python type for `self.field.method()` call sites.
+pub fn infer_python_method_target(
+    call: Node,
+    source: &[u8],
+    symbols: &[Symbol],
+    from_fn: &Symbol,
+) -> (Option<String>, Option<String>) {
+    python_call_type_hint(call, source, symbols, from_fn).map(|ty| {
+        let method = call
+            .child_by_field_name("function")
+            .and_then(|f| callee_name(f, source))
+            .unwrap_or_default();
+        let qualified = if method.is_empty() {
+            ty.clone()
+        } else {
+            format!("{ty}.{method}")
+        };
+        (Some(qualified), Some(ty))
+    }).unwrap_or((None, None))
+}
+
+fn python_call_type_hint(
+    call: Node,
+    source: &[u8],
+    symbols: &[Symbol],
+    from_fn: &Symbol,
+) -> Option<String> {
+    let func = call.child_by_field_name("function")?;
+    if func.kind() != "attribute" {
+        return None;
+    }
+    let method_name = callee_name(func, source)?;
+    let object = func.child_by_field_name("object")?;
+    let (field_name, owner_class) = match object.kind() {
+        "attribute" => {
+            let inner_obj = object.child_by_field_name("object")?;
+            let field = object.child_by_field_name("attribute")?;
+            if inner_obj.utf8_text(source).ok()? != "self" {
+                return None;
+            }
+            let field_name = field.utf8_text(source).ok()?.to_string();
+            let owner = containing_python_class_name(from_fn)?;
+            (field_name, owner)
+        }
+        "identifier" if object.utf8_text(source).ok()? == "self" => {
+            let field = func.child_by_field_name("attribute")?;
+            let field_name = field.utf8_text(source).ok()?.to_string();
+            let owner = containing_python_class_name(from_fn)?;
+            (field_name, owner)
+        }
+        _ => return None,
+    };
+    let _ = method_name;
+    let class_sym = symbols.iter().find(|s| {
+        s.symbol_type == SymbolType::Class && s.name == owner_class
+    })?;
+    class_sym
+        .fields
+        .iter()
+        .find(|f| f.name == field_name)
+        .and_then(|f| f.field_type.as_deref())
+        .map(python_simple_type_name_str)
+}
+
+fn containing_python_class_name(from_fn: &Symbol) -> Option<String> {
+    from_fn.qualified_name.as_ref().and_then(|qn| {
+        qn.strip_suffix(".<init>")
+            .or_else(|| qn.rsplit_once('.').map(|(c, _)| c))
+            .map(str::to_string)
+    })
+}
+
+fn python_simple_type_name_str(ty: &str) -> String {
+    ty.trim()
+        .split('[')
+        .next()
+        .unwrap_or(ty)
+        .rsplit('.')
+        .next()
+        .unwrap_or(ty)
+        .to_string()
+}
+
+fn python_call_unresolved(call: Node, source: &[u8]) -> Option<bool> {
+    let func = call.child_by_field_name("function")?;
+    if func.kind() == "subscript" {
+        return Some(true);
+    }
+    if func.kind() != "attribute" {
+        return None;
+    }
+    let attr = func.child_by_field_name("attribute")?;
+    match attr.kind() {
+        "identifier" => Some(false),
+        _ => attr
+            .utf8_text(source)
+            .ok()
+            .map(|t| t.starts_with('[') || t.contains('(')),
+    }
 }
 
 /// Iterative tree walk that records call relations (heap stack; bounded depth).
