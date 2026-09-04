@@ -3,11 +3,29 @@
 //! Extracts symbols, relationships, and complexity metrics from JavaScript source code
 //! using TreeSitter.
 
-use rgctl_plugin_api::*;
-use rgctl_plugin_api::{Error, Result};
+use rgctl_plugin_api::{
+    callee_name, containing_function, ComplexityMetrics, Error, ExtractAllResult,
+    Field, JS_CALL_KINDS, LanguagePlugin, Parameter, Relation, RelationType, Result,
+    SourceLocation, Symbol, SymbolType,
+};
+use rgctl_plugin_helpers::{
+    extract_cjs_require_symbols, extract_class_extends_relations, extract_import_symbols,
+    simple_type_name, type_name_from_node,
+};
 use rgctl_semantic::type_inference::TypeInferencer;
 use std::path::Path;
 use tree_sitter::{Node, Parser};
+
+/// Cap AST walk depth (matches CFG expression walk limit in `rgctl-analysis`).
+const MAX_TREE_DEPTH: usize = 2048;
+
+fn push_tree_children<'a>(stack: &mut Vec<(Node<'a>, usize)>, node: Node<'a>, depth: usize) {
+    let mut cursor = node.walk();
+    let children: Vec<Node<'a>> = node.children(&mut cursor).collect();
+    for child in children.into_iter().rev() {
+        stack.push((child, depth + 1));
+    }
+}
 
 /// JavaScript language plugin
 pub struct JavaScriptPlugin;
@@ -83,9 +101,15 @@ impl JavaScriptPlugin {
                 serde_json::json!({ "language": "javascript", "is_constructor": true }),
             )
         } else {
+            let qualified_name = if node.kind() == "method_definition" {
+                self.find_containing_class_name(node, source)
+                    .map(|c| format!("{c}.{raw_name}"))
+            } else {
+                None
+            };
             (
                 raw_name,
-                None,
+                qualified_name,
                 serde_json::json!({ "language": "javascript" }),
             )
         };
@@ -258,86 +282,381 @@ impl JavaScriptPlugin {
         fields: &mut Vec<Field>,
         seen: &mut std::collections::HashSet<String>,
     ) -> Result<()> {
-        if node.kind() == "assignment_expression" {
-            if let Some(left) = node.child_by_field_name("left") {
-                if left.kind() == "member_expression" {
-                    let object = left.child_by_field_name("object");
-                    let property = left.child_by_field_name("property");
-                    let is_this = object
-                        .and_then(|o| o.utf8_text(source).ok())
-                        .is_some_and(|t| t == "this");
-                    if is_this {
-                        if let Some(name) = property
-                            .and_then(|p| p.utf8_text(source).ok())
-                            .map(str::to_string)
-                        {
-                            if seen.insert(name.clone()) {
-                                fields.push(Field {
-                                    name,
-                                    field_type: None,
-                                    visibility: None,
-                                });
+        let mut stack = vec![(node, 0usize)];
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
+            if node.kind() == "assignment_expression" {
+                if let Some(left) = node.child_by_field_name("left") {
+                    if left.kind() == "member_expression" {
+                        let object = left.child_by_field_name("object");
+                        let property = left.child_by_field_name("property");
+                        let is_this = object
+                            .and_then(|o| o.utf8_text(source).ok())
+                            .is_some_and(|t| t == "this");
+                        if is_this {
+                            if let Some(name) = property
+                                .and_then(|p| p.utf8_text(source).ok())
+                                .map(str::to_string)
+                            {
+                                if seen.insert(name.clone()) {
+                                    fields.push(Field {
+                                        name,
+                                        field_type: None,
+                                        visibility: None,
+                                    });
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.collect_this_assignments(child, source, fields, seen)?;
+            push_tree_children(&mut stack, node, depth);
         }
         Ok(())
     }
 
+    fn extract_export_symbol(&self, node: Node, source: &[u8], file_path: &str) -> Option<Symbol> {
+        let text = node.utf8_text(source).ok()?.trim().to_string();
+        if !text.starts_with("export") {
+            return None;
+        }
+        Some(Symbol {
+            name: text,
+            symbol_type: SymbolType::Import,
+            qualified_name: None,
+            location: source_location(node, file_path),
+            signature: None,
+            return_type: None,
+            parameters: vec![],
+            fields: vec![],
+            modifiers: vec![],
+            documentation: None,
+            metadata: serde_json::json!({
+                "language": "javascript",
+                "direction": "export",
+            }),
+        })
+    }
+
+    fn emit_symbol_for_node(
+        &self,
+        node: Node,
+        source: &[u8],
+        file_path: &str,
+        symbols: &mut Vec<Symbol>,
+    ) -> Result<()> {
+        match node.kind() {
+            "function_declaration" | "function" | "method_definition" | "arrow_function" => {
+                symbols.push(self.extract_function(node, source, file_path)?);
+            }
+            "class_declaration" => {
+                symbols.push(self.extract_class(node, source, file_path)?);
+            }
+            "import_statement" => {
+                symbols.extend(extract_import_symbols(
+                    node,
+                    source,
+                    file_path,
+                    "javascript",
+                ));
+            }
+            "export_statement" => {
+                if let Some(sym) = self.extract_export_symbol(node, source, file_path) {
+                    symbols.push(sym);
+                }
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn symbols_from_tree(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+    ) -> Result<Vec<Symbol>> {
+        let mut symbols = Vec::new();
+        let file_path_str = file_path.to_string_lossy();
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
+            self.emit_symbol_for_node(node, source, &file_path_str, &mut symbols)?;
+            push_tree_children(&mut stack, node, depth);
+        }
+
+        symbols.extend(extract_cjs_require_symbols(
+            root,
+            source,
+            &file_path_str,
+            "javascript",
+        ));
+        Ok(symbols)
+    }
+
+    fn walk_js_calls(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        symbols: &[Symbol],
+        relations: &mut Vec<Relation>,
+    ) {
+        let function_symbols: Vec<&Symbol> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Function)
+            .collect();
+        let file_path_str = file_path.to_string_lossy();
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
+
+            if JS_CALL_KINDS.contains(&node.kind()) {
+                if let Some(from_fn) = containing_function(node, &function_symbols) {
+                    let func = node.child_by_field_name("function");
+                    let unresolved = func
+                        .map(|f| self.is_unresolved_callee(f, source))
+                        .unwrap_or(false)
+                        || func.is_some_and(|f| f.kind() == "subscript_expression");
+                    let callee = func
+                        .and_then(|n| callee_name(n, source))
+                        .or_else(|| callee_name(node, source));
+                    let callee = if unresolved && callee.as_deref().unwrap_or("").is_empty() {
+                        Some("dynamic".to_string())
+                    } else {
+                        callee
+                    };
+                    if let Some(callee) = callee.filter(|c| !c.is_empty()) {
+                        let from = from_fn
+                            .qualified_name
+                            .clone()
+                            .unwrap_or_else(|| from_fn.name.clone());
+                        let mut meta = serde_json::json!({ "language": "javascript" });
+                        if unresolved {
+                            meta["unresolved"] = serde_json::Value::Bool(true);
+                        }
+                        let same_file_matches: Vec<_> = symbols
+                            .iter()
+                            .filter(|s| {
+                                s.name == callee
+                                    && s.symbol_type == SymbolType::Function
+                                    && s.location.file == file_path_str
+                            })
+                            .collect();
+                        let local_target = match same_file_matches.as_slice() {
+                            [only] => only
+                                .qualified_name
+                                .clone()
+                                .unwrap_or_else(|| callee.clone()),
+                            _ => callee.clone(),
+                        };
+                        relations.push(Relation {
+                            from,
+                            to: local_target,
+                            relation_type: RelationType::Calls,
+                            location: source_location(node, &file_path_str),
+                            metadata: meta,
+                            to_qualified_hint: None,
+                            to_type_hint: None,
+                        });
+                    }
+                }
+            }
+
+            push_tree_children(&mut stack, node, depth);
+        }
+    }
+
+    fn is_unresolved_callee(&self, func: Node, source: &[u8]) -> bool {
+        if func.kind() == "subscript_expression" {
+            return true;
+        }
+        if func.kind() != "member_expression" {
+            return false;
+        }
+        let property = func.child_by_field_name("property");
+        match property.map(|p| p.kind()) {
+            Some("property_identifier") | Some("private_property_identifier") => false,
+            Some("computed_property_name") => true,
+            None => true,
+            _ => property
+                .and_then(|p| p.utf8_text(source).ok())
+                .is_some_and(|t| t.starts_with('[')),
+        }
+    }
+
+    fn extract_heritage(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        relations: &mut Vec<Relation>,
+    ) {
+        let mut stack = vec![(root, 0usize)];
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
+            if node.kind() == "class_declaration" {
+                if let Some(name) = node
+                    .child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(source).ok())
+                {
+                    extract_class_extends_relations(
+                        node,
+                        source,
+                        file_path,
+                        name,
+                        "javascript",
+                        relations,
+                    );
+                }
+            }
+            push_tree_children(&mut stack, node, depth);
+        }
+    }
+
+    fn extract_instantiations(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        symbols: &[Symbol],
+        relations: &mut Vec<Relation>,
+    ) {
+        let function_symbols: Vec<&Symbol> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Function)
+            .collect();
+        let file_path_str = file_path.to_string_lossy();
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
+            if node.kind() == "new_expression" {
+                if let Some(from_fn) = containing_function(node, &function_symbols) {
+                    let from = from_fn
+                        .qualified_name
+                        .clone()
+                        .unwrap_or_else(|| from_fn.name.clone());
+                    if let Some(ctor) = node.child_by_field_name("constructor") {
+                        if let Some(target) = type_name_from_node(ctor, source) {
+                            relations.push(Relation {
+                                from,
+                                to: simple_type_name(&target),
+                                relation_type: RelationType::Instantiates,
+                                location: source_location(node, &file_path_str),
+                                metadata: serde_json::json!({ "language": "javascript" }),
+                                to_qualified_hint: Some(target),
+                                to_type_hint: None,
+                            });
+                        }
+                    }
+                }
+            }
+            push_tree_children(&mut stack, node, depth);
+        }
+    }
+
+    fn relations_from_tree(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        symbols: &[Symbol],
+    ) -> Result<Vec<Relation>> {
+        let mut relations = Vec::new();
+        self.walk_js_calls(root, source, file_path, symbols, &mut relations);
+        self.extract_heritage(root, source, file_path, &mut relations);
+        self.extract_instantiations(root, source, file_path, symbols, &mut relations);
+        Ok(relations)
+    }
+
+    fn find_function_at_line<'a>(&self, root: Node<'a>, line: usize) -> Option<Node<'a>> {
+        let mut stack = vec![(root, 0usize)];
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
+            if matches!(
+                node.kind(),
+                "function_declaration" | "method_definition" | "arrow_function"
+            ) && node.start_position().row == line
+            {
+                return Some(node);
+            }
+            push_tree_children(&mut stack, node, depth);
+        }
+        None
+    }
+
     fn calculate_cyclomatic(&self, node: Node) -> usize {
         let mut complexity = 1;
+        let mut stack = vec![(node, 0usize)];
 
-        fn traverse(node: Node, complexity: &mut usize) {
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
             let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in &children {
                 match child.kind() {
                     "if_statement" | "switch_statement" | "while_statement" | "for_statement"
-                    | "catch_clause" | "ternary_expression" => {
-                        *complexity += 1;
-                    }
-                    "case" => {
-                        *complexity += 1;
+                    | "catch_clause" | "ternary_expression" | "case" => {
+                        complexity += 1;
                     }
                     _ => {}
                 }
-                traverse(child, complexity);
+            }
+            for child in children.into_iter().rev() {
+                stack.push((child, depth + 1));
             }
         }
 
-        traverse(node, &mut complexity);
         complexity
     }
 
     fn calculate_cognitive(&self, node: Node) -> usize {
         let mut cognitive = 0;
+        let mut stack = vec![(node, 0usize, 0usize)];
 
-        fn traverse(node: Node, cognitive: &mut usize, nesting: usize) {
+        while let Some((node, depth, nesting)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
             let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in &children {
                 match child.kind() {
                     "if_statement" | "while_statement" | "for_statement" => {
-                        *cognitive += 1 + nesting;
-                        traverse(child, cognitive, nesting + 1);
+                        cognitive += 1 + nesting;
                     }
                     "switch_statement" | "catch_clause" => {
-                        *cognitive += 1 + nesting;
-                        traverse(child, cognitive, nesting);
+                        cognitive += 1 + nesting;
                     }
-                    _ => {
-                        traverse(child, cognitive, nesting);
-                    }
+                    _ => {}
                 }
+            }
+            for child in children.into_iter().rev() {
+                let child_nesting = match child.kind() {
+                    "if_statement" | "while_statement" | "for_statement" => nesting + 1,
+                    _ => nesting,
+                };
+                stack.push((child, depth + 1, child_nesting));
             }
         }
 
-        traverse(node, &mut cognitive, 0);
         cognitive
     }
 
@@ -347,40 +666,45 @@ impl JavaScriptPlugin {
 
     fn count_nesting_depth(&self, node: Node) -> usize {
         let mut max_depth = 0;
+        let mut stack = vec![(node, 0usize, 0usize)];
 
-        fn traverse(node: Node, max_depth: &mut usize, current_depth: usize) {
-            *max_depth = (*max_depth).max(current_depth);
+        while let Some((node, depth, current_depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
+            max_depth = max_depth.max(current_depth);
             let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if matches!(
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                let child_depth = if matches!(
                     child.kind(),
                     "if_statement" | "while_statement" | "for_statement" | "statement_block"
                 ) {
-                    traverse(child, max_depth, current_depth + 1);
+                    current_depth + 1
                 } else {
-                    traverse(child, max_depth, current_depth);
-                }
+                    current_depth
+                };
+                stack.push((child, depth + 1, child_depth));
             }
         }
 
-        traverse(node, &mut max_depth, 0);
         max_depth
     }
 
     fn count_returns(&self, node: Node) -> usize {
         let mut count = 0;
+        let mut stack = vec![(node, 0usize)];
 
-        fn traverse(node: Node, count: &mut usize) {
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
             if node.kind() == "return_statement" {
-                *count += 1;
+                count += 1;
             }
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                traverse(child, count);
-            }
+            push_tree_children(&mut stack, node, depth);
         }
 
-        traverse(node, &mut count);
         count
     }
 
@@ -395,63 +719,15 @@ impl JavaScriptPlugin {
             message: "Failed to parse JavaScript source".to_string(),
         })
     }
+}
 
-    fn symbols_from_tree(
-        &self,
-        root: Node,
-        source: &[u8],
-        file_path: &Path,
-    ) -> Result<Vec<Symbol>> {
-        let mut symbols = Vec::new();
-        let file_path_str = file_path.to_string_lossy();
-
-        fn traverse_for_symbols(
-            node: Node,
-            source: &[u8],
-            file_path: &str,
-            symbols: &mut Vec<Symbol>,
-            plugin: &JavaScriptPlugin,
-        ) -> Result<()> {
-            match node.kind() {
-                "function_declaration" | "function" | "method_definition" | "arrow_function" => {
-                    symbols.push(plugin.extract_function(node, source, file_path)?);
-                }
-                "class_declaration" => {
-                    symbols.push(plugin.extract_class(node, source, file_path)?);
-                }
-                _ => {}
-            }
-
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                traverse_for_symbols(child, source, file_path, symbols, plugin)?;
-            }
-
-            Ok(())
-        }
-
-        traverse_for_symbols(root, source, &file_path_str, &mut symbols, self)?;
-        Ok(symbols)
-    }
-
-    fn relations_from_tree(
-        &self,
-        root: Node,
-        source: &[u8],
-        file_path: &Path,
-        symbols: &[Symbol],
-    ) -> Result<Vec<Relation>> {
-        let mut relations = Vec::new();
-        walk_calls(
-            root,
-            source,
-            file_path,
-            symbols,
-            JS_CALL_KINDS,
-            "javascript",
-            &mut relations,
-        );
-        Ok(relations)
+fn source_location(node: Node, file_path: &str) -> SourceLocation {
+    SourceLocation {
+        file: file_path.to_string(),
+        start_line: node.start_position().row + 1,
+        end_line: node.end_position().row + 1,
+        start_column: node.start_position().column,
+        end_column: node.end_position().column,
     }
 }
 
@@ -520,26 +796,9 @@ impl LanguagePlugin for JavaScriptPlugin {
             })?;
 
         let root = tree.root_node();
-        let target_line = symbol.location.start_line - 1;
+        let target_line = symbol.location.start_line.saturating_sub(1);
 
-        fn find_function_at_line(node: Node, line: usize) -> Option<Node> {
-            if matches!(
-                node.kind(),
-                "function_declaration" | "method_definition" | "arrow_function"
-            ) && node.start_position().row == line
-            {
-                return Some(node);
-            }
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if let Some(found) = find_function_at_line(child, line) {
-                    return Some(found);
-                }
-            }
-            None
-        }
-
-        if let Some(func_node) = find_function_at_line(root, target_line) {
+        if let Some(func_node) = self.find_function_at_line(root, target_line) {
             Ok(Some(ComplexityMetrics {
                 cyclomatic: self.calculate_cyclomatic(func_node),
                 cognitive: self.calculate_cognitive(func_node),
@@ -663,6 +922,92 @@ function helper() {}
                 .iter()
                 .any(|r| matches!(r.relation_type, RelationType::Calls) && r.to == "helper"),
             "expected Calls -> helper, got {relations:?}"
+        );
+    }
+
+    #[test]
+    fn test_named_and_default_import() {
+        let source = br#"
+import express from 'express';
+import { foo, bar as Baz } from 'lodash';
+"#;
+        let plugin = JavaScriptPlugin::new().unwrap();
+        let symbols = plugin
+            .extract_symbols(Path::new("a.js"), source)
+            .unwrap();
+        assert!(symbols.iter().any(|s| s.symbol_type == SymbolType::Import));
+        assert!(symbols.len() >= 2);
+    }
+
+    #[test]
+    fn test_class_extends_error() {
+        let source = br#"class AppError extends Error {}"#;
+        let plugin = JavaScriptPlugin::new().unwrap();
+        let path = Path::new("err.js");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(
+            relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::Extends && r.to == "Error")
+        );
+    }
+
+    #[test]
+    fn test_method_qualified_name_and_instantiates() {
+        let source = br#"
+class OrderService {
+  checkout() { return new OrderDto(); }
+}
+class OrderDto {}
+"#;
+        let plugin = JavaScriptPlugin::new().unwrap();
+        let path = Path::new("svc.js");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let checkout = symbols.iter().find(|s| s.name == "checkout").unwrap();
+        assert_eq!(
+            checkout.qualified_name.as_deref(),
+            Some("OrderService.checkout")
+        );
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(
+            relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::Instantiates && r.to == "OrderDto")
+        );
+    }
+
+    #[test]
+    fn test_unresolved_dynamic_call_metadata() {
+        let source = br#"
+function f(obj, key) { return obj[key](); }
+"#;
+        let plugin = JavaScriptPlugin::new().unwrap();
+        let path = Path::new("dyn.js");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        let call = relations
+            .iter()
+            .find(|r| r.relation_type == RelationType::Calls)
+            .expect("call");
+        assert_eq!(
+            call.metadata.get("unresolved").and_then(|v| v.as_bool()),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn test_cjs_require_import() {
+        let source = br#"const fs = require('fs');"#;
+        let plugin = JavaScriptPlugin::new().unwrap();
+        let symbols = plugin
+            .extract_symbols(Path::new("cjs.js"), source)
+            .unwrap();
+        assert!(
+            symbols.iter().any(|s| {
+                s.symbol_type == SymbolType::Import
+                    && s.metadata.get("module_system").and_then(|v| v.as_str()) == Some("cjs")
+            })
         );
     }
 }

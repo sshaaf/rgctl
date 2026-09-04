@@ -22,13 +22,15 @@ Per-language cold discover gates for extraction-depth work. Fetch via `./scripts
 | C# | `roslyn/` | dotnet/roslyn (`src/`) | `-l csharp` | ~8k+ `.cs` |
 | Go | `kubernetes/` | kubernetes/kubernetes | `-l go` | ~10k+ `.go` |
 | Java | `metasfresh-4.9.8b/` | metasfresh/metasfresh | `--full` | ~10k+ `.java` |
-| JavaScript | `node/` | nodejs/node (`lib/`) | `-l javascript` | ~10k+ `.js` |
+| JavaScript | `node/` | nodejs/node (`test/`, sparse) | `-l javascript` on `test/` | ~9k `.js` |
 | PHP | `magento2/` | magento/magento2 | `-l php` on `app/` `lib/` `setup/` | ~10k+ `.php` |
 | Python | `home-assistant/` | home-assistant/core | `-l python` | ~12k+ `.py` |
 | Rust | `rust/` | rust-lang/rust (`library/` `compiler/`) | `-l rust` | ~10k+ `.rs` |
 | TypeScript | `vscode/` | microsoft/vscode (`src/`) | `-l typescript` | ~10k+ `.ts` |
 
 OpenSpec reference: `openspec/changes/_shared/starting-context.md`
+
+**JavaScript corpus note:** `nodejs/node` `lib/` is only ~400 `.js` files (the runtime stdlib). The language-scale gate uses sparse-checkout **`test/`** (~9.2k discoverable `.js`/`.mjs`). Set `RGCTL_NODE_REPO` to override the discover root (default `example/node/test`).
 
 Manual stage breakdown: [docs/internal/profile.md](../docs/internal/profile.md) (`example/linux` + `example/metasfresh-4.9.8b`; run from inside the corpus dir).
 

@@ -70,7 +70,7 @@ fn discover_all_writes_javascript_cfg_dashboard_bundle() {
     );
 
     eprintln!(
-        "ecommerce-javascript OK: {} nodes, {} functions, {} cfg functions, {} calls",
+        "ecommerce-javascript OK: {} nodes, {} functions, {} cfg functions, {} calls (Import/Extends: javascript_langfeatures)",
         manifest["graph"]["node_count"], functions, cfg_index["function_count"], calls
     );
 }

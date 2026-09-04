@@ -121,6 +121,92 @@ fn collect_import_clause_children(
 }
 
 /// `Extends` edges from `class_heritage` / `extends_clause` on a class declaration.
+/// Extract CommonJS `require('module')` call sites as `Import` symbols.
+pub fn extract_cjs_require_symbols(
+    root: Node,
+    source: &[u8],
+    file_path: &str,
+    language: &str,
+) -> Vec<Symbol> {
+    const MAX_DEPTH: usize = 2048;
+    let mut symbols = Vec::new();
+    let mut stack = vec![(root, 0usize)];
+
+    while let Some((node, depth)) = stack.pop() {
+        if depth > MAX_DEPTH {
+            continue;
+        }
+        if node.kind() == "call_expression" {
+            let is_require = node
+                .child_by_field_name("function")
+                .and_then(|f| f.utf8_text(source).ok())
+                == Some("require");
+            if is_require {
+                if let Some(module) = require_module_argument(node, source) {
+                    let mut meta = serde_json::json!({
+                        "language": language,
+                        "module_system": "cjs",
+                    });
+                    meta["module"] = serde_json::Value::String(module.clone());
+                    symbols.push(Symbol {
+                        name: module,
+                        symbol_type: SymbolType::Import,
+                        qualified_name: None,
+                        location: source_location(node, file_path),
+                        signature: None,
+                        return_type: None,
+                        parameters: vec![],
+                        fields: vec![],
+                        modifiers: vec![],
+                        documentation: None,
+                        metadata: meta,
+                    });
+                }
+            }
+        }
+
+        let mut cursor = node.walk();
+        let children: Vec<Node<'_>> = node.children(&mut cursor).collect();
+        for child in children.into_iter().rev() {
+            stack.push((child, depth + 1));
+        }
+    }
+
+    symbols
+}
+
+fn require_module_argument(call: Node, source: &[u8]) -> Option<String> {
+    let mut cursor = call.walk();
+    for child in call.children(&mut cursor) {
+        if child.kind() == "arguments" || child.kind() == "argument_list" {
+            let mut ac = child.walk();
+            for arg in child.children(&mut ac) {
+                if arg.kind() == "string" || arg.kind() == "string_fragment" {
+                    return arg
+                        .utf8_text(source)
+                        .ok()
+                        .map(|s| s.trim_matches(['"', '\'']).to_string());
+                }
+                if arg.kind() == "template_string" {
+                    if let Some(inner) = arg.named_child(0) {
+                        return inner
+                            .utf8_text(source)
+                            .ok()
+                            .map(|s| s.trim_matches(['"', '\'']).to_string());
+                    }
+                }
+            }
+        }
+        if child.kind() == "string" {
+            return child
+                .utf8_text(source)
+                .ok()
+                .map(|s| s.trim_matches(['"', '\'']).to_string());
+        }
+    }
+    None
+}
+
 pub fn extract_class_extends_relations(
     class_node: Node,
     source: &[u8],
@@ -134,39 +220,55 @@ pub fn extract_class_extends_relations(
         return;
     };
 
-    let extends = heritage
-        .children(&mut heritage.walk())
-        .find(|c| c.kind() == "extends_clause");
-    let Some(extends) = extends else {
+    if let Some(extends_clause) = find_child_kind(heritage, "extends_clause") {
+        let mut cursor = extends_clause.walk();
+        for child in extends_clause.children(&mut cursor) {
+            if child.kind() == "identifier" || child.kind() == "type_identifier" {
+                if let Ok(base) = child.utf8_text(source) {
+                    push_relation(
+                        class_name,
+                        base,
+                        RelationType::Extends,
+                        child,
+                        file_path,
+                        language,
+                        relations,
+                    );
+                }
+            } else if let Some(value) = child.child_by_field_name("value") {
+                if let Some(base) = type_name_from_node(value, source) {
+                    push_relation(
+                        class_name,
+                        &base,
+                        RelationType::Extends,
+                        child,
+                        file_path,
+                        language,
+                        relations,
+                    );
+                }
+            }
+        }
         return;
-    };
+    }
 
-    let mut cursor = extends.walk();
-    for child in extends.children(&mut cursor) {
-        if child.kind() == "identifier" || child.kind() == "type_identifier" {
-            if let Ok(base) = child.utf8_text(source) {
-                push_relation(
-                    class_name,
-                    base,
-                    RelationType::Extends,
-                    child,
-                    file_path,
-                    language,
-                    relations,
-                );
-            }
-        } else if let Some(value) = child.child_by_field_name("value") {
-            if let Some(base) = type_name_from_node(value, source) {
-                push_relation(
-                    class_name,
-                    &base,
-                    RelationType::Extends,
-                    child,
-                    file_path,
-                    language,
-                    relations,
-                );
-            }
+    // JavaScript: `class_heritage` is `extends <expression>` (no `extends_clause` node).
+    let mut cursor = heritage.walk();
+    for child in heritage.children(&mut cursor) {
+        if child.kind() == "extends" {
+            continue;
+        }
+        if let Some(base) = type_name_from_node(child, source) {
+            push_relation(
+                class_name,
+                &base,
+                RelationType::Extends,
+                child,
+                file_path,
+                language,
+                relations,
+            );
+            break;
         }
     }
 }
@@ -355,6 +457,55 @@ mod tests {
             Path::new("a.ts"),
             "AppError",
             "typescript",
+            &mut relations,
+        );
+        assert!(
+            relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::Extends && r.to == "Error")
+        );
+    }
+
+    fn parse_js(source: &str) -> tree_sitter::Tree {
+        let mut parser = Parser::new();
+        parser
+            .set_language(&tree_sitter_javascript::LANGUAGE.into())
+            .unwrap();
+        parser.parse(source, None).unwrap()
+    }
+
+    #[test]
+    fn test_js_require_import() {
+        let source = "const fs = require('fs');";
+        let tree = parse_js(source);
+        let symbols = extract_cjs_require_symbols(
+            tree.root_node(),
+            source.as_bytes(),
+            "a.js",
+            "javascript",
+        );
+        assert!(symbols.iter().any(|s| s.name == "fs"));
+        assert_eq!(
+            symbols[0]
+                .metadata
+                .get("module_system")
+                .and_then(|v| v.as_str()),
+            Some("cjs")
+        );
+    }
+
+    #[test]
+    fn test_js_class_extends_relation() {
+        let source = "class AppError extends Error {}";
+        let tree = parse_js(source);
+        let class = tree.root_node().named_child(0).unwrap();
+        let mut relations = Vec::new();
+        extract_class_extends_relations(
+            class,
+            source.as_bytes(),
+            Path::new("a.js"),
+            "AppError",
+            "javascript",
             &mut relations,
         );
         assert!(

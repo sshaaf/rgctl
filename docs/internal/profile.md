@@ -66,6 +66,8 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `ecommerce_java_inheritance_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | default | **0.31 s** wall; **0.008 s** `index_graph_build` |
 | `ecommerce_java_kantra_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | `--with-kantra --kantra-rules <fixture>` | env `RGCTL_ECOMMERCE_JAVA_KANTRA_*` (fixture catalog; fast CI path) |
 | `rust_cold_discover_within_baseline` | `example/rust` | `-l rust` | **25 s** |
+| `node_javascript_cold_discover_within_baseline` | `example/node/test` | `-l javascript` | **5 s** |
+| `node_javascript_cold_discover_with_cfg_within_baseline` | `example/node/test` | `-l javascript --with-cfg` | **7 s** |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`-r <corpus>`, `discover . -v`).
 
@@ -196,6 +198,26 @@ Top stages (% of wall): `index_extract` **~6.4 s** (30%), `index_graph_build` **
 |--------|-------|
 | **Gate baseline** | **120 s** (pass ≤ 132 s; record on reference machine, override `RGCTL_VSCODE_TYPESCRIPT_COLD_BASELINE_SECS`) |
 | Corpus | `microsoft/vscode` `src/` (~10k `.ts`) |
+
+### Node.js (`example/node/test`) — `-l javascript`
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **5 s** (pass ≤ 5.5 s; record on reference machine, override `RGCTL_NODE_JAVASCRIPT_COLD_BASELINE_SECS`) |
+| Corpus | `nodejs/node` `test/` (sparse checkout; ~9.2k discoverable `.js`/`.mjs`) |
+| Wall (reference, 2026-09-04) | **~4.5 s** |
+| Nodes / functions | **54,744** / **15,635** |
+| Files indexed | **9,213** |
+| `index_graph_build` | **~0.37 s** |
+
+**With `--with-cfg`:**
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **7 s** (pass ≤ 7.7 s; override `RGCTL_NODE_JAVASCRIPT_COLD_WITH_CFG_BASELINE_SECS`) |
+| Wall (reference, 2026-09-04) | **~6.2 s** |
+| Peak RSS | **~614 MB** |
+| `cfg_total` | **~1.1 s** |
 
 ### CFG on large C++ corpora (`--with-cfg`)
 

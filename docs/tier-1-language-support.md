@@ -430,7 +430,7 @@ Copy into your PR description:
 | C++ | 1 custom | ✅ + Extends/Instantiates + qualified call hints | ✅ | ✅ | `dashboard_ecommerce_cpp`, `cpp_langfeatures` | ✅ F1–F6 |
 | Python | 1 custom | ✅ | ✅ | ✅ richest | `dashboard_ecommerce_python` | ✅ F1–F6 |
 | Rust | 1 custom | ✅ | ✅ | ✅ rich | `dashboard_ecommerce_rust` | ✅ F1–F6 |
-| JS / TS | 1 custom | ✅ + Import/Extends/decorators (TS) + FQN + Instantiates | ✅ | ✅ rich | `dashboard_ecommerce_javascript`, `dashboard_ecommerce_typescript`, `typescript_langfeatures` | ✅ F1–F6 (JS weaker types) |
+| JS / TS | 1 custom | ✅ Import/Extends/FQN/Instantiates (+ decorators TS); shared `rgctl-plugin-helpers::ecmascript` | ✅ | ✅ rich | `dashboard_ecommerce_javascript`, `javascript_langfeatures`, `typescript_langfeatures` | ✅ F1–F6 (JS weaker types) |
 | PHP | 1 custom | ✅ + Uses (traits), Import, attributes, anonymous classes | ✅ | ✅ + `$_FILES`, `filter_input`, `prepare` | `dashboard_ecommerce_php` | ✅ F1–F6 |
 
 Layer F golden coverage lives in `crates/rgctl-analysis/src/field_write.rs` (`*_cfg_captures_field_write_and_query`). Update this table when promoting a language or when F tests regress.
