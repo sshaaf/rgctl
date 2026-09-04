@@ -5,6 +5,34 @@ use std::collections::HashMap;
 use std::path::Path;
 use tree_sitter::{Node, Parser};
 
+/// Cap AST walk depth (matches CFG expression walk limit in `rgctl-analysis`).
+const MAX_TREE_DEPTH: usize = 2048;
+
+fn push_traverse_children<'a>(
+    stack: &mut Vec<TraverseFrame<'a>>,
+    node: Node<'a>,
+    depth: usize,
+) {
+    let mut cursor = node.walk();
+    let children: Vec<Node<'a>> = node.children(&mut cursor).collect();
+    for child in children.into_iter().rev() {
+        stack.push(TraverseFrame::Node(child, depth + 1));
+    }
+}
+
+fn push_tree_children<'a>(stack: &mut Vec<(Node<'a>, usize)>, node: Node<'a>, depth: usize) {
+    let mut cursor = node.walk();
+    let children: Vec<Node<'a>> = node.children(&mut cursor).collect();
+    for child in children.into_iter().rev() {
+        stack.push((child, depth + 1));
+    }
+}
+
+enum TraverseFrame<'a> {
+    PopNamespace,
+    Node(Node<'a>, usize),
+}
+
 /// Namespace and using context during a single-file extract pass.
 #[derive(Debug, Default)]
 struct ExtractCtx {
@@ -401,7 +429,7 @@ impl CSharpPlugin {
         }
     }
 
-    fn traverse(
+    fn emit_symbol_for_node(
         &self,
         node: Node,
         source: &[u8],
@@ -410,20 +438,6 @@ impl CSharpPlugin {
         symbols: &mut Vec<Symbol>,
     ) -> Result<()> {
         match node.kind() {
-            "namespace_declaration" => {
-                if let Some(ns) = namespace_name(node, source) {
-                    ctx.push_qualified_namespace(&ns);
-                    if let Some(body) = node.child_by_field_name("body") {
-                        let mut cursor = body.walk();
-                        for child in body.children(&mut cursor) {
-                            self.traverse(child, source, file_path, ctx, symbols)?;
-                        }
-                    }
-                    ctx.pop_namespace();
-                }
-                return Ok(());
-            }
-            "file_scoped_namespace_declaration" => return Ok(()),
             "method_declaration" | "local_function_statement" => {
                 symbols.push(self.extract_method(node, source, file_path, ctx)?);
             }
@@ -492,15 +506,53 @@ impl CSharpPlugin {
             }
             _ => {}
         }
+        Ok(())
+    }
 
-        if matches!(node.kind(), "namespace_declaration" | "file_scoped_namespace_declaration") {
-            return Ok(());
+    fn traverse(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &str,
+        ctx: &mut ExtractCtx,
+        symbols: &mut Vec<Symbol>,
+    ) -> Result<()> {
+        let mut stack = vec![TraverseFrame::Node(root, 0)];
+
+        while let Some(frame) = stack.pop() {
+            match frame {
+                TraverseFrame::PopNamespace => ctx.pop_namespace(),
+                TraverseFrame::Node(node, depth) => {
+                    if depth > MAX_TREE_DEPTH {
+                        continue;
+                    }
+
+                    match node.kind() {
+                        "namespace_declaration" => {
+                            if let Some(ns) = namespace_name(node, source) {
+                                ctx.push_qualified_namespace(&ns);
+                                stack.push(TraverseFrame::PopNamespace);
+                                if let Some(body) = node.child_by_field_name("body") {
+                                    let mut cursor = body.walk();
+                                    let children: Vec<Node<'_>> =
+                                        body.children(&mut cursor).collect();
+                                    for child in children.into_iter().rev() {
+                                        stack.push(TraverseFrame::Node(child, depth + 1));
+                                    }
+                                }
+                            }
+                            continue;
+                        }
+                        "file_scoped_namespace_declaration" => continue,
+                        _ => {
+                            self.emit_symbol_for_node(node, source, file_path, ctx, symbols)?;
+                            push_traverse_children(&mut stack, node, depth);
+                        }
+                    }
+                }
+            }
         }
 
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.traverse(child, source, file_path, ctx, symbols)?;
-        }
         Ok(())
     }
 
@@ -513,7 +565,6 @@ impl CSharpPlugin {
         ctx: &ExtractCtx,
         relations: &mut Vec<Relation>,
     ) {
-        const MAX_DEPTH: usize = 2048;
         let function_symbols: Vec<&Symbol> = symbols
             .iter()
             .filter(|s| s.symbol_type == SymbolType::Function)
@@ -533,7 +584,7 @@ impl CSharpPlugin {
         let mut stack = vec![(root, 0usize)];
 
         while let Some((node, depth)) = stack.pop() {
-            if depth > MAX_DEPTH {
+            if depth > MAX_TREE_DEPTH {
                 continue;
             }
 
@@ -736,15 +787,14 @@ impl CSharpPlugin {
         None
     }
 
-    fn extract_annotated_with(
+    fn annotated_with_from(
         &self,
         node: Node,
         source: &[u8],
-        file_path: &Path,
+        _file_path: &Path,
         ctx: &ExtractCtx,
-        relations: &mut Vec<Relation>,
-    ) -> Result<()> {
-        let from = match node.kind() {
+    ) -> Option<String> {
+        match node.kind() {
             "class_declaration"
             | "struct_declaration"
             | "interface_declaration"
@@ -773,30 +823,46 @@ impl CSharpPlugin {
                     .map(|(ty, p)| format!("{}.{}", ctx.qualify(&ty), p))
             }
             _ => None,
-        };
+        }
+    }
 
-        if let Some(from) = from {
-            for (attr_name, args) in collect_attributes(node, source) {
-                let mut meta = serde_json::json!({ "language": "csharp" });
-                if let Some(args) = args {
-                    meta["arguments"] = serde_json::Value::String(args);
-                }
-                relations.push(Relation {
-                    from: from.clone(),
-                    to: attr_name,
-                    relation_type: RelationType::AnnotatedWith,
-                    location: source_location(node, &file_path.to_string_lossy()),
-                    metadata: meta,
-                    to_qualified_hint: None,
-                    to_type_hint: None,
-                });
+    fn extract_annotated_with(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        ctx: &ExtractCtx,
+        relations: &mut Vec<Relation>,
+    ) -> Result<()> {
+        let file_path_str = file_path.to_string_lossy();
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
             }
+
+            if let Some(from) = self.annotated_with_from(node, source, file_path, ctx) {
+                for (attr_name, args) in collect_attributes(node, source) {
+                    let mut meta = serde_json::json!({ "language": "csharp" });
+                    if let Some(args) = args {
+                        meta["arguments"] = serde_json::Value::String(args);
+                    }
+                    relations.push(Relation {
+                        from: from.clone(),
+                        to: attr_name,
+                        relation_type: RelationType::AnnotatedWith,
+                        location: source_location(node, &file_path_str),
+                        metadata: meta,
+                        to_qualified_hint: None,
+                        to_type_hint: None,
+                    });
+                }
+            }
+
+            push_tree_children(&mut stack, node, depth);
         }
 
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.extract_annotated_with(child, source, file_path, ctx, relations)?;
-        }
         Ok(())
     }
 
@@ -809,7 +875,6 @@ impl CSharpPlugin {
         ctx: &ExtractCtx,
         relations: &mut Vec<Relation>,
     ) -> Result<()> {
-        const MAX_DEPTH: usize = 2048;
         let function_symbols: Vec<&Symbol> = symbols
             .iter()
             .filter(|s| s.symbol_type == SymbolType::Function)
@@ -817,7 +882,7 @@ impl CSharpPlugin {
         let mut stack = vec![(root, 0usize)];
 
         while let Some((node, depth)) = stack.pop() {
-            if depth > MAX_DEPTH {
+            if depth > MAX_TREE_DEPTH {
                 continue;
             }
 
@@ -880,59 +945,71 @@ impl CSharpPlugin {
 
     fn extract_inheritance(
         &self,
-        node: Node,
+        root: Node,
         source: &[u8],
         file_path: &Path,
         relations: &mut Vec<Relation>,
     ) -> Result<()> {
-        match node.kind() {
-            "class_declaration" => {
-                let class_name = type_name(node, source).unwrap_or_default();
-                if class_name.is_empty() {
-                    return Ok(());
-                }
-                if let Some(base_list) = node.child_by_field_name("bases") {
-                    collect_base_list_relations(
-                        &class_name,
-                        base_list,
-                        source,
-                        file_path,
-                        true,
-                        relations,
-                    );
-                } else if let Some(base_list) = find_child_kind(node, "base_list") {
-                    collect_base_list_relations(
-                        &class_name,
-                        base_list,
-                        source,
-                        file_path,
-                        true,
-                        relations,
-                    );
-                }
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
             }
-            "interface_declaration" => {
-                let name = type_name(node, source).unwrap_or_default();
-                if name.is_empty() {
-                    return Ok(());
+
+            let skip_children = match node.kind() {
+                "class_declaration" => {
+                    let class_name = type_name(node, source).unwrap_or_default();
+                    if class_name.is_empty() {
+                        true
+                    } else {
+                        if let Some(base_list) = node.child_by_field_name("bases") {
+                            collect_base_list_relations(
+                                &class_name,
+                                base_list,
+                                source,
+                                file_path,
+                                true,
+                                relations,
+                            );
+                        } else if let Some(base_list) = find_child_kind(node, "base_list") {
+                            collect_base_list_relations(
+                                &class_name,
+                                base_list,
+                                source,
+                                file_path,
+                                true,
+                                relations,
+                            );
+                        }
+                        false
+                    }
                 }
-                if let Some(base_list) = node.child_by_field_name("bases") {
-                    collect_base_list_relations(
-                        &name, base_list, source, file_path, false, relations,
-                    );
-                } else if let Some(base_list) = find_child_kind(node, "base_list") {
-                    collect_base_list_relations(
-                        &name, base_list, source, file_path, false, relations,
-                    );
+                "interface_declaration" => {
+                    let name = type_name(node, source).unwrap_or_default();
+                    if name.is_empty() {
+                        true
+                    } else {
+                        if let Some(base_list) = node.child_by_field_name("bases") {
+                            collect_base_list_relations(
+                                &name, base_list, source, file_path, false, relations,
+                            );
+                        } else if let Some(base_list) = find_child_kind(node, "base_list") {
+                            collect_base_list_relations(
+                                &name, base_list, source, file_path, false, relations,
+                            );
+                        }
+                        false
+                    }
                 }
+                _ => false,
+            };
+
+            if !skip_children {
+                push_tree_children(&mut stack, node, depth);
             }
-            _ => {}
         }
 
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            self.extract_inheritance(child, source, file_path, relations)?;
-        }
         Ok(())
     }
 
@@ -972,12 +1049,35 @@ impl CSharpPlugin {
         None
     }
 
+    fn find_function_at_line<'a>(&self, root: Node<'a>, line: usize) -> Option<Node<'a>> {
+        let mut stack = vec![(root, 0usize)];
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
+            if matches!(
+                node.kind(),
+                "method_declaration" | "constructor_declaration" | "local_function_statement"
+            ) && node.start_position().row == line
+            {
+                return Some(node);
+            }
+            push_tree_children(&mut stack, node, depth);
+        }
+        None
+    }
+
     fn calculate_cyclomatic(&self, node: Node) -> usize {
         let mut complexity = 1;
+        let mut stack = vec![(node, 0usize)];
 
-        fn traverse(node: Node, complexity: &mut usize) {
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
             let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in &children {
                 match child.kind() {
                     "if_statement"
                     | "while_statement"
@@ -985,43 +1085,53 @@ impl CSharpPlugin {
                     | "foreach_statement"
                     | "catch_clause"
                     | "conditional_expression"
-                    | "switch_expression" => {
-                        *complexity += 1;
-                    }
-                    "switch_section" => {
-                        *complexity += 1;
+                    | "switch_expression"
+                    | "switch_section" => {
+                        complexity += 1;
                     }
                     _ => {}
                 }
-                traverse(child, complexity);
+            }
+            for child in children.into_iter().rev() {
+                stack.push((child, depth + 1));
             }
         }
 
-        traverse(node, &mut complexity);
         complexity
     }
 
     fn calculate_cognitive(&self, node: Node) -> usize {
         let mut cognitive = 0;
+        let mut stack = vec![(node, 0usize, 0usize)];
 
-        fn traverse(node: Node, cognitive: &mut usize, nesting: usize) {
+        while let Some((node, depth, nesting)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
             let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in &children {
                 match child.kind() {
                     "if_statement" | "while_statement" | "for_statement" | "foreach_statement" => {
-                        *cognitive += 1 + nesting;
-                        traverse(child, cognitive, nesting + 1);
+                        cognitive += 1 + nesting;
                     }
                     "switch_expression" | "catch_clause" | "switch_statement" => {
-                        *cognitive += 1 + nesting;
-                        traverse(child, cognitive, nesting);
+                        cognitive += 1 + nesting;
                     }
-                    _ => traverse(child, cognitive, nesting),
+                    _ => {}
                 }
+            }
+            for child in children.into_iter().rev() {
+                let child_nesting = match child.kind() {
+                    "if_statement" | "while_statement" | "for_statement" | "foreach_statement" => {
+                        nesting + 1
+                    }
+                    _ => nesting,
+                };
+                stack.push((child, depth + 1, child_nesting));
             }
         }
 
-        traverse(node, &mut cognitive, 0);
         cognitive
     }
 
@@ -1031,40 +1141,45 @@ impl CSharpPlugin {
 
     fn count_nesting_depth(&self, node: Node) -> usize {
         let mut max_depth = 0;
+        let mut stack = vec![(node, 0usize, 0usize)];
 
-        fn traverse(node: Node, max_depth: &mut usize, current_depth: usize) {
-            *max_depth = (*max_depth).max(current_depth);
+        while let Some((node, depth, current_depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
+            max_depth = max_depth.max(current_depth);
             let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if matches!(
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                let child_depth = if matches!(
                     child.kind(),
                     "if_statement" | "while_statement" | "for_statement" | "block"
                 ) {
-                    traverse(child, max_depth, current_depth + 1);
+                    current_depth + 1
                 } else {
-                    traverse(child, max_depth, current_depth);
-                }
+                    current_depth
+                };
+                stack.push((child, depth + 1, child_depth));
             }
         }
 
-        traverse(node, &mut max_depth, 0);
         max_depth
     }
 
     fn count_returns(&self, node: Node) -> usize {
         let mut count = 0;
+        let mut stack = vec![(node, 0usize)];
 
-        fn traverse(node: Node, count: &mut usize) {
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_TREE_DEPTH {
+                continue;
+            }
             if node.kind() == "return_statement" {
-                *count += 1;
+                count += 1;
             }
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                traverse(child, count);
-            }
+            push_tree_children(&mut stack, node, depth);
         }
 
-        traverse(node, &mut count);
         count
     }
 }
@@ -1130,24 +1245,7 @@ impl LanguagePlugin for CSharpPlugin {
         let root = tree.root_node();
         let target_line = symbol.location.start_line.saturating_sub(1);
 
-        fn find_function_at_line(node: Node, line: usize) -> Option<Node> {
-            if matches!(
-                node.kind(),
-                "method_declaration" | "constructor_declaration" | "local_function_statement"
-            ) && node.start_position().row == line
-            {
-                return Some(node);
-            }
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if let Some(found) = find_function_at_line(child, line) {
-                    return Some(found);
-                }
-            }
-            None
-        }
-
-        if let Some(func_node) = find_function_at_line(root, target_line) {
+        if let Some(func_node) = self.find_function_at_line(root, target_line) {
             Ok(Some(ComplexityMetrics {
                 cyclomatic: self.calculate_cyclomatic(func_node),
                 cognitive: self.calculate_cognitive(func_node),
@@ -1656,5 +1754,25 @@ public class C {
         let method = symbols.iter().find(|s| s.name == "F").unwrap();
         let metrics = p.calculate_complexity(method, source).unwrap().unwrap();
         assert!(metrics.cyclomatic >= 2);
+    }
+
+    #[test]
+    #[ignore = "requires example/roslyn corpus (ErrorFacts.cs deep AST)"]
+    fn test_extract_deep_roslyn_errorfacts_without_stack_overflow() {
+        let path = Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../example/roslyn/src/Compilers/CSharp/Portable/Errors/ErrorFacts.cs"
+        ));
+        if !path.is_file() {
+            eprintln!("skip: {}", path.display());
+            return;
+        }
+        let source = std::fs::read(path).unwrap();
+        let p = plugin();
+        let result = p.extract_all(path, &source).unwrap();
+        assert!(
+            result.symbols.iter().any(|s| s.name == "ErrorFacts"),
+            "expected ErrorFacts type symbol"
+        );
     }
 }
