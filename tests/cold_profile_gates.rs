@@ -35,6 +35,8 @@ const RUST_COLD_WALL_BASELINE_SECS: f64 = 25.0;
 const LLVM_CPP_COLD_WALL_BASELINE_SECS: f64 = 120.0;
 /// dotnet/roslyn `src/` with `-l csharp`. Baseline: record on reference machine after `./scripts/fetch-profile-repos.sh`.
 const ROSLYN_CSHARP_COLD_WALL_BASELINE_SECS: f64 = 90.0;
+/// microsoft/vscode `src/` with `-l typescript`. Baseline: record on reference machine after `./scripts/fetch-profile-repos.sh`.
+const VSCODE_TYPESCRIPT_COLD_WALL_BASELINE_SECS: f64 = 120.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
 const K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS: f64 = 3.0;
 /// ecommerce-java default discover cold wall (inheritance stub gate).
@@ -108,6 +110,14 @@ pub fn roslyn_csharp_repo_path() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/roslyn/src")
+        })
+}
+
+pub fn vscode_typescript_repo_path() -> PathBuf {
+    std::env::var("RGCTL_VSCODE_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/vscode/src")
         })
 }
 
@@ -511,6 +521,42 @@ fn roslyn_csharp_cold_discover_within_baseline() {
         baseline
     );
     assert_within_baseline("roslyn csharp cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/vscode/src (-l typescript)"]
+fn vscode_typescript_cold_discover_within_baseline() {
+    let repo = vscode_typescript_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: vscode src not at {} (run ./scripts/fetch-profile-repos.sh)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_VSCODE_TYPESCRIPT_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(VSCODE_TYPESCRIPT_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "typescript"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "vscode typescript cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("vscode typescript cold discover", elapsed, baseline);
 }
 
 #[test]
