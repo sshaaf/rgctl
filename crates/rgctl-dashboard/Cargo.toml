@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-dashboard"
-version = "0.4.10"
+version = "0.4.11"
 edition.workspace = true
 rust-version.workspace = true
 description = "Static dashboard bundle export for rgctl"
@@ -16,6 +16,7 @@ serde_json = "1"
 blake3 = "1"
 memmap2 = "0.9"
 rayon = "1"
+smallvec = { version = "1", features = ["serde"] }
 tracing = "0.1"
 uuid = { version = "1", features = ["v4", "serde"] }
 

@@ -230,9 +230,8 @@ fn compute_dominance_frontiers(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cfg::{BasicBlock, CfgEdgeType};
+    use crate::cfg::{BasicBlock, BlockId, CfgEdgeType};
     use crate::cfg_builder::build_cfg_for_function;
-    use uuid::Uuid;
 
     fn empty_block(id: BlockId) -> BasicBlock {
         BasicBlock {
@@ -322,9 +321,9 @@ fn nested(n: i32) -> i32 {
     fn diamond_join_idom_is_entry() {
         let mut cfg = ControlFlowGraph::new();
         let entry = cfg.entry;
-        let left = Uuid::from_u128(1);
-        let right = Uuid::from_u128(2);
-        let join = Uuid::from_u128(3);
+        let left = BlockId(1);
+        let right = BlockId(2);
+        let join = BlockId(3);
         cfg.add_block(empty_block(left));
         cfg.add_block(empty_block(right));
         cfg.add_block(empty_block(join));

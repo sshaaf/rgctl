@@ -4,14 +4,13 @@
 
 use crate::schema::SharedStr;
 use rgctl_error::{Error, Result};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::{Arc, RwLock};
 
 /// Deduplicates strings to reduce memory usage for large graphs.
 #[derive(Debug, Default, Clone)]
 pub struct StringInterner {
     pool: Arc<RwLock<HashSet<Arc<str>>>>,
-    index: Arc<RwLock<HashMap<String, Arc<str>>>>,
 }
 
 impl StringInterner {
@@ -22,50 +21,47 @@ impl StringInterner {
 
     /// Intern a string, returning a shared handle.
     pub fn intern(&self, value: &str) -> Result<Arc<str>> {
-        if let Ok(read) = self.index.read()
-            && let Some(existing) = read.get(value) {
-                return Ok(existing.clone());
+        if let Ok(read) = self.pool.read() {
+            if let Some(existing) = read.get(value) {
+                return Ok(Arc::clone(existing));
             }
+        }
 
         let arc: Arc<str> = Arc::from(value);
         let mut write = self
             .pool
             .write()
             .map_err(|e| Error::GraphError(format!("StringInterner lock poisoned: {e}")))?;
+        if let Some(existing) = write.get(value) {
+            return Ok(Arc::clone(existing));
+        }
         write.insert(Arc::clone(&arc));
-        drop(write);
-
-        self.index
-            .write()
-            .map_err(|e| Error::GraphError(format!("StringInterner lock poisoned: {e}")))?
-            .insert(value.to_string(), arc.clone());
         Ok(arc)
     }
 
     /// Canonicalize in-place string storage using the intern pool.
-    pub fn intern_string(&self, value: &mut String) {
-        if let Ok(arc) = self.intern(value)
-            && value.as_str() != arc.as_ref() {
-                *value = arc.as_ref().to_string();
-            }
+    pub fn intern_string(&self, value: &mut String) -> Result<()> {
+        let arc = self.intern(value)?;
+        *value = arc.to_string();
+        Ok(())
     }
 
-    /// Canonicalize a shared string handle using the intern pool.
-    pub fn intern_shared(&self, value: &mut SharedStr) {
-        if let Ok(arc) = self.intern(value.as_str()) {
-            let next = SharedStr::from(arc);
-            if value != &next {
-                *value = next;
-            }
-        }
+    /// Canonicalize a shared string handle.
+    pub fn intern_shared(&self, value: &mut SharedStr) -> Result<()> {
+        let arc = self.intern(value)?;
+        *value = SharedStr::from(arc);
+        Ok(())
     }
 
     /// Number of unique interned strings.
     pub fn len(&self) -> usize {
-        self.pool.read().map(|p| p.len()).unwrap_or(0)
+        self.pool
+            .read()
+            .map(|pool| pool.len())
+            .unwrap_or_default()
     }
 
-    /// Whether the pool is empty.
+    /// Whether the interner is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

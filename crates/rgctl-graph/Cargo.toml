@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-graph"
-version = "0.4.10"
+version = "0.4.11"
 edition.workspace = true
 rust-version.workspace = true
 description = "Graph storage and query layer for rgctl"
@@ -17,6 +17,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
 uuid = { version = "1", features = ["v4", "serde"] }
+rayon = "1.10"
 
 [dev-dependencies]
 tempfile = { workspace = true }

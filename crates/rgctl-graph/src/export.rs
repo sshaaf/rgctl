@@ -6,6 +6,8 @@ use crate::backend::MemoryBackend;
 use crate::schema::{Edge, GRAPH_SCHEMA_VERSION, Node};
 use rgctl_error::{Error, Result};
 use serde::{Deserialize, Serialize};
+use std::cell::Cell;
+use std::io::{BufWriter, Write};
 
 /// Serializable graph snapshot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,13 +25,52 @@ pub struct GraphSnapshot {
 
 /// Export a graph backend to compact JSON.
 pub fn export_json(backend: &MemoryBackend) -> Result<String> {
-    let snapshot = GraphSnapshot {
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        schema_version: GRAPH_SCHEMA_VERSION,
-        nodes: backend.all_nodes()?,
-        edges: backend.all_edges()?,
-    };
-    serde_json::to_string_pretty(&snapshot).map_err(|e| Error::SerdeError(e.to_string()))
+    let mut buf = Vec::new();
+    export_json_to(backend, &mut buf)?;
+    String::from_utf8(buf).map_err(|e| Error::SerdeError(e.to_string()))
+}
+
+/// Stream graph JSON to a writer with a fixed-size buffer (avoids one giant `String`).
+pub fn export_json_to<W: Write>(backend: &MemoryBackend, writer: W) -> Result<()> {
+    let mut w = BufWriter::with_capacity(8 * 1024, writer);
+    writeln!(
+        w,
+        "{{\n  \"version\": {:?},\n  \"schema_version\": {},",
+        env!("CARGO_PKG_VERSION"),
+        GRAPH_SCHEMA_VERSION
+    )?;
+    w.write_all(b"\n  \"nodes\": [\n")?;
+    let first = Cell::new(true);
+    let mut write_error: Option<Error> = None;
+    backend.for_each_node(|node| {
+        if write_error.is_some() {
+            return;
+        }
+        let result: Result<()> = (|| {
+            if !first.get() {
+                w.write_all(b",\n")?;
+            }
+            first.set(false);
+            serde_json::to_writer(&mut w, node).map_err(|e| Error::SerdeError(e.to_string()))?;
+            Ok(())
+        })();
+        if let Err(err) = result {
+            write_error = Some(err);
+        }
+    })?;
+    if let Some(err) = write_error {
+        return Err(err);
+    }
+    w.write_all(b"\n  ],\n  \"edges\": [\n")?;
+    let edges = backend.all_edges()?;
+    for (i, edge) in edges.iter().enumerate() {
+        if i > 0 {
+            w.write_all(b",\n")?;
+        }
+        serde_json::to_writer(&mut w, edge).map_err(|e| Error::SerdeError(e.to_string()))?;
+    }
+    w.write_all(b"\n  ]\n}\n")?;
+    w.flush().map_err(|e| Error::SerdeError(e.to_string()))
 }
 
 /// Import a graph snapshot from JSON and migrate to the current schema.

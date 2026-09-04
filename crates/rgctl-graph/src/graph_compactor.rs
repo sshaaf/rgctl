@@ -77,6 +77,10 @@ struct CompactNodeEntry {
     source: CompactNodeSource,
 }
 
+fn node_alive(entries: &[CompactNodeEntry], id: Uuid) -> bool {
+    entries.binary_search_by_key(&id, |entry| entry.id).is_ok()
+}
+
 impl<'a> GraphCompactor<'a> {
     /// Create a compactor over a live mmap and owned delta.
     pub fn new(base: &'a ColumnarGraphMmap, delta: DeltaSegment) -> Self {
@@ -120,8 +124,6 @@ impl<'a> GraphCompactor<'a> {
         }
         entries.sort_by_key(|entry| entry.id);
 
-        let alive: HashSet<Uuid> = entries.iter().map(|entry| entry.id).collect();
-
         let mut hasher = blake3::Hasher::new();
         let mut strings = StringPool::new();
         let mut node_rows = Vec::with_capacity(entries.len());
@@ -159,7 +161,7 @@ impl<'a> GraphCompactor<'a> {
 
         let mut edge_meta: Vec<(Uuid, Uuid, u8)> = Vec::new();
         self.base.for_each_edge(|from, to, edge_type| {
-            if alive.contains(&from) && alive.contains(&to) {
+            if node_alive(&entries, from) && node_alive(&entries, to) {
                 edge_meta.push((from, to, edge_type_to_u8(edge_type)));
                 stats.edges_kept += 1;
             } else {
@@ -169,7 +171,7 @@ impl<'a> GraphCompactor<'a> {
         })?;
 
         for edge in &self.delta.new_edges {
-            if alive.contains(&edge.from) && alive.contains(&edge.to) {
+            if node_alive(&entries, edge.from) && node_alive(&entries, edge.to) {
                 edge_meta.push((edge.from, edge.to, edge_type_to_u8(edge.edge_type)));
                 stats.edges_from_delta += 1;
             }

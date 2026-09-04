@@ -48,6 +48,8 @@ RGCTL=/path/to/rgctl ./scripts/run_rgctl_report.py --update-readmes
 
 Exit code **0** if every project `discover` succeeds; **1** otherwise.
 
+GQL extraction and command smoke tests live in [`gql-verification-smoke/`](../gql-verification-smoke/README.md).
+
 ### Graph correctness
 
 Hand-labeled facts live in `ecommerce-*/correctness/expected-facts.json` (see [`correctness/SCHEMA.md`](../correctness/SCHEMA.md)). They are checked by `cargo test --test graph_correctness` in the rgctl repo (not this report script).

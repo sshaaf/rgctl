@@ -55,7 +55,38 @@ pub fn execute(backend: &MemoryBackend, query: &str) -> Result<Vec<Node>> {
     backend.get_nodes_by_ids(&ids)
 }
 
-/// Return query results in fixed-size chunks for streaming large result sets.
+/// Stream query results one node at a time without materializing the full result set.
+pub struct QueryStream<'a> {
+    backend: &'a MemoryBackend,
+    ids: Vec<Uuid>,
+    pos: usize,
+}
+
+impl<'a> Iterator for QueryStream<'a> {
+    type Item = Result<Node>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let id = *self.ids.get(self.pos)?;
+        self.pos += 1;
+        match self.backend.get_node(id) {
+            Ok(Some(node)) => Some(Ok(node)),
+            Ok(None) => self.next(),
+            Err(err) => Some(Err(err)),
+        }
+    }
+}
+
+/// Lazily stream nodes matching `query` (IDs resolved first, nodes loaded on demand).
+pub fn stream_query<'a>(backend: &'a MemoryBackend, query: &str) -> Result<QueryStream<'a>> {
+    let ids: Vec<Uuid> = execute_node_ids(backend, query)?.into_iter().collect();
+    Ok(QueryStream {
+        backend,
+        ids,
+        pos: 0,
+    })
+}
+
+/// Return query results in fixed-size chunks without cloning the full result set twice.
 pub fn execute_chunks(
     backend: &MemoryBackend,
     query: &str,
@@ -64,17 +95,25 @@ pub fn execute_chunks(
     if chunk_size == 0 {
         return Err(Error::InvalidQuery("chunk_size must be > 0".into()));
     }
-    let results = execute(backend, query)?;
-    Ok(results
-        .chunks(chunk_size)
-        .map(|chunk| chunk.to_vec())
-        .collect())
+    let mut chunks = Vec::new();
+    let mut current = Vec::with_capacity(chunk_size);
+    for node in stream_query(backend, query)? {
+        current.push(node?);
+        if current.len() == chunk_size {
+            chunks.push(current);
+            current = Vec::with_capacity(chunk_size);
+        }
+    }
+    if !current.is_empty() {
+        chunks.push(current);
+    }
+    Ok(chunks)
 }
 
 fn execute_node_ids(backend: &MemoryBackend, query: &str) -> Result<HashSet<Uuid>> {
     let query = query.trim();
     if query.is_empty() || query.eq_ignore_ascii_case("all") {
-        return Ok(backend.all_nodes()?.into_iter().map(|n| n.id).collect());
+        return Ok(backend.all_node_ids()?.into_iter().collect());
     }
 
     if let Some(repo) = query.strip_prefix("repo:") {

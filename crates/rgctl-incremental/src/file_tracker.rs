@@ -228,25 +228,47 @@ impl ChangeSet {
 
 /// Build node-to-file mapping from graph nodes.
 pub fn build_node_mapping(graph: &CodeGraph) -> HashMap<String, Vec<Uuid>> {
-    let mut mapping: HashMap<String, Vec<Uuid>> = HashMap::new();
+    let mut pairs = Vec::new();
     if let Ok(nodes) = graph.backend().all_nodes() {
+        pairs.reserve(nodes.len());
         for node in nodes {
-            let file = if let Some(path) = node.file_path.as_deref() {
-                Some(path)
-            } else if matches!(node.node_type, rgctl_graph::schema::NodeType::File) {
-                Some(node.name.as_str())
-            } else {
-                None
-            };
-            if let Some(file) = file {
-                mapping
-                    .entry(normalize_path_str(file))
-                    .or_default()
-                    .push(node.id);
+            if let Some(path) = node_file_path(&node) {
+                pairs.push((normalize_path_str(path), node.id));
             }
         }
     }
+    pairs.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    group_sorted_node_paths(pairs)
+}
+
+/// Group `(normalized_path, node_id)` rows that are already sorted by path.
+pub fn group_sorted_node_paths(pairs: Vec<(String, Uuid)>) -> HashMap<String, Vec<Uuid>> {
+    if pairs.is_empty() {
+        return HashMap::new();
+    }
+    debug_assert!(pairs.windows(2).all(|w| w[0].0 <= w[1].0));
+
+    let mut mapping = HashMap::new();
+    let mut start = 0usize;
+    for i in 1..=pairs.len() {
+        if i == pairs.len() || pairs[i].0 != pairs[start].0 {
+            let path = pairs[start].0.clone();
+            let ids: Vec<Uuid> = pairs[start..i].iter().map(|(_, id)| *id).collect();
+            mapping.insert(path, ids);
+            start = i;
+        }
+    }
     mapping
+}
+
+fn node_file_path(node: &rgctl_graph::schema::Node) -> Option<&str> {
+    if let Some(path) = node.file_path.as_deref() {
+        Some(path)
+    } else if matches!(node.node_type, rgctl_graph::schema::NodeType::File) {
+        Some(node.name.as_str())
+    } else {
+        None
+    }
 }
 
 /// Convert an absolute or relative path to a repo-relative string.
@@ -395,6 +417,21 @@ mod tests {
             .unwrap();
         assert_eq!(changes.added.len(), 1);
         assert_eq!(changes.deleted.len(), 1);
+    }
+
+    #[test]
+    fn test_group_sorted_node_paths() {
+        let pairs = vec![
+            ("a.rs".into(), Uuid::new_v4()),
+            ("b.rs".into(), Uuid::new_v4()),
+            ("b.rs".into(), Uuid::new_v4()),
+            ("c.rs".into(), Uuid::new_v4()),
+        ];
+        let mapping = group_sorted_node_paths(pairs);
+        assert_eq!(mapping.len(), 3);
+        assert_eq!(mapping["a.rs"].len(), 1);
+        assert_eq!(mapping["b.rs"].len(), 2);
+        assert_eq!(mapping["c.rs"].len(), 1);
     }
 
     #[test]

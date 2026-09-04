@@ -6,6 +6,39 @@ export const metadata: Metadata = {
   title: "Docs",
 };
 
+const languages = [
+  {
+    title: "All languages",
+    blurb: "Tier 1 plugins, extraction coverage, and GQL verification queries.",
+    href: "/docs/languages/",
+  },
+  {
+    title: "Python",
+    blurb: "Imports, heritage, decorators, instantiation, calls.",
+    href: "/docs/languages/python/",
+  },
+  {
+    title: "Java",
+    blurb: "JPMS, annotations, lambdas, generics, qualified names.",
+    href: "/docs/languages/java/",
+  },
+  {
+    title: "Go",
+    blurb: "Structs, interfaces, embedding, generics, imports.",
+    href: "/docs/languages/go/",
+  },
+  {
+    title: "Rust",
+    blurb: "Traits, attributes, use graph, instantiation.",
+    href: "/docs/languages/rust/",
+  },
+  {
+    title: "TypeScript",
+    blurb: "Interfaces, implements, decorators, module graph.",
+    href: "/docs/languages/typescript/",
+  },
+];
+
 const guides = [
   {
     title: "All guides",
@@ -68,7 +101,6 @@ const primary = [
 ];
 
 const secondary = [
-  { title: "Languages", href: "/docs/languages/", blurb: "Tier 1 plugins and discover depth." },
   { title: "FAQ", href: "/docs/faq/", blurb: "Flags, embedders, exit codes." },
   { title: "Glossary", href: "/docs/glossary/", blurb: "Blast, CPG, communities, …" },
   { title: "HTTP API", href: "/docs/http-api/", blurb: "serve /api/query." },
@@ -104,6 +136,28 @@ export default function DocsPage() {
       </p>
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {guides.map((c) => (
+          <Link
+            key={c.title}
+            href={c.href}
+            className="group flex flex-col rounded-[4px] border border-[var(--hairline)] bg-[var(--canvas-soft)]/50 p-5 transition-colors hover:border-[var(--mute)]"
+          >
+            <h3 className="text-base font-medium text-[var(--ink)]">{c.title}</h3>
+            <p className="mt-2 text-sm text-[var(--body)]">{c.blurb}</p>
+          </Link>
+        ))}
+      </div>
+
+      <h2 className="mt-12 text-lg font-medium text-[var(--ink)]">Languages</h2>
+      <p className="mt-2 max-w-2xl text-sm text-[var(--body)]">
+        Per-language extraction depth, plugin details, and GQL probes from{" "}
+        <code className="text-sm">gql-verification-smoke</code>. Full list on the{" "}
+        <Link href="/docs/languages/" className="underline">
+          languages index
+        </Link>
+        .
+      </p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {languages.map((c) => (
           <Link
             key={c.title}
             href={c.href}

@@ -13,6 +13,17 @@ rgctl -f json metrics --communities --pagerank
 rgctl -f json check --policy-file ../rgctl-policy.json
 ```
 
+### Extraction-depth GQL
+
+Verifies archived openspec Python extraction features (`Import`, `EXTENDS`, `ANNOTATEDWITH`, `INSTANTIATES`, `CALLS`, method FQN) **and** runs `blast-radius`, `metrics`, `inspect`, `slice`, `cpg`, `semantic`, `export`, `check`. Example scale corpus: [`example/home-assistant`](../../example/home-assistant).
+
+```bash
+RGCTL=../../target/release/rgctl ../gql-verification-smoke/verify-extraction-gql-python.sh
+RGCTL_SKIP_EXAMPLE=1 ../gql-verification-smoke/verify-extraction-gql-python.sh   # fixture only
+```
+
+See [rgctl-tests README — Extraction-depth GQL](../README.md#extraction-depth-gql-verification).
+
 | Metric | Value |
 |--------|------:|
 | Files indexed | 59 |

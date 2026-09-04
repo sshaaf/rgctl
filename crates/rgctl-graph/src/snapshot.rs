@@ -223,7 +223,7 @@ impl MmappedGraphSnapshot {
 /// Read-only node access from a memory-mapped graph snapshot (no backend hydration).
 pub struct SnapshotNodeStore {
     snapshot: MmappedGraphSnapshot,
-    id_to_index: HashMap<Uuid, usize>,
+    legacy_id_to_index: Option<HashMap<Uuid, usize>>,
 }
 
 impl SnapshotNodeStore {
@@ -235,20 +235,19 @@ impl SnapshotNodeStore {
     /// Open a snapshot file and build UUID indexes for O(1) node lookup.
     pub fn open(path: &Path) -> Result<Self> {
         let snapshot = MmappedGraphSnapshot::open(path)?;
-        let mut id_to_index = HashMap::with_capacity(snapshot.node_count());
-        if let Some(col) = snapshot.columnar() {
-            for (idx, id) in col.node_ids_by_index() {
-                id_to_index.insert(id, idx);
-            }
+        let legacy_id_to_index = if snapshot.columnar().is_some() {
+            None
         } else {
             let prepared = snapshot.prepared()?;
+            let mut id_to_index = HashMap::with_capacity(prepared.nodes.len());
             for (idx, node) in prepared.nodes.iter().enumerate() {
                 id_to_index.insert(node.id, idx);
             }
-        }
+            Some(id_to_index)
+        };
         Ok(Self {
             snapshot,
-            id_to_index,
+            legacy_id_to_index,
         })
     }
 
@@ -284,7 +283,15 @@ impl SnapshotNodeStore {
 
     /// All node UUIDs indexed by this store (no full node materialize).
     pub fn all_node_ids(&self) -> Vec<Uuid> {
-        self.id_to_index.keys().copied().collect()
+        if let Some(col) = self.snapshot.columnar() {
+            return (0..col.node_count())
+                .filter_map(|idx| col.node_id_at(idx).ok())
+                .collect();
+        }
+        self.legacy_id_to_index
+            .as_ref()
+            .map(|m| m.keys().copied().collect())
+            .unwrap_or_default()
     }
 
     /// Typed edge topology without hydrating a backend.
@@ -303,8 +310,10 @@ impl SnapshotNodeStore {
             return col.get_node(id);
         }
         let prepared = self.snapshot.prepared()?;
-        Ok(self
-            .id_to_index
+        let legacy = self.legacy_id_to_index.as_ref().ok_or_else(|| {
+            Error::SerdeError("legacy id index missing for v1 snapshot".into())
+        })?;
+        Ok(legacy
             .get(&id)
             .map(|&idx| prepared.nodes[idx].clone()))
     }
@@ -315,6 +324,9 @@ impl SnapshotNodeStore {
             return col.find_nodes_by_name(name);
         }
         let prepared = self.snapshot.prepared()?;
+        let legacy = self.legacy_id_to_index.as_ref().ok_or_else(|| {
+            Error::SerdeError("legacy id index missing for v1 snapshot".into())
+        })?;
         Ok(prepared
             .indexes
             .name_index
@@ -322,7 +334,7 @@ impl SnapshotNodeStore {
             .map(|ids| {
                 ids.iter()
                     .filter_map(|id| {
-                        self.id_to_index
+                        legacy
                             .get(id)
                             .map(|&idx| prepared.nodes[idx].clone())
                     })

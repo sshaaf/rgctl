@@ -510,7 +510,7 @@ public class OrderProcessor {
             .blocks
             .values()
             .flat_map(|b| &b.statements)
-            .find(|s| s.defined_vars.contains("order.status"))
+            .find(|s| s.defines("order.status"))
             .map(|s| s.line)
             .expect("write");
         let result = cpg_flows(CpgFlowsArgs {

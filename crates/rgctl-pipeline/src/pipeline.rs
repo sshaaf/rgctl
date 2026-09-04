@@ -158,14 +158,27 @@ impl ProcessingPipeline {
         let files_failed = stream_stats.extraction_failures.len();
 
         let graph_start = Instant::now();
+        let index_start = Instant::now();
         builder.build_resolution_indexes();
+        let index_elapsed = index_start.elapsed();
+        let pass2_start = Instant::now();
         extractor.populate_pass2(&tails, &mut builder)?;
+        let pass2_elapsed = pass2_start.elapsed();
+        builder.log_resolution_stats();
         let nodes_created = builder.node_count();
         let edges_created = builder.edge_count();
         let content_store = builder.take_content_store();
         let code_index = builder.take_code_index();
+        let spill_start = Instant::now();
         let finished = builder.finish_spill()?;
         let digest = write_columnar_from_spill(finished, snapshot_path)?;
+        let spill_elapsed = spill_start.elapsed();
+        tracing::info!(
+            resolution_index_secs = index_elapsed.as_secs_f64(),
+            pass2_relation_resolution_secs = pass2_elapsed.as_secs_f64(),
+            spill_and_columnar_secs = spill_elapsed.as_secs_f64(),
+            "graph build sub-phase timings"
+        );
         if let Some(store) = content_store {
             store.save()?;
         }

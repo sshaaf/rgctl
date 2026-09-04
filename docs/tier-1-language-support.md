@@ -117,7 +117,7 @@ Required for high-quality `cpg mutations` / typed field writes. Reference: Java 
 | Rust | `fn new` in impl → `Type::<init>` | Strong on structs |
 | TypeScript / JavaScript | `constructor` method → class `.<init>` | TS strong; JS weak (params may be untyped; graph param types / copy inference help) |
 | Python | `__init__` → `Class.<init>`; harvest `self.x` fields | Annotations when present |
-| C | No language ctors; struct fields + typed params required | Strong on structs |
+| C | No language ctors; struct fields + typed params required | Strong on structs; `file_stem::name` FQN; normalized `#include` Import graph |
 
 **Java extract honesty (java-extract-gaps + java-grammar-remainder + java-gql-remainder-gates):**
 
@@ -133,6 +133,23 @@ Required for high-quality `cpg mutations` / typed field writes. Reference: Java 
 - Pattern-matching (`record_pattern` / `type_pattern`) not first-class symbols.
 - No full reflection / retention-policy analysis.
 - GQL gates: `cargo test --test java_langfeatures` (fixture `tests/fixtures/java/langfeatures`).
+
+**Rust extract honesty (rust-extraction-depth):**
+
+- `use` / `mod` → `Import` / `Module` symbols; no `cargo` workspace path resolution beyond `crate::` text.
+- `impl Trait for Type` → `Implements`; trait items as `Interface` symbols with `Trait::method` members.
+- `#[derive(...)]` and attribute paths → `AnnotatedWith` (proc-macro bodies not expanded).
+- Module-prefix FQNs from `src/` path (`services::order::Foo::bar`); not full `rustc` name resolution.
+- `struct { ... }`, `Type::new()`, `Type::default()` → `Instantiates`; field reads → `References`.
+- `dyn Trait`, macros, and opaque callees → `metadata.unresolved` on `Calls`.
+- GQL gates: `cargo test --test rust_langfeatures` (fixture `rgctl-tests/ecommerce-rust`).
+
+**C extract honesty (c-extraction-depth):**
+
+- File-scoped FQN: `{file_stem}::{symbol}` on functions and structs; `foo.h` / `foo.c` pairs may share the same qualified name — filter by `file_path`.
+- `#include` → normalized `Import` symbols (`metadata.kind: "include"`); path strings only, no filesystem resolution.
+- Function-pointer and macro-generated calls → `metadata.unresolved` on `Calls` when callee cannot be resolved statically; `#define` indexing deferred.
+- GQL gates: `cargo test --test c_langfeatures` (fixture `rgctl-tests/ecommerce-c`, CALLS ≥ 40).
 
 ---
 
@@ -408,12 +425,12 @@ Copy into your PR description:
 |----------|------|-------|-----|-------|----------------|-------------------------|
 | Java | 1 custom | ✅ + Extends/Implements/AnnotatedWith/Permits/Instantiates | ✅ (+ compact ctor, `<clinit>`) | ✅ rich | gbuilder golden | ✅ F1–F6 |
 | Go | 1 custom | ✅ | ✅ deep | ✅ rich | `dashboard_ecommerce_go` | ✅ F1–F6 |
-| C# | 1 custom | ✅ | ✅ | ✅ | `dashboard_ecommerce_csharp` | ✅ F1–F6 |
-| C | 1 custom | ✅ | ✅ | ✅ | `dashboard_ecommerce_c` | ✅ F1/F3–F6 (no native ctors) |
-| C++ | 1 custom | ✅ | ✅ | ✅ | `dashboard_ecommerce_cpp` | ✅ F1–F6 |
-| Python | 1 custom | ✅ | ✅ | ✅ richest | `dashboard_ecommerce_python` | ✅ F1–F6 |
+| C# | 1 custom | ✅ + AnnotatedWith/FQN/Instantiates + call type hints | ✅ | ✅ | `dashboard_ecommerce_csharp`, `csharp_langfeatures` | ✅ F1–F6 |
+| C | 1 custom | ✅ FQN + includes | ✅ | ✅ | `dashboard_ecommerce_c` | ✅ F1/F3–F6 (no native ctors) |
+| C++ | 1 custom | ✅ + Extends/Instantiates + qualified call hints | ✅ | ✅ | `dashboard_ecommerce_cpp`, `cpp_langfeatures` | ✅ F1–F6 |
+| Python | 1 custom | ✅ Import/Extends/AnnotatedWith/FQN/Instantiates; no `sys.path` resolution; `typing.Protocol` → Implements optional | ✅ | ✅ richest | `dashboard_ecommerce_python`, `python_langfeatures` | ✅ F1–F6 |
 | Rust | 1 custom | ✅ | ✅ | ✅ rich | `dashboard_ecommerce_rust` | ✅ F1–F6 |
-| JS / TS | 1 custom | ✅ | ✅ | ✅ rich | `dashboard_ecommerce_javascript`, `dashboard_ecommerce_typescript` | ✅ F1–F6 (JS weaker types) |
+| JS / TS | 1 custom | ✅ Import/Extends/FQN/Instantiates (+ decorators TS); shared `rgctl-plugin-helpers::ecmascript` | ✅ | ✅ rich | `dashboard_ecommerce_javascript`, `javascript_langfeatures`, `typescript_langfeatures` | ✅ F1–F6 (JS weaker types) |
 | PHP | 1 custom | ✅ + Uses (traits), Import, attributes, anonymous classes | ✅ | ✅ + `$_FILES`, `filter_input`, `prepare` | `dashboard_ecommerce_php` | ✅ F1–F6 |
 
 Layer F golden coverage lives in `crates/rgctl-analysis/src/field_write.rs` (`*_cfg_captures_field_write_and_query`). Update this table when promoting a language or when F tests regress.

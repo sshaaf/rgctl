@@ -5,6 +5,11 @@
 
 use rgctl_plugin_api::*;
 use rgctl_plugin_api::{Error, Result};
+
+use crate::extract_depth::{
+    extract_mod_symbol, extract_trait_symbols, extract_use_symbols, module_prefix_from_path,
+    push_children, qualify_with_module, walk_depth_relations, AST_MAX_DEPTH,
+};
 use std::path::Path;
 use tree_sitter::{Node, Parser};
 
@@ -81,16 +86,24 @@ impl RustPlugin {
         })?;
 
         let impl_type = self.find_containing_impl_type(node, source);
+        let module_prefix = module_prefix_from_path(Path::new(file_path));
         let is_constructor = raw_name == "new" && impl_type.is_some();
         let (qualified_name, metadata) = if is_constructor {
             let ty = impl_type.clone().unwrap_or_else(|| "Unknown".to_string());
+            let local = format!("{ty}::<init>");
             (
-                Some(format!("{ty}::<init>")),
+                Some(qualify_with_module(module_prefix.as_deref(), &local)),
                 serde_json::json!({ "language": "rust", "is_constructor": true }),
             )
         } else if let Some(ty) = impl_type {
+            let local = format!("{ty}::{raw_name}");
             (
-                Some(format!("{ty}::{raw_name}")),
+                Some(qualify_with_module(module_prefix.as_deref(), &local)),
+                serde_json::json!({ "language": "rust" }),
+            )
+        } else if let Some(prefix) = module_prefix.as_deref() {
+            (
+                Some(qualify_with_module(Some(prefix), &raw_name)),
                 serde_json::json!({ "language": "rust" }),
             )
         } else {
@@ -240,6 +253,9 @@ impl RustPlugin {
             message: format!("{} missing name", if is_enum { "Enum" } else { "Struct" }),
         })?;
 
+        let module_prefix = module_prefix_from_path(Path::new(file_path));
+        let qn = qualify_with_module(module_prefix.as_deref(), &name);
+
         Ok(Symbol {
             name: name.clone(),
             symbol_type: if is_enum {
@@ -247,7 +263,7 @@ impl RustPlugin {
             } else {
                 SymbolType::Struct
             },
-            qualified_name: None,
+            qualified_name: Some(qn),
             location: SourceLocation {
                 file: file_path.to_string(),
                 start_line: node.start_position().row + 1,
@@ -314,54 +330,58 @@ impl RustPlugin {
 
     /// Calculate cyclomatic complexity for a function node
     fn calculate_cyclomatic(&self, node: Node, _source: &[u8]) -> usize {
-        let mut complexity = 1; // Base complexity
+        let mut complexity = 1;
+        let mut stack = vec![(node, 0usize)];
 
-        fn traverse(node: Node, complexity: &mut usize) {
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                match child.kind() {
-                    "if_expression" | "match_expression" | "while_expression"
-                    | "for_expression" | "loop_expression" => {
-                        *complexity += 1;
-                    }
-                    "match_arm" => {
-                        *complexity += 1;
-                    }
-                    _ => {}
-                }
-                traverse(child, complexity);
+        while let Some((node, depth)) = stack.pop() {
+            if depth > AST_MAX_DEPTH {
+                continue;
             }
+            if matches!(
+                node.kind(),
+                "if_expression"
+                    | "match_expression"
+                    | "while_expression"
+                    | "for_expression"
+                    | "loop_expression"
+                    | "match_arm"
+            ) {
+                complexity += 1;
+            }
+            push_children(&mut stack, node, depth);
         }
 
-        traverse(node, &mut complexity);
         complexity
     }
 
     /// Calculate cognitive complexity (weighted by nesting)
     fn calculate_cognitive(&self, node: Node, _source: &[u8]) -> usize {
         let mut cognitive = 0;
+        let mut stack = vec![(node, 0usize, 0usize)];
 
-        fn traverse(node: Node, cognitive: &mut usize, nesting: usize) {
+        while let Some((node, depth, nesting)) = stack.pop() {
+            if depth > AST_MAX_DEPTH {
+                continue;
+            }
             let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                match child.kind() {
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                let child_nesting = match child.kind() {
                     "if_expression" | "match_expression" | "while_expression"
                     | "for_expression" | "loop_expression" => {
-                        *cognitive += 1 + nesting; // +1 for construct, +nesting for depth
-                        traverse(child, cognitive, nesting + 1);
+                        cognitive += 1 + nesting;
+                        nesting + 1
                     }
                     "match_arm" => {
-                        *cognitive += 1 + nesting;
-                        traverse(child, cognitive, nesting);
+                        cognitive += 1 + nesting;
+                        nesting
                     }
-                    _ => {
-                        traverse(child, cognitive, nesting);
-                    }
-                }
+                    _ => nesting,
+                };
+                stack.push((child, depth + 1, child_nesting));
             }
         }
 
-        traverse(node, &mut cognitive, 0);
         cognitive
     }
 
@@ -373,12 +393,17 @@ impl RustPlugin {
     /// Count nesting depth
     fn count_nesting_depth(&self, node: Node) -> usize {
         let mut max_depth = 0;
+        let mut stack = vec![(node, 0usize, 0usize)];
 
-        fn traverse(node: Node, max_depth: &mut usize, current_depth: usize) {
-            *max_depth = (*max_depth).max(current_depth);
+        while let Some((node, depth, current_depth)) = stack.pop() {
+            if depth > AST_MAX_DEPTH {
+                continue;
+            }
+            max_depth = max_depth.max(current_depth);
             let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if matches!(
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                let child_depth = if matches!(
                     child.kind(),
                     "if_expression"
                         | "match_expression"
@@ -387,32 +412,32 @@ impl RustPlugin {
                         | "loop_expression"
                         | "block"
                 ) {
-                    traverse(child, max_depth, current_depth + 1);
+                    current_depth + 1
                 } else {
-                    traverse(child, max_depth, current_depth);
-                }
+                    current_depth
+                };
+                stack.push((child, depth + 1, child_depth));
             }
         }
 
-        traverse(node, &mut max_depth, 0);
         max_depth
     }
 
     /// Count return statements
     fn count_returns(&self, node: Node) -> usize {
         let mut count = 0;
+        let mut stack = vec![(node, 0usize)];
 
-        fn traverse(node: Node, count: &mut usize) {
+        while let Some((node, depth)) = stack.pop() {
+            if depth > AST_MAX_DEPTH {
+                continue;
+            }
             if node.kind() == "return_expression" {
-                *count += 1;
+                count += 1;
             }
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                traverse(child, count);
-            }
+            push_children(&mut stack, node, depth);
         }
 
-        traverse(node, &mut count);
         count
     }
 
@@ -436,36 +461,55 @@ impl RustPlugin {
     ) -> Result<Vec<Symbol>> {
         let mut symbols = Vec::new();
         let file_path_str = file_path.to_string_lossy();
+        let module_prefix = module_prefix_from_path(file_path);
+        let mut stack = vec![(root, 0usize)];
+        let mut depth_warned = false;
 
-        fn traverse_for_symbols(
-            node: Node,
-            source: &[u8],
-            file_path: &str,
-            symbols: &mut Vec<Symbol>,
-            plugin: &RustPlugin,
-        ) -> Result<()> {
+        while let Some((node, depth)) = stack.pop() {
+            if depth > AST_MAX_DEPTH {
+                if !depth_warned {
+                    tracing::warn!(
+                        file = %file_path.display(),
+                        depth = AST_MAX_DEPTH,
+                        "AST depth limit exceeded during symbol extraction; skipping deep branches"
+                    );
+                    depth_warned = true;
+                }
+                continue;
+            }
+
             match node.kind() {
                 "function_item" => {
-                    symbols.push(plugin.extract_function(node, source, file_path)?);
+                    symbols.push(self.extract_function(node, source, &file_path_str)?);
                 }
                 "struct_item" => {
-                    symbols.push(plugin.extract_type_definition(node, source, file_path, false)?);
+                    symbols.push(self.extract_type_definition(node, source, &file_path_str, false)?);
                 }
                 "enum_item" => {
-                    symbols.push(plugin.extract_type_definition(node, source, file_path, true)?);
+                    symbols.push(self.extract_type_definition(node, source, &file_path_str, true)?);
+                }
+                "use_declaration" => {
+                    symbols.extend(extract_use_symbols(node, source, &file_path_str));
+                }
+                "mod_item" => {
+                    if let Some(m) = extract_mod_symbol(node, source, &file_path_str) {
+                        symbols.push(m);
+                    }
+                }
+                "trait_item" => {
+                    symbols.extend(extract_trait_symbols(
+                        node,
+                        source,
+                        &file_path_str,
+                        module_prefix.as_deref(),
+                    ));
                 }
                 _ => {}
             }
 
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                traverse_for_symbols(child, source, file_path, symbols, plugin)?;
-            }
-
-            Ok(())
+            push_children(&mut stack, node, depth);
         }
 
-        traverse_for_symbols(root, source, &file_path_str, &mut symbols, self)?;
         Ok(symbols)
     }
 
@@ -486,6 +530,7 @@ impl RustPlugin {
             "rust",
             &mut relations,
         );
+        walk_depth_relations(root, source, file_path, symbols, &mut relations);
         Ok(relations)
     }
 }
@@ -559,31 +604,25 @@ impl LanguagePlugin for RustPlugin {
         let root = tree.root_node();
         let target_line = symbol.location.start_line - 1; // TreeSitter uses 0-indexed lines
 
-        fn find_function_at_line(node: Node, line: usize) -> Option<Node> {
-            if node.kind() == "function_item" && node.start_position().row == line {
-                return Some(node);
+        let mut stack = vec![(root, 0usize)];
+        while let Some((node, depth)) = stack.pop() {
+            if depth > AST_MAX_DEPTH {
+                continue;
             }
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if let Some(found) = find_function_at_line(child, line) {
-                    return Some(found);
-                }
+            if node.kind() == "function_item" && node.start_position().row == target_line {
+                return Ok(Some(ComplexityMetrics {
+                    cyclomatic: self.calculate_cyclomatic(node, source),
+                    cognitive: self.calculate_cognitive(node, source),
+                    loc: self.count_loc(node),
+                    parameters: symbol.parameters.len(),
+                    nesting_depth: self.count_nesting_depth(node),
+                    returns: self.count_returns(node),
+                }));
             }
-            None
+            push_children(&mut stack, node, depth);
         }
 
-        if let Some(func_node) = find_function_at_line(root, target_line) {
-            Ok(Some(ComplexityMetrics {
-                cyclomatic: self.calculate_cyclomatic(func_node, source),
-                cognitive: self.calculate_cognitive(func_node, source),
-                loc: self.count_loc(func_node),
-                parameters: symbol.parameters.len(),
-                nesting_depth: self.count_nesting_depth(func_node),
-                returns: self.count_returns(func_node),
-            }))
-        } else {
-            Ok(None)
-        }
+        Ok(None)
     }
 }
 
@@ -856,6 +895,66 @@ fn helper() {}
                 .iter()
                 .any(|r| matches!(r.relation_type, RelationType::Calls) && r.to == "helper"),
             "expected Calls -> helper, got {relations:?}"
+        );
+    }
+
+    #[test]
+    fn test_extract_use_imports() {
+        let source = br#"use crate::services::order;
+use uuid::Uuid as Id;
+
+fn main() {}
+"#;
+        let plugin = RustPlugin::new().unwrap();
+        let symbols = plugin
+            .extract_symbols(Path::new("src/main.rs"), source)
+            .unwrap();
+        let imports: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Import)
+            .collect();
+        assert!(imports.len() >= 2, "{imports:?}");
+        assert!(imports.iter().any(|i| i.name == "order"));
+        assert!(imports.iter().any(|i| i.name == "Id"));
+    }
+
+    #[test]
+    fn test_extract_impl_implements_and_derive() {
+        let source = br#"
+#[derive(Debug)]
+struct Item { v: i32 }
+
+impl Default for Item {
+    fn default() -> Self { Item { v: 0 } }
+}
+"#;
+        let plugin = RustPlugin::new().unwrap();
+        let path = Path::new("src/item.rs");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(
+            relations.iter().any(|r| {
+                r.relation_type == RelationType::Implements
+                    && r.from.ends_with("Item")
+                    && r.to == "Default"
+            }),
+            "Implements: {relations:?}"
+        );
+        assert!(
+            relations.iter().any(|r| {
+                r.relation_type == RelationType::AnnotatedWith
+                    && r.from.ends_with("Item")
+                    && r.to == "derive"
+            }),
+            "AnnotatedWith: {relations:?}"
+        );
+        let item = symbols
+            .iter()
+            .find(|s| s.name == "Item" && s.symbol_type == SymbolType::Struct)
+            .expect("struct");
+        assert_eq!(
+            item.qualified_name.as_deref(),
+            Some("item::Item")
         );
     }
 }

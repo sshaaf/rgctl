@@ -140,6 +140,45 @@ impl FlatGraphIndex {
         }
         adj
     }
+
+    /// Build a compact CSR outgoing adjacency (two contiguous buffers).
+    pub fn build_out_csr(&self) -> CsrOutAdj {
+        let n = self.node_count;
+        let mut degree = vec![0u32; n];
+        for &(src, _) in &self.flat_edges {
+            degree[src] += 1;
+        }
+        let mut offsets = vec![0u32; n + 1];
+        for i in 0..n {
+            offsets[i + 1] = offsets[i] + degree[i];
+        }
+        let mut targets = vec![0u32; self.flat_edges.len()];
+        let mut cursor = offsets.clone();
+        for &(src, dst) in &self.flat_edges {
+            let pos = cursor[src] as usize;
+            targets[pos] = dst as u32;
+            cursor[src] += 1;
+        }
+        CsrOutAdj { offsets, targets }
+    }
+}
+
+/// Compressed sparse row outgoing adjacency for flat graph projections.
+#[derive(Debug, Clone)]
+pub struct CsrOutAdj {
+    /// Row offsets (`offsets[i]..offsets[i+1]` indexes into [`Self::targets`]).
+    pub offsets: Vec<u32>,
+    /// Flattened neighbor targets.
+    pub targets: Vec<u32>,
+}
+
+impl CsrOutAdj {
+    /// Outgoing neighbors of `node` as dense indices.
+    pub fn neighbors(&self, node: usize) -> &[u32] {
+        let start = self.offsets[node] as usize;
+        let end = self.offsets[node + 1] as usize;
+        &self.targets[start..end]
+    }
 }
 
 /// Cache-friendly PageRank over a filtered edge projection.
@@ -313,15 +352,15 @@ impl BetweennessCentrality {
         allowed_types: &[EdgeType],
     ) -> HashMap<Uuid, f64> {
         let index = FlatGraphIndex::from_view(view, allowed_types);
-        let out_adj = index.build_out_adj();
+        let out_adj = index.build_out_csr();
         Self::compute_with_adj(view, &index, &out_adj)
     }
 
-    /// Compute normalized betweenness from a pre-built index and adjacency list.
+    /// Compute normalized betweenness from a pre-built index and CSR adjacency.
     pub fn compute_with_adj(
         view: &PetGraphView,
         index: &FlatGraphIndex,
-        out_adj: &[Vec<usize>],
+        out_adj: &CsrOutAdj,
     ) -> HashMap<Uuid, f64> {
         let n = index.node_count;
         if n == 0 {
@@ -329,9 +368,10 @@ impl BetweennessCentrality {
         }
 
         let mut betweenness = vec![0.0f64; n];
+        let mut scratch = crate::centrality_approx::BrandesScratch::new(n);
         for source in 0..n {
-            let partial = crate::centrality_approx::brandes_single_source(out_adj, source, n);
-            for (node, score) in partial.iter().enumerate() {
+            scratch.run(out_adj, source, n);
+            for (node, score) in scratch.partial().iter().enumerate() {
                 betweenness[node] += score;
             }
         }
@@ -370,15 +410,15 @@ impl HarmonicCentrality {
             return HashMap::new();
         }
         let index = FlatGraphIndex::from_view(view, allowed_types);
-        let out_adj = index.build_out_adj();
+        let out_adj = index.build_out_csr();
         Self::compute_with_adj(view, &index, &out_adj)
     }
 
-    /// Compute normalized harmonic scores from a pre-built index and adjacency list.
+    /// Compute normalized harmonic scores from a pre-built index and CSR adjacency.
     pub fn compute_with_adj(
         view: &PetGraphView,
         index: &FlatGraphIndex,
-        out_adj: &[Vec<usize>],
+        out_adj: &CsrOutAdj,
     ) -> HashMap<Uuid, f64> {
         use std::collections::VecDeque;
 
@@ -402,7 +442,8 @@ impl HarmonicCentrality {
                 if dist > 0 {
                     sum_reciprocal += 1.0 / f64::from(dist);
                 }
-                for &next in &out_adj[current] {
+                for &next in out_adj.neighbors(current) {
+                    let next = next as usize;
                     if !visited[next] {
                         visited[next] = true;
                         queue.push_back((next, dist + 1));
@@ -721,9 +762,12 @@ impl CentralityAnalyzer {
         // Betweenness and harmonic use it for per-node neighbor iteration.
         let needs_adj = n <= self.exact_limit || self.compute_harmonic;
         let out_adj = if needs_adj {
-            index.build_out_adj()
+            index.build_out_csr()
         } else {
-            Vec::new()
+            CsrOutAdj {
+                offsets: vec![0],
+                targets: vec![],
+            }
         };
 
         let betweenness = if n <= self.exact_limit {

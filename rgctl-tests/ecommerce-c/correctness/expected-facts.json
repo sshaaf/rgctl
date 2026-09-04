@@ -16,7 +16,7 @@
       "unique": true,
       "identity": {
         "exact_name": "correctness_root",
-        "canonical_fqn": "correctness_root",
+        "canonical_fqn": "correctness_harness::correctness_root",
         "file_suffix": "correctness_harness.c",
         "language": "c"
       },
@@ -81,7 +81,7 @@
       "unique": true,
       "identity": {
         "exact_name": "correctness_mid",
-        "canonical_fqn": "correctness_mid",
+        "canonical_fqn": "correctness_harness::correctness_mid",
         "file_suffix": "correctness_harness.c",
         "language": "c"
       },
@@ -148,7 +148,7 @@
       "unique": true,
       "identity": {
         "exact_name": "correctness_leaf",
-        "canonical_fqn": "correctness_leaf",
+        "canonical_fqn": "correctness_harness::correctness_leaf",
         "file_suffix": "correctness_harness.c",
         "language": "c"
       },

@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-kantra"
-version = "0.4.10"
+version = "0.4.11"
 edition.workspace = true
 rust-version.workspace = true
 description = "Native Konveyor Kantra rule evaluator for rgctl"

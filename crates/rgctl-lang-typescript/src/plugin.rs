@@ -5,6 +5,11 @@
 
 use rgctl_plugin_api::*;
 use rgctl_plugin_api::{Error, Result};
+use rgctl_plugin_helpers::{
+    extract_class_extends_relations, extract_import_symbols, find_child_kind, simple_type_name,
+    type_name_from_node,
+};
+use std::collections::HashMap;
 use std::path::Path;
 use tree_sitter::{Node, Parser};
 
@@ -20,7 +25,10 @@ impl TypeScriptPlugin {
     fn find_containing_class_name(&self, node: Node, source: &[u8]) -> Option<String> {
         let mut current = node;
         while let Some(parent) = current.parent() {
-            if parent.kind() == "class_declaration" {
+            if matches!(
+                parent.kind(),
+                "class_declaration" | "abstract_class_declaration"
+            ) {
                 let mut cursor = parent.walk();
                 for child in parent.children(&mut cursor) {
                     if matches!(child.kind(), "type_identifier" | "identifier") {
@@ -31,6 +39,120 @@ impl TypeScriptPlugin {
             current = parent;
         }
         None
+    }
+
+    fn find_containing_interface_name<'a>(&self, node: Node<'a>, source: &[u8]) -> Option<String> {
+        let mut current = node;
+        while let Some(parent) = current.parent() {
+            if parent.kind() == "interface_declaration" {
+                return parent
+                    .child_by_field_name("name")
+                    .or_else(|| find_child_kind(parent, "type_identifier"))
+                    .and_then(|n| n.utf8_text(source).ok().map(str::to_string));
+            }
+            current = parent;
+        }
+        None
+    }
+
+    fn extract_method_signature(
+        &self,
+        node: Node,
+        source: &[u8],
+        file_path: &str,
+        interface_name: &str,
+    ) -> Result<Symbol> {
+        let mut name = None;
+        let mut parameters = Vec::new();
+        let mut return_type = None;
+
+        if let Some(n) = node.child_by_field_name("name") {
+            name = n.utf8_text(source).ok().map(str::to_string);
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            match child.kind() {
+                "formal_parameters" => {
+                    parameters = self.extract_parameters(child, source)?;
+                }
+                "type_annotation" => {
+                    return_type = Some(
+                        child
+                            .utf8_text(source)?
+                            .trim_start_matches(':')
+                            .trim()
+                            .to_string(),
+                    );
+                }
+                _ => {}
+            }
+        }
+
+        let name = name.unwrap_or_else(|| "anonymous".to_string());
+        Ok(Symbol {
+            name: name.clone(),
+            symbol_type: SymbolType::Function,
+            qualified_name: Some(format!("{interface_name}.{name}")),
+            location: SourceLocation {
+                file: file_path.to_string(),
+                start_line: node.start_position().row + 1,
+                end_line: node.end_position().row + 1,
+                start_column: node.start_position().column,
+                end_column: node.end_position().column,
+            },
+            signature: Some(
+                node.utf8_text(source)?
+                    .lines()
+                    .next()
+                    .unwrap_or("")
+                    .trim()
+                    .to_string(),
+            ),
+            return_type,
+            parameters,
+            fields: vec![],
+            modifiers: vec![],
+            documentation: None,
+            metadata: serde_json::json!({
+                "language": "typescript",
+                "is_interface_method": true,
+            }),
+        })
+    }
+
+    fn extract_export_type_symbol(
+        &self,
+        node: Node,
+        source: &[u8],
+        file_path: &str,
+    ) -> Option<Symbol> {
+        let text = node.utf8_text(source).ok()?.trim().to_string();
+        if !text.starts_with("export type") {
+            return None;
+        }
+        Some(Symbol {
+            name: text,
+            symbol_type: SymbolType::Import,
+            qualified_name: None,
+            location: SourceLocation {
+                file: file_path.to_string(),
+                start_line: node.start_position().row + 1,
+                end_line: node.end_position().row + 1,
+                start_column: node.start_position().column,
+                end_column: node.end_position().column,
+            },
+            signature: None,
+            return_type: None,
+            parameters: vec![],
+            fields: vec![],
+            modifiers: vec![],
+            documentation: None,
+            metadata: serde_json::json!({
+                "language": "typescript",
+                "is_type_only": true,
+                "direction": "export",
+            }),
+        })
     }
 
     fn extract_function(&self, node: Node, source: &[u8], file_path: &str) -> Result<Symbol> {
@@ -81,9 +203,15 @@ impl TypeScriptPlugin {
                 serde_json::json!({ "language": "typescript", "is_constructor": true }),
             )
         } else {
+            let qualified_name = if node.kind() == "method_definition" {
+                self.find_containing_class_name(node, source)
+                    .map(|c| format!("{c}.{raw_name}"))
+            } else {
+                None
+            };
             (
                 raw_name,
-                None,
+                qualified_name,
                 serde_json::json!({ "language": "typescript" }),
             )
         };
@@ -462,11 +590,39 @@ impl TypeScriptPlugin {
                 "function_declaration" | "function" | "method_definition" | "arrow_function" => {
                     symbols.push(plugin.extract_function(node, source, file_path)?);
                 }
-                "class_declaration" => {
+                "class_declaration" | "abstract_class_declaration" => {
                     symbols.push(plugin.extract_class(node, source, file_path)?);
                 }
                 "interface_declaration" => {
-                    symbols.push(plugin.extract_interface(node, source, file_path)?);
+                    let iface = plugin.extract_interface(node, source, file_path)?;
+                    let iface_name = iface.name.clone();
+                    symbols.push(iface);
+                    if let Some(body) = node.child_by_field_name("body") {
+                        let mut bc = body.walk();
+                        for child in body.children(&mut bc) {
+                            if child.kind() == "method_signature" {
+                                symbols.push(plugin.extract_method_signature(
+                                    child,
+                                    source,
+                                    file_path,
+                                    &iface_name,
+                                )?);
+                            }
+                        }
+                    }
+                }
+                "import_statement" => {
+                    symbols.extend(extract_import_symbols(
+                        node,
+                        source,
+                        file_path,
+                        "typescript",
+                    ));
+                }
+                "export_statement" => {
+                    if let Some(sym) = plugin.extract_export_type_symbol(node, source, file_path) {
+                        symbols.push(sym);
+                    }
                 }
                 _ => {}
             }
@@ -491,16 +647,488 @@ impl TypeScriptPlugin {
         symbols: &[Symbol],
     ) -> Result<Vec<Relation>> {
         let mut relations = Vec::new();
-        walk_calls(
-            root,
-            source,
-            file_path,
-            symbols,
-            TS_CALL_KINDS,
-            "typescript",
-            &mut relations,
-        );
+        self.walk_ts_calls(root, source, file_path, symbols, &mut relations);
+        self.extract_heritage(root, source, file_path, &mut relations)?;
+        self.extract_decorators(root, source, file_path, &mut relations)?;
+        self.extract_instantiations(root, source, file_path, symbols, &mut relations)?;
         Ok(relations)
+    }
+
+    fn walk_ts_calls(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        symbols: &[Symbol],
+        relations: &mut Vec<Relation>,
+    ) {
+        const MAX_DEPTH: usize = 2048;
+        let function_symbols: Vec<&Symbol> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Function)
+            .collect();
+        let class_fields: HashMap<String, Vec<Field>> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Class)
+            .map(|s| (s.name.clone(), s.fields.clone()))
+            .collect();
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_DEPTH {
+                continue;
+            }
+
+            if node.kind() == "call_expression" {
+                if let Some(from_fn) = containing_function(node, &function_symbols) {
+                    let callee = node
+                        .child_by_field_name("function")
+                        .and_then(|n| callee_name(n, source))
+                        .or_else(|| callee_name(node, source));
+                    if let Some(callee) = callee.filter(|c| !c.is_empty()) {
+                        let from = from_fn
+                            .qualified_name
+                            .clone()
+                            .unwrap_or_else(|| from_fn.name.clone());
+                        let (to_type_hint, to_qualified_hint) =
+                            self.infer_ts_call_hints(node, source, from_fn, &class_fields);
+                        let mut meta = serde_json::json!({ "language": "typescript" });
+                        if self.is_unresolved_call(node, source) {
+                            meta["unresolved"] = serde_json::Value::Bool(true);
+                        }
+                        let same_file_matches: Vec<_> = symbols
+                            .iter()
+                            .filter(|s| {
+                                s.name == callee
+                                    && s.symbol_type == SymbolType::Function
+                                    && s.location.file == file_path.to_string_lossy()
+                            })
+                            .collect();
+                        let local_target = match same_file_matches.as_slice() {
+                            [only] => only
+                                .qualified_name
+                                .clone()
+                                .unwrap_or_else(|| callee.clone()),
+                            _ => to_qualified_hint
+                                .clone()
+                                .unwrap_or_else(|| callee.clone()),
+                        };
+                        relations.push(Relation {
+                            from,
+                            to: local_target,
+                            relation_type: RelationType::Calls,
+                            location: source_location(node, &file_path.to_string_lossy()),
+                            metadata: meta,
+                            to_qualified_hint,
+                            to_type_hint,
+                        });
+                    }
+                }
+            }
+
+            let mut cursor = node.walk();
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                stack.push((child, depth + 1));
+            }
+        }
+    }
+
+    fn is_unresolved_call(&self, call: Node, source: &[u8]) -> bool {
+        let Some(func) = call.child_by_field_name("function") else {
+            return false;
+        };
+        if func.kind() != "member_expression" {
+            return false;
+        }
+        let property = func.child_by_field_name("property");
+        match property.map(|p| p.kind()) {
+            Some("property_identifier") | Some("private_property_identifier") => false,
+            Some(kind) if kind == "computed_property_name" => true,
+            None => true,
+            _ => property
+                .and_then(|p| p.utf8_text(source).ok())
+                .is_some_and(|t| t.starts_with('[')),
+        }
+    }
+
+    fn infer_ts_call_hints(
+        &self,
+        call: Node,
+        source: &[u8],
+        from_fn: &Symbol,
+        class_fields: &HashMap<String, Vec<Field>>,
+    ) -> (Option<String>, Option<String>) {
+        let Some(func) = call.child_by_field_name("function") else {
+            return (None, None);
+        };
+        let Some(method_name) = callee_name(func, source) else {
+            return (None, None);
+        };
+        if func.kind() != "member_expression" {
+            return (None, None);
+        }
+        let Some(object) = func.child_by_field_name("object") else {
+            return (None, None);
+        };
+        if let Some(type_name) =
+            self.resolve_receiver_type(object, source, call, from_fn, class_fields)
+        {
+            let simple = simple_type_name(&type_name);
+            let qualified = if type_name.contains('.') {
+                format!("{type_name}.{method_name}")
+            } else {
+                format!("{simple}.{method_name}")
+            };
+            return (Some(simple), Some(qualified));
+        }
+        (None, None)
+    }
+
+    fn resolve_receiver_type(
+        &self,
+        object: Node,
+        source: &[u8],
+        call_site: Node,
+        from_fn: &Symbol,
+        class_fields: &HashMap<String, Vec<Field>>,
+    ) -> Option<String> {
+        match object.kind() {
+            "this" => from_fn
+                .qualified_name
+                .as_ref()
+                .and_then(|qn| qn.rsplit_once('.').map(|(ty, _)| ty.to_string()))
+                .or_else(|| {
+                    self.find_containing_class_name(call_site, source)
+                }),
+            "identifier" | "property_identifier" => {
+                let name = object.utf8_text(source).ok()?;
+                if let Some(class_name) = self.find_containing_class_name(call_site, source) {
+                    if let Some(fields) = class_fields.get(&class_name) {
+                        if let Some(field) = fields.iter().find(|f| f.name == name) {
+                            return field.field_type.clone();
+                        }
+                    }
+                }
+                self.find_local_variable_type(call_site, name, source)
+            }
+            "member_expression" => {
+                let inner = object.child_by_field_name("object")?;
+                if inner.kind() == "this" {
+                    let field = object
+                        .child_by_field_name("property")
+                        .and_then(|p| p.utf8_text(source).ok())?;
+                    if let Some(class_name) = self.find_containing_class_name(call_site, source) {
+                        if let Some(fields) = class_fields.get(&class_name) {
+                            if let Some(f) = fields.iter().find(|f| f.name == field) {
+                                return f.field_type.clone();
+                            }
+                        }
+                    }
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    fn find_local_variable_type(
+        &self,
+        start_node: Node,
+        var_name: &str,
+        source: &[u8],
+    ) -> Option<String> {
+        let mut current = start_node;
+        while let Some(parent) = current.parent() {
+            if matches!(
+                parent.kind(),
+                "function_declaration" | "method_definition" | "arrow_function"
+            ) {
+                break;
+            }
+            current = parent;
+        }
+        let mut stack = vec![current];
+        while let Some(node) = stack.pop() {
+            if node.start_byte() >= start_node.start_byte() {
+                continue;
+            }
+            if matches!(
+                node.kind(),
+                "variable_declarator" | "lexical_declaration" | "variable_declaration"
+            ) {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    if name_node.utf8_text(source).ok() == Some(var_name) {
+                        if let Some(ty) = node.child_by_field_name("type") {
+                            return ty
+                                .utf8_text(source)
+                                .ok()
+                                .map(|t| t.trim_start_matches(':').trim().to_string());
+                        }
+                    }
+                }
+                let mut c = node.walk();
+                for child in node.children(&mut c) {
+                    if child.kind() == "variable_declarator" {
+                        if let Some(name_node) = child.child_by_field_name("name") {
+                            if name_node.utf8_text(source).ok() == Some(var_name) {
+                                if let Some(ty) = child.child_by_field_name("type") {
+                                    return ty
+                                        .utf8_text(source)
+                                        .ok()
+                                        .map(|t| t.trim_start_matches(':').trim().to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            let mut c = node.walk();
+            stack.extend(node.children(&mut c));
+        }
+        None
+    }
+
+    fn extract_heritage(
+        &self,
+        node: Node,
+        source: &[u8],
+        file_path: &Path,
+        relations: &mut Vec<Relation>,
+    ) -> Result<()> {
+        match node.kind() {
+            "class_declaration" | "abstract_class_declaration" => {
+                if let Some(name) = node
+                    .child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(source).ok())
+                {
+                    extract_class_extends_relations(
+                        node,
+                        source,
+                        file_path,
+                        name,
+                        "typescript",
+                        relations,
+                    );
+                    if let Some(heritage) = find_child_kind(node, "class_heritage") {
+                        let mut hc = heritage.walk();
+                        for child in heritage.children(&mut hc) {
+                            if child.kind() == "implements_clause" {
+                                self.collect_implements(name, child, source, file_path, relations);
+                            }
+                        }
+                    }
+                }
+            }
+            "interface_declaration" => {
+                if let Some(name) = node
+                    .child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(source).ok())
+                {
+                    if let Some(extends) = find_child_kind(node, "extends_type_clause") {
+                        let mut ec = extends.walk();
+                        for child in extends.children(&mut ec) {
+                            if let Some(target) = type_name_from_node(child, source) {
+                                relations.push(Relation {
+                                    from: name.to_string(),
+                                    to: simple_type_name(&target),
+                                    relation_type: RelationType::Extends,
+                                    location: source_location(child, &file_path.to_string_lossy()),
+                                    metadata: serde_json::json!({ "language": "typescript" }),
+                                    to_qualified_hint: Some(target),
+                                    to_type_hint: None,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            self.extract_heritage(child, source, file_path, relations)?;
+        }
+        Ok(())
+    }
+
+    fn collect_implements(
+        &self,
+        from: &str,
+        clause: Node,
+        source: &[u8],
+        file_path: &Path,
+        relations: &mut Vec<Relation>,
+    ) {
+        let mut cursor = clause.walk();
+        for child in clause.children(&mut cursor) {
+            if let Some(target) = type_name_from_node(child, source) {
+                relations.push(Relation {
+                    from: from.to_string(),
+                    to: simple_type_name(&target),
+                    relation_type: RelationType::Implements,
+                    location: source_location(child, &file_path.to_string_lossy()),
+                    metadata: serde_json::json!({ "language": "typescript" }),
+                    to_qualified_hint: Some(target),
+                    to_type_hint: None,
+                });
+            }
+        }
+    }
+
+    fn extract_decorators(
+        &self,
+        node: Node,
+        source: &[u8],
+        file_path: &Path,
+        relations: &mut Vec<Relation>,
+    ) -> Result<()> {
+        let from = match node.kind() {
+            "class_declaration" | "abstract_class_declaration" => node
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(source).ok())
+                .map(str::to_string),
+            "method_definition" | "method_signature" => {
+                let method = node
+                    .child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(source).ok())
+                    .map(str::to_string);
+                method.and_then(|m| {
+                    self.find_containing_class_name(node, source)
+                        .or_else(|| self.find_containing_interface_name(node, source))
+                        .map(|owner| format!("{owner}.{m}"))
+                })
+            }
+            _ => None,
+        };
+
+        if let Some(from) = from {
+            for (decorator_name, args) in decorators_for_node(node, source) {
+                let mut meta = serde_json::json!({ "language": "typescript" });
+                if let Some(args) = args {
+                    meta["arguments"] = serde_json::Value::String(args);
+                }
+                relations.push(Relation {
+                    from: from.clone(),
+                    to: decorator_name,
+                    relation_type: RelationType::AnnotatedWith,
+                    location: source_location(node, &file_path.to_string_lossy()),
+                    metadata: meta,
+                    to_qualified_hint: None,
+                    to_type_hint: None,
+                });
+            }
+        }
+
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            self.extract_decorators(child, source, file_path, relations)?;
+        }
+        Ok(())
+    }
+
+    fn extract_instantiations(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        symbols: &[Symbol],
+        relations: &mut Vec<Relation>,
+    ) -> Result<()> {
+        const MAX_DEPTH: usize = 2048;
+        let function_symbols: Vec<&Symbol> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Function)
+            .collect();
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_DEPTH {
+                continue;
+            }
+            if node.kind() == "new_expression" {
+                if let Some(from_fn) = containing_function(node, &function_symbols) {
+                    let from = from_fn
+                        .qualified_name
+                        .clone()
+                        .unwrap_or_else(|| from_fn.name.clone());
+                    if let Some(ctor) = node.child_by_field_name("constructor") {
+                        if let Some(target) = type_name_from_node(ctor, source) {
+                            relations.push(Relation {
+                                from,
+                                to: simple_type_name(&target),
+                                relation_type: RelationType::Instantiates,
+                                location: source_location(node, &file_path.to_string_lossy()),
+                                metadata: serde_json::json!({ "language": "typescript" }),
+                                to_qualified_hint: Some(target),
+                                to_type_hint: None,
+                            });
+                        }
+                    }
+                }
+            }
+
+            let mut cursor = node.walk();
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                stack.push((child, depth + 1));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn collect_decorators(node: Node, source: &[u8]) -> Vec<(String, Option<String>)> {
+    let mut out = Vec::new();
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == "decorator" {
+            if let Some((name, args)) = decorator_name_and_args(child, source) {
+                out.push((name, args));
+            }
+        }
+    }
+    out
+}
+
+fn decorators_for_node(node: Node, source: &[u8]) -> Vec<(String, Option<String>)> {
+    let mut out = collect_decorators(node, source);
+    if let Some(parent) = node.parent() {
+        if parent.kind() == "export_statement" {
+            out.extend(collect_decorators(parent, source));
+        }
+    }
+    out
+}
+
+fn decorator_name_and_args(decorator: Node, source: &[u8]) -> Option<(String, Option<String>)> {
+    let inner = decorator.named_child(0)?;
+    match inner.kind() {
+        "identifier" | "type_identifier" => {
+            let name = inner.utf8_text(source).ok()?.to_string();
+            Some((name, None))
+        }
+        "call_expression" => {
+            let name = inner
+                .child_by_field_name("function")
+                .and_then(|f| callee_name(f, source))?;
+            let args = inner
+                .child_by_field_name("arguments")
+                .and_then(|a| a.utf8_text(source).ok().map(str::to_string));
+            Some((name, args))
+        }
+        _ => None,
+    }
+}
+
+fn source_location(node: Node, file_path: &str) -> SourceLocation {
+    SourceLocation {
+        file: file_path.to_string(),
+        start_line: node.start_position().row + 1,
+        end_line: node.end_position().row + 1,
+        start_column: node.start_position().column,
+        end_column: node.end_position().column,
     }
 }
 
@@ -733,4 +1361,117 @@ class OrderDTO {
         assert_eq!(ctor.parameters[0].param_type.as_deref(), Some("string"));
         assert_eq!(ctor.parameters[1].param_type.as_deref(), Some("string"));
     }
+
+    #[test]
+    fn test_import_and_type_only() {
+        let source = br#"import type { Foo } from './foo';
+import { bar } from 'lodash';"#;
+        let plugin = TypeScriptPlugin::new().unwrap();
+        let symbols = plugin.extract_symbols(Path::new("m.ts"), source).unwrap();
+        let imports: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Import)
+            .collect();
+        assert!(imports.len() >= 2, "expected imports, got {imports:?}");
+        assert!(
+            imports.iter().any(|s| {
+                s.metadata.get("is_type_only").and_then(|v| v.as_bool()) == Some(true)
+            })
+        );
+    }
+
+    #[test]
+    fn test_heritage_implements_and_interface_extends() {
+        let source = br#"
+interface IBase { run(): void; }
+interface IDerived extends IBase { extra(): void; }
+class Service implements IDerived {
+  run() {}
+  extra() {}
+}"#;
+        let plugin = TypeScriptPlugin::new().unwrap();
+        let path = Path::new("h.ts");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(
+            relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::Implements),
+            "missing Implements: {relations:?}"
+        );
+        assert!(
+            relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::Extends && r.to == "IBase"),
+            "missing interface Extends: {relations:?}"
+        );
+    }
+
+    #[test]
+    fn test_decorators_annotated_with() {
+        let source = br#"
+@Controller('orders')
+class OrdersController {
+  @Get()
+  list() {}
+}"#;
+        let plugin = TypeScriptPlugin::new().unwrap();
+        let path = Path::new("d.ts");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(
+            relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::AnnotatedWith && r.to == "Controller"),
+            "expected Controller decorator: {relations:?}"
+        );
+    }
+
+    #[test]
+    fn test_decorators_on_exported_class() {
+        let source = br#"
+@Controller('orders')
+export class OrdersControllerFixture {
+  @Get()
+  list() {}
+}"#;
+        let plugin = TypeScriptPlugin::new().unwrap();
+        let path = Path::new("d.ts");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(
+            relations.iter().any(|r| r.relation_type == RelationType::AnnotatedWith),
+            "expected AnnotatedWith on exported class: {relations:?}"
+        );
+    }
+
+    #[test]
+    fn test_method_fqn_and_instantiates() {
+        let source = br#"
+class OrderService {
+  checkout(): void {
+    const dto = new OrderDto();
+    this.repo.save(dto);
+  }
 }
+class OrderDto {}
+class Repo { save(x: OrderDto): void {} }
+"#;
+        let plugin = TypeScriptPlugin::new().unwrap();
+        let path = Path::new("s.ts");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let checkout = symbols.iter().find(|s| s.name == "checkout").unwrap();
+        assert_eq!(
+            checkout.qualified_name.as_deref(),
+            Some("OrderService.checkout")
+        );
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        assert!(
+            relations
+                .iter()
+                .any(|r| r.relation_type == RelationType::Instantiates && r.to == "OrderDto"),
+            "expected Instantiates: {relations:?}"
+        );
+    }
+}
+

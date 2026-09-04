@@ -14,6 +14,8 @@ use crate::csr::edge_type_to_u8;
 use crate::schema::{Edge, Node, NodeType};
 use rgctl_error::{Error, Result};
 use std::cmp::Ordering;
+use rayon::prelude::*;
+use std::thread;
 use std::collections::{BinaryHeap, HashMap};
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, Read, Write};
@@ -151,20 +153,29 @@ pub fn materialize_sorted_graph(spill: &FinishedSpill) -> Result<(Vec<Node>, Vec
     let nodes_sorted = dir.join("nodes.sorted.seg");
     let edges_sorted = dir.join("edges.sorted.seg");
 
-    external_sort_records(
-        &nodes_unsorted,
-        &nodes_sorted,
-        NODE_KEY_LEN,
-        DEFAULT_SORT_RUN_BYTES,
-        spill.node_count,
-    )?;
-    external_sort_records(
-        &edges_unsorted,
-        &edges_sorted,
-        EDGE_KEY_LEN,
-        DEFAULT_SORT_RUN_BYTES,
-        spill.edge_count,
-    )?;
+    thread::scope(|scope| -> Result<()> {
+        let node_err = scope.spawn(|| {
+            external_sort_records(
+                &nodes_unsorted,
+                &nodes_sorted,
+                NODE_KEY_LEN,
+                DEFAULT_SORT_RUN_BYTES,
+                spill.node_count,
+            )
+        });
+        let edge_err = scope.spawn(|| {
+            external_sort_records(
+                &edges_unsorted,
+                &edges_sorted,
+                EDGE_KEY_LEN,
+                DEFAULT_SORT_RUN_BYTES,
+                spill.edge_count,
+            )
+        });
+        node_err.join().map_err(|_| Error::GraphError("node sort panicked".into()))??;
+        edge_err.join().map_err(|_| Error::GraphError("edge sort panicked".into()))??;
+        Ok(())
+    })?;
 
     let mut nodes = Vec::with_capacity(spill.node_count);
     {
@@ -217,20 +228,29 @@ pub fn write_columnar_from_spill(spill: FinishedSpill, path: &Path) -> Result<St
     let nodes_sorted = dir.join("nodes.sorted.seg");
     let edges_sorted = dir.join("edges.sorted.seg");
 
-    external_sort_records(
-        &nodes_unsorted,
-        &nodes_sorted,
-        NODE_KEY_LEN,
-        DEFAULT_SORT_RUN_BYTES,
-        node_count,
-    )?;
-    external_sort_records(
-        &edges_unsorted,
-        &edges_sorted,
-        EDGE_KEY_LEN,
-        DEFAULT_SORT_RUN_BYTES,
-        edge_count,
-    )?;
+    thread::scope(|scope| -> Result<()> {
+        let node_err = scope.spawn(|| {
+            external_sort_records(
+                &nodes_unsorted,
+                &nodes_sorted,
+                NODE_KEY_LEN,
+                DEFAULT_SORT_RUN_BYTES,
+                node_count,
+            )
+        });
+        let edge_err = scope.spawn(|| {
+            external_sort_records(
+                &edges_unsorted,
+                &edges_sorted,
+                EDGE_KEY_LEN,
+                DEFAULT_SORT_RUN_BYTES,
+                edge_count,
+            )
+        });
+        node_err.join().map_err(|_| Error::GraphError("node sort panicked".into()))??;
+        edge_err.join().map_err(|_| Error::GraphError("edge sort panicked".into()))??;
+        Ok(())
+    })?;
 
     let mut hasher = blake3::Hasher::new();
     let mut strings = StringPool::new();
@@ -321,12 +341,16 @@ fn external_sort_records(
     // Small enough to sort in one pass in RAM.
     if meta.len() as usize <= run_bytes || record_count < 10_000 {
         let mut records = read_all_records(input, key_len, record_count)?;
-        records.sort_by(|a, b| a.key.cmp(&b.key));
+        records.par_sort_unstable_by(|a, b| a.key[..a.key_len].cmp(&b.key[..b.key_len]));
         write_records(output, &records)?;
         return Ok(());
     }
 
     let parent = output.parent().unwrap_or_else(|| Path::new("."));
+    let run_prefix = output
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("run");
     let mut run_paths = Vec::new();
     let mut reader = BufReader::with_capacity(8 * 1024 * 1024, File::open(input)?);
     let mut remaining = record_count;
@@ -337,12 +361,12 @@ fn external_sort_records(
         let mut batch_bytes = 0usize;
         while remaining > 0 && (batch.is_empty() || batch_bytes < run_bytes) {
             let rec = read_one_record(&mut reader, key_len)?;
-            batch_bytes += rec.key.len() + 8 + rec.blob.len();
+            batch_bytes += rec.key_len + 8 + rec.blob.len();
             batch.push(rec);
             remaining -= 1;
         }
-        batch.sort_by(|a, b| a.key.cmp(&b.key));
-        let run_path = parent.join(format!("run-{run_idx}.seg"));
+        batch.par_sort_unstable_by(|a, b| a.key[..a.key_len].cmp(&b.key[..b.key_len]));
+        let run_path = parent.join(format!("{run_prefix}-{run_idx}.seg"));
         write_records(&run_path, &batch)?;
         run_paths.push(run_path);
         run_idx += 1;
@@ -360,20 +384,27 @@ fn external_sort_records(
     Ok(())
 }
 
+const MAX_SPILL_KEY_LEN: usize = EDGE_KEY_LEN;
+
 struct SpillRecord {
-    key: Vec<u8>,
+    key: [u8; MAX_SPILL_KEY_LEN],
+    key_len: usize,
     blob: Vec<u8>,
 }
 
 fn read_one_record<R: Read>(reader: &mut R, key_len: usize) -> Result<SpillRecord> {
-    let mut key = vec![0u8; key_len];
-    reader.read_exact(&mut key)?;
+    let mut key = [0u8; MAX_SPILL_KEY_LEN];
+    reader.read_exact(&mut key[..key_len])?;
     let mut len_buf = [0u8; 8];
     reader.read_exact(&mut len_buf)?;
     let len = u64::from_le_bytes(len_buf) as usize;
     let mut blob = vec![0u8; len];
     reader.read_exact(&mut blob)?;
-    Ok(SpillRecord { key, blob })
+    Ok(SpillRecord {
+        key,
+        key_len,
+        blob,
+    })
 }
 
 fn read_all_records(path: &Path, key_len: usize, count: usize) -> Result<Vec<SpillRecord>> {
@@ -388,7 +419,7 @@ fn read_all_records(path: &Path, key_len: usize, count: usize) -> Result<Vec<Spi
 fn write_records(path: &Path, records: &[SpillRecord]) -> Result<()> {
     let mut w = BufWriter::with_capacity(8 * 1024 * 1024, File::create(path)?);
     for rec in records {
-        w.write_all(&rec.key)?;
+        w.write_all(&rec.key[..rec.key_len])?;
         w.write_all(&(rec.blob.len() as u64).to_le_bytes())?;
         w.write_all(&rec.blob)?;
     }
@@ -398,22 +429,23 @@ fn write_records(path: &Path, records: &[SpillRecord]) -> Result<()> {
 
 #[derive(Eq)]
 struct HeapEntry {
-    key: Vec<u8>,
+    key: [u8; MAX_SPILL_KEY_LEN],
+    key_len: usize,
     blob: Vec<u8>,
     run_idx: usize,
 }
 
 impl PartialEq for HeapEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.key == other.key && self.run_idx == other.run_idx
+        self.key[..self.key_len] == other.key[..other.key_len] && self.run_idx == other.run_idx
     }
 }
 
 impl Ord for HeapEntry {
-    fn cmp(&self, other: &Self) -> Ordering {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         // Reverse for min-heap via BinaryHeap
-        match other.key.cmp(&self.key) {
-            Ordering::Equal => other.run_idx.cmp(&self.run_idx),
+        match other.key[..other.key_len].cmp(&self.key[..self.key_len]) {
+            std::cmp::Ordering::Equal => other.run_idx.cmp(&self.run_idx),
             o => o,
         }
     }
@@ -436,6 +468,7 @@ fn k_way_merge(run_paths: &[PathBuf], output: &Path, key_len: usize) -> Result<(
         match read_one_record(reader, key_len) {
             Ok(rec) => heap.push(HeapEntry {
                 key: rec.key,
+                key_len: rec.key_len,
                 blob: rec.blob,
                 run_idx: i,
             }),
@@ -446,13 +479,14 @@ fn k_way_merge(run_paths: &[PathBuf], output: &Path, key_len: usize) -> Result<(
 
     let mut out = BufWriter::with_capacity(8 * 1024 * 1024, File::create(output)?);
     while let Some(entry) = heap.pop() {
-        out.write_all(&entry.key)?;
+        out.write_all(&entry.key[..entry.key_len])?;
         out.write_all(&(entry.blob.len() as u64).to_le_bytes())?;
         out.write_all(&entry.blob)?;
         let i = entry.run_idx;
         match read_one_record(&mut readers[i], key_len) {
             Ok(rec) => heap.push(HeapEntry {
                 key: rec.key,
+                key_len: rec.key_len,
                 blob: rec.blob,
                 run_idx: i,
             }),

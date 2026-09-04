@@ -9,7 +9,7 @@ use crate::analysis::{
 use rayon::prelude::*;
 use rgctl_graph::code_index::hash_code;
 use rgctl_graph::schema::Node;
-use rgctl_pipeline::with_pool;
+use rgctl_pipeline::{with_large_pool, with_large_stack, with_pool};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -99,6 +99,11 @@ impl FileSourceCache {
     /// Source text for a function's `file_path` metadata field.
     pub fn get(&self, file_path: &str) -> Option<&str> {
         self.sources.get(file_path).map(|s| s.as_str())
+    }
+
+    /// All preloaded sources (for field-write fallback indexing).
+    pub fn sources(&self) -> &HashMap<String, Arc<String>> {
+        &self.sources
     }
 }
 
@@ -190,11 +195,13 @@ pub fn run_cfg_analysis_batch(
         dfg_loops: options.dfg_loops,
     };
 
-    let nested: Vec<Vec<Option<CfgFunctionWork>>> = with_pool(options.thread_count, || {
-        groups
-            .par_iter()
-            .map(|group| process_file_group(group, &ctx))
-            .collect()
+    let nested: Vec<Vec<Option<CfgFunctionWork>>> = with_large_stack(|| {
+        with_large_pool(options.thread_count, || {
+            groups
+                .par_iter()
+                .map(|group| process_file_group(group, &ctx))
+                .collect()
+        })
     });
     let flat: Vec<Option<CfgFunctionWork>> = nested.into_iter().flatten().collect();
 
@@ -235,11 +242,18 @@ pub fn run_cfg_analysis_batch(
         }
     }
 
-    with_pool(options.thread_count, || {
-        saves.par_iter().for_each(|analysis| {
-            let _ = storage.save_function_no_index(analysis);
+    let pack = storage.open_pack_writer().unwrap_or_else(|e| {
+        tracing::warn!(error = %e, "analysis pack writer failed; skipping CFG persistence");
+        Mutex::new(None)
+    });
+    with_large_stack(|| {
+        with_large_pool(options.thread_count, || {
+            saves.par_iter().for_each(|analysis| {
+                let _ = storage.save_function_no_index_packed(analysis, &pack);
+            });
         });
     });
+    let _ = AnalysisStorage::finish_pack(pack);
     let _ = storage.refresh_analysis_index_from_analyses(&saves);
 
     let active_keys = active_stable_keys(functions, Some(&sources));

@@ -65,6 +65,10 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `k8s_website_markdown_cold_discover_within_baseline` | `example/k8s-website` | `-l markdown` | **3 s** |
 | `ecommerce_java_inheritance_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | default | **0.31 s** wall; **0.008 s** `index_graph_build` |
 | `ecommerce_java_kantra_cold_discover_within_baseline` | `rgctl-tests/ecommerce-java` | `--with-kantra --kantra-rules <fixture>` | env `RGCTL_ECOMMERCE_JAVA_KANTRA_*` (fixture catalog; fast CI path) |
+| `rust_cold_discover_within_baseline` | `example/rust` | `-l rust` | **25 s** |
+| `node_javascript_cold_discover_within_baseline` | `example/node/test` | `-l javascript` | **5 s** |
+| `node_javascript_cold_discover_with_cfg_within_baseline` | `example/node/test` | `-l javascript --with-cfg` | **7 s** |
+| `home_assistant_python_cold_discover_within_baseline` | `example/home-assistant` | `-l python` | **20 s** |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`-r <corpus>`, `discover . -v`).
 
@@ -168,6 +172,70 @@ Top stages (% of wall): `index_extract` **71.9 s** (50%), `index_graph_build` **
 Stage walls (profile summaries): **basic ~18 s**, **deep ~46 s**, **semantic ~9 s** (inferred from timestamps; semantic has little `[profile]` logging).
 
 Deep-pass hotspots: `cfg_total` **~18 s**, `save_dashboard` **~11 s** (`export_cfg_slice` **~9.7 s**), harmonic centrality **~6.7 s**, `field_write` **~4.6 s**.
+
+### Rust (`example/rust`) — `-l rust`
+
+| Metric | Value |
+|--------|-------|
+| Wall (real / profile) | **~23 s** / **~21 s** |
+| **Gate baseline** | **25 s** (pass ≤ 27.5 s) |
+| Peak RSS | **~3.9 GB** |
+| Nodes / functions | 445,634 / 186,416 |
+| Files indexed | 38,631 / 38,640 discovered |
+| `index_graph_build` | **~4.9 s** |
+
+Top stages (% of wall): `index_extract` **~6.4 s** (30%), `index_graph_build` **~4.9 s** (23%), `save_tracker` **~1.5 s** (7%).
+
+### Roslyn (`example/roslyn/src`) — `-l csharp`
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **90 s** (pass ≤ 99 s; record on reference machine, override `RGCTL_ROSLYN_COLD_BASELINE_SECS`) |
+| Corpus | `dotnet/roslyn` `src/` (~8k+ `.cs`) |
+
+### VS Code (`example/vscode/src`) — `-l typescript`
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **120 s** (pass ≤ 132 s; record on reference machine, override `RGCTL_VSCODE_TYPESCRIPT_COLD_BASELINE_SECS`) |
+| Corpus | `microsoft/vscode` `src/` (~10k `.ts`) |
+
+### Node.js (`example/node/test`) — `-l javascript`
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **5 s** (pass ≤ 5.5 s; record on reference machine, override `RGCTL_NODE_JAVASCRIPT_COLD_BASELINE_SECS`) |
+| Corpus | `nodejs/node` `test/` (sparse checkout; ~9.2k discoverable `.js`/`.mjs`) |
+| Wall (reference, 2026-09-04) | **~4.5 s** |
+| Nodes / functions | **54,744** / **15,635** |
+| Files indexed | **9,213** |
+| `index_graph_build` | **~0.37 s** |
+
+**With `--with-cfg`:**
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **7 s** (pass ≤ 7.7 s; override `RGCTL_NODE_JAVASCRIPT_COLD_WITH_CFG_BASELINE_SECS`) |
+| Wall (reference, 2026-09-04) | **~6.2 s** |
+| Peak RSS | **~614 MB** |
+| `cfg_total` | **~1.1 s** |
+
+### Home Assistant (`example/home-assistant`) — `-l python`
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **20 s** (pass ≤ 22 s; override `RGCTL_HOME_ASSISTANT_PYTHON_COLD_BASELINE_SECS`) |
+| Corpus | `home-assistant/core` (~18.6k `.py`) |
+| Wall (reference, 2026-09-04) | **~18.5 s** |
+| Nodes / functions | **558,729** / **122,320** |
+| Files indexed | **18,628** |
+| `index_graph_build` | **~3.4 s** |
+
+### CFG on large C++ corpora (`--with-cfg`)
+
+`discover --with-cfg` builds per-function CFGs on a dedicated **16 MiB** Rayon pool (`with_large_pool` / `rgctl-worker-*`) with the pass coordinated on a **`rgctl-large-stack`** thread. Default discover/extract uses the normal pool (OS default ~2 MiB worker stacks). Field-write indexing after CFG also runs on a large-stack thread.
+
+Pathological inputs (e.g. llvm `clang/test/Index/annotate-deep-statements.cpp` with thousands of nested `call_expression` nodes) are capped at **depth 2048** during CFG expression walks and def-use extraction (`cfg_builder` / `def_use`); one warning per function is logged and deeper branches are skipped. For full llvm `clang/` CFG discover on older builds, `RUST_MIN_STACK=16777216` was the workaround.
 
 ---
 

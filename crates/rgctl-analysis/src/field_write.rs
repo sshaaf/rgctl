@@ -4,10 +4,9 @@
 //! (compound names produced by [`crate::def_use`]), then best-effort types receivers
 //! from function parameters + language-specific locals.
 
-use crate::cfg::ControlFlowGraph;
-use crate::cfg_pdg_archive::{CfgPdgArchive, CfgPdgRecord};
-use crate::field_write_locals::LocalsParseContext;
-use rayon::prelude::*;
+use crate::cfg::{ControlFlowGraph, DefVar};
+use crate::cfg_pdg_archive::CfgPdgArchive;
+use crate::field_write_locals::{build_file_local_types_index, language_from_path};
 use rgctl_error::{Error, Result};
 use rgctl_graph::schema::Node;
 use serde::{Deserialize, Serialize};
@@ -16,6 +15,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use uuid::Uuid;
+use rayon::prelude::*;
 
 /// On-disk filename under `.rgctl/analysis/`.
 pub const FIELD_WRITE_INDEX_FILE: &str = "field_write.index.bin";
@@ -93,17 +93,18 @@ impl FieldWriteIndex {
 
     /// Build from a CFG/PDG archive and L_repo function nodes.
     ///
-    /// Groups work by source file so each file is loaded and parsed once, then
-    /// processes files in parallel with Rayon.
+    /// Groups by source file and processes files in parallel (caller should install
+    /// [`rgctl_pipeline::with_large_pool`] when available).
     pub fn build_from_archive(
         archive: &CfgPdgArchive,
         functions: &[Node],
         graph_digest: Option<String>,
         repo_root: Option<&Path>,
+        preloaded_sources: Option<&HashMap<String, Arc<String>>>,
     ) -> Self {
         let by_id: HashMap<Uuid, &Node> = functions.iter().map(|n| (n.id, n)).collect();
 
-        let mut by_file: HashMap<String, Vec<&CfgPdgRecord>> = HashMap::new();
+        let mut by_file: HashMap<String, Vec<Uuid>> = HashMap::new();
         for record in archive.records.values() {
             let func = by_id.get(&record.function_id).copied();
             let file = record
@@ -111,55 +112,26 @@ impl FieldWriteIndex {
                 .clone()
                 .or_else(|| func.and_then(|n| n.file_path.as_ref().map(|s| s.to_string())))
                 .unwrap_or_default();
-            by_file.entry(file).or_default().push(record);
+            by_file
+                .entry(file)
+                .or_default()
+                .push(record.function_id);
         }
 
         let repo_root = repo_root.map(Path::to_path_buf);
-        let mut writes: Vec<FieldWrite> = by_file
-            .into_par_iter()
-            .flat_map(|(file, records)| {
-                let source = if file.is_empty() {
-                    None
-                } else {
-                    load_source(&file, repo_root.as_deref()).map(Arc::new)
-                };
-                let lang = language_from_path(&file);
-                let locals_ctx = source
-                    .as_ref()
-                    .and_then(|src| LocalsParseContext::try_new(&lang, src.as_str()));
+        let file_groups: Vec<(String, Vec<Uuid>)> = by_file.into_iter().collect();
 
-                let mut file_writes = Vec::new();
-                for record in records {
-                    let func = by_id.get(&record.function_id).copied();
-                    let function_name = if record.function_name.is_empty() {
-                        func.map(|n| n.name.to_string())
-                            .unwrap_or_else(|| "unknown".to_string())
-                    } else {
-                        record.function_name.clone()
-                    };
-                    let is_constructor = func.map(is_constructor_node).unwrap_or(false)
-                        || function_name_looks_like_ctor(&function_name, func);
-                    let mut type_env = type_env_from_node(func);
-                    if let Some(node) = func {
-                        if let Some(enclosing) = enclosing_type_name(node) {
-                            type_env.insert("this".into(), enclosing.clone());
-                            type_env.insert("self".into(), enclosing);
-                        }
-                    }
-                    if let Some(ctx) = &locals_ctx {
-                        ctx.merge_into(&function_name, &mut type_env);
-                    }
-                    extract_writes_from_cfg(
-                        &record.cfg,
-                        record.function_id,
-                        &function_name,
-                        is_constructor,
-                        &file,
-                        &type_env,
-                        &mut file_writes,
-                    );
-                }
-                file_writes
+        let mut writes: Vec<FieldWrite> = file_groups
+            .into_par_iter()
+            .flat_map(|(file, ids)| {
+                process_file_records(
+                    &file,
+                    &ids,
+                    archive,
+                    &by_id,
+                    repo_root.as_deref(),
+                    preloaded_sources,
+                )
             })
             .collect();
 
@@ -260,8 +232,9 @@ fn type_matches(have: &str, want: &str) -> bool {
     }
     let have_n = normalize_type_name(have);
     have_n == want
-        || have_n.ends_with(&format!(".{want}"))
-        || have_n.ends_with(&format!("::{want}"))
+        || have_n
+            .strip_suffix(want)
+            .is_some_and(|prefix| prefix.ends_with('.') || prefix.ends_with("::"))
 }
 
 fn normalize_type_name(name: &str) -> String {
@@ -319,6 +292,83 @@ fn enclosing_type_name(node: &Node) -> Option<String> {
     node.properties.get("member_of").cloned()
 }
 
+fn process_file_records(
+    file: &str,
+    ids: &[Uuid],
+    archive: &CfgPdgArchive,
+    by_id: &HashMap<Uuid, &Node>,
+    repo_root: Option<&Path>,
+    preloaded_sources: Option<&HashMap<String, Arc<String>>>,
+) -> Vec<FieldWrite> {
+    let mut function_names = Vec::with_capacity(ids.len());
+    for id in ids {
+        let Some(record) = archive.records.get(id) else {
+            continue;
+        };
+        let func = by_id.get(id).copied();
+        let function_name = if record.function_name.is_empty() {
+            func.map(|n| n.name.to_string())
+                .unwrap_or_else(|| "unknown".to_string())
+        } else {
+            record.function_name.clone()
+        };
+        function_names.push(function_name);
+    }
+
+    let source = preloaded_sources
+        .and_then(|m| m.get(file).cloned())
+        .or_else(|| load_source(file, repo_root).map(Arc::new));
+    let file_types = source.as_ref().map(|src| {
+        build_file_local_types_index(&language_from_path(file), src.as_str(), &function_names)
+    });
+
+    let mut file_writes = Vec::new();
+    let mut type_env = HashMap::new();
+    for (id, function_name) in ids.iter().zip(function_names.iter()) {
+        let Some(record) = archive.records.get(id) else {
+            continue;
+        };
+        let func = by_id.get(id).copied();
+        let is_constructor = func.map(is_constructor_node).unwrap_or(false)
+            || function_name_looks_like_ctor(function_name, func);
+        type_env.clear();
+        merge_type_env(func, &record.cfg, function_name, &mut type_env);
+        if let Some(locals) = file_types.as_ref().and_then(|m| m.get(function_name)) {
+            for (k, v) in locals {
+                type_env.entry(k.clone()).or_insert_with(|| v.clone());
+            }
+        }
+        extract_writes_from_cfg(
+            &record.cfg,
+            *id,
+            function_name,
+            is_constructor,
+            file,
+            &type_env,
+            &mut file_writes,
+        );
+    }
+    file_writes
+}
+
+fn merge_type_env(
+    func: Option<&Node>,
+    cfg: &ControlFlowGraph,
+    _function_name: &str,
+    type_env: &mut HashMap<String, String>,
+) {
+    *type_env = type_env_from_node(func);
+    if let Some(node) = func {
+        if let Some(enclosing) = enclosing_type_name(node) {
+            type_env.insert("this".into(), enclosing.clone());
+            type_env.insert("self".into(), enclosing);
+        }
+    }
+    for (k, v) in &cfg.local_types {
+        type_env.entry(k.clone()).or_insert_with(|| v.clone());
+    }
+}
+
 fn type_env_from_node(func: Option<&Node>) -> HashMap<String, String> {
     let mut env = HashMap::new();
     let Some(node) = func else {
@@ -349,27 +399,6 @@ fn load_source(file: &str, repo_root: Option<&Path>) -> Option<String> {
     None
 }
 
-fn language_from_path(path: &str) -> String {
-    Path::new(path)
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|ext| match ext {
-            "java" => "java",
-            "cs" => "csharp",
-            "go" => "go",
-            "rs" => "rust",
-            "py" => "python",
-            "js" | "jsx" | "mjs" | "cjs" => "javascript",
-            "ts" | "tsx" => "typescript",
-            "c" | "h" => "c",
-            "cpp" | "cc" | "cxx" | "hpp" | "hh" => "cpp",
-            "php" => "php",
-            _ => "unknown",
-        })
-        .unwrap_or("unknown")
-        .to_string()
-}
-
 fn extract_writes_from_cfg(
     cfg: &ControlFlowGraph,
     function_id: Uuid,
@@ -382,7 +411,7 @@ fn extract_writes_from_cfg(
     for block in cfg.blocks.values() {
         for stmt in &block.statements {
             for def in &stmt.defined_vars {
-                let Some((receiver, member)) = split_field_def(def) else {
+                let DefVar::Field { receiver, member } = def else {
                     continue;
                 };
                 if member.is_empty() {
@@ -390,7 +419,7 @@ fn extract_writes_from_cfg(
                 }
                 let receiver_key = receiver.trim_start_matches('$');
                 let receiver_type = type_env
-                    .get(receiver)
+                    .get(receiver.as_str())
                     .or_else(|| type_env.get(receiver_key))
                     .cloned();
                 let kind = if receiver == "this" || receiver == "self" {
@@ -408,9 +437,9 @@ fn extract_writes_from_cfg(
                     function_id,
                     function_name: function_name.to_string(),
                     is_constructor,
-                    receiver_local: Some(receiver.to_string()),
+                    receiver_local: Some(receiver.clone()),
                     receiver_type,
-                    member: member.to_string(),
+                    member: member.clone(),
                     file: file.to_string(),
                     line: stmt.line,
                     code_snippet: stmt.text.clone(),
@@ -421,29 +450,21 @@ fn extract_writes_from_cfg(
     }
 }
 
-fn split_field_def(def: &str) -> Option<(&str, &str)> {
-    // Prefer the last segment as member: `a.b.c` → receiver `a.b`, member `c`
-    // For v1 we only emit single-hop `obj.field` from def_use.
-    let (recv, member) = def.rsplit_once('.')?;
-    if recv.is_empty() || member.is_empty() {
-        return None;
-    }
-    // Skip package-looking defs with no receiver local (rare).
-    if recv.contains('(') || member.contains('(') {
-        return None;
-    }
-    Some((recv, member))
-}
-
 /// Build index from archive on disk (or in-memory) and write beside the archive.
 pub fn build_and_save_field_write_index(
     repo_root: &Path,
     archive: &CfgPdgArchive,
     functions: &[Node],
     graph_digest: Option<String>,
+    preloaded_sources: Option<&HashMap<String, Arc<String>>>,
 ) -> Result<(PathBuf, usize)> {
-    let index =
-        FieldWriteIndex::build_from_archive(archive, functions, graph_digest, Some(repo_root));
+    let index = FieldWriteIndex::build_from_archive(
+        archive,
+        functions,
+        graph_digest,
+        Some(repo_root),
+        preloaded_sources,
+    );
     let count = index.writes.len();
     let path = FieldWriteIndex::default_path(repo_root);
     index.write_to_path(&path)?;
@@ -462,15 +483,22 @@ mod tests {
         let id = cfg.entry;
         let mut defined_vars = HashSet::new();
         for d in defined {
-            defined_vars.insert((*d).to_string());
+            if let Some((receiver, member)) = d.rsplit_once('.') {
+                defined_vars.insert(DefVar::Field {
+                    receiver: receiver.to_string(),
+                    member: member.to_string(),
+                });
+            } else {
+                defined_vars.insert(DefVar::local(*d));
+            }
         }
         if let Some(block) = cfg.blocks.get_mut(&id) {
             block.statements.push(Statement {
                 kind: StatementKind::Assignment,
                 line,
                 text: text.to_string(),
-                defined_vars,
-                used_vars: HashSet::new(),
+                defined_vars: defined_vars.into_iter().collect(),
+                used_vars: SmallVec::new(),
             });
             block.start_line = line;
             block.end_line = line;
@@ -573,7 +601,7 @@ public class OrderProcessor {
                 .blocks
                 .values()
                 .flat_map(|b| &b.statements)
-                .any(|s| s.defined_vars.contains("order.status")),
+                .any(|s| s.defines("order.status")),
             "process CFG should define order.status"
         );
 
@@ -617,7 +645,7 @@ public class OrderProcessor {
         });
 
         let index =
-            FieldWriteIndex::build_from_archive(&archive, &[order_fn, process_fn], None, None);
+            FieldWriteIndex::build_from_archive(&archive, &[order_fn, process_fn], None, None, None);
         let hits = index.query(&MutationQuery {
             type_name: "OrderDTO".into(),
             exclude_ctors: true,
@@ -691,6 +719,7 @@ public class Dual {
             &[first_fn, second_fn],
             None,
             Some(dir.path()),
+            None,
         );
         let hits = index.query(&MutationQuery {
             type_name: "OrderDTO".into(),
@@ -769,7 +798,7 @@ public class OrderProcessor {
         });
 
         let index =
-            FieldWriteIndex::build_from_archive(&archive, &[ctor_fn, process_fn], None, None);
+            FieldWriteIndex::build_from_archive(&archive, &[ctor_fn, process_fn], None, None, None);
         let hits = index.query(&MutationQuery {
             type_name: type_name.into(),
             exclude_ctors: true,
@@ -779,7 +808,8 @@ public class OrderProcessor {
         assert_eq!(
             hits.len(),
             1,
-            "{language} expected 1 non-ctor mutation, hits={hits:?}"
+            "{language} expected 1 non-ctor mutation, writes={:?} hits={hits:?}",
+            index.writes
         );
         assert!(
             hits[0].member.contains(member_substr) || hits[0].code_snippet.contains(member_substr),

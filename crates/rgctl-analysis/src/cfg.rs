@@ -1,11 +1,114 @@
 //! Control flow graph representation and queries.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use smallvec::SmallVec;
 use std::collections::{HashMap, HashSet};
-use uuid::Uuid;
 
-/// Identifier for a basic block in a CFG.
-pub type BlockId = Uuid;
+/// Dense per-function identifier for a basic block (0..num_blocks).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct BlockId(pub u32);
+
+impl BlockId {
+    /// Construct from a dense index.
+    pub const fn new(id: u32) -> Self {
+        Self(id)
+    }
+}
+
+impl Serialize for BlockId {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for BlockId {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(Self(u32::deserialize(deserializer)?))
+    }
+}
+
+/// A variable definition site on a CFG statement.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum DefVar {
+    /// Simple local / parameter name.
+    Local(String),
+    /// Field assignment target `receiver.member`.
+    Field {
+        /// Base local (`order`, `this`, …).
+        receiver: String,
+        /// Member name (`status`).
+        member: String,
+    },
+}
+
+impl DefVar {
+    /// Construct a local definition.
+    pub fn local(name: impl Into<String>) -> Self {
+        Self::Local(name.into())
+    }
+
+    /// Canonical name for data-flow / PDG (`obj.field` or local name).
+    pub fn name(&self) -> String {
+        match self {
+            Self::Local(s) => s.clone(),
+            Self::Field { receiver, member } => format!("{receiver}.{member}"),
+        }
+    }
+
+    /// True when this definition matches `name` (exact `name()` equality).
+    pub fn defines_name(&self, name: &str) -> bool {
+        match self {
+            Self::Local(s) => s == name,
+            Self::Field { receiver, member } => name
+                .strip_prefix(receiver)
+                .and_then(|rest| rest.strip_prefix('.'))
+                .is_some_and(|m| m == member),
+        }
+    }
+
+    /// Receiver local for [`Self::Field`], if any.
+    pub fn field_receiver(&self) -> Option<&str> {
+        match self {
+            Self::Field { receiver, .. } => Some(receiver.as_str()),
+            _ => None,
+        }
+    }
+}
+
+fn def_var_from_wire(s: String) -> DefVar {
+    if let Some((receiver, member)) = s.rsplit_once('.') {
+        if !receiver.is_empty()
+            && !member.is_empty()
+            && !receiver.contains('(')
+            && !member.contains('(')
+        {
+            return DefVar::Field {
+                receiver: receiver.to_string(),
+                member: member.to_string(),
+            };
+        }
+    }
+    DefVar::Local(s)
+}
+
+impl Serialize for DefVar {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.name())
+    }
+}
+
+impl<'de> Deserialize<'de> for DefVar {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(def_var_from_wire(s))
+    }
+}
 
 /// A control-flow graph for a single function body.
 #[derive(Debug, Clone, Serialize)]
@@ -18,6 +121,9 @@ pub struct ControlFlowGraph {
     pub entry: BlockId,
     /// Exit block ids (returns, implicit fall-through exits).
     pub exits: Vec<BlockId>,
+    /// Typed locals + formals (name → bare type), populated at CFG build (not persisted).
+    #[serde(skip)]
+    pub local_types: HashMap<String, String>,
     /// Successor lists keyed by block id (derived from [`Self::edges`], not serialized).
     #[serde(skip)]
     succ: HashMap<BlockId, Vec<BlockId>>,
@@ -50,10 +156,17 @@ pub struct Statement {
     pub text: String,
     /// Variables defined by this statement (tree-sitter extraction).
     #[serde(default)]
-    pub defined_vars: HashSet<String>,
+    pub defined_vars: SmallVec<[DefVar; 2]>,
     /// Variables used by this statement (tree-sitter extraction).
     #[serde(default)]
-    pub used_vars: HashSet<String>,
+    pub used_vars: SmallVec<[String; 3]>,
+}
+
+impl Statement {
+    /// True when this statement defines `name` (local or `obj.field`).
+    pub fn defines(&self, name: &str) -> bool {
+        self.defined_vars.iter().any(|d| d.defines_name(name))
+    }
 }
 
 /// High-level statement categories for CFG/PDG analysis.
@@ -106,7 +219,7 @@ pub enum CfgEdgeType {
 impl ControlFlowGraph {
     /// Create an empty CFG with a fresh entry block.
     pub fn new() -> Self {
-        let entry = Uuid::new_v4();
+        let entry = BlockId(0);
         let mut blocks = HashMap::new();
         blocks.insert(
             entry,
@@ -122,6 +235,7 @@ impl ControlFlowGraph {
             edges: Vec::new(),
             entry,
             exits: Vec::new(),
+            local_types: HashMap::new(),
             succ: HashMap::new(),
             pred: HashMap::new(),
         }
@@ -274,13 +388,13 @@ impl ControlFlowGraph {
                 .collect::<Vec<_>>()
                 .join("\\n");
             let label = if label.is_empty() {
-                format!("block {}", &id.to_string()[..8])
+                format!("block {}", id.0)
             } else {
                 label
             };
             out.push_str(&format!(
                 "  \"{}\" [label=\"{}\"];\n",
-                id,
+                id.0,
                 label.replace('\n', "\\n")
             ));
         }
@@ -295,7 +409,7 @@ impl ControlFlowGraph {
             };
             out.push_str(&format!(
                 "  \"{}\" -> \"{}\"{};\n",
-                edge.from, edge.to, style
+                edge.from.0, edge.to.0, style
             ));
         }
         out.push_str("}\n");
@@ -328,6 +442,7 @@ impl<'de> Deserialize<'de> for ControlFlowGraph {
             edges: data.edges,
             entry: data.entry,
             exits: data.exits,
+            local_types: HashMap::new(),
             succ: HashMap::new(),
             pred: HashMap::new(),
         };
@@ -342,17 +457,17 @@ mod tests {
 
     fn linear_cfg() -> ControlFlowGraph {
         let mut cfg = ControlFlowGraph::new();
-        let b1 = Uuid::new_v4();
-        let b2 = Uuid::new_v4();
-        let exit = Uuid::new_v4();
+        let b1 = BlockId(1);
+        let b2 = BlockId(2);
+        let exit = BlockId(3);
         cfg.add_block(BasicBlock {
             id: b1,
             statements: vec![Statement {
                 kind: StatementKind::Expression,
                 line: 1,
                 text: "a".into(),
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             }],
             start_line: 1,
             end_line: 1,
@@ -363,8 +478,8 @@ mod tests {
                 kind: StatementKind::Expression,
                 line: 2,
                 text: "b".into(),
-                defined_vars: HashSet::new(),
-                used_vars: HashSet::new(),
+                defined_vars: SmallVec::new(),
+                used_vars: SmallVec::new(),
             }],
             start_line: 2,
             end_line: 2,
@@ -408,8 +523,8 @@ mod tests {
     #[test]
     fn test_has_cycle_loop() {
         let mut cfg = ControlFlowGraph::new();
-        let header = Uuid::new_v4();
-        let body = Uuid::new_v4();
+        let header = BlockId(1);
+        let body = BlockId(2);
         cfg.add_block(BasicBlock {
             id: header,
             statements: vec![],
@@ -426,6 +541,16 @@ mod tests {
         cfg.add_edge(header, body, CfgEdgeType::IfTrue);
         cfg.add_edge(body, header, CfgEdgeType::Jump);
         assert!(cfg.has_cycle());
+    }
+
+    #[test]
+    fn test_defines_name_field_no_alloc() {
+        let def = DefVar::Field {
+            receiver: "order".into(),
+            member: "status".into(),
+        };
+        assert!(def.defines_name("order.status"));
+        assert!(!def.defines_name("order.id"));
     }
 
     #[test]

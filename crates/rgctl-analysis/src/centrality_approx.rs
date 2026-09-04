@@ -1,10 +1,11 @@
 //! Approximate centrality for large graphs — sampled betweenness (RANDES) and HyperBall harmonic.
 
-use crate::centrality::FlatGraphIndex;
+use crate::centrality::{CsrOutAdj, FlatGraphIndex};
 use crate::graph_utils::PetGraphView;
+use bit_set::BitSet;
 use rayon::prelude::*;
 use rgctl_graph::schema::EdgeType;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use uuid::Uuid;
 
 /// Default pivot count for sampled betweenness (Eppstein–Wang / RANDES style).
@@ -145,16 +146,32 @@ impl SampledBetweenness {
             return vec![0.0; n];
         }
 
-        let out_adj = index.build_out_adj();
+        let out_adj = index.build_out_csr();
         let pivots = sample_pivot_indices(n, k, seed);
-        let mut betweenness = vec![0.0f64; n];
 
-        for &source in &pivots {
-            let partial = brandes_single_source(&out_adj, source, n);
-            for (i, delta) in partial.iter().enumerate() {
-                betweenness[i] += delta;
-            }
-        }
+        let mut betweenness = pivots
+            .par_iter()
+            .fold(
+                || (vec![0.0f64; n], BrandesScratch::new(n)),
+                |mut state, &source| {
+                    let (ref mut acc, ref mut scratch) = state;
+                    scratch.run(&out_adj, source, n);
+                    for (i, delta) in scratch.partial().iter().enumerate() {
+                        acc[i] += delta;
+                    }
+                    state
+                },
+            )
+            .map(|(acc, _)| acc)
+            .reduce(
+                || vec![0.0f64; n],
+                |mut a, b| {
+                    for (x, y) in a.iter_mut().zip(&b) {
+                        *x += y;
+                    }
+                    a
+                },
+            );
 
         let norm = if n > 2 {
             (n as f64 / k as f64) / ((n - 1) as f64 * (n - 2) as f64)
@@ -310,21 +327,28 @@ impl HyperLogLog {
 
 fn hyperball_exact(index: &FlatGraphIndex, max_rounds: usize) -> Vec<f64> {
     let n = index.node_count;
-    let out_adj = index.build_out_adj();
+    let out_adj = index.build_out_csr();
     let rounds = max_rounds.max(1);
     let norm = 1.0 / (n as f64 - 1.0);
 
-    let mut current: Vec<HashSet<usize>> = (0..n).map(|i| HashSet::from([i])).collect();
-    let mut next: Vec<HashSet<usize>> = vec![HashSet::new(); n];
+    let mut current: Vec<BitSet> = (0..n)
+        .map(|i| {
+            let mut b = BitSet::with_capacity(n);
+            b.insert(i);
+            b
+        })
+        .collect();
+    let mut next: Vec<BitSet> = (0..n)
+        .map(|_| BitSet::with_capacity(n))
+        .collect();
     let mut harmonic = vec![0.0f64; n];
     let mut prev_count: Vec<usize> = vec![1; n];
 
     for distance in 1..=rounds {
         for node in 0..n {
-            next[node].clear();
-            next[node].extend(current[node].iter().copied()); // keep prior ball
-            for &neighbor in &out_adj[node] {
-                next[node].extend(current[neighbor].iter().copied());
+            next[node].clone_from(&current[node]);
+            for &neighbor in out_adj.neighbors(node) {
+                next[node].union_with(&current[neighbor as usize]);
             }
         }
 
@@ -369,34 +393,35 @@ fn adaptive_hyperball_rounds(node_count: usize, max_rounds: usize) -> usize {
 
 fn hyperball_hll_parallel(index: &FlatGraphIndex, rounds: usize) -> Vec<f64> {
     let n = index.node_count;
-    let out_adj = index.build_out_adj();
+    let out_adj = index.build_out_csr();
     let norm = 1.0 / (n as f64 - 1.0);
     let precision = hll_precision_for(n);
+    let m = 1usize << precision;
 
-    let mut current: Vec<HyperLogLog> = (0..n)
-        .map(|node| {
-            let mut hll = HyperLogLog::new(precision);
-            hll.add(hash_node_id(node));
-            hll
-        })
-        .collect();
-    let mut next: Vec<HyperLogLog> = (0..n).map(|_| HyperLogLog::new(precision)).collect();
+    let mut current = vec![0u8; n * m];
+    let mut next = vec![0u8; n * m];
+    for node in 0..n {
+        let slice = &mut current[node * m..(node + 1) * m];
+        hll_add(slice, precision, hash_node_id(node));
+    }
 
     let mut harmonic = vec![0.0f64; n];
     let mut prev_count: Vec<f64> = vec![1.0; n];
 
     for distance in 1..=rounds {
-        next.par_iter_mut().enumerate().for_each(|(node, hll)| {
-            hll.reset();
-            hll.add(hash_node_id(node));
-            for &neighbor in &out_adj[node] {
-                hll.merge(&current[neighbor]);
+        next.par_chunks_mut(m).enumerate().for_each(|(node, dst)| {
+            dst.fill(0);
+            hll_add(dst, precision, hash_node_id(node));
+            for &neighbor in out_adj.neighbors(node) {
+                let nb = neighbor as usize;
+                let src = &current[nb * m..(nb + 1) * m];
+                hll_merge_max(dst, src);
             }
         });
 
         let mut grew = false;
         for node in 0..n {
-            let estimate = next[node].estimate();
+            let estimate = hll_estimate(&next[node * m..(node + 1) * m]);
             let layer = (estimate - prev_count[node]).max(0.0);
             if layer > 0.0 {
                 harmonic[node] += layer / distance as f64;
@@ -413,6 +438,55 @@ fn hyperball_hll_parallel(index: &FlatGraphIndex, rounds: usize) -> Vec<f64> {
 
     harmonic.par_iter_mut().for_each(|score| *score *= norm);
     harmonic
+}
+
+fn hll_add(registers: &mut [u8], precision: u8, value: u64) {
+    let hash = splitmix64(value);
+    let m = registers.len();
+    let idx = (hash >> (64 - precision)) as usize % m;
+    let w = hash | (1u64 << 63);
+    let rho = (w.leading_zeros() as u8).saturating_add(1);
+    if rho > registers[idx] {
+        registers[idx] = rho;
+    }
+}
+
+fn hll_merge_max(dst: &mut [u8], src: &[u8]) {
+    debug_assert_eq!(dst.len(), src.len());
+    for (a, &b) in dst.iter_mut().zip(src) {
+        if b > *a {
+            *a = b;
+        }
+    }
+}
+
+fn hll_estimate(registers: &[u8]) -> f64 {
+    let m = registers.len() as f64;
+    if m == 0.0 {
+        return 0.0;
+    }
+    let sum: f64 = registers
+        .iter()
+        .map(|&rho| 2f64.powi(-i32::from(rho)))
+        .sum();
+    if sum <= 0.0 {
+        return 0.0;
+    }
+    let alpha = match registers.len() {
+        16 => 0.673,
+        32 => 0.697,
+        64 => 0.709,
+        _ if registers.len() >= 128 => 0.7213 / (1.0 + 1.079 / m),
+        _ => 0.75,
+    };
+    let raw = alpha * m * m / sum;
+    if raw <= 2.5 * m {
+        let zeros = registers.iter().filter(|&&r| r == 0).count() as f64;
+        if zeros > 0.0 {
+            return m * (m / zeros).ln();
+        }
+    }
+    raw
 }
 
 fn hash_node_id(node: usize) -> u64 {
@@ -456,46 +530,83 @@ fn sample_pivot_indices(n: usize, k: usize, seed: u64) -> Vec<usize> {
     pivots
 }
 
+/// Reusable Brandes single-source scratch buffers (per Rayon worker).
+pub(crate) struct BrandesScratch {
+    pred: Vec<Vec<usize>>,
+    sigma: Vec<f64>,
+    dist: Vec<i32>,
+    dependency: Vec<f64>,
+    partial: Vec<f64>,
+    stack: Vec<usize>,
+    queue: VecDeque<usize>,
+}
+
+impl BrandesScratch {
+    pub(crate) fn new(n: usize) -> Self {
+        Self {
+            pred: vec![Vec::new(); n],
+            sigma: vec![0.0; n],
+            dist: vec![-1; n],
+            dependency: vec![0.0; n],
+            partial: vec![0.0; n],
+            stack: Vec::new(),
+            queue: VecDeque::new(),
+        }
+    }
+
+    pub(crate) fn partial(&self) -> &[f64] {
+        &self.partial
+    }
+
+    pub(crate) fn run(&mut self, out_adj: &CsrOutAdj, source: usize, _n: usize) {
+        self.stack.clear();
+        self.queue.clear();
+        for list in &mut self.pred {
+            list.clear();
+        }
+        self.sigma.fill(0.0);
+        self.dist.fill(-1);
+        self.dependency.fill(0.0);
+        self.partial.fill(0.0);
+
+        self.dist[source] = 0;
+        self.sigma[source] = 1.0;
+        self.queue.push_back(source);
+
+        while let Some(v) = self.queue.pop_front() {
+            self.stack.push(v);
+            for &w in out_adj.neighbors(v) {
+                let w = w as usize;
+                if self.dist[w] < 0 {
+                    self.dist[w] = self.dist[v] + 1;
+                    self.queue.push_back(w);
+                }
+                if self.dist[w] == self.dist[v] + 1 {
+                    self.sigma[w] += self.sigma[v];
+                    self.pred[w].push(v);
+                }
+            }
+        }
+
+        while let Some(w) = self.stack.pop() {
+            for &v in &self.pred[w] {
+                if self.sigma[w] > 0.0 {
+                    self.dependency[v] += (self.sigma[v] / self.sigma[w]) * (1.0 + self.dependency[w]);
+                }
+            }
+            if w != source {
+                self.partial[w] = self.dependency[w];
+            }
+        }
+    }
+}
+
 /// Brandes single-source accumulation on a flat directed adjacency list.
-pub(crate) fn brandes_single_source(out_adj: &[Vec<usize>], source: usize, n: usize) -> Vec<f64> {
-    let mut stack = Vec::new();
-    let mut pred = vec![Vec::new(); n];
-    let mut sigma = vec![0.0f64; n];
-    let mut dist = vec![-1i32; n];
-    let mut dependency = vec![0.0f64; n];
-    let mut partial = vec![0.0f64; n];
-
-    dist[source] = 0;
-    sigma[source] = 1.0;
-    let mut queue = VecDeque::new();
-    queue.push_back(source);
-
-    while let Some(v) = queue.pop_front() {
-        stack.push(v);
-        for &w in &out_adj[v] {
-            if dist[w] < 0 {
-                dist[w] = dist[v] + 1;
-                queue.push_back(w);
-            }
-            if dist[w] == dist[v] + 1 {
-                sigma[w] += sigma[v];
-                pred[w].push(v);
-            }
-        }
-    }
-
-    while let Some(w) = stack.pop() {
-        for &v in &pred[w] {
-            if sigma[w] > 0.0 {
-                dependency[v] += (sigma[v] / sigma[w]) * (1.0 + dependency[w]);
-            }
-        }
-        if w != source {
-            partial[w] = dependency[w];
-        }
-    }
-
-    partial
+#[allow(dead_code)]
+pub(crate) fn brandes_single_source(out_adj: &CsrOutAdj, source: usize, n: usize) -> Vec<f64> {
+    let mut scratch = BrandesScratch::new(n);
+    scratch.run(out_adj, source, n);
+    scratch.partial().to_vec()
 }
 
 #[cfg(test)]

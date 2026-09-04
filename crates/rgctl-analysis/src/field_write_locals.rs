@@ -74,6 +74,135 @@ pub fn merge_local_types(
     }
 }
 
+/// Extract formal parameter types for one function (shallow; no body walk).
+pub fn extract_param_types_in_function(
+    language: &str,
+    func_node: Node,
+    source: &[u8],
+    _function_name: &str,
+) -> HashMap<String, String> {
+    let mut env = HashMap::new();
+    collect_param_types_shallow(func_node, source, language, &mut env);
+    env
+}
+
+fn collect_param_types_shallow(
+    node: Node,
+    source: &[u8],
+    language: &str,
+    env: &mut HashMap<String, String>,
+) {
+    match node.kind() {
+        "parameter_declaration" => {
+            if matches!(language, "c" | "cpp" | "go") {
+                let ty = node
+                    .child_by_field_name("type")
+                    .and_then(|n| text_of(n, source));
+                let name = node
+                    .child_by_field_name("declarator")
+                    .and_then(|d| declarator_ident(d, source))
+                    .or_else(|| {
+                        node.child_by_field_name("name")
+                            .and_then(|n| text_of(n, source))
+                    });
+                if let (Some(name), Some(ty)) = (name, ty) {
+                    insert_ty(env, &name, &ty);
+                }
+            }
+        }
+        "formal_parameter" | "required_parameter" | "optional_parameter" => {
+            let ty = node
+                .child_by_field_name("type")
+                .and_then(|n| text_of(n, source));
+            let name = node
+                .child_by_field_name("name")
+                .and_then(|n| text_of(n, source));
+            if let (Some(name), Some(ty)) = (name, ty) {
+                insert_ty(env, &name, &ty);
+            }
+        }
+        "parameter" => {
+            let ty = node
+                .child(0)
+                .filter(|c| c.is_named())
+                .and_then(|n| text_of(n, source));
+            let name = node
+                .child_by_field_name("pattern")
+                .or_else(|| node.child_by_field_name("name"))
+                .and_then(|n| text_of(n, source));
+            if let (Some(name), Some(ty)) = (name, ty) {
+                insert_ty(env, &name, &ty);
+            }
+        }
+        "parameter_list"
+        | "formal_parameters"
+        | "function_declarator"
+        | "function_signature"
+        | "method_declaration"
+        | "constructor_declaration"
+        | "function_definition"
+        | "method_definition" => {
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                collect_param_types_shallow(child, source, language, env);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Extract typed locals + formals for one function AST node (CFG build time).
+pub fn extract_local_types_in_function(
+    language: &str,
+    func_node: Node,
+    source: &[u8],
+    function_name: &str,
+) -> HashMap<String, String> {
+    extract_param_types_in_function(language, func_node, source, function_name)
+}
+
+/// One parse + one AST walk: all function local-type maps in a source file (fallback).
+pub fn build_file_local_types_index(
+    language: &str,
+    source: &str,
+    function_names: &[String],
+) -> HashMap<String, HashMap<String, String>> {
+    let Some(ctx) = LocalsParseContext::try_new(language, source) else {
+        return HashMap::new();
+    };
+    let mut out = HashMap::with_capacity(function_names.len());
+    for name in function_names {
+        let mut env = HashMap::new();
+        ctx.merge_into(name, &mut env);
+        if !env.is_empty() {
+            out.insert(name.clone(), env);
+        }
+    }
+    out
+}
+
+/// Extension → language id for field-write locals fallback.
+pub fn language_from_path(path: &str) -> String {
+    std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|ext| match ext {
+            "java" => "java",
+            "cs" => "csharp",
+            "go" => "go",
+            "rs" => "rust",
+            "py" => "python",
+            "js" | "jsx" | "mjs" | "cjs" => "javascript",
+            "ts" | "tsx" => "typescript",
+            "c" | "h" => "c",
+            "cpp" | "cc" | "cxx" | "hpp" | "hh" => "cpp",
+            "php" => "php",
+            _ => "unknown",
+        })
+        .unwrap_or("unknown")
+        .to_string()
+}
+
 fn normalize_type_name(name: &str) -> String {
     let bare = name.split('<').next().unwrap_or(name).trim();
     let bare = bare.trim_start_matches('*').trim().trim_start_matches('&');

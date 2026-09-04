@@ -136,16 +136,16 @@ impl CppPlugin {
         symbols: &[Symbol],
     ) -> Result<Vec<Relation>> {
         let mut relations = Vec::new();
-        walk_calls(
+        walk_cpp_calls(
             root,
             source,
             file_path,
             symbols,
-            CPP_CALL_KINDS,
-            "cpp",
             &mut relations,
+            None,
         );
         self.extract_inheritance(root, source, file_path, &mut relations)?;
+        self.extract_instantiations(root, source, file_path, symbols, &mut relations)?;
         Ok(relations)
     }
 
@@ -189,10 +189,35 @@ impl CppPlugin {
 
             match node.kind() {
                 "function_definition" | "declaration" => {
-                    if let Some(sym) =
+                    let is_prototype = node.kind() == "declaration"
+                        && node.child_by_field_name("body").is_none();
+                    if !is_prototype {
+                        if let Some(mut sym) =
+                            self.extract_function(node, source, file_path, active_scope)?
+                        {
+                            sym.modifiers = method_modifiers(node, source);
+                            symbols.push(sym);
+                        }
+                    }
+                }
+                "template_declaration" => {
+                    if let Some(mut sym) =
                         self.extract_function(node, source, file_path, active_scope)?
                     {
+                        sym.modifiers = method_modifiers(node, source);
+                        sym.metadata["is_template"] = serde_json::Value::Bool(true);
                         symbols.push(sym);
+                    } else if let Some(child) = template_enclosed_type(node) {
+                        if type_name(child, source).is_some() {
+                            let st = if child.kind() == "class_specifier" {
+                                SymbolType::Class
+                            } else {
+                                SymbolType::Struct
+                            };
+                            let mut sym = self.extract_class(child, source, file_path, st)?;
+                            sym.metadata["is_template"] = serde_json::Value::Bool(true);
+                            symbols.push(sym);
+                        }
                     }
                 }
                 "class_specifier" => {
@@ -240,7 +265,7 @@ impl CppPlugin {
                         }
                     }
                 }
-                "preproc_include" | "using_declaration" => {
+                "preproc_include" => {
                     let text = node.utf8_text(source)?.trim().to_string();
                     symbols.push(Symbol {
                         name: text,
@@ -254,6 +279,22 @@ impl CppPlugin {
                         modifiers: vec![],
                         documentation: None,
                         metadata: serde_json::json!({ "language": "cpp" }),
+                    });
+                }
+                "using_declaration" => {
+                    let (name, qualified) = using_import_names(node, source);
+                    symbols.push(Symbol {
+                        name: name.clone(),
+                        symbol_type: SymbolType::Import,
+                        qualified_name: qualified,
+                        location: source_location(node, file_path),
+                        signature: Some(node.utf8_text(source)?.trim().to_string()),
+                        return_type: None,
+                        parameters: vec![],
+                        fields: vec![],
+                        modifiers: vec![],
+                        documentation: None,
+                        metadata: serde_json::json!({ "language": "cpp", "import_kind": "using" }),
                     });
                 }
                 _ => {}
@@ -302,6 +343,62 @@ impl CppPlugin {
                                 file_path,
                                 relations,
                             );
+                        }
+                    }
+                }
+            }
+
+            let mut cursor = node.walk();
+            let children: Vec<Node> = node.children(&mut cursor).collect();
+            for child in children.into_iter().rev() {
+                stack.push((child, depth + 1));
+            }
+        }
+        Ok(())
+    }
+
+    /// `new` / `new[]` → `Instantiates` from the enclosing function.
+    fn extract_instantiations(
+        &self,
+        root: Node,
+        source: &[u8],
+        file_path: &Path,
+        symbols: &[Symbol],
+        relations: &mut Vec<Relation>,
+    ) -> Result<()> {
+        const MAX_DEPTH: usize = 2048;
+        let function_symbols: Vec<&Symbol> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Function)
+            .collect();
+        let mut stack = vec![(root, 0usize)];
+
+        while let Some((node, depth)) = stack.pop() {
+            if depth > MAX_DEPTH {
+                continue;
+            }
+
+            if node.kind() == "new_expression" {
+                if let Some(from_fn) = containing_function(node, &function_symbols) {
+                    let from = from_fn
+                        .qualified_name
+                        .clone()
+                        .unwrap_or_else(|| from_fn.name.clone());
+                    if let Some(type_node) = node.child_by_field_name("type") {
+                        if let Some(target) = type_name_from_type_node(type_node, source) {
+                            let scoped = scoped_type_name(type_node, source).unwrap_or(target.clone());
+                            relations.push(Relation {
+                                from,
+                                to: target,
+                                relation_type: RelationType::Instantiates,
+                                location: source_location(node, &file_path.to_string_lossy()),
+                                metadata: serde_json::json!({
+                                    "language": "cpp",
+                                    "is_array": node.child_by_field_name("declarator").is_some(),
+                                }),
+                                to_qualified_hint: Some(scoped),
+                                to_type_hint: None,
+                            });
                         }
                     }
                 }
@@ -369,38 +466,245 @@ fn collect_base_relations(
     file_path: &Path,
     relations: &mut Vec<Relation>,
 ) {
+    let mut access = "public";
     let mut cursor = base_clause.walk();
-    let mut access_public = false;
     for child in base_clause.children(&mut cursor) {
         match child.kind() {
             "access_specifier" => {
-                access_public = child
-                    .utf8_text(source)
-                    .ok()
-                    .is_some_and(|t| t.contains("public"));
+                access = access_label(child, source);
             }
-            "type_identifier" | "qualified_identifier" => {
-                let base = child
-                    .utf8_text(source)
-                    .ok()
-                    .map(str::to_string)
-                    .or_else(|| {
-                        child
-                            .child_by_field_name("name")
-                            .and_then(|n| n.utf8_text(source).ok().map(str::to_string))
-                    });
-                if let Some(base) = base {
-                    let relation_type = if access_public {
-                        RelationType::Extends
-                    } else {
-                        RelationType::Implements
-                    };
-                    relations.push(relation(from, &base, relation_type, child, file_path));
+            "type_identifier"
+            | "qualified_identifier"
+            | "qualified_type_identifier"
+            | "template_type" => {
+                if let Some(base) = base_type_name(child, source) {
+                    let mut rel = relation(from, &base, RelationType::Extends, child, file_path);
+                    rel.metadata["access"] = serde_json::Value::String(access.to_string());
+                    if let Some(hint) = scoped_type_name(child, source) {
+                        rel.to_qualified_hint = Some(hint);
+                    }
+                    relations.push(rel);
                 }
             }
             _ => {}
         }
     }
+}
+
+fn access_label(node: Node, source: &[u8]) -> &'static str {
+    let Ok(text) = node.utf8_text(source) else {
+        return "public";
+    };
+    if text.contains("protected") {
+        "protected"
+    } else if text.contains("private") {
+        "private"
+    } else {
+        "public"
+    }
+}
+
+fn base_type_name(node: Node, source: &[u8]) -> Option<String> {
+    match node.kind() {
+        "type_identifier" => node.utf8_text(source).ok().map(str::trim).map(str::to_string),
+        "qualified_identifier" | "qualified_type_identifier" => last_named_child_by_field(node, "name")
+            .and_then(|n| base_type_name(n, source))
+            .or_else(|| {
+                node.utf8_text(source).ok().and_then(|text| {
+                    text.rsplit("::").next().map(str::trim).map(str::to_string)
+                })
+            }),
+        "template_type" => node
+            .child_by_field_name("name")
+            .and_then(|n| base_type_name(n, source)),
+        _ => None,
+    }
+}
+
+fn scoped_type_name(node: Node, source: &[u8]) -> Option<String> {
+    match node.kind() {
+        "type_identifier" => node.utf8_text(source).ok().map(str::trim).map(str::to_string),
+        "qualified_identifier" | "qualified_type_identifier" => {
+            let scope = node
+                .child_by_field_name("scope")
+                .and_then(|s| scoped_type_name(s, source));
+            let name = last_named_child_by_field(node, "name")
+                .and_then(|n| scoped_type_name(n, source))?;
+            scope.map(|s| format!("{s}::{name}")).or(Some(name))
+        }
+        "template_type" => {
+            let name = node
+                .child_by_field_name("name")
+                .and_then(|n| scoped_type_name(n, source))?;
+            Some(name)
+        }
+        "type_specifier" | "primitive_type" => node
+            .named_child(0)
+            .and_then(|n| scoped_type_name(n, source)),
+        _ => node.utf8_text(source).ok().map(str::trim).map(str::to_string),
+    }
+}
+
+fn type_name_from_type_node(node: Node, source: &[u8]) -> Option<String> {
+    if node.kind() == "type_specifier" {
+        return node.named_child(0).and_then(|n| base_type_name(n, source));
+    }
+    base_type_name(node, source)
+}
+
+fn last_named_child_by_field<'a>(node: Node<'a>, field: &str) -> Option<Node<'a>> {
+    let mut last = None;
+    for i in 0..node.child_count() {
+        if node.field_name_for_child(i as u32) == Some(field) {
+            let child = node.child(i)?;
+            if child.is_named() {
+                last = Some(child);
+            }
+        }
+    }
+    last
+}
+
+fn using_import_names(node: Node, source: &[u8]) -> (String, Option<String>) {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "identifier" => {
+                let name = child.utf8_text(source).unwrap_or("").trim().to_string();
+                return (name, None);
+            }
+            "qualified_identifier" => {
+                let qualified = scoped_type_name(child, source).unwrap_or_default();
+                let alias = last_named_child_by_field(child, "name")
+                    .and_then(|n| n.utf8_text(source).ok().map(str::trim).map(str::to_string))
+                    .unwrap_or_else(|| qualified.clone());
+                return (alias, Some(qualified));
+            }
+            _ => {}
+        }
+    }
+    let text = node.utf8_text(source).unwrap_or("").trim().to_string();
+    (text, None)
+}
+
+fn template_enclosed_type(node: Node) -> Option<Node> {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if matches!(child.kind(), "class_specifier" | "struct_specifier") {
+            return Some(child);
+        }
+    }
+    None
+}
+
+fn method_modifiers(node: Node, source: &[u8]) -> Vec<String> {
+    let mut mods = Vec::new();
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        match child.kind() {
+            "virtual" if child.utf8_text(source).ok() == Some("virtual") => {
+                mods.push("virtual".to_string());
+            }
+            "override" if child.utf8_text(source).ok() == Some("override") => {
+                mods.push("override".to_string());
+            }
+            _ => {}
+        }
+    }
+    mods
+}
+
+/// Scope-aware call walk: applies namespace/class scope to unqualified callee hints.
+fn walk_cpp_calls(
+    root: Node,
+    source: &[u8],
+    file_path: &Path,
+    symbols: &[Symbol],
+    relations: &mut Vec<Relation>,
+    initial_scope: Option<String>,
+) {
+    const MAX_DEPTH: usize = 2048;
+    let function_symbols: Vec<&Symbol> = symbols
+        .iter()
+        .filter(|s| s.symbol_type == SymbolType::Function)
+        .collect();
+    let mut stack = vec![(root, 0usize, initial_scope)];
+
+    while let Some((node, depth, scope)) = stack.pop() {
+        if depth > MAX_DEPTH {
+            tracing::warn!(
+                file = ?file_path,
+                depth = depth,
+                "AST depth limit exceeded during C++ call walk; skipping deep branches"
+            );
+            continue;
+        }
+
+        let next_scope = match node.kind() {
+            "namespace_definition" => node
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(source).ok().map(str::to_string))
+                .map(|name| {
+                    scope
+                        .as_ref()
+                        .map(|s| format!("{s}::{name}"))
+                        .unwrap_or(name)
+                }),
+            "class_specifier" | "struct_specifier" => type_name(node, source),
+            _ => None,
+        };
+        let child_scope = next_scope.or(scope.clone());
+
+        if CPP_CALL_KINDS.contains(&node.kind()) {
+            push_call_relation(
+                node,
+                source,
+                file_path,
+                symbols,
+                &function_symbols,
+                CPP_CALL_KINDS,
+                "cpp",
+                relations,
+            );
+            if let Some(last) = relations.last_mut() {
+                if let Some(scope) = child_scope.as_deref() {
+                    if let Some(func) = node.child_by_field_name("function") {
+                        if last.to_qualified_hint.is_none() && func.kind() == "identifier" {
+                            let callee = func.utf8_text(source).ok().unwrap_or("").trim();
+                            if !callee.is_empty() {
+                                last.to_qualified_hint = Some(format!("{scope}::{callee}"));
+                            }
+                        } else if let Some(hint) = last.to_qualified_hint.clone() {
+                            if let Some(enriched) = enrich_cpp_namespace_hint(&hint, scope) {
+                                last.to_qualified_hint = Some(enriched);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut cursor = node.walk();
+        let children: Vec<Node> = node.children(&mut cursor).collect();
+        for child in children.into_iter().rev() {
+            stack.push((child, depth + 1, child_scope.clone()));
+        }
+    }
+}
+
+/// Prefix single-segment qualified calls with the enclosing namespace parent
+/// (`repositories::foo` inside `ecommerce::services` → `ecommerce::repositories::foo`).
+fn enrich_cpp_namespace_hint(hint: &str, active_scope: &str) -> Option<String> {
+    const SKIP_QUALS: &[&str] = &["std", "boost", "absl", "fmt", "detail"];
+    let (qual, name) = hint.rsplit_once("::")?;
+    if qual.contains("::") {
+        return None;
+    }
+    if SKIP_QUALS.contains(&qual) {
+        return None;
+    }
+    let parent = active_scope.rsplit_once("::").map(|(p, _)| p)?;
+    Some(format!("{parent}::{qual}::{name}"))
 }
 
 fn relation(
@@ -697,16 +1001,149 @@ int baz(int x) { return x; }
 
     #[test]
     fn test_extract_relations_inheritance() {
-        let source = br#"class ServiceImpl : public BaseService, IService {};"#;
+        let source = br#"class Derived : public Base { };"#;
         let plugin = CppPlugin::new().unwrap();
         let path = Path::new("Service.cpp");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        let extends: Vec<_> = relations
+            .iter()
+            .filter(|r| matches!(r.relation_type, RelationType::Extends))
+            .collect();
+        assert_eq!(extends.len(), 1, "expected one Extends: {relations:?}");
+        assert_eq!(extends[0].to, "Base");
+        assert_eq!(
+            extends[0].metadata.get("access").and_then(|v| v.as_str()),
+            Some("public")
+        );
+    }
+
+    #[test]
+    fn test_extract_relations_multiple_inheritance() {
+        let source = br#"
+class Multi : public BaseService, protected OtherBase, private HiddenBase {};
+"#;
+        let plugin = CppPlugin::new().unwrap();
+        let path = Path::new("Multi.cpp");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        let extends: Vec<_> = relations
+            .iter()
+            .filter(|r| matches!(r.relation_type, RelationType::Extends))
+            .collect();
+        assert_eq!(extends.len(), 3, "expected three Extends: {relations:?}");
+        assert!(extends.iter().any(|r| r.to == "BaseService"));
+        assert!(extends.iter().any(|r| r.to == "OtherBase"));
+        assert!(extends.iter().any(|r| r.to == "HiddenBase"));
+    }
+
+    #[test]
+    fn test_extract_relations_qualified_calls() {
+        let source = br#"
+namespace coolstore {
+void init() {}
+void caller() {
+    coolstore::init();
+    obj.method();
+}
+}
+"#;
+        let plugin = CppPlugin::new().unwrap();
+        let path = Path::new("calls.cpp");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        let calls: Vec<_> = relations
+            .iter()
+            .filter(|r| matches!(r.relation_type, RelationType::Calls))
+            .collect();
+        assert!(
+            calls.iter().any(|r| {
+                r.to_qualified_hint
+                    .as_deref()
+                    .is_some_and(|h| h.contains("coolstore::init"))
+            }),
+            "expected qualified hint for namespaced call: {relations:?}"
+        );
+    }
+
+    #[test]
+    fn test_extract_relations_template_call() {
+        let source = br#"
+template<typename T>
+void caller() {
+    foo<T>();
+}
+"#;
+        let plugin = CppPlugin::new().unwrap();
+        let path = Path::new("template_call.cpp");
         let symbols = plugin.extract_symbols(path, source).unwrap();
         let relations = plugin.extract_relations(path, source, &symbols).unwrap();
         assert!(
             relations
                 .iter()
-                .any(|r| matches!(r.relation_type, RelationType::Extends)),
-            "missing Extends: {relations:?}"
+                .any(|r| matches!(r.relation_type, RelationType::Calls) && r.to == "foo"),
+            "expected template call extraction: {relations:?}"
         );
+    }
+
+    #[test]
+    fn test_extract_relations_namespace_sibling_hint() {
+        let service_source = br#"
+namespace ecommerce::services {
+int checkout(sqlite3* db, int user_id) {
+    return repositories::order_create(db, nullptr);
+}
+}
+"#;
+        let repo_source = br#"
+namespace ecommerce::repositories {
+int order_create(sqlite3* db, void* out) { return 0; }
+}
+"#;
+        let plugin = CppPlugin::new().unwrap();
+        let service_path = Path::new("order_service.cpp");
+        let service_symbols = plugin
+            .extract_symbols(service_path, service_source)
+            .unwrap();
+        let relations = plugin
+            .extract_relations(service_path, service_source, &service_symbols)
+            .unwrap();
+        let call = relations
+            .iter()
+            .find(|r| matches!(r.relation_type, RelationType::Calls))
+            .unwrap_or_else(|| panic!("missing call: {relations:?}"));
+        assert_eq!(
+            call.to_qualified_hint.as_deref(),
+            Some("ecommerce::repositories::order_create")
+        );
+        assert!(
+            call.to.contains("order_create"),
+            "unexpected to field: {}",
+            call.to
+        );
+        let _ = plugin.extract_symbols(Path::new("order_repository.cpp"), repo_source);
+    }
+
+    #[test]
+    fn test_extract_relations_instantiates() {
+        let source = br#"
+void make() {
+    auto p = new Order();
+    auto arr = new Order[4];
+}
+"#;
+        let plugin = CppPlugin::new().unwrap();
+        let path = Path::new("new.cpp");
+        let symbols = plugin.extract_symbols(path, source).unwrap();
+        let relations = plugin.extract_relations(path, source, &symbols).unwrap();
+        let inst: Vec<_> = relations
+            .iter()
+            .filter(|r| matches!(r.relation_type, RelationType::Instantiates))
+            .collect();
+        assert!(
+            inst.iter().any(|r| r.to == "Order"),
+            "expected Instantiates to Order: {relations:?}"
+        );
+        assert!(inst.len() >= 2, "expected heap + array new: {relations:?}");
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-lang-rust"
-version = "0.4.10"
+version = "0.4.11"
 edition.workspace = true
 rust-version.workspace = true
 description = "rgctl language plugin: rust"
@@ -13,3 +13,4 @@ rgctl-plugin-helpers = { workspace = true }
 tree-sitter = { workspace = true }
 tree-sitter-rust = "0.24"
 serde_json = "1"
+tracing = "0.1"

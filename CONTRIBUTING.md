@@ -95,7 +95,7 @@ Use the hub checklist for path choice, test matrices, and pre-PR commands:
 
 **[docs/contributor-checklist.md](docs/contributor-checklist.md)**
 
-Tier 1 depth (Layers A–F): [docs/tier-1-language-support.md](docs/tier-1-language-support.md) · language list: [docs/languages.md](docs/languages.md)
+Tier 1 depth (Layers A–F): [docs/tier-1-language-support.md](docs/tier-1-language-support.md) · language list: [docs/languages/README.md](docs/languages/README.md)
 
 ---
 

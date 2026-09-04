@@ -2,6 +2,7 @@
 
 use super::args::OutputFormat;
 use super::context::CliContext;
+use rgctl_pipeline::with_large_pool;
 use super::discover_cfg::{
     CfgAnalysisOptions, FileSourceCache, preload_file_sources, run_cfg_analysis_batch,
 };
@@ -11,8 +12,8 @@ use crate::analysis::graph_utils::PetGraphView;
 use crate::analysis::{
     AnalysisResults, AnalysisStorage, AstSkeletonArchive, BlastEngineSnapshot, BlastRadiusEngine,
     CentralityAnalyzer, CfgPdgArchive, CommunityDetector, ComplexityAnalyzer, DependencyAnalyzer,
-    MacroCallIndex, MacroCallLookupDb, NodeLookup, build_function_skeleton,
-    cfg_language_id_from_path, cfg_language_list,
+    FieldWriteIndex, MacroCallIndex, MacroCallLookupDb, NodeLookup, build_and_save_field_write_index,
+    build_function_skeleton, cfg_language_id_from_path, cfg_language_list,
 };
 use crate::config::secret_detector::{DetectedSecret, SecretDetector};
 use crate::discovery::{DiscoveryConfig, FileDiscoverer};
@@ -23,7 +24,6 @@ use anyhow::Result;
 use rayon::prelude::*;
 use rgctl_core::memory::MemoryMonitor;
 use rgctl_graph::schema::NodeType;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -528,7 +528,7 @@ pub(crate) fn run_full_analysis(
             debug!("--with-taint implies CFG/PDG pass");
         }
 
-        let file_sources: Option<FileSourceCache> = if with_ast_skeleton {
+        let file_sources: Option<FileSourceCache> = if with_ast_skeleton || with_cfg {
             Some(preload_file_sources(&functions, root, None))
         } else {
             None
@@ -601,31 +601,37 @@ pub(crate) fn run_full_analysis(
 
         // Field-write index for `cpg mutations` (hybrid CPG P1)
         let fw_start = Instant::now();
-        match CfgPdgArchive::open_if_exists(store) {
-            Ok(Some(archive)) => {
-                match crate::analysis::build_and_save_field_write_index(
-                    store,
-                    &archive,
-                    &functions,
-                    Some(graph_digest.clone()),
-                ) {
-                    Ok((path, count)) => {
-                        if verbose {
-                            debug!(
-                                path = %path.display(),
-                                writes = count,
-                                "field_write index saved"
-                            );
-                        }
-                        if human_output && count > 0 {
-                            println!("  Field writes indexed: {count}");
-                        }
-                    }
-                    Err(err) => warn!(error = %err, "Failed to save field_write index"),
+        let preloaded = file_sources.as_ref().map(|cache| cache.sources());
+        let fw_result = with_large_pool(None, || {
+            let archive = CfgPdgArchive::open_if_exists(store)?;
+            let Some(archive) = archive else {
+                return Ok::<(PathBuf, usize), rgctl_error::Error>((
+                    FieldWriteIndex::default_path(store),
+                    0,
+                ));
+            };
+            build_and_save_field_write_index(
+                store,
+                &archive,
+                &functions,
+                Some(graph_digest.clone()),
+                preloaded,
+            )
+        });
+        match fw_result {
+            Ok((path, count)) => {
+                if verbose && count > 0 {
+                    debug!(
+                        path = %path.display(),
+                        writes = count,
+                        "field_write index saved"
+                    );
+                }
+                if human_output && count > 0 {
+                    println!("  Field writes indexed: {count}");
                 }
             }
-            Ok(None) => {}
-            Err(err) => warn!(error = %err, "Failed to open CFG/PDG archive for field writes"),
+            Err(err) => warn!(error = %err, "Failed to save field_write index"),
         }
         profile.field_write.secs = secs(fw_start.elapsed());
 
@@ -971,8 +977,7 @@ pub(crate) fn run_full_analysis(
 
     // Save graph topology (no analysis properties!)
     let save_tracker_start = Instant::now();
-    let mut node_mapping: HashMap<String, Vec<uuid::Uuid>> = HashMap::new();
-    let mut normalized_path_cache: HashMap<String, String> = HashMap::new();
+    let mut node_path_pairs: Vec<(String, uuid::Uuid)> = Vec::with_capacity(cold.node_count());
     cold.for_each_node(&mut |node| {
         let raw_path = node.file_path.as_deref().or_else(|| {
             if matches!(node.node_type, NodeType::File) {
@@ -982,10 +987,16 @@ pub(crate) fn run_full_analysis(
             }
         });
         if let Some(path) = raw_path {
-            let normalized = normalized_path_cached(&mut normalized_path_cache, path);
-            node_mapping.entry(normalized).or_default().push(node.id);
+            node_path_pairs.push((crate::incremental::normalize_path_str(path), node.id));
         }
     })?;
+    const PAR_SORT_NODE_PATHS_MIN: usize = 32_768;
+    if node_path_pairs.len() >= PAR_SORT_NODE_PATHS_MIN {
+        node_path_pairs.par_sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    } else {
+        node_path_pairs.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+    }
+    let node_mapping = crate::incremental::group_sorted_node_paths(node_path_pairs);
     file_tracker.index_files_with_mapping(&files, node_mapping)?;
     file_tracker.save()?;
     profile.save_tracker.secs = secs(save_tracker_start.elapsed());
@@ -1187,13 +1198,4 @@ fn discover_outcome(
         reused_snapshot,
         graph_digest,
     }
-}
-
-fn normalized_path_cached(cache: &mut HashMap<String, String>, path: &str) -> String {
-    if let Some(norm) = cache.get(path) {
-        return norm.clone();
-    }
-    let norm = crate::incremental::normalize_path_str(path);
-    cache.insert(path.to_string(), norm.clone());
-    norm
 }

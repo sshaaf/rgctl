@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-error"
-version = "0.4.10"
+version = "0.4.11"
 edition.workspace = true
 rust-version.workspace = true
 description = "Error types for rgctl"

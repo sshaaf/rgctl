@@ -95,6 +95,69 @@ Regenerate analysis reports:
 
 See [`scripts/README.md`](scripts/README.md) for options.
 
+## Extraction-depth GQL + rgctl command verification
+
+Shell scripts exercise **every archived `*-extraction-depth` capability** via GQL and run the **core rgctl analysis commands** on each fixture (with copy-paste examples printed during the run).
+
+Each `gql-verification-smoke/verify-extraction-gql-<lang>.sh` runs:
+
+1. **Fixture GQL** — extraction-depth probes (`Import`, `EXTENDS`, `CALLS`, …) on the in-tree `ecommerce-*` corpus (Java: `tests/fixtures/java/langfeatures` for GQL, `ecommerce-java` for commands).
+2. **Fixture commands** — `blast-radius`, `metrics`, `communities list`, `inspect` (cfg/pdg/dom), `slice` (+ `--taint` when supported), `cpg status`/`mutations`, `semantic index`/`query`, `export`, `check`.
+3. **Example smoke** — scale GQL on `example/` when cloned (`RGCTL_SKIP_EXAMPLE=1` skips).
+
+```bash
+# from monorepo root
+cargo build --release --bin rgctl
+
+# all languages (fixture + example when present)
+./rgctl-tests/gql-verification-smoke/run-all-extraction-gql.sh
+
+# one language (prints example commands as it runs)
+RGCTL=target/release/rgctl ./rgctl-tests/gql-verification-smoke/verify-extraction-gql-python.sh
+
+# fixture only (~seconds per language)
+RGCTL_SKIP_EXAMPLE=1 ./rgctl-tests/gql-verification-smoke/run-all-extraction-gql.sh
+```
+
+| Command | What the script checks |
+|---------|------------------------|
+| `blast-radius` | Primary checkout/cart symbol + CoolStore pricing symbol |
+| `metrics` | `--communities --pagerank` |
+| `communities` | `list` |
+| `inspect` | `cfg`, `pdg`, `dom` on checkout function |
+| `slice` | Backward slice + `--taint` (skipped when unsupported) |
+| `cpg` | `status`; `mutations --type ShoppingCart` (or `OrderDTO` for PHP) |
+| `semantic` | `index --embedder vocab` then `query` |
+| `export` | `--export-format json --query name:…` |
+| `check` | `--policy-file rgctl-tests/rgctl-policy.json` |
+
+Per-language symbols and paths: [`gql-verification-smoke/rgctl-commands-config.sh`](gql-verification-smoke/rgctl-commands-config.sh). Shared runners: [`gql-verification-smoke/extraction-gql-common.sh`](gql-verification-smoke/extraction-gql-common.sh), [`gql-verification-smoke/rgctl-commands-common.sh`](gql-verification-smoke/rgctl-commands-common.sh). See [`gql-verification-smoke/README.md`](gql-verification-smoke/README.md).
+
+Fetch example corpora: `./scripts/fetch-profile-repos.sh` (see [`example/README.md`](../example/README.md)).
+
+| Language | Script | Fixture probes | Example corpus | Discover | Openspec capabilities |
+|----------|--------|----------------|----------------|----------|------------------------|
+| **C** | [`gql-verification-smoke/verify-extraction-gql-c.sh`](gql-verification-smoke/verify-extraction-gql-c.sh) | CALLS, Import, `file::symbol` FQN | `example/linux` | default | `c-include-graph`, `c-call-resolution`, `c-qualified-symbols` |
+| **C++** | [`gql-verification-smoke/verify-extraction-gql-cpp.sh`](gql-verification-smoke/verify-extraction-gql-cpp.sh) | EXTENDS, INSTANTIATES, CALLS | `example/llvm-project/clang` | `-l cpp` | `cpp-inheritance-edges`, `cpp-instantiation`, `cpp-call-resolution` |
+| **C#** | [`gql-verification-smoke/verify-extraction-gql-csharp.sh`](gql-verification-smoke/verify-extraction-gql-csharp.sh) | ANNOTATEDWITH, INSTANTIATES, CALLS, namespace FQN | `example/roslyn/src` | `-l csharp` | `csharp-annotations`, `csharp-instantiation`, `csharp-call-binding`, `csharp-namespace-fqn` |
+| **Go** | [`gql-verification-smoke/verify-extraction-gql-go.sh`](gql-verification-smoke/verify-extraction-gql-go.sh) | LF-05…LF-17 (`IMPLEMENTS`, `EXTENDS`, Import, generics) | `example/kubernetes` | `-l go -e vendor` | `docs/design/go-language-coverage.md` |
+| **Java** | [`gql-verification-smoke/verify-extraction-gql-java.sh`](gql-verification-smoke/verify-extraction-gql-java.sh) | JF-01…JF-07 (INSTANTIATES, ANNOTATED_WITH, REFERENCES, JPMS, lambda, FQN) | `example/metasfresh-4.9.8b` | `--full` | Java extraction-depth / issue #49 |
+| **JavaScript** | [`gql-verification-smoke/verify-extraction-gql-javascript.sh`](gql-verification-smoke/verify-extraction-gql-javascript.sh) | Import, EXTENDS, INSTANTIATES, CALLS, method FQN | `example/node/test` | `-l javascript` | `javascript-module-graph`, `javascript-heritage`, `javascript-call-resolution` |
+| **PHP** | [`gql-verification-smoke/verify-extraction-gql-php.sh`](gql-verification-smoke/verify-extraction-gql-php.sh) | Import, CALLS, cross-file static call; USES/ANNOTATEDWITH/INSTANTIATES (soft) | `example/magento2` (`app lib setup`) | `-l php` | `php-trait-and-imports`, `php-framework-symbols`, `php-analysis-polish` |
+| **Python** | [`gql-verification-smoke/verify-extraction-gql-python.sh`](gql-verification-smoke/verify-extraction-gql-python.sh) | Import, EXTENDS, ANNOTATEDWITH, INSTANTIATES, CALLS, method FQN | `example/home-assistant` | `-l python` | `python-module-graph`, `python-heritage`, `python-decorators`, `python-call-resolution` |
+| **Rust** | [`gql-verification-smoke/verify-extraction-gql-rust.sh`](gql-verification-smoke/verify-extraction-gql-rust.sh) | Import, IMPLEMENTS, ANNOTATEDWITH, INSTANTIATES, CALLS | `example/rust` | `-l rust` | `rust-module-graph`, `rust-trait-heritage`, `rust-attributes`, `rust-call-resolution` |
+| **TypeScript** | [`gql-verification-smoke/verify-extraction-gql-typescript.sh`](gql-verification-smoke/verify-extraction-gql-typescript.sh) | Import, EXTENDS, IMPLEMENTS, ANNOTATEDWITH, CALLS | `example/vscode/src` | `-l typescript` | `typescript-module-graph`, `typescript-heritage`, `typescript-decorators`, `typescript-call-resolution` |
+
+Shared helpers: [`gql-verification-smoke/extraction-gql-common.sh`](gql-verification-smoke/extraction-gql-common.sh).
+
+Environment:
+
+| Variable | Purpose |
+|----------|---------|
+| `RGCTL` | Path to `rgctl` binary (default: `target/release/rgctl`) |
+| `RGCTL_SKIP_EXAMPLE=1` | Skip example-corpus smoke phase |
+| `RGCTL_REPO` | Override discover root |
+
 ## rgctl analysis results
 
 Summary: **[rgctl-reports/REPORT.md](rgctl-reports/REPORT.md)** · [HTML](rgctl-reports/REPORT.html) (run 2026-07-22)

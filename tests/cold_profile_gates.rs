@@ -29,6 +29,20 @@ const LINUX_COLD_MAX_NODES: u64 = 2_800_000;
 const METASFRESH_COLD_WALL_BASELINE_SECS: f64 = 74.0;
 /// Establish on maintainer machine; override via `RGCTL_KAFKA_COLD_BASELINE_SECS`.
 const KAFKA_COLD_WALL_BASELINE_SECS: f64 = 600.0;
+/// `rust-lang/rust` full tree with `-l rust`. Baseline: **25 s** on reference M3 Pro (2026-09-03).
+const RUST_COLD_WALL_BASELINE_SECS: f64 = 25.0;
+/// llvm/llvm-project `clang/` sparse checkout with `-l cpp`. Baseline recorded on reference M3 Pro (2026-09-03).
+const LLVM_CPP_COLD_WALL_BASELINE_SECS: f64 = 120.0;
+/// dotnet/roslyn `src/` with `-l csharp`. Baseline: record on reference machine after `./scripts/fetch-profile-repos.sh`.
+const ROSLYN_CSHARP_COLD_WALL_BASELINE_SECS: f64 = 90.0;
+/// microsoft/vscode `src/` with `-l typescript`. Baseline: record on reference machine after `./scripts/fetch-profile-repos.sh`.
+const VSCODE_TYPESCRIPT_COLD_WALL_BASELINE_SECS: f64 = 120.0;
+/// nodejs/node `test/` with `-l javascript`. Baseline: record on reference machine after `./scripts/fetch-profile-repos.sh`.
+const NODE_JAVASCRIPT_COLD_WALL_BASELINE_SECS: f64 = 5.0;
+/// Same corpus with `--with-cfg`. Baseline: **7 s** on reference M3 Pro (2026-09-04).
+const NODE_JAVASCRIPT_COLD_WITH_CFG_WALL_BASELINE_SECS: f64 = 7.0;
+/// home-assistant/core with `-l python`. Baseline: **20 s** on reference M3 Pro (2026-09-04).
+const HOME_ASSISTANT_PYTHON_COLD_WALL_BASELINE_SECS: f64 = 20.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
 const K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS: f64 = 3.0;
 /// ecommerce-java default discover cold wall (inheritance stub gate).
@@ -80,6 +94,52 @@ pub fn ecommerce_java_repo_path() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests/ecommerce-java")
+        })
+}
+
+pub fn rust_repo_path() -> PathBuf {
+    std::env::var("RGCTL_RUST_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/rust"))
+}
+
+pub fn llvm_cpp_repo_path() -> PathBuf {
+    std::env::var("RGCTL_LLVM_CPP_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/llvm-project/clang")
+        })
+}
+
+pub fn roslyn_csharp_repo_path() -> PathBuf {
+    std::env::var("RGCTL_ROSLYN_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/roslyn/src")
+        })
+}
+
+pub fn vscode_typescript_repo_path() -> PathBuf {
+    std::env::var("RGCTL_VSCODE_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/vscode/src")
+        })
+}
+
+pub fn home_assistant_python_repo_path() -> PathBuf {
+    std::env::var("RGCTL_HOME_ASSISTANT_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/home-assistant")
+        })
+}
+
+pub fn node_javascript_repo_path() -> PathBuf {
+    std::env::var("RGCTL_NODE_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/node/test")
         })
 }
 
@@ -378,6 +438,256 @@ fn kafka_cold_discover_within_baseline() {
         profile.wall_secs, profile.nodes, profile.functions, baseline
     );
     assert_within_baseline("kafka cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/rust (rust-lang/rust, -l rust)"]
+fn rust_cold_discover_within_baseline() {
+    let repo = rust_repo_path();
+    if !repo.is_dir() {
+        eprintln!("skip: rust not at {}", repo.display());
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_RUST_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(RUST_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "rust"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "rust cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("rust cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/llvm-project/clang (-l cpp)"]
+fn llvm_cpp_cold_discover_within_baseline() {
+    let repo = llvm_cpp_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: llvm clang not at {} (run ./scripts/fetch-profile-repos.sh)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_LLVM_CPP_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(LLVM_CPP_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "cpp"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "llvm cpp cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("llvm cpp cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/roslyn/src (-l csharp)"]
+fn roslyn_csharp_cold_discover_within_baseline() {
+    let repo = roslyn_csharp_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: roslyn src not at {} (run ./scripts/fetch-profile-repos.sh)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_ROSLYN_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(ROSLYN_CSHARP_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "csharp"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "roslyn csharp cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("roslyn csharp cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/vscode/src (-l typescript)"]
+fn vscode_typescript_cold_discover_within_baseline() {
+    let repo = vscode_typescript_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: vscode src not at {} (run ./scripts/fetch-profile-repos.sh)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_VSCODE_TYPESCRIPT_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(VSCODE_TYPESCRIPT_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "typescript"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "vscode typescript cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("vscode typescript cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/node/test (-l javascript)"]
+fn node_javascript_cold_discover_within_baseline() {
+    let repo = node_javascript_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: node test corpus not at {} (run ./scripts/fetch-profile-repos.sh)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_NODE_JAVASCRIPT_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(NODE_JAVASCRIPT_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "javascript"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "node javascript cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("node javascript cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/node/test (-l javascript --with-cfg)"]
+fn node_javascript_cold_discover_with_cfg_within_baseline() {
+    let repo = node_javascript_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: node test corpus not at {} (run ./scripts/fetch-profile-repos.sh)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_NODE_JAVASCRIPT_COLD_WITH_CFG_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(NODE_JAVASCRIPT_COLD_WITH_CFG_WALL_BASELINE_SECS);
+
+    let (output, elapsed) =
+        run_cold_discover_timed(&repo, &["-l", "javascript", "--with-cfg"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "node javascript cfg cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("node javascript cfg cold discover", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover profile on example/home-assistant (-l python)"]
+fn home_assistant_python_cold_discover_within_baseline() {
+    let repo = home_assistant_python_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: home-assistant not at {} (run ./scripts/fetch-profile-repos.sh)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_HOME_ASSISTANT_PYTHON_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(HOME_ASSISTANT_PYTHON_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "python"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "home-assistant python cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("home-assistant python cold discover", elapsed, baseline);
 }
 
 #[test]

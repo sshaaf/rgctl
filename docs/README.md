@@ -8,6 +8,7 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 |------|--------|
 | Install rgctl + choose operating mode | **[Installation](installation.md)** |
 | Step-by-step feature how-tos (CoolStore) | **[Guides](guides/README.md)** |
+| Per-language extraction + GQL probes | **[Languages](languages/README.md)** |
 | LLM / agent workflows | [AGENTS.md](../AGENTS.md) · [Agent recipes](agent-recipes.md) |
 | JSON shapes (`schema_version`, fields) | [JSON API](json-api.md) |
 | CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
@@ -25,7 +26,7 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 
 | Goal | Doc |
 |------|-----|
-| Supported languages | [Languages](languages.md) |
+| Supported languages | [Languages](languages/README.md) |
 | Markdown / doc context graph | [Guide](guides/markdown-context-graph.md) (step-by-step) · [Reference](markdown-context.md) — `.md` / `.mdx`, GQL, Obsidian export, doc semantic index |
 | FAQ / glossary | [FAQ](faq.md) · [Glossary](glossary.md) |
 | HTTP `serve` query API | [HTTP API](http-api.md) |
@@ -58,7 +59,7 @@ Internals and contribution bars — not the default agent reading path.
 
 | Term | Meaning |
 |------|---------|
-| Tier 1 languages | Nine always-linked plugins (see [languages.md](languages.md)) |
+| Tier 1 languages | Ten always-linked plugins (see [languages/README.md](languages/README.md)) |
 | `--with-cfg` | CFG/PDG archive (prefer over legacy `--cfg`) |
 | Communities | Label propagation (Raghavan 2007); `louvain_community_id` is historical |
 | Dashboard / migration JSON | Opt-in (`--with-dashboard` / `--export-migration-hints`) |
@@ -68,7 +69,7 @@ Internals and contribution bars — not the default agent reading path.
 
 - [cli-getting-started.md](cli-getting-started.md) → [Installation](installation.md) / User Guide  
 - [cli-output-schemas.md](cli-output-schemas.md) → [JSON API](json-api.md)  
-- [LANGUAGE_GUIDE.md](LANGUAGE_GUIDE.md) → [languages.md](languages.md)
+- [LANGUAGE_GUIDE.md](LANGUAGE_GUIDE.md) → [languages/README.md](languages/README.md)
 
 Docs match the CLI in this repository — verify with `rgctl --version`.
 
