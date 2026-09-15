@@ -73,7 +73,8 @@ crates/rgctl-wasm/           # WASM engine (Phase 1+)
 1. `discover` writes `.rgctl/dashboard/` instead of monolithic `dashboard.html`.
 2. UI: responsive tab bar matching legacy areas (graph, functions, CFG, slice, blast, guide).
 3. Stat cards read **`manifest.json`** (no inline graph JSON).
-4. Static assets bundled at **compile time** via `include_dir` from `dashboard/dist/`.
+4. Static assets bundled at **compile time** via `include_dir` from `dashboard/dist/`; installed binaries recursively
+   extract the full tree, including hashed files under `assets/`.
 
 ### How to build the UI
 

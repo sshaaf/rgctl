@@ -16,35 +16,58 @@ fn workspace_dist_dir() -> PathBuf {
 /// True when a usable dashboard build exists (disk tree in dev, or full embed for release).
 pub fn dist_embedded() -> bool {
     let disk = workspace_dist_dir();
-    if disk.join("index.html").is_file() && disk.join("assets").is_dir() {
-        return true;
-    }
-    embedded_file_count() > 1
+    disk_dist_complete(&disk) || embedded_dist_complete(&DASHBOARD_DIST)
 }
 
-fn embedded_file_count() -> usize {
-    DASHBOARD_DIST.files().count()
+fn disk_dist_complete(dist: &Path) -> bool {
+    dist.join("index.html").is_file() && dist.join("assets").is_dir()
+}
+
+fn embedded_dist_complete(dist: &Dir<'_>) -> bool {
+    dist.get_file("index.html").is_some()
+        && dist
+            .get_dir("assets")
+            .is_some_and(|assets| embedded_file_count(assets) > 0)
+}
+
+fn embedded_file_count(dir: &Dir<'_>) -> usize {
+    dir.files().count() + dir.dirs().map(embedded_file_count).sum::<usize>()
 }
 
 /// Write all files from embedded `dashboard/dist` into `out_dir`.
 pub fn extract_static_assets(out_dir: &Path) -> Result<(), String> {
+    extract_static_assets_from(out_dir, &workspace_dist_dir(), &DASHBOARD_DIST)
+}
+
+fn extract_static_assets_from(
+    out_dir: &Path,
+    disk: &Path,
+    embedded: &Dir<'_>,
+) -> Result<(), String> {
     fs::create_dir_all(out_dir).map_err(|e| e.to_string())?;
 
-    let disk = workspace_dist_dir();
-    if disk.join("index.html").is_file() && disk.join("assets").is_dir() {
-        copy_dir_recursive(&disk, out_dir)?;
+    if disk_dist_complete(disk) {
+        copy_dir_recursive(disk, out_dir)?;
         return Ok(());
     }
 
-    if embedded_file_count() <= 1 {
+    if !embedded_dist_complete(embedded) {
         return Err(
             "dashboard/dist incomplete — run: ./scripts/build-dashboard.sh && cargo build --release"
                 .into(),
         );
     }
 
-    for file in DASHBOARD_DIST.files() {
+    write_embedded_dir(out_dir, embedded)?;
+    Ok(())
+}
+
+fn write_embedded_dir(out_dir: &Path, dir: &Dir<'_>) -> Result<(), String> {
+    for file in dir.files() {
         write_embedded_file(out_dir, file.path(), file.contents())?;
+    }
+    for child in dir.dirs() {
+        write_embedded_dir(out_dir, child)?;
     }
     Ok(())
 }
@@ -115,16 +138,44 @@ mod tests {
 
     #[test]
     fn embedded_dist_has_no_double_nested_assets() {
-        if embedded_file_count() == 0 {
+        fn assert_paths(dir: &Dir<'_>) {
+            for file in dir.files() {
+                let p = file.path().to_string_lossy();
+                assert!(
+                    !p.contains("assets/assets/"),
+                    "double-nested asset path in embed: {p}"
+                );
+            }
+            for child in dir.dirs() {
+                assert_paths(child);
+            }
+        }
+
+        if embedded_file_count(&DASHBOARD_DIST) == 0 {
             return;
         }
-        for file in DASHBOARD_DIST.files() {
-            let p = file.path().to_string_lossy();
-            assert!(
-                !p.contains("assets/assets/"),
-                "double-nested asset path in embed: {p}"
-            );
-        }
+        assert_paths(&DASHBOARD_DIST);
+    }
+
+    #[test]
+    fn embedded_bundle_extracts_without_workspace_dist() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let missing_disk = tmp.path().join("missing-dashboard-dist");
+        let out = tmp.path().join("extracted");
+
+        extract_static_assets_from(&out, &missing_disk, &DASHBOARD_DIST)
+            .expect("extract embedded dashboard");
+
+        assert!(out.join("index.html").is_file());
+        let assets = out.join("assets");
+        assert!(assets.is_dir());
+        assert!(
+            fs::read_dir(assets)
+                .expect("read extracted assets")
+                .next()
+                .is_some(),
+            "embedded dashboard assets should be extracted recursively"
+        );
     }
 
     /// Worker bundle must reference a `rgctl_wasm_bg-*.wasm` asset that exists in dist.
