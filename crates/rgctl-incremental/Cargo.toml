@@ -1,6 +1,6 @@
 [package]
 name = "rgctl-incremental"
-version = "0.4.12"
+version = "0.4.13"
 edition.workspace = true
 rust-version.workspace = true
 description = "Incremental graph updates for rgctl"
