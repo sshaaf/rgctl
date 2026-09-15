@@ -304,6 +304,16 @@ impl SnapshotNodeStore {
         self.snapshot.for_each_edge(f)
     }
 
+    /// Columnar mmap view when the snapshot uses v2 layout.
+    pub fn columnar(&self) -> Option<&crate::columnar_snapshot::ColumnarGraphMmap> {
+        self.snapshot.columnar()
+    }
+
+    /// Hydrate into an in-memory backend for policy and legacy APIs.
+    pub fn hydrate_backend(&self) -> Result<MemoryBackend> {
+        self.snapshot.hydrate_backend()
+    }
+
     /// Lookup a node by UUID without hydrating [`MemoryBackend`].
     pub fn get_node(&self, id: Uuid) -> Result<Option<Node>> {
         if let Some(col) = self.snapshot.columnar() {

@@ -69,6 +69,7 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `node_javascript_cold_discover_within_baseline` | `example/node/test` | `-l javascript` | **5 s** |
 | `node_javascript_cold_discover_with_cfg_within_baseline` | `example/node/test` | `-l javascript --with-cfg` | **7 s** |
 | `home_assistant_python_cold_discover_within_baseline` | `example/home-assistant` | `-l python` | **20 s** |
+| `pr_check_rgctl_graph_slice_within_baseline` | `crates/rgctl-graph` | delta `pr-check` (base cache only) | **1.0 s** |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`-r <corpus>`, `discover . -v`).
 
@@ -236,6 +237,56 @@ Top stages (% of wall): `index_extract` **~6.4 s** (30%), `index_graph_build` **
 `discover --with-cfg` builds per-function CFGs on a dedicated **16 MiB** Rayon pool (`with_large_pool` / `rgctl-worker-*`) with the pass coordinated on a **`rgctl-large-stack`** thread. Default discover/extract uses the normal pool (OS default ~2 MiB worker stacks). Field-write indexing after CFG also runs on a large-stack thread.
 
 Pathological inputs (e.g. llvm `clang/test/Index/annotate-deep-statements.cpp` with thousands of nested `call_expression` nodes) are capped at **depth 2048** during CFG expression walks and def-use extraction (`cfg_builder` / `def_use`); one warning per function is logged and deeper branches are skipped. For full llvm `clang/` CFG discover on older builds, `RUST_MIN_STACK=16777216` was the workaround.
+
+---
+
+## Snapshot diff micro-benchmarks
+
+Compare-path benches (no discover required):
+
+```bash
+cargo bench -p rgctl-graph --bench snapshot_diff
+```
+
+Groups: `digest_fast_path_equal`, `node_index_parallel`, `edge_merge_join`, `full_diff_noop_sink`.
+
+**Reference M3 Pro (2026-09-10, release bench profile):**
+
+| Benchmark | Result |
+|-----------|--------|
+| `digest_fast_path_equal` | ~1.34 ns |
+| `node_index_parallel/5000` | ~3.19 ms |
+| `node_index_parallel/20000` | ~13.4 ms |
+| `edge_merge_join/10000` | ~1.58 ms |
+| `edge_merge_join/50000` | ~8.28 ms |
+| `full_diff_noop_sink` (10k nodes / 40k edges) | ~6.51 ms |
+
+### `pr-check` end-to-end (rgctl-graph self-slice)
+
+Warm base cache at `crates/rgctl-graph/.rgctl-base/.rgctl/` only; delta head is synthesized at runtime (no pre-built head snapshot). Policy: `rgctl-tests/rgctl-pr-policy.json`. Refs: `HEAD~5..HEAD`. Scoped blast/centrality subgraph (upstream `Calls` closure of PR entities).
+
+```bash
+cargo build --release --bin rgctl
+cd crates/rgctl-graph
+mkdir -p .rgctl-base/.rgctl
+cp .rgctl/graph.snapshot.bin .rgctl-base/.rgctl/   # one-time base seed
+../../target/release/rgctl -r . -f json pr-check \
+  --policy-file ../../rgctl-tests/rgctl-pr-policy.json \
+  --base-ref HEAD~5 --head-ref HEAD
+```
+
+**2026-09-10 (Phase 0 dual snapshot):** subprocess wall **~0.9 s**. **2026-09-10 (Phase 5 scoped + delta head):** same ballpark with mmap subset hydrate instead of dual full `hydrate_backend`. Ignored gate: `pr_check_rgctl_graph_slice_within_baseline` (baseline **1.0 s**, +10%).
+
+### `temporal-delta-pr-gate` final gates (2026-09-10)
+
+Release binary rebuilt immediately before each run (`cargo build --release --bin rgctl`).
+
+| Gate | Wall | Baseline (+10%) | Result |
+|------|------|-----------------|--------|
+| `linux_cold_discover_within_baseline` | **144.9 s** (2,702,784 nodes) | 145 s | pass |
+| `metasfresh_cold_discover_within_baseline` (`--full`) | **30.0 s** (319,225 nodes) | 74 s | pass |
+
+Deterministic node IDs + delta `pr-check` did not regress cold discover on the primary corpora.
 
 ---
 

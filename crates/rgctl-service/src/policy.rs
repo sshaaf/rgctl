@@ -1,11 +1,33 @@
 //! JSON policy file loader for CLI commands.
 
-use rgctl_analysis::PolicyRegistry;
+use rgctl_analysis::{PolicyRegistry, PolicyTemporal};
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 use uuid::Uuid;
+
+#[derive(Debug, Deserialize, Default)]
+pub struct PolicyScope {
+    #[serde(default)]
+    pub new_violations_only: bool,
+    #[serde(default)]
+    pub strict_diff: bool,
+    #[serde(default = "default_fail_on_regression")]
+    pub fail_on_regression: bool,
+}
+
+fn default_fail_on_regression() -> bool {
+    true
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct PolicySizeLimits {
+    #[serde(default)]
+    pub max_changed_files: Option<usize>,
+    #[serde(default)]
+    pub max_scoped_entities: Option<usize>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct PolicyFile {
@@ -17,6 +39,12 @@ pub struct PolicyFile {
     pub centrality_alert_threshold: f64,
     #[serde(default)]
     pub node_domains: HashMap<String, String>,
+    #[serde(default)]
+    pub scope: PolicyScope,
+    #[serde(default)]
+    pub size_limits: PolicySizeLimits,
+    #[serde(default)]
+    pub temporal: PolicyTemporal,
 }
 
 fn default_max_impact() -> usize {

@@ -315,6 +315,27 @@ impl ColumnarGraphMmap {
         self.materialize_node(idx)
     }
 
+    /// Fixed-width node row at column index (no string pool reads).
+    pub(crate) fn node_row_at(&self, idx: usize) -> Result<NodeRow> {
+        if idx >= self.node_count {
+            return Err(Error::SerdeError(format!(
+                "node index {idx} out of range (count={})",
+                self.node_count
+            )));
+        }
+        read_node_row(self.mmap.as_ref(), self.offset_nodes as usize, idx)
+    }
+
+    /// String pool base offset and byte length for [`string_at`].
+    pub(crate) fn string_pool_bounds(&self) -> (usize, usize) {
+        (self.offset_strings as usize, self.offset_strings_len as usize)
+    }
+
+    /// Raw mmap bytes for zero-copy string pool reads.
+    pub(crate) fn mmap_bytes(&self) -> &[u8] {
+        self.mmap.as_ref()
+    }
+
     /// Raw extension blob for a node row (no bincode decode).
     pub(crate) fn extension_bytes_at(&self, idx: usize) -> Result<Option<&[u8]>> {
         if idx >= self.node_count {
@@ -698,18 +719,42 @@ fn read_edge_row(mmap: &[u8], base: usize, idx: usize) -> Result<EdgeRow> {
     }
 }
 
-fn read_string(mmap: &[u8], base: usize, len_limit: usize, off: u32, len: u32) -> Result<String> {
+/// Borrow a UTF-8 string from the mmap string pool without allocating.
+pub(crate) fn string_at(
+    mmap: &[u8],
+    base: usize,
+    len_limit: usize,
+    off: u32,
+    len: u32,
+) -> Result<&str> {
     if len == 0 {
-        return Ok(String::new());
+        return Ok("");
     }
     let start = base + off as usize;
     let end = start + len as usize;
     if end > base + len_limit || end > mmap.len() {
         return Err(Error::SerdeError("string pool out of range".into()));
     }
-    Ok(std::str::from_utf8(&mmap[start..end])
-        .map_err(|e| Error::SerdeError(format!("string utf8: {e}")))?
-        .to_string())
+    std::str::from_utf8(&mmap[start..end])
+        .map_err(|e| Error::SerdeError(format!("string utf8: {e}")))
+}
+
+/// Optional string pool slice (`None` when `len == 0`).
+pub(crate) fn optional_string_at(
+    mmap: &[u8],
+    base: usize,
+    len_limit: usize,
+    off: u32,
+    len: u32,
+) -> Result<Option<&str>> {
+    if len == 0 {
+        return Ok(None);
+    }
+    Ok(Some(string_at(mmap, base, len_limit, off, len)?))
+}
+
+fn read_string(mmap: &[u8], base: usize, len_limit: usize, off: u32, len: u32) -> Result<String> {
+    Ok(string_at(mmap, base, len_limit, off, len)?.to_string())
 }
 
 fn optional_string(
@@ -719,10 +764,8 @@ fn optional_string(
     off: u32,
     len: u32,
 ) -> Result<Option<String>> {
-    if len == 0 {
-        return Ok(None);
-    }
-    Ok(Some(read_string(mmap, base, len_limit, off, len)?))
+    optional_string_at(mmap, base, len_limit, off, len)
+        .map(|opt| opt.map(str::to_string))
 }
 
 fn node_matches_invalidated_path(
@@ -862,7 +905,7 @@ fn node_type_to_u16(t: NodeType) -> u16 {
     }
 }
 
-fn node_type_from_u16(v: u16) -> Result<NodeType> {
+pub(crate) fn node_type_from_u16(v: u16) -> Result<NodeType> {
     Ok(match v {
         0 => NodeType::Function,
         1 => NodeType::Class,

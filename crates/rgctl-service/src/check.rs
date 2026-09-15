@@ -6,10 +6,8 @@ use crate::error::{Result, ServiceError};
 use crate::policy::PolicyFile;
 use rgctl_analysis::{BlastRadiusEngine, CentralityAnalyzer, PetGraphView, PolicyViolation};
 use rgctl_graph::CodeGraph;
-use rgctl_graph::schema::NodeType;
 use serde_json::{Value, json};
 use std::path::Path;
-use std::process::Command;
 
 /// Run CI policy check. Missing policy file is invalid-params.
 pub fn run_check(graph: &CodeGraph, repo: &Path, args: &CheckArgs) -> Result<Value> {
@@ -20,9 +18,9 @@ pub fn run_check(graph: &CodeGraph, repo: &Path, args: &CheckArgs) -> Result<Val
             args.policy_file
         )));
     }
-    let registry = PolicyFile::load(path)
-        .map_err(|e| ServiceError::InvalidParams(e.to_string()))?
-        .into_registry();
+    let policy = PolicyFile::load(path).map_err(|e| ServiceError::InvalidParams(e.to_string()))?;
+    let strict = args.strict || policy.scope.strict_diff;
+    let registry = policy.into_registry();
     let centrality_threshold = registry.centrality_alert_threshold;
     let backend = graph.backend();
     let view = PetGraphView::from_backend(backend).map_err(ServiceError::from)?;
@@ -31,7 +29,16 @@ pub fn run_check(graph: &CodeGraph, repo: &Path, args: &CheckArgs) -> Result<Val
         .map_err(ServiceError::from)?
         .scores;
     let engine = BlastRadiusEngine::build(backend).map_err(ServiceError::from)?;
-    let symbols = changed_function_symbols(repo, backend)?;
+    let symbols = rgctl_incremental::changed_function_symbols(
+        repo,
+        backend,
+        &rgctl_incremental::SymbolScopeOptions {
+            base_ref: args.base_ref.clone(),
+            head_ref: args.head_ref.clone(),
+            strict,
+        },
+    )
+    .map_err(|e| ServiceError::InvalidParams(e.to_string()))?;
     let mut violation_rows = Vec::new();
 
     for symbol in symbols {
@@ -72,49 +79,113 @@ pub fn run_check(graph: &CodeGraph, repo: &Path, args: &CheckArgs) -> Result<Val
     Ok(check_response_to_json(&response))
 }
 
-fn changed_function_symbols(
-    repo: &Path,
-    backend: &rgctl_graph::backend::MemoryBackend,
-) -> Result<Vec<String>> {
-    let output = Command::new("git")
-        .args(["diff", "--name-only", "HEAD"])
-        .current_dir(repo)
-        .output();
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::command::CheckArgs;
+    use rgctl_graph::schema::{Node, NodeType};
+    use std::fs;
+    use std::process::Command;
+    use tempfile::TempDir;
 
-    if let Ok(out) = output {
-        if out.status.success() {
-            let files = String::from_utf8_lossy(&out.stdout);
-            let paths: Vec<String> = files
-                .lines()
-                .filter(|l| !l.is_empty())
-                .map(str::to_string)
-                .collect();
-            if !paths.is_empty() {
-                let mut symbols = Vec::new();
-                for node in backend.all_nodes().map_err(ServiceError::from)? {
-                    if node.node_type != NodeType::Function {
-                        continue;
-                    }
-                    if let Some(ref fp) = node.file_path {
-                        if paths
-                            .iter()
-                            .any(|p| fp.ends_with(p) || p.ends_with(fp.as_str()))
-                        {
-                            symbols.push(node.name.to_string());
-                        }
-                    }
-                }
-                if !symbols.is_empty() {
-                    return Ok(symbols);
-                }
-            }
+    fn init_git_repo(dir: &Path) {
+        for args in [
+            ["init", "-b", "main"],
+            ["config", "user.email", "test@example.com"],
+            ["config", "user.name", "test"],
+        ] {
+            let out = Command::new("git")
+                .args(args)
+                .current_dir(dir)
+                .env("GIT_CONFIG_NOSYSTEM", "1")
+                .env("GIT_CONFIG_GLOBAL", "/dev/null")
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "git {:?} failed", args);
         }
     }
 
-    Ok(backend
-        .collect_nodes_by_type(NodeType::Function)
-        .map_err(ServiceError::from)?
-        .into_iter()
-        .map(|n| n.name.to_string())
-        .collect())
+    fn git_commit_all(dir: &Path, message: &str) {
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(dir)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .output()
+            .unwrap();
+        let out = Command::new("git")
+            .args(["-c", "commit.gpgsign=false", "commit", "-m", message])
+            .current_dir(dir)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+    }
+
+    fn graph_with_function(name: &str, file: &str) -> CodeGraph {
+        let mut graph = CodeGraph::new();
+        graph
+            .load(
+                vec![Node::new(NodeType::Function, name).with_file_path(file)],
+                vec![],
+            )
+            .unwrap();
+        graph
+    }
+
+    #[test]
+    fn strict_empty_commit_diff_returns_invalid_params() {
+        let tmp = TempDir::new().unwrap();
+        init_git_repo(tmp.path());
+        fs::write(tmp.path().join("f.rs"), "fn x() {}\n").unwrap();
+        git_commit_all(tmp.path(), "only");
+
+        let policy_path = tmp.path().join("policy.json");
+        fs::write(&policy_path, r#"{"max_impact_nodes": 100}"#).unwrap();
+
+        let graph = graph_with_function("x", "f.rs");
+        let err = run_check(
+            &graph,
+            tmp.path(),
+            &CheckArgs {
+                policy_file: policy_path.to_string_lossy().into_owned(),
+                base_ref: Some("HEAD".into()),
+                head_ref: Some("HEAD".into()),
+                strict: true,
+            },
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("strict"));
+    }
+
+    #[test]
+    fn non_strict_empty_diff_falls_back_to_all_functions() {
+        let tmp = TempDir::new().unwrap();
+        init_git_repo(tmp.path());
+        fs::write(tmp.path().join("f.rs"), "fn x() {}\n").unwrap();
+        git_commit_all(tmp.path(), "only");
+
+        let policy_path = tmp.path().join("policy.json");
+        fs::write(
+            &policy_path,
+            r#"{"max_impact_nodes": 1000000, "centrality_alert_threshold": 1e12}"#,
+        )
+        .unwrap();
+
+        let graph = graph_with_function("x", "f.rs");
+        let value = run_check(
+            &graph,
+            tmp.path(),
+            &CheckArgs {
+                policy_file: policy_path.to_string_lossy().into_owned(),
+                base_ref: Some("HEAD".into()),
+                head_ref: Some("HEAD".into()),
+                strict: false,
+            },
+        )
+        .unwrap();
+        assert_eq!(value["passed"].as_bool(), Some(true));
+    }
 }
+

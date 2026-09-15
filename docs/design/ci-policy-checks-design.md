@@ -102,13 +102,76 @@ rgctl -f json check --policy-file policy.json | jq '.passed, .violations'
 
 Typical GitHub Actions pattern: run `discover` in a setup job, then `check` on each PR with the same `.rgctl/` cache artifact.
 
+### Temporal PR gate (`pr-check`)
+
+For merge gates that compare **base vs head** graph artifacts (not just the working tree), use **`rgctl pr-check`**. Default mode **synthesizes the head snapshot** from a cached base artifact + git name-status delta (no second full `discover`). `check --temporal` delegates to the same pipeline.
+
+```mermaid
+flowchart TB
+  subgraph inputs["Inputs"]
+    BASE[".rgctl-base/ or $RGCTL_BASE_ARTIFACT"]
+    POL[policy.json + scope + temporal]
+    GIT["git diff base_ref head_ref (or worktree)"]
+    LEDGER[violation_ledger.jsonl]
+  end
+
+  subgraph head["Delta head synthesis"]
+    SEED[seed_head_artifact_from_base]
+    DELTA[IncrementalUpdater + cascade]
+    SEED --> DELTA
+  end
+
+  subgraph diff["Graph diff + scope"]
+    PAIR[SnapshotPair::open]
+    DIFF[diff_snapshots]
+    PATHS[ScopedPaths + HunkIndex]
+    ENT[EntityScope.changed_entities]
+    PAIR --> DIFF
+    PATHS --> ENT
+  end
+
+  subgraph policy["Scoped policy eval"]
+    SCOPED[BlastRadiusEngine::build_scoped]
+    TEMP[evaluate_temporal]
+    CAL[calendar_policy grace / SLA / sunset]
+    REG[ledger regression class]
+    SCOPED --> TEMP --> REG --> CAL
+  end
+
+  BASE --> SEED
+  GIT --> DELTA
+  DELTA --> PAIR
+  GIT --> PATHS
+  ENT --> SCOPED
+  POL --> TEMP
+  POL --> CAL
+  LEDGER --> REG
+  LEDGER --> CAL
+  DIFF --> OUT["JSON v2: passed, violations_summary, graph_diff, scope"]
+  CAL --> OUT
+```
+
+| Class | Meaning | Fails when `scope.new_violations_only` |
+|-------|---------|----------------------------------------|
+| `new` | Violation appears only on head | Yes |
+| `existing` | Violation on both snapshots | No (unless calendar SLA / post-grace) |
+| `resolved` | Violation cleared on head | No (debt paid down) |
+| `regression` | Reintroduced after ledger resolution | When `scope.fail_on_regression` |
+
+Calendar fields (`temporal.*`) apply after temporal classification: grace windows emit `severity: warn` (exit 0 unless `--strict-calendar`); `violation_sla_days` + ledger `first_seen` can fail stale `existing` violations.
+
+Artifact layout: base via `--base-artifact`, `$RGCTL_BASE_ARTIFACT`, or `{repo}/.rgctl-base/`; head synthesized into `{repo}/.rgctl/` unless `--full-snapshots`. Example CI: [.github/workflows/rgctl-pr-check.yml](../../.github/workflows/rgctl-pr-check.yml). User guide: [ci-policy-checks.md](../guides/ci-policy-checks.md).
+
 ---
 
 ## 7. Testing
 
 | Layer | Location |
 |-------|----------|
-| Subprocess contract | `tests/cli_output/all_commands_sanity.rs` (`check` pass/fail) |
+| Subprocess contract | `tests/cli_output/all_commands_sanity.rs` (`check` pass/fail, strict scope) |
+| Temporal policy unit | `crates/rgctl-analysis/src/policy_diff.rs` |
+| PR gate integration | `tests/pr_check_integration.rs` |
+| PR gate golden | `tests/cli_output/subprocess_golden_path.rs` (`pr_check_json_*`) |
 | Policy parsing | `src/cli/policy_file.rs` tests |
 | Blast gatekeeping | `all_commands_sanity` blast-radius + policy exit 1 |
 

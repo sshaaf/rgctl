@@ -2,7 +2,9 @@
 //!
 //! Task 5.1.2: Update graph for changed files only (CRITICAL)
 
-use crate::file_tracker::{ChangeSet, FileTracker, git_changed_files, relative_path, resolve_path};
+use crate::cascade::incoming_callers_files_depth;
+use crate::file_tracker::{ChangeSet, FileTracker, merge_change_sets, relative_path, resolve_path};
+use crate::pr_scope::git_diff_name_status;
 use indicatif::{ProgressBar, ProgressStyle};
 use rgctl_analysis::{
     BlastEngineSnapshot, CfgPdgArchive, MacroCallIndex, MacroCallLookupDb, SemanticIndex,
@@ -26,7 +28,7 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 /// Options for an incremental update run.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct UpdateOptions {
     /// Update files changed since this git commit ref
     pub since: Option<String>,
@@ -38,6 +40,8 @@ pub struct UpdateOptions {
     pub show_progress: bool,
     /// Optional thread count for parallel extraction
     pub thread_count: Option<usize>,
+    /// Reverse call-dependency hops to re-extract when callees change (0 = disabled).
+    pub cascade_depth: usize,
 }
 
 /// Summary of an incremental update operation.
@@ -72,6 +76,19 @@ impl UpdateResult {
 pub struct IncrementalUpdater {
     registry: Arc<LanguageRegistry>,
     config: UpdateOptions,
+}
+
+impl Default for UpdateOptions {
+    fn default() -> Self {
+        Self {
+            since: None,
+            force: false,
+            discovery: DiscoveryConfig::default(),
+            show_progress: false,
+            thread_count: None,
+            cascade_depth: 1,
+        }
+    }
 }
 
 impl IncrementalUpdater {
@@ -114,6 +131,26 @@ impl IncrementalUpdater {
             });
         }
 
+        self.apply_changes(graph, repo_root, &all_files, changes, start)
+    }
+
+    /// Apply a pre-built git or tracker [`ChangeSet`] to the repo snapshot.
+    pub fn apply_change_set(
+        &self,
+        graph: &mut CodeGraph,
+        repo_root: &Path,
+        changes: ChangeSet,
+    ) -> Result<UpdateResult> {
+        let start = Instant::now();
+        if changes.is_empty() {
+            return Ok(UpdateResult {
+                duration: start.elapsed(),
+                ..Default::default()
+            });
+        }
+        let discoverer =
+            FileDiscoverer::with_config(Arc::clone(&self.registry), self.config.discovery.clone());
+        let all_files = discoverer.discover(repo_root)?;
         self.apply_changes(graph, repo_root, &all_files, changes, start)
     }
 
@@ -198,36 +235,10 @@ impl IncrementalUpdater {
         since: &str,
         all_files: &[PathBuf],
     ) -> Result<ChangeSet> {
-        let git_files = git_changed_files(repo_root, since)?;
-        let git_set: std::collections::HashSet<String> = git_files
-            .iter()
-            .filter_map(|p| relative_path(repo_root, p).ok())
-            .collect();
-
+        let git_changes = git_diff_name_status(repo_root, since, "HEAD")?;
         let tracker = FileTracker::load(repo_root)?;
         let hash_changes = tracker.detect_changes(all_files)?;
-
-        let mut added = hash_changes.added;
-        let mut changed = hash_changes.changed;
-        let deleted = hash_changes.deleted;
-
-        for rel in git_set {
-            if !added.contains(&rel) && !changed.contains(&rel) && !deleted.contains(&rel) {
-                if tracker.file_hashes().contains_key(&rel) {
-                    if !changed.contains(&rel) {
-                        changed.push(rel);
-                    }
-                } else {
-                    added.push(rel);
-                }
-            }
-        }
-
-        Ok(ChangeSet {
-            added,
-            changed,
-            deleted,
-        })
+        Ok(merge_change_sets(git_changes, hash_changes))
     }
 
     fn apply_changes(
@@ -283,14 +294,11 @@ impl IncrementalUpdater {
         let nodes_before = graph.node_count();
         let edges_before = graph.edge_count();
 
-        let mut paths_to_update: Vec<PathBuf> = changes
-            .added
+        let extract_paths = self.expand_extract_paths(repo_root, snapshot_path, &changes)?;
+        let paths_to_update: Vec<PathBuf> = extract_paths
             .iter()
-            .chain(changes.changed.iter())
             .map(|rel| resolve_path(repo_root, rel))
             .collect();
-        paths_to_update.sort();
-        paths_to_update.dedup();
 
         let extractor = Extractor::new(Arc::clone(&self.registry));
         let spill_dir = repo_root.join(".rgctl").join("spill_delta");
@@ -318,12 +326,7 @@ impl IncrementalUpdater {
         result.edges_added = new_edges.len();
 
         let mut delta = DeltaSegment::new();
-        for rel in changes
-            .added
-            .iter()
-            .chain(changes.changed.iter())
-            .chain(changes.deleted.iter())
-        {
+        for rel in extract_paths.iter().chain(changes.deleted.iter()) {
             delta.invalidate_file(rel);
         }
         delta.new_nodes = new_nodes;
@@ -337,7 +340,7 @@ impl IncrementalUpdater {
 
         *graph = CodeGraph::open_snapshot(snapshot_path)?;
 
-        // Cross-file edges from changed files into the rest of the graph.
+        // Cross-file edges from changed and cascaded caller files into the rest of the graph.
         let relation_edges = self.rebuild_relations(graph, repo_root, &paths_to_update)?;
         result.edges_added += relation_edges;
         if relation_edges > 0 {
@@ -404,15 +407,16 @@ impl IncrementalUpdater {
             }
         }
 
-        let mut paths_to_update: Vec<PathBuf> = changes
-            .added
+        let snapshot_path = MmappedGraphSnapshot::default_path(repo_root);
+        let extract_paths = if snapshot_path.is_file() {
+            self.expand_extract_paths(repo_root, &snapshot_path, &changes)?
+        } else {
+            changes.extract_paths()
+        };
+        let paths_to_update: Vec<PathBuf> = extract_paths
             .iter()
-            .chain(changes.changed.iter())
             .map(|rel| resolve_path(repo_root, rel))
             .collect();
-
-        paths_to_update.sort();
-        paths_to_update.dedup();
 
         for path in &paths_to_update {
             if let Ok(rel) = relative_path(repo_root, path) {
@@ -466,6 +470,30 @@ impl IncrementalUpdater {
 
         result.duration = start.elapsed();
         Ok(result)
+    }
+
+    fn expand_extract_paths(
+        &self,
+        _repo_root: &Path,
+        snapshot_path: &Path,
+        changes: &ChangeSet,
+    ) -> Result<Vec<String>> {
+        let mut paths = changes.extract_paths();
+        if self.config.cascade_depth == 0 {
+            return Ok(paths);
+        }
+
+        let mmap = MmappedGraphSnapshot::open(snapshot_path)?;
+        let col = mmap
+            .columnar()
+            .ok_or_else(|| rgctl_error::Error::Other("cascade requires columnar snapshot".into()))?;
+        let seeds = changes.invalidation_paths();
+        let cascaded =
+            incoming_callers_files_depth(col, &seeds, self.config.cascade_depth)?;
+        paths.extend(cascaded);
+        paths.sort();
+        paths.dedup();
+        Ok(paths)
     }
 
     /// Re-extract relations for updated files and add missing edges.
@@ -648,6 +676,84 @@ mod tests {
 
         let functions = graph.find_by_type(NodeType::Function).unwrap();
         assert!(functions.iter().any(|n| n.name == "beta"));
+    }
+
+    #[test]
+    fn callee_rename_cascades_to_caller_file() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        fs::create_dir_all(root.join("src")).unwrap();
+        fs::write(
+            root.join("src/main.rs"),
+            "mod auth;\nfn main() { auth::login(); }\n",
+        )
+        .unwrap();
+        fs::write(root.join("src/auth.rs"), "pub fn login() {}\n").unwrap();
+
+        let registry = Arc::new(rgctl_languages::default_registry());
+        let pipeline = ProcessingPipeline::new(Arc::clone(&registry));
+        let (mut graph, _) = pipeline.process_repository(root).unwrap();
+
+        let mut tracker = FileTracker::new(root);
+        tracker
+            .index_files(
+                &[
+                    root.join("src/main.rs"),
+                    root.join("src/auth.rs"),
+                ],
+                &graph,
+            )
+            .unwrap();
+        tracker.save().unwrap();
+        graph.save_to_repo(root).unwrap();
+        graph.save_snapshot(root).unwrap();
+
+        fs::write(root.join("src/auth.rs"), "pub fn authenticate() {}\n").unwrap();
+        fs::write(
+            root.join("src/main.rs"),
+            "mod auth;\nfn main() { auth::authenticate(); }\n",
+        )
+        .unwrap();
+
+        let updater = IncrementalUpdater::with_options(
+            registry,
+            UpdateOptions {
+                cascade_depth: 1,
+                show_progress: false,
+                ..Default::default()
+            },
+        );
+        updater
+            .update_files(&mut graph, root, &["src/auth.rs".into()])
+            .unwrap();
+
+        let functions = graph.find_by_type(NodeType::Function).unwrap();
+        assert!(
+            functions.iter().any(|n| &*n.name == "main"),
+            "expected main after cascade; got {:?}",
+            functions
+                .iter()
+                .map(|n| (&*n.name, n.file_path.clone()))
+                .collect::<Vec<_>>()
+        );
+        let authenticate_id = functions
+            .iter()
+            .find(|n| &*n.name == "authenticate")
+            .map(|n| n.id)
+            .expect("authenticate");
+
+        let main_id = functions
+            .iter()
+            .find(|n| &*n.name == "main")
+            .map(|n| n.id)
+            .expect("main");
+
+        assert!(
+            graph
+                .backend()
+                .has_edge(main_id, authenticate_id, EdgeType::Calls),
+            "cascade should re-extract main.rs and rebuild main→authenticate"
+        );
     }
 
     #[test]

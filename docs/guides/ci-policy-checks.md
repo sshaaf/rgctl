@@ -1,191 +1,477 @@
 # CI Policy Checks
 
-## Introduction
+rgctl can enforce architecture rules in CI and before merge: impact-zone limits, centrality alerts, and domain isolation. Policy files are JSON; commands exit **0** on pass and **1** on failure.
 
-The `check` command is a **CI policy gateway** that evaluates your codebase against a set of architectural rules defined in a JSON policy file. It scans every function in the graph, runs blast-radius analysis, and reports any violations. If any rule is violated, the command exits with code 1, making it suitable as a CI gate that blocks merges when architectural constraints are broken.
+This guide focuses on **which command to use**, how to wire **pull-request gates**, and copy-paste **CI recipes**. For the full policy schema see [policy-format.md](../policy-format.md). For engineering internals see [ci-policy-checks-design.md](../design/ci-policy-checks-design.md).
 
-Policy checks automate what would otherwise be manual code review: ensuring that no single function has too large an impact zone, no high-centrality function is left unprotected, and that domain isolation boundaries are respected.
+---
 
-## Use Cases
+## Which command?
 
-- **CI pipeline integration.** Add `check` as a build step to catch architectural violations before merge.
-- **Blast-radius guardrails.** Prevent changes to functions whose impact zone exceeds a threshold.
-- **Centrality alerts.** Flag functions with high centrality scores that may need extra review.
-- **Domain isolation.** Enforce separation between modules that should not depend on each other.
-- **Continuous architecture monitoring.** Track policy compliance over time as the codebase evolves.
+| Goal | Command | Graphs needed | Blocks on |
+|------|---------|---------------|-----------|
+| Pre-commit / dirty working tree | `check` | One (`discover` → `.rgctl/`) | Any violation in git scope |
+| PR gate: only **new** breakage vs `main` | **`pr-check`** (default) | Base cache + delta head | `new` (+ `regression` by default) |
+| Same as `pr-check` from `check` | `check --temporal` | Base cache + delta head | Same as `pr-check` |
+| Preview uncommitted edits temporally | `pr-check --synthetic-head worktree` | Base cache + HEAD snapshot + worktree | Same as `pr-check` |
+| One-off symbol review | `blast-radius SYMBOL --policy-file` | One | That symbol only |
 
-## Example Project
+**Rule of thumb**
 
-This guide uses the **CoolStore** (`example/coolstore`). Make sure you have run `discover` first:
+- **`check`** — “Did my local edits touch functions that violate policy?” (single snapshot, git-scoped symbols).
+- **`pr-check`** — “Did this PR introduce **new** policy violations compared to `main`?” (base vs head, temporal classes, graph diff).
+
+Most teams want **`pr-check`** on pull requests with `scope.new_violations_only: true` so legacy debt on `main` does not block every PR.
+
+---
+
+## Quick start: PR gate on `main`
+
+**1. Index the repo once (per machine / cache refresh):**
 
 ```bash
-rgctl -r example/coolstore discover
+rgctl -r "$REPO" discover .
 ```
 
-## Step-by-Step
+**2. Save a base artifact from `main`:**
 
-### 1. Examine the Policy File
+```bash
+git checkout main
+rgctl -r "$REPO" discover .
+mkdir -p "$REPO/.rgctl-base" && cp -a "$REPO/.rgctl" "$REPO/.rgctl-base/"
+git checkout -   # back to your branch
+```
 
-The CoolStore example ships with a policy file at `example/coolstore/policy.json`:
+**3. Run the temporal gate:**
+
+```bash
+rgctl -r "$REPO" -f json pr-check \
+  --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-ref origin/main \
+  --head-ref HEAD \
+  --strict
+```
+
+By default **`pr-check` does not require a second full `discover` on the PR branch**. It copies the base snapshot into `.rgctl/`, applies the git name-status delta (with optional caller cascade), and evaluates policy on scoped entities only.
+
+Exit **1** when `passed` is false. With the sample PR policy, only **`new`** and **`regression`** violations fail the gate.
+
+---
+
+## One-time setup
+
+### Graph artifacts
+
+After `discover`, artifacts live under `{repo}/.rgctl/`:
+
+```text
+.rgctl/
+  graph.snapshot.bin       # required
+  analysis_results.bin     # optional; speeds centrality reuse
+  violation_ledger.jsonl   # appended by pr-check (violation timeline)
+```
+
+For PR gates, cache **`main`** (or merge-base) separately:
+
+```text
+.rgctl-base/.rgctl/graph.snapshot.bin     # local default for --base-artifact
+# or
+$RGCTL_BASE_ARTIFACT/.rgctl/graph.snapshot.bin
+# or
+.rgctl-cache/<sha>/.rgctl/                # CI cache per commit (see below)
+```
+
+Resolution order for the base snapshot: `--base-artifact` → `$RGCTL_BASE_ARTIFACT` → `{repo}/.rgctl-base/`.
+
+### Deterministic node IDs (migration)
+
+Node UUIDs are now stable across re-indexing when `file_path` + name are known. **Upgrade once** after pulling a release that includes this change:
+
+```bash
+rm -rf .rgctl .rgctl-base
+rgctl discover .
+```
+
+Then rebuild `.rgctl-base/` from `main` as above. See [release notes](../releases/unreleased.md#graph--ci-policy).
+
+---
+
+## Policy files
+
+Example PR policy shipped with rgctl: [rgctl-tests/rgctl-pr-policy.json](../../rgctl-tests/rgctl-pr-policy.json).
 
 ```json
-{"max_impact_nodes": 15, "centrality_alert_threshold": 0.8}
+{
+  "max_impact_nodes": 50,
+  "centrality_alert_threshold": 0.15,
+  "scope": {
+    "new_violations_only": true,
+    "fail_on_regression": true
+  },
+  "size_limits": {
+    "max_changed_files": 500,
+    "max_scoped_entities": 5000
+  }
+}
 ```
 
-This policy defines two rules:
+| Field | Role in PR CI |
+|-------|----------------|
+| `max_impact_nodes` | Blast impact zone cap per scoped function |
+| `centrality_alert_threshold` | Cascade hazard when high-betweenness nodes are reached |
+| `scope.new_violations_only` | **`true`** → only `new` / `regression` fail the gate |
+| `scope.fail_on_regression` | Fail when a resolved violation reappears (ledger-backed) |
+| `size_limits.*` | Abort if the PR scope is too large (runaway PR protection) |
+| `temporal.*` | Grace periods, SLA aging, sunset dates (optional) |
 
-| Rule | Value | Meaning |
-|------|-------|---------|
-| `max_impact_nodes` | 15 | A function's blast-radius impact zone must not exceed 15 nodes |
-| `centrality_alert_threshold` | 0.8 | Functions with centrality above 0.8 trigger an alert |
+Stricter smoke-test policies: [examples/policy-strict.json](../examples/policy-strict.json), [examples/policy-permissive.json](../examples/policy-permissive.json).
 
-### 2. Run the Policy Check
+Full schema: [policy-format.md](../policy-format.md).
+
+---
+
+## `rgctl check`
+
+Evaluates policy on functions touched in a **git diff**, using **one** graph snapshot (`.rgctl/`).
 
 ```bash
+# Working tree vs last commit (default scope)
+rgctl -r "$REPO" -f json check --policy-file policy.json
+
+# Commits on current branch
+rgctl -r "$REPO" -f json check \
+  --policy-file policy.json \
+  --base-ref origin/main \
+  --head-ref HEAD \
+  --strict
+```
+
+| Flag | Effect |
+|------|--------|
+| *(none)* | Scope = `git diff --name-only HEAD` (uncommitted + staged vs `HEAD`) |
+| `--base-ref` + `--head-ref` | Scope = paths changed between those commits |
+| `--strict` | Fail if git scope is empty (no “check everything” fallback) |
+| `--temporal` | Run the same pipeline as `pr-check` (base cache + delta head) |
+
+Policy field `scope.strict_diff: true` also enables strict mode for `check`.
+
+**When to use:** local pre-commit hooks, nightly jobs on a single snapshot, or quick gates without maintaining a `main` cache. For merge gates that compare against `main`, prefer **`pr-check`** (or `check --temporal`).
+
+### Example: CoolStore
+
+```bash
+rgctl -r example/coolstore discover .
 rgctl -r example/coolstore -f json check \
   --policy-file example/coolstore/policy.json
 ```
 
-**Output (truncated):**
+A strict `max_impact_nodes` policy will report many `scale failure` violations on lodash helpers — expected on a large dependency graph. That illustrates why PR workflows use **`new_violations_only`** instead of failing on all existing debt.
+
+---
+
+## `rgctl pr-check`
+
+Temporal PR gate: compare **base** (`main`) vs **head** (PR), classify each violation, and optionally report graph diff stats.
+
+### How it works (default: delta head)
+
+```text
+  .rgctl-base/          git diff              PR source tree
+  (main snapshot)   base_ref..head_ref      (checkout)
+        │                    │                      │
+        └──────── seed ──────┴── delta compact ─────┘
+                              │
+                         .rgctl/  (synthesized head)
+                              │
+                    scoped policy eval → JSON + exit code
+```
+
+1. Open base snapshot from cache (`.rgctl-base/`, `$RGCTL_BASE_ARTIFACT`, or `--base-artifact`).
+2. Copy base into `{repo}/.rgctl/` and apply changed paths from `git diff --name-status` (incremental extract + compact).
+3. Optionally expand scope to **caller files** (`--cascade-depth`, default `1`).
+4. Evaluate blast-radius policy only on entities in the git scope.
+5. Classify each violation temporally; apply calendar rules; append to `violation_ledger.jsonl`.
+
+**Legacy mode:** pass `--full-snapshots` and provide both `--base-artifact` and `--head-artifact` (or pre-built `.rgctl/` on the PR branch). Use when you already run two full `discover` jobs in CI.
+
+### Temporal classes
+
+| Class | Meaning | Fails default PR gate? |
+|-------|---------|------------------------|
+| `new` | Violation on head, not on base | **Yes** |
+| `existing` | Violation on both snapshots | No (`new_violations_only`) |
+| `resolved` | Fixed on head (debt paid down) | No — reported as progress |
+| `regression` | Reappeared after ledger marked it resolved | Yes (`fail_on_regression`) |
+
+### CLI flags
+
+| Flag | Default | Purpose |
+|------|---------|---------|
+| `--policy-file` | *(required)* | JSON policy |
+| `--base-ref` | `origin/main` | Left side of git diff |
+| `--head-ref` | `HEAD` | Right side of git diff |
+| `--base-artifact` | `.rgctl-base/` or `$RGCTL_BASE_ARTIFACT` | Base graph cache root |
+| `--head-artifact` | *(omit for delta mode)* | Pre-built head; skips synthesis |
+| `--full-snapshots` | off | Require pre-built head; no delta synthesis |
+| `--strict` | off | Fail when git reports zero changed files |
+| `--cascade-depth` | `1` | Re-index caller files when callees change (`0` = off) |
+| `--bisect` | off | Add `introduced_in_commit` per new/regression violation |
+| `--synthetic-head worktree` | off | Scope + head from uncommitted changes vs `HEAD` |
+| `--strict-calendar` | off | Treat calendar `warn` as failure (grace / sunset windows) |
+
+### What passes?
+
+With the sample PR policy (`new_violations_only: true`, `fail_on_regression: true`):
+
+- **Pass:** no violations, or only `existing` / `resolved`, or calendar warnings during grace (unless `--strict-calendar`).
+- **Fail:** any `new` or `regression`, or calendar-forced failures (post-grace existing, SLA breach, sunset).
+
+### JSON output (schema v2)
+
+```bash
+rgctl -r . -f json pr-check --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-ref origin/main --head-ref HEAD --strict \
+  | jq '{passed, violations_summary, scope, graph_diff}'
+```
 
 ```json
 {
-  "passed": false,
-  "policy": "example/coolstore/policy.json",
-  "schema_version": 1,
-  "violations": [
-    {
-      "error": "Graph error: scale failure: impact zone size 114 exceeds max 15",
-      "symbol": "baseIsEqual"
-    },
-    {
-      "error": "Graph error: scale failure: impact zone size 648 exceeds max 15",
-      "symbol": "indexOf"
-    },
-    {
-      "error": "Graph error: scale failure: impact zone size 110 exceeds max 15",
-      "symbol": "getMatchData"
-    },
-    {
-      "error": "Graph error: scale failure: impact zone size 16 exceeds max 15",
-      "symbol": "_fnInitComplete"
-    },
-    {
-      "error": "Graph error: scale failure: impact zone size 456 exceeds max 15",
-      "symbol": "trimmedLeftIndex"
-    }
-  ]
+  "schema_version": "2",
+  "passed": true,
+  "violations": [],
+  "violations_summary": {
+    "new": 0,
+    "existing": 0,
+    "resolved": 0,
+    "regression": 0
+  },
+  "graph_diff": {
+    "nodes_added": 0,
+    "nodes_removed": 0,
+    "nodes_changed": 0,
+    "edges_added": 0,
+    "edges_removed": 0
+  },
+  "scope": { "files": 3, "entities": 2 }
 }
 ```
 
-**What this tells you:**
+Each violation includes `symbol`, `classification`, `stable_key`, `violation` (tagged union), optional `introduced_in_commit` (with `--bisect`), and optional `severity` (`warn` | `fail`) from calendar rules.
 
-- **`passed: false`** -- the codebase has policy violations.
-- **`violations`** -- each violation lists the offending symbol and the rule it broke.
-- `indexOf` has the largest impact zone at 648 nodes -- changing this function could affect 648 other functions.
-- `baseIsEqual` (impact: 114) and `trimmedLeftIndex` (impact: 456) are lodash utility functions deeply embedded in the call graph.
-- `_fnInitComplete` barely exceeds the threshold at 16 nodes.
+Shape reference: [json-api.md § pr-check](../json-api.md#8b-pr-check).
 
-### 3. Check the Exit Code
+### Violation ledger
 
-The `check` command exits with code 1 on violations, making it suitable for CI:
+Each `pr-check` run appends to `.rgctl/violation_ledger.jsonl` keyed by `(stable_key, rule_id)`. The ledger powers:
 
-```bash
-rgctl -r example/coolstore check \
-  --policy-file example/coolstore/policy.json
-echo "Exit code: $?"
+- **`regression`** — violation was previously `resolved` in the ledger
+- **SLA enforcement** — `temporal.enforce_sla` + `violation_sla_days` vs ledger `first_seen`
+
+### Calendar policies (optional)
+
+Add a `temporal` block to defer hard failures during rollout:
+
+```json
+{
+  "max_impact_nodes": 50,
+  "scope": { "new_violations_only": true },
+  "temporal": {
+    "effective_from": "2026-09-01",
+    "grace_period_days": 30,
+    "severity_during_grace": "warn",
+    "fail_existing_after_grace": true,
+    "violation_sla_days": 30,
+    "enforce_sla": true
+  }
+}
 ```
 
-```
-Exit code: 1
-```
+During grace, violations emit `severity: warn` and exit **0** unless you pass **`--strict-calendar`**. After grace, `existing` violations can fail when `fail_existing_after_grace` is set.
 
-In a CI pipeline:
+---
+
+## CI on GitHub Actions
+
+Canonical example workflow in this repo: [.github/workflows/rgctl-pr-check.yml](../../.github/workflows/rgctl-pr-check.yml).
+
+It:
+
+1. Caches `.rgctl-cache/<base-sha>/` per merge-base commit.
+2. Runs `discover` on cache miss only.
+3. Sets `RGCTL_BASE_ARTIFACT` and runs **delta** `pr-check` (no PR-branch `discover`).
+
+**Trigger:** `workflow_dispatch` or PR label `rgctl-pr-check`.
+
+### Minimal workflow (copy-paste)
 
 ```yaml
-# GitHub Actions example
-- name: Architecture check
-  run: rgctl -r . check --policy-file policy.json
+name: Architecture PR gate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  pr-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install rgctl
+        run: cargo build --release --bin rgctl   # or download a release binary
+
+      - name: Cache base graph
+        id: base-cache
+        uses: actions/cache@v4
+        with:
+          path: .rgctl-cache/${{ github.event.pull_request.base.sha }}
+          key: rgctl-base-${{ github.event.pull_request.base.sha }}
+
+      - name: Build base graph (cache miss)
+        if: steps.base-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ".rgctl-cache/${{ github.event.pull_request.base.sha }}"
+          git checkout "${{ github.event.pull_request.base.sha }}"
+          ./target/release/rgctl -r . discover .
+          cp -a .rgctl ".rgctl-cache/${{ github.event.pull_request.base.sha }}/"
+          git checkout -
+
+      - name: Temporal policy gate
+        env:
+          RGCTL_BASE_ARTIFACT: .rgctl-cache/${{ github.event.pull_request.base.sha }}
+        run: |
+          ./target/release/rgctl -r . -f json pr-check \
+            --policy-file rgctl-tests/rgctl-pr-policy.json \
+            --base-ref origin/${{ github.base_ref }} \
+            --head-ref HEAD \
+            --strict
 ```
 
-If any violation is found, the step fails and the build is blocked.
+### Two-job pattern (main always fresh)
 
-### 4. Text Format for Human Review
+| Job | Branch | Action |
+|-----|--------|--------|
+| `index-main` | `main` | `discover` → upload `.rgctl/` artifact |
+| `pr-check` | PR | download artifact → `RGCTL_BASE_ARTIFACT` → `pr-check` |
 
-Use text format for readable output in pull request comments:
+Use when you do not want per-SHA cache logic on the runner.
+
+### CI cache layout
+
+```text
+.rgctl-cache/
+  <merge-base-sha>/
+    .rgctl/
+      graph.snapshot.bin
+      file_hashes.json
+```
+
+Point `RGCTL_BASE_ARTIFACT` at the directory that **contains** `.rgctl/` (not the snapshot file itself).
+
+---
+
+## Recipes
+
+### Local pre-commit (`check`)
 
 ```bash
-rgctl -r example/coolstore check \
-  --policy-file example/coolstore/policy.json
+rgctl -r . discover .    # if sources changed materially
+rgctl -r . check --policy-file policy.json
 ```
 
-### 5. Per-Function Policy Check with Blast Radius
+### Uncommitted preview (temporal)
 
-You can also apply a policy to a single function using `blast-radius --policy-file`:
+**Option A — worktree synthetic head (if `.rgctl/` reflects `HEAD`):**
 
 ```bash
-rgctl -r example/coolstore -f json blast-radius priceShoppingCart \
-  --policy-file example/coolstore/policy.json
+rgctl -r . -f json pr-check \
+  --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --synthetic-head worktree
 ```
 
-This runs blast-radius analysis on `priceShoppingCart` and checks the result against the policy. The `gatekeeping` section of the output shows whether the function passes or violates the policy.
+**Option B — `check --temporal` (same evaluator, commit refs):**
 
-### 6. Writing a Custom Policy
-
-Create a policy file tailored to your project:
-
-```json
-{
-  "max_impact_nodes": 25,
-  "centrality_alert_threshold": 0.7
-}
+```bash
+rgctl -r . -f json check --temporal \
+  --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-ref origin/main --head-ref HEAD
 ```
 
-Stricter policies (lower thresholds) catch more violations; permissive policies (higher thresholds) only flag extreme cases.
+### PR against `main` (recommended CI)
 
-The `docs/examples/` directory contains example policies:
-
-| File | Purpose |
-|------|---------|
-| `policy-strict.json` | Tight thresholds for well-modularized codebases |
-| `policy-permissive.json` | Relaxed thresholds for monoliths in early migration |
-
-## Policy File Format
-
-```json
-{
-  "max_impact_nodes": <integer>,
-  "centrality_alert_threshold": <float 0.0-1.0>
-}
+```bash
+export RGCTL_BASE_ARTIFACT="$PWD/.rgctl-base"   # or CI cache path
+rgctl -r . -f json pr-check \
+  --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-ref origin/main \
+  --head-ref HEAD \
+  --strict
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `max_impact_nodes` | integer | Maximum allowed impact zone size for any function |
-| `centrality_alert_threshold` | float | Centrality score above which a function triggers a violation |
+No `discover` on the PR branch required in delta mode.
 
-See the [Policy Format Reference](../policy-format.md) for the full schema.
+### Compare two release tags (dual snapshots)
 
-## Understanding Violations
+When you need exact graphs from two full indexes (not delta synthesis):
 
-| Violation Type | Message Pattern | Cause |
-|----------------|----------------|-------|
-| Scale failure | `impact zone size N exceeds max M` | A function's blast radius exceeds `max_impact_nodes` |
-| Centrality alert | `centrality N exceeds threshold M` | A function's centrality score exceeds `centrality_alert_threshold` |
-| Domain isolation | `cross-domain call from A to B` | A function calls across a domain boundary |
-| Cascade hazard | `cascade depth N exceeds max M` | A function's call chain depth exceeds the maximum |
+```bash
+git checkout v1.0 && rgctl -r . discover .
+cp -a .rgctl /tmp/snapshots/v1.0-rgctl
 
-## Benefits
+git checkout v2.0 && rgctl -r . discover .
 
-- **Automated architecture enforcement.** Replace manual review with machine-checked policies.
-- **Clear exit codes.** Exit 0 = pass, exit 1 = violations -- integrates with any CI system.
-- **Structured output.** JSON violations are easy to parse, aggregate, and trend over time.
-- **Customizable thresholds.** Tune policies to match your project's maturity and architecture goals.
-- **Preventive, not reactive.** Catch architectural drift before it ships, not after it causes problems.
+rgctl -r . -f json pr-check \
+  --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-artifact /tmp/snapshots/v1.0-rgctl \
+  --head-artifact . \
+  --base-ref v1.0 --head-ref v2.0 \
+  --full-snapshots --strict
+```
 
-## Related Guides
+### Find the introducing commit (`--bisect`)
 
-- [Discovering and Indexing a Codebase](discovering-and-indexing.md) -- must run `discover` before `check`
-- [Blast Radius Analysis](blast-radius-analysis.md) -- the per-function analysis that `check` runs at scale
-- [Graph Metrics](graph-metrics.md) -- centrality scores that feed into policy checks
-- [Migration Planning](migration-planning.md) -- combine policy checks with migration roadmaps
+```bash
+rgctl -r . -f json pr-check \
+  --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-ref origin/main --head-ref HEAD \
+  --bisect \
+  | jq '.violations[] | {symbol, classification, introduced_in_commit}'
+```
+
+### Save a report artifact
+
+```bash
+rgctl -r . -f json pr-check \
+  --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-ref origin/main --head-ref HEAD --strict \
+  > "reports/pr-check-$(git rev-parse --short HEAD).json"
+```
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `Graph not found` | No `.rgctl/` | Run `discover` (or ensure base cache exists for `pr-check`) |
+| `strict diff scope: no changed files` | Empty git diff with `--strict` | Remove `--strict` or change refs |
+| All violations `existing`, gate passes, but you expected failure | `new_violations_only: true` | Intentional — only **new** debt fails |
+| Gate fails on legacy code | `new_violations_only: false` | Set `scope.new_violations_only: true` for PR CI |
+| `worktree head synthesis requires...` | No `.rgctl/graph.snapshot.bin` | `discover` on `HEAD` before `--synthetic-head worktree` |
+| Cross-file edges wrong after partial re-index | Stale pre-deterministic IDs | `rm -rf .rgctl .rgctl-base && discover` |
+| `changed file count exceeds...` | Large PR | Raise `size_limits.max_changed_files` or split PR |
+
+---
+
+## Related
+
+| Doc | Content |
+|-----|---------|
+| [policy-format.md](../policy-format.md) | Full JSON schema |
+| [json-api.md](../json-api.md) | `check` / `pr-check` response shapes |
+| [ci-policy-checks-design.md](../design/ci-policy-checks-design.md) | Architecture diagram, Rust module map |
+| [graph-diff-design.md](../design/graph-diff-design.md) | Snapshot diff + cascade internals |
+| [discovering-and-indexing.md](discovering-and-indexing.md) | `discover` prerequisites |
+| [blast-radius-analysis.md](blast-radius-analysis.md) | Per-symbol policy via `blast-radius --policy-file` |

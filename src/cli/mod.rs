@@ -4,6 +4,8 @@ mod args;
 mod blast_radius;
 pub mod blast_radius_output;
 mod check;
+mod pr_check;
+mod pr_check_output;
 pub mod check_output;
 mod communities;
 mod context;
@@ -173,6 +175,14 @@ pub enum Commands {
         )]
         migration_order: String,
 
+        /// Incremental update for repo-relative paths only (requires existing `.rgctl/` snapshot).
+        #[arg(long = "files", value_name = "PATH", value_delimiter = ',')]
+        files: Option<Vec<String>>,
+
+        /// Reverse call-dependency hops when re-indexing `--files` (default 1; 0 = disabled).
+        #[arg(long = "cascade-depth", default_value = "1")]
+        cascade_depth: usize,
+
         /// Flags after `--` (e.g. `discover . -- --full`)
         #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = true)]
         extra: Vec<String>,
@@ -288,6 +298,66 @@ pub enum Commands {
     Check {
         #[arg(long)]
         policy_file: String,
+
+        #[arg(long)]
+        base_ref: Option<String>,
+
+        #[arg(long)]
+        head_ref: Option<String>,
+
+        #[arg(long)]
+        strict: bool,
+
+        /// Use temporal `pr-check` semantics (base/head snapshots + git scope)
+        #[arg(long)]
+        temporal: bool,
+
+        /// Treat calendar `warn` violations as failures (with `--temporal`)
+        #[arg(long = "strict-calendar")]
+        strict_calendar: bool,
+    },
+
+    /// Temporal PR policy gate (base/head snapshots + git scope)
+    PrCheck {
+        #[arg(long)]
+        policy_file: String,
+
+        /// Base graph artifact root, snapshot file, `$RGCTL_BASE_ARTIFACT`, or `{repo}/.rgctl-base`
+        #[arg(long)]
+        base_artifact: Option<String>,
+
+        /// Head graph artifact root or snapshot file [default: `-r` / cwd repo]
+        #[arg(long)]
+        head_artifact: Option<String>,
+
+        #[arg(long, default_value = "origin/main")]
+        base_ref: String,
+
+        #[arg(long, default_value = "HEAD")]
+        head_ref: String,
+
+        #[arg(long)]
+        strict: bool,
+
+        /// Reverse call-dependency hops when synthesizing a delta head (0 = disabled)
+        #[arg(long, default_value = "1")]
+        cascade_depth: usize,
+
+        /// Require pre-built head snapshot; skip delta head synthesis from base artifact.
+        #[arg(long = "full-snapshots")]
+        full_snapshots: bool,
+
+        /// Binary-search introducing commit for each new/regression violation
+        #[arg(long)]
+        bisect: bool,
+
+        /// Synthetic head source (`worktree` = uncommitted changes over HEAD snapshot)
+        #[arg(long = "synthetic-head", value_name = "MODE")]
+        synthetic_head: Option<String>,
+
+        /// Treat calendar `warn` violations as failures (grace / sunset warn windows)
+        #[arg(long = "strict-calendar")]
+        strict_calendar: bool,
     },
 
     /// Export graph or projections
@@ -667,6 +737,8 @@ impl Cli {
                 mut full,
                 migration_preset,
                 migration_order,
+                files,
+                cascade_depth,
                 extra,
             } => {
                 if extra.iter().any(|a| a == "--full") {
@@ -696,6 +768,8 @@ impl Cli {
                         migration_preset,
                         migration_order,
                         artifact_root: None,
+                        files,
+                        cascade_depth,
                     },
                 )
             }
@@ -931,7 +1005,52 @@ impl Cli {
                 };
                 cpg::run(&ctx, mapped)
             }
-            Commands::Check { policy_file } => check::run(&ctx, check::CheckArgs { policy_file }),
+            Commands::Check {
+                policy_file,
+                base_ref,
+                head_ref,
+                strict,
+                temporal,
+                strict_calendar,
+            } => check::run(
+                &ctx,
+                check::CheckArgs {
+                    policy_file,
+                    base_ref,
+                    head_ref,
+                    strict,
+                    temporal,
+                    strict_calendar,
+                },
+            ),
+            Commands::PrCheck {
+                policy_file,
+                base_artifact,
+                head_artifact,
+                base_ref,
+                head_ref,
+                strict,
+                cascade_depth,
+                full_snapshots,
+                bisect,
+                synthetic_head,
+                strict_calendar,
+            } => pr_check::run(
+                &ctx,
+                pr_check::PrCheckArgs {
+                    policy_file,
+                    base_artifact,
+                    head_artifact,
+                    base_ref,
+                    head_ref,
+                    strict,
+                    cascade_depth,
+                    full_snapshots,
+                    bisect,
+                    synthetic_head,
+                    strict_calendar,
+                },
+            ),
             Commands::Export {
                 export_format,
                 export_output,
@@ -1012,6 +1131,7 @@ fn command_label_for(command: &Commands) -> &'static str {
             CpgCommands::Slice { .. } => "cpg slice",
         },
         Commands::Check { .. } => "check",
+        Commands::PrCheck { .. } => "pr-check",
         Commands::Export { .. } => "export",
         Commands::Install { .. } => "install",
         Commands::MigrateCache { .. } => "migrate-cache",

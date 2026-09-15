@@ -64,6 +64,10 @@ Upgrading from an old daemon install: `rgctl migrate-cache` copies `~/.rgctl/cac
 | CPG export | `rgctl cpg export --format graphson --output cpg.json [--path-contains src/]` |
 | Migration plan | `rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints` then read `.rgctl/migration_plan.json` (or dashboard copy) |
 | CI gate on changes | `rgctl -f json check --policy-file policy.json` (exit 1 = violations) |
+| Temporal PR gate | `rgctl -f json pr-check --policy-file rgctl-pr-policy.json --base-artifact .rgctl-base --base-ref origin/main --head-ref HEAD --strict` (delta head default; `--full-snapshots`, `--bisect`, `--synthetic-head worktree`, `--cascade-depth`, `--strict-calendar`) |
+| Check temporal bridge | `rgctl -f json check --temporal --policy-file policy.json --base-ref origin/main --head-ref HEAD` |
+| Calendar grace / SLA | Policy `temporal` block + ledger `.rgctl/violation_ledger.jsonl`; warn during grace unless `--strict-calendar` |
+| Incremental file index | `rgctl discover --files src/foo.rs,src/bar.rs` (requires existing `.rgctl/` snapshot) |
 | Kantra migration rules | `rgctl discover . --with-kantra` (embedded Konveyor catalog; `.rgctl/kantra_findings.json`) |
 | Kantra target filter | `rgctl discover . --with-kantra --kantra-target quarkus` |
 | Kantra rules inventory (GQL) | `rgctl -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 20"` (after `--with-kantra` index) |

@@ -387,9 +387,11 @@ rgctl -f json metrics | jq '.communities.modularity'
 
 ```bash
 rgctl -f json check --policy-file policy.json
+rgctl -f json check --policy-file policy.json \
+  --base-ref origin/main --head-ref HEAD --strict
 ```
 
-Evaluates policy rules against **git-changed** functions (or all functions if git is unavailable).
+Evaluates policy rules against **git-scoped** functions. Default scope: `git diff --name-only HEAD` (working tree vs last commit). With `--base-ref` and `--head-ref`: commit-to-commit diff. Without `--strict`, empty scope falls back to all functions.
 
 ### TypeScript shape
 
@@ -411,6 +413,52 @@ interface CheckResponse {
 ```bash
 rgctl -f json check --policy-file policy.json | jq '{passed, count: (.violations | length)}'
 ```
+
+---
+
+## 8b. `pr-check`
+
+```bash
+rgctl -f json pr-check --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-ref origin/main --head-ref HEAD --strict
+```
+
+Temporal PR gate: compares base + head graph snapshots, git-scoped entities, classifies violations as `new` | `existing` | `resolved` | `regression`. Default head synthesis builds a delta head from the base artifact; use `--full-snapshots` for pre-built dual artifacts. Flags: `--bisect`, `--synthetic-head worktree`, `--cascade-depth`.
+
+### TypeScript shape
+
+```typescript
+interface PrCheckResponse {
+  schema_version: "2";
+  passed: boolean;
+  violations: {
+    symbol: string;
+    classification: "new" | "existing" | "resolved" | "regression";
+    violation: PolicyViolation;  // tagged union — see check / blast-radius
+    stable_key: number;
+    introduced_in_commit?: string;  // with --bisect
+    severity?: "warn" | "fail";   // calendar grace / sunset
+  }[];
+  violations_summary: {
+    new: number;
+    existing: number;
+    resolved: number;
+    regression: number;
+  };
+  graph_diff: {
+    nodes_added: number;
+    nodes_removed: number;
+    nodes_changed: number;
+    edges_added: number;
+    edges_removed: number;
+  };
+  scope: { files: number; entities: number };
+}
+```
+
+Exit **1** when `passed` is false. With `scope.new_violations_only`, only `new` (and `regression` when `scope.fail_on_regression` is true) block the gate. `resolved` violations are reported as debt paid down and do not fail.
+
+Appends outcomes to `.rgctl/violation_ledger.jsonl` keyed by `(stable_key, rule_id)`.
 
 ---
 

@@ -57,6 +57,9 @@ const ECOMMERCE_JAVA_KANTRA_ENRICH_BASELINE_SECS: f64 = 0.05;
 const K8S_WEBSITE_MIN_HEADING_MODULES: u64 = 500;
 /// Obsidian vault export on warm k8s index (~15–25s on maintainer machine).
 const K8S_WEBSITE_OBSIDIAN_EXPORT_BASELINE_SECS: f64 = 30.0;
+/// Delta `pr-check` on `crates/rgctl-graph` self-slice (`HEAD~5..HEAD`, base cache only).
+/// Baseline: **1.0 s** wall on reference M3 Pro (2026-09-10, release binary).
+const PR_CHECK_RGCTL_GRAPH_SLICE_BASELINE_SECS: f64 = 1.0;
 const TOLERANCE: f64 = 1.10;
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -81,6 +84,14 @@ pub fn kafka_repo_path() -> PathBuf {
     std::env::var("RGCTL_KAFKA_REPO")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/kafka"))
+}
+
+pub fn rgctl_graph_repo_path() -> PathBuf {
+    std::env::var("RGCTL_GRAPH_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("crates/rgctl-graph")
+        })
 }
 
 pub fn k8s_website_repo_path() -> PathBuf {
@@ -986,5 +997,63 @@ fn k8s_website_obsidian_export_to_vault() {
         "expected at least {K8S_WEBSITE_MIN_HEADING_MODULES} heading modules, got {heading_count}"
     );
     assert_within_baseline("k8s-website obsidian export", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: delta pr-check on crates/rgctl-graph (requires warm .rgctl-base only)"]
+fn pr_check_rgctl_graph_slice_within_baseline() {
+    let repo = rgctl_graph_repo_path();
+    let base_snapshot = repo.join(".rgctl-base/.rgctl/graph.snapshot.bin");
+    if !base_snapshot.is_file() {
+        eprintln!(
+            "skip: no base snapshot at {} (copy head artifact to .rgctl-base/.rgctl/)",
+            base_snapshot.display()
+        );
+        return;
+    }
+
+    let policy = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("rgctl-tests/rgctl-pr-policy.json");
+    if !policy.is_file() {
+        eprintln!("skip: policy fixture missing at {}", policy.display());
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_PR_CHECK_RGCTL_GRAPH_SLICE_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(PR_CHECK_RGCTL_GRAPH_SLICE_BASELINE_SECS);
+
+    let bin = rgctl_bin();
+    let start = Instant::now();
+    let output = Command::new(&bin)
+        .current_dir(&repo)
+        .args([
+            "-r",
+            repo.to_str().unwrap(),
+            "-f",
+            "json",
+            "pr-check",
+            "--policy-file",
+            policy.to_str().unwrap(),
+            "--base-ref",
+            "HEAD~5",
+            "--head-ref",
+            "HEAD",
+        ])
+        .output()
+        .expect("spawn pr-check");
+    let elapsed = start.elapsed();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "pr-check failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    eprintln!(
+        "pr-check rgctl-graph slice: wall={:.3}s (baseline {:.3}s)",
+        elapsed.as_secs_f64(),
+        baseline
+    );
+    assert_within_baseline("pr-check rgctl-graph slice", elapsed, baseline);
 }
 

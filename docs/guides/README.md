@@ -17,7 +17,7 @@ Practical, step-by-step guides for every major rgctl feature. Each guide uses th
 | [Inspecting CFG, PDG, and Dominance](inspecting-cfg-pdg-dominance.md) | `inspect` | Examine low-level control flow, data dependence, and dominator trees |
 | [Exporting Graphs](exporting-graphs.md) | `export` | Serialize graph data to JSON, GraphML, Graphviz, Mermaid, or Obsidian |
 | [Markdown Context Graph](markdown-context-graph.md) | `discover -l markdown` · `export` | Index docs, Obsidian/OKF export, fixture feature tour (k8s-website scale example) |
-| [CI Policy Checks](ci-policy-checks.md) | `check` | Enforce architectural rules in your CI pipeline |
+| [CI Policy Checks](ci-policy-checks.md) | `check`, `pr-check` | PR temporal gates and local policy checks |
 | [HTTP Server and Dashboard](http-server-and-dashboard.md) | `serve` | Run an HTTP API and browser-based dashboard |
 | [Migration Planning](migration-planning.md) | `discover --export-migration-hints` | Generate a dependency-aware migration roadmap |
 | [Agent Skill](agent-skill.md) | `install --skill` | Teach AI agents to use rgctl for refactoring, migration, porting, and testing |

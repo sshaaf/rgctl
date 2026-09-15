@@ -159,6 +159,41 @@ fn assert_handoffs_empty_array(doc: &Value) {
     assert!(handoffs.is_empty());
 }
 
+fn init_git_repo(dir: &Path) {
+    for args in [
+        ["init", "-b", "main"],
+        ["config", "user.email", "test@example.com"],
+        ["config", "user.name", "test"],
+    ] {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .output()
+            .expect("spawn git");
+        assert!(out.status.success(), "git {:?} failed", args);
+    }
+}
+
+fn git_commit_all(dir: &Path, message: &str) {
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .output()
+        .expect("git add");
+    let out = Command::new("git")
+        .args(["-c", "commit.gpgsign=false", "commit", "-m", message])
+        .current_dir(dir)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .output()
+        .expect("git commit");
+    assert!(out.status.success(), "git commit failed");
+}
+
 #[test]
 fn test_all_cli_commands_json_schema_sanity() {
     let sandbox = Sandbox::new();
@@ -369,6 +404,43 @@ fn test_all_cli_commands_json_schema_sanity() {
         }),
         "expected publishEvent scale violation, got {violations:?}"
     );
+
+    // --- check: strict empty diff fails; non-strict falls back to all symbols ---
+    init_git_repo(&sandbox.repo);
+    git_commit_all(&sandbox.repo, "indexed");
+    let check_strict = sandbox.run(&[
+        "-f",
+        "json",
+        "check",
+        "--policy-file",
+        permissive_policy.to_str().unwrap(),
+        "--base-ref",
+        "HEAD",
+        "--head-ref",
+        "HEAD",
+        "--strict",
+    ]);
+    assert_exit_code(&check_strict, 1, "check strict empty diff");
+    assert!(
+        str::from_utf8(&check_strict.stderr)
+            .unwrap_or("")
+            .contains("strict")
+            || str::from_utf8(&check_strict.stdout)
+                .unwrap_or("")
+                .contains("strict")
+    );
+    let check_scoped = sandbox.run(&[
+        "-f",
+        "json",
+        "check",
+        "--policy-file",
+        permissive_policy.to_str().unwrap(),
+        "--base-ref",
+        "HEAD",
+        "--head-ref",
+        "HEAD",
+    ]);
+    assert_exit_code(&check_scoped, 0, "check non-strict fallback");
 
     // --- slice CFG topology ---
     let lib_rs = sandbox.repo.join("rust/src/lib.rs");

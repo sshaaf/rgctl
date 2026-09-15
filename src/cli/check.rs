@@ -6,16 +6,39 @@ use super::context::CliContext;
 use super::policy_file::PolicyFile;
 use crate::analysis::{BlastRadiusEngine, CentralityAnalyzer, PetGraphView, PolicyViolation};
 use anyhow::Result;
-use rgctl_graph::schema::NodeType;
 use serde_json::json;
+use rgctl_incremental::changed_function_symbols;
 use std::path::Path;
-use std::process::Command;
 
 pub struct CheckArgs {
     pub policy_file: String,
+    pub base_ref: Option<String>,
+    pub head_ref: Option<String>,
+    pub strict: bool,
+    pub temporal: bool,
+    pub strict_calendar: bool,
 }
 
 pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
+    if args.temporal {
+        return super::pr_check::run(
+            ctx,
+            super::pr_check::PrCheckArgs {
+                policy_file: args.policy_file,
+                base_artifact: None,
+                head_artifact: None,
+                base_ref: args.base_ref.unwrap_or_else(|| "origin/main".to_string()),
+                head_ref: args.head_ref.unwrap_or_else(|| "HEAD".to_string()),
+                strict: args.strict,
+                cascade_depth: 1,
+                full_snapshots: false,
+                bisect: false,
+                synthetic_head: None,
+                strict_calendar: args.strict_calendar,
+            },
+        );
+    }
+
     if ctx.format == OutputFormat::Json {
         let mut session = rgctl_service::Session::new(&ctx.repo);
         if !session.graph_ready() {
@@ -25,6 +48,9 @@ pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
             &mut session,
             rgctl_service::Command::Check(rgctl_service::CheckArgs {
                 policy_file: args.policy_file.clone(),
+                base_ref: args.base_ref.clone(),
+                head_ref: args.head_ref.clone(),
+                strict: args.strict,
             }),
         )?;
         ctx.emit_json_value(&value)?;
@@ -34,7 +60,9 @@ pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
         return Ok(());
     }
 
-    let registry = PolicyFile::load(Path::new(&args.policy_file))?.into_registry();
+    let policy = PolicyFile::load(Path::new(&args.policy_file))?;
+    let strict = args.strict || policy.scope.strict_diff;
+    let registry = policy.into_registry();
     let centrality_threshold = registry.centrality_alert_threshold;
     let graph = ctx.load_graph()?;
     let backend = graph.backend();
@@ -42,7 +70,16 @@ pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
     let centrality = CentralityAnalyzer::new().analyze_with_view(&view)?.scores;
     let engine = BlastRadiusEngine::build(backend)?;
 
-    let symbols = changed_function_symbols(&ctx.repo, backend)?;
+    let symbols = changed_function_symbols(
+        &ctx.repo,
+        backend,
+        &rgctl_incremental::SymbolScopeOptions {
+            base_ref: args.base_ref.clone(),
+            head_ref: args.head_ref.clone(),
+            strict,
+        },
+    )
+    .map_err(|e| anyhow::anyhow!(e.to_string()))?;
     let symbol_count = symbols.len();
     let mut violation_rows = Vec::new();
 
@@ -99,48 +136,3 @@ pub fn run(ctx: &CliContext, args: CheckArgs) -> Result<()> {
     Ok(())
 }
 
-fn changed_function_symbols(
-    repo: &Path,
-    backend: &rgctl_graph::backend::MemoryBackend,
-) -> Result<Vec<String>> {
-    let output = Command::new("git")
-        .args(["diff", "--name-only", "HEAD"])
-        .current_dir(repo)
-        .output();
-
-    if let Ok(out) = output {
-        if out.status.success() {
-            let files = String::from_utf8_lossy(&out.stdout);
-            let paths: Vec<String> = files
-                .lines()
-                .filter(|l| !l.is_empty())
-                .map(str::to_string)
-                .collect();
-            if !paths.is_empty() {
-                let mut symbols = Vec::new();
-                for node in backend.all_nodes()? {
-                    if node.node_type != NodeType::Function {
-                        continue;
-                    }
-                    if let Some(ref fp) = node.file_path {
-                        if paths
-                            .iter()
-                            .any(|p| fp.ends_with(p) || p.ends_with(fp.as_str()))
-                        {
-                            symbols.push(node.name.to_string());
-                        }
-                    }
-                }
-                if !symbols.is_empty() {
-                    return Ok(symbols);
-                }
-            }
-        }
-    }
-
-    Ok(backend
-        .collect_nodes_by_type(NodeType::Function)?
-        .into_iter()
-        .map(|n| n.name.to_string())
-        .collect())
-}

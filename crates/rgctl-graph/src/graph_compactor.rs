@@ -341,4 +341,84 @@ mod tests {
         invalidated.insert("b.rs".to_string());
         assert!(node_matches_invalidated(&node, &invalidated));
     }
+
+    #[test]
+    fn cross_file_call_edge_survives_callee_file_reextract() {
+        let main_fn = Node::new(NodeType::Function, "main").with_file_path("main.rs");
+        let login = Node::new(NodeType::Function, "login").with_file_path("auth.rs");
+        let main_id = main_fn.id;
+        let login_id = login.id;
+        let call = Edge::new(main_id, login_id, EdgeType::Calls);
+
+        let tmp = TempDir::new().unwrap();
+        let base_path = tmp.path().join("base.bin");
+        write_columnar_from_nodes_edges(vec![main_fn, login], vec![call], &base_path).unwrap();
+
+        let login_reextracted = Node::new(NodeType::Function, "login").with_file_path("auth.rs");
+        assert_eq!(login_reextracted.id, login_id);
+
+        let mut delta = DeltaSegment::new();
+        delta.invalidate_file("auth.rs");
+        delta.new_nodes.push(login_reextracted);
+        delta
+            .new_edges
+            .push(Edge::new(main_id, login_id, EdgeType::Calls));
+
+        let out = tmp.path().join("out.bin");
+        let scratch = tmp.path().join("scratch");
+        let stats = compact_snapshot_file(&base_path, delta, &out, &scratch).unwrap();
+        assert_eq!(stats.edges_dropped, 0, "main→login must survive re-extract");
+
+        let file = File::open(&out).unwrap();
+        let mmap = Arc::new(unsafe { Mmap::map(&file).unwrap() });
+        let col = ColumnarGraphMmap::open(mmap).unwrap();
+        let mut found = false;
+        col.for_each_edge(|from, to, edge_type| {
+            if from == main_id && to == login_id && edge_type == EdgeType::Calls {
+                found = true;
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert!(found);
+    }
+
+    #[test]
+    fn callee_rename_drops_stale_cross_file_edge() {
+        let main_fn = Node::new(NodeType::Function, "main").with_file_path("main.rs");
+        let login = Node::new(NodeType::Function, "login").with_file_path("auth.rs");
+        let main_id = main_fn.id;
+        let login_id = login.id;
+        let call = Edge::new(main_id, login_id, EdgeType::Calls);
+
+        let tmp = TempDir::new().unwrap();
+        let base_path = tmp.path().join("base.bin");
+        write_columnar_from_nodes_edges(vec![main_fn, login], vec![call], &base_path).unwrap();
+
+        let authenticate =
+            Node::new(NodeType::Function, "authenticate").with_file_path("auth.rs");
+        assert_ne!(authenticate.id, login_id);
+
+        let mut delta = DeltaSegment::new();
+        delta.invalidate_file("auth.rs");
+        delta.new_nodes.push(authenticate);
+
+        let out = tmp.path().join("out.bin");
+        let scratch = tmp.path().join("scratch");
+        let stats = compact_snapshot_file(&base_path, delta, &out, &scratch).unwrap();
+        assert!(stats.edges_dropped >= 1, "stale main→login edge must drop");
+
+        let file = File::open(&out).unwrap();
+        let mmap = Arc::new(unsafe { Mmap::map(&file).unwrap() });
+        let col = ColumnarGraphMmap::open(mmap).unwrap();
+        let mut stale_call = false;
+        col.for_each_edge(|from, to, edge_type| {
+            if from == main_id && to == login_id && edge_type == EdgeType::Calls {
+                stale_call = true;
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert!(!stale_call);
+    }
 }

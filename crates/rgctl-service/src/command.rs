@@ -185,6 +185,12 @@ pub struct CpgArgs {
 pub struct CheckArgs {
     /// Path to policy JSON.
     pub policy_file: String,
+    /// Git base ref for diff scoping.
+    pub base_ref: Option<String>,
+    /// Git head ref for diff scoping.
+    pub head_ref: Option<String>,
+    /// Fail when diff scope is empty or unmatched.
+    pub strict: bool,
 }
 
 /// Top-level command.

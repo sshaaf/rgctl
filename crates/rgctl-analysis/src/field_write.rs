@@ -474,6 +474,7 @@ pub fn build_and_save_field_write_index(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use smallvec::SmallVec;
     use crate::cfg::{ControlFlowGraph, Statement, StatementKind};
     use std::collections::HashSet;
     use uuid::Uuid;

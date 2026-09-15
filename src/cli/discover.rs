@@ -1,9 +1,17 @@
 //! `rgctl discover` — index and analyze a repository.
 
+use super::args::OutputFormat;
 use super::context::CliContext;
 use super::discover_impl::{AnalysisOptions, run_full_analysis};
 use super::pipeline_session::{FullPipelineArgs, run_full_pipeline};
-use anyhow::Result;
+use crate::discovery::DiscoveryConfig;
+use crate::languages::registry::LanguageRegistry;
+use anyhow::{Context, Result};
+use rgctl_graph::code_graph::CodeGraph;
+use rgctl_graph::snapshot::MmappedGraphSnapshot;
+use rgctl_incremental::{IncrementalUpdater, UpdateOptions};
+use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct DiscoverArgs {
@@ -46,6 +54,10 @@ pub struct DiscoverArgs {
     pub migration_order: String,
     /// When set, persist artifacts here instead of the scanned tree (daemon cache).
     pub artifact_root: Option<std::path::PathBuf>,
+    /// Incremental file paths (repo-relative); skips full discover when set.
+    pub files: Option<Vec<String>>,
+    /// Reverse call-dependency hops for `--files` updates.
+    pub cascade_depth: usize,
 }
 
 /// Resolve discover root: absolute PATH, PATH joined to `--repo`, or `--repo`/cwd.
@@ -73,6 +85,10 @@ pub fn run(ctx: &CliContext, args: DiscoverArgs) -> Result<()> {
         &args.kantra_catalog,
     )?;
     let path = resolve_session_root(ctx, args.path.as_deref());
+
+    if let Some(files) = &args.files {
+        return run_files_update(ctx, &path, files.clone(), &args);
+    }
 
     if args.full {
         run_full_pipeline(ctx, &path, FullPipelineArgs::from_discover(&args))?;
@@ -108,5 +124,67 @@ pub fn run(ctx: &CliContext, args: DiscoverArgs) -> Result<()> {
             artifact_root: args.artifact_root.as_deref(),
         },
     )?;
+    Ok(())
+}
+
+fn run_files_update(ctx: &CliContext, path: &str, files: Vec<String>, args: &DiscoverArgs) -> Result<()> {
+    let root = Path::new(path);
+    let snapshot = MmappedGraphSnapshot::default_path(root);
+    if !snapshot.is_file() {
+        anyhow::bail!(
+            "no graph snapshot at {}; run `rgctl discover` first",
+            snapshot.display()
+        );
+    }
+
+    let mut discovery = DiscoveryConfig::default();
+    if let Some(langs) = &args.languages {
+        discovery.languages = Some(
+            langs
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
+        );
+    }
+    if let Some(excludes) = &args.exclude {
+        discovery.exclude_patterns = excludes
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
+
+    let registry: Arc<rgctl_registry::LanguageRegistry> = LanguageRegistry::new().into();
+    let mut graph = CodeGraph::open_snapshot(&snapshot)
+        .with_context(|| format!("open snapshot {}", snapshot.display()))?;
+    let updater = IncrementalUpdater::with_options(
+        registry,
+        UpdateOptions {
+            discovery,
+            cascade_depth: args.cascade_depth,
+            show_progress: ctx.format != OutputFormat::Json,
+            ..Default::default()
+        },
+    );
+    let result = updater
+        .update_files(&mut graph, root, &files)
+        .with_context(|| "incremental file update")?;
+
+    if ctx.format == OutputFormat::Json {
+        ctx.emit_json_value(&serde_json::json!({
+            "schema_version": 1,
+            "files_affected": result.files_affected(),
+            "nodes_added": result.nodes_added,
+            "nodes_removed": result.nodes_removed,
+        }))?;
+    } else {
+        println!(
+            "Updated {} files (+{} / -{} nodes)",
+            result.files_affected(),
+            result.nodes_added,
+            result.nodes_removed
+        );
+    }
     Ok(())
 }

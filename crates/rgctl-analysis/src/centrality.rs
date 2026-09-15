@@ -817,6 +817,24 @@ impl CentralityAnalyzer {
         ))
     }
 
+    /// Centrality on the induced subgraph of `seed_ids` only (PR scope, depth 0).
+    pub fn analyze_scoped(
+        &self,
+        store: &rgctl_graph::SnapshotNodeStore,
+        seed_ids: &[Uuid],
+    ) -> Result<HashMap<Uuid, CentralityScores>> {
+        use crate::scoped_policy::hydrate_subset;
+        use std::collections::HashSet;
+
+        let ids: HashSet<Uuid> = seed_ids.iter().copied().collect();
+        if ids.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let backend = hydrate_subset(store, &ids)?;
+        let view = PetGraphView::from_backend(&backend)?;
+        Ok(self.analyze_with_view(&view)?.scores)
+    }
+
     /// Calculate centrality metrics for all nodes using the configured edge filter.
     pub fn analyze_with_view(&self, view: &PetGraphView) -> Result<CentralityReport> {
         let n = view.node_count();

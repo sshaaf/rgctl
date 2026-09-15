@@ -149,6 +149,7 @@ impl FileTracker {
             added,
             changed,
             deleted,
+            renamed: Vec::new(),
         })
     }
 
@@ -193,23 +194,59 @@ impl FileTracker {
     }
 }
 
-/// Set of file changes detected by hash comparison.
+/// Set of file changes detected by hash comparison or git name-status.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ChangeSet {
-    /// Newly discovered files
+    /// Newly discovered files (`A` in git name-status).
     pub added: Vec<String>,
-    /// Files whose hash changed
+    /// Files whose hash or content changed (`M`).
     pub changed: Vec<String>,
-    /// Files removed since last index
+    /// Files removed since last index (`D`).
     pub deleted: Vec<String>,
+    /// Rename or copy pairs (`R*` / `C*`): `(old_path, new_path)`.
+    pub renamed: Vec<(String, String)>,
 }
 
 impl ChangeSet {
-    /// All paths that require graph updates (added + changed + deleted).
+    /// All paths that require graph updates (added + changed + deleted + rename sides).
     pub fn affected(&self) -> Vec<String> {
+        let mut paths = self.scoped_paths();
+        paths.sort();
+        paths.dedup();
+        paths
+    }
+
+    /// Repo-relative paths in the PR / watch scope (includes deleted and rename sides).
+    pub fn scoped_paths(&self) -> Vec<String> {
         let mut paths = self.added.clone();
         paths.extend(self.changed.clone());
         paths.extend(self.deleted.clone());
+        for (old, new) in &self.renamed {
+            paths.push(old.clone());
+            paths.push(new.clone());
+        }
+        paths
+    }
+
+    /// Paths whose base-graph nodes must be dropped before compacting the delta.
+    pub fn invalidation_paths(&self) -> Vec<String> {
+        let mut paths = self.changed.clone();
+        paths.extend(self.deleted.clone());
+        for (old, _) in &self.renamed {
+            paths.push(old.clone());
+        }
+        paths.sort();
+        paths.dedup();
+        paths
+    }
+
+    /// Repo-relative paths that need (re-)extraction after invalidation.
+    pub fn extract_paths(&self) -> Vec<String> {
+        let mut paths = self.added.clone();
+        paths.extend(self.changed.clone());
+        for (_, new) in &self.renamed {
+            paths.push(new.clone());
+        }
         paths.sort();
         paths.dedup();
         paths
@@ -217,12 +254,44 @@ impl ChangeSet {
 
     /// Whether any changes were detected.
     pub fn is_empty(&self) -> bool {
-        self.added.is_empty() && self.changed.is_empty() && self.deleted.is_empty()
+        self.added.is_empty()
+            && self.changed.is_empty()
+            && self.deleted.is_empty()
+            && self.renamed.is_empty()
     }
 
-    /// Total number of changed files (added + modified + deleted).
+    /// Total number of changed files (added + modified + deleted + renames).
     pub fn len(&self) -> usize {
-        self.added.len() + self.changed.len() + self.deleted.len()
+        self.added.len()
+            + self.changed.len()
+            + self.deleted.len()
+            + self.renamed.len()
+    }
+}
+
+/// Merge two change sets, preferring explicit git status when paths overlap.
+pub fn merge_change_sets(primary: ChangeSet, supplemental: ChangeSet) -> ChangeSet {
+    let mut merged = primary;
+    for path in supplemental.added {
+        push_unique(&mut merged.added, path);
+    }
+    for path in supplemental.changed {
+        push_unique(&mut merged.changed, path);
+    }
+    for path in supplemental.deleted {
+        push_unique(&mut merged.deleted, path);
+    }
+    for pair in supplemental.renamed {
+        if !merged.renamed.contains(&pair) {
+            merged.renamed.push(pair);
+        }
+    }
+    merged
+}
+
+fn push_unique(vec: &mut Vec<String>, path: String) {
+    if !vec.contains(&path) {
+        vec.push(path);
     }
 }
 
@@ -316,6 +385,7 @@ pub fn changes_for_paths(repo_root: &Path, relative_paths: &[String]) -> Result<
         added,
         changed,
         deleted,
+        renamed: Vec::new(),
     })
 }
 

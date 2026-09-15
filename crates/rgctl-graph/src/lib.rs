@@ -33,6 +33,10 @@ pub mod schema;
 pub mod segmented_spill;
 /// Prepared and memory-mapped snapshot I/O.
 pub mod snapshot;
+/// Structural diff between two columnar snapshots.
+pub mod snapshot_diff;
+/// Stable cross-snapshot node identity.
+pub mod stable_key;
 pub mod structural_sketch;
 
 pub use code_graph::CodeGraph;
@@ -57,6 +61,15 @@ pub use segmented_spill::{
 };
 pub use snapshot::{
     MmappedGraphSnapshot, PreparedGraphSnapshot, PreparedIndexes, SNAPSHOT_FILE, SnapshotNodeStore,
+};
+pub use snapshot_diff::{
+    DiffSink, DiffStats, EdgeDeltaEvent, EdgeDeltaKind, NodeDeltaEvent, NodeDeltaKind, NoopDiffSink,
+    SnapshotPair, VecDiffSink, diff_snapshots,
+};
+pub use stable_key::{
+    MmapNodeKey, NodeRowRef, StableNodeKey, NAMESPACE_RGCTL, deterministic_node_id,
+    extension_digest, node_row_ref, node_scope_path_at, stable_key_from_facets,
+    stable_key_from_row, stable_key_to_uuid,
 };
 pub use structural_sketch::{
     MIN_TOKEN_LEN, TOKEN_BLOOM_BITS, TOKEN_BLOOM_WORDS, TokenBloom, build_token_bloom, empty_bloom,

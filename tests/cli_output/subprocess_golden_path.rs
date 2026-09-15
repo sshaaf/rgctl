@@ -404,3 +404,201 @@ fn check_policy_violation_fails_closed_with_exit_one() {
         "expected publishEvent violation, got {violations:?}"
     );
 }
+
+fn init_git_repo(dir: &Path) {
+    for args in [
+        ["init", "-b", "main"],
+        ["config", "user.email", "test@example.com"],
+        ["config", "user.name", "test"],
+    ] {
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .output()
+            .expect("spawn git");
+        assert!(out.status.success(), "git {:?} failed", args);
+    }
+}
+
+fn git_commit_all(dir: &Path, message: &str) {
+    Command::new("git")
+        .args(["add", "."])
+        .current_dir(dir)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .output()
+        .expect("git add");
+    let out = Command::new("git")
+        .args(["-c", "commit.gpgsign=false", "commit", "-m", message])
+        .current_dir(dir)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .output()
+        .expect("git commit");
+    assert!(out.status.success(), "git commit failed");
+}
+
+#[test]
+fn pr_check_json_passes_when_only_existing_violations() {
+    use rgctl_graph::backend::GraphBackend;
+    use rgctl_graph::schema::{Edge, EdgeType, Node, NodeType};
+    use rgctl_graph::write_columnar_from_nodes_edges;
+
+    let dir = materialize_fixture();
+    let repo = dir.path();
+    init_git_repo(repo);
+    fs::create_dir_all(repo.join("src")).unwrap();
+    fs::write(repo.join("src/pkg.rs"), "fn target_fn() {}\n").unwrap();
+
+    let write_snapshot = |path: &Path, callers: usize| {
+        let mut backend = rgctl_graph::backend::MemoryBackend::new();
+        let target = Node::new(NodeType::Function, "target_fn").with_file_path("src/pkg.rs");
+        let target_id = target.id;
+        backend.insert_node(target).unwrap();
+        for i in 0..callers {
+            let caller =
+                Node::new(NodeType::Function, format!("caller{i}")).with_file_path("src/pkg.rs");
+            let caller_id = caller.id;
+            backend.insert_node(caller).unwrap();
+            backend
+                .insert_edge(Edge::new(caller_id, target_id, EdgeType::Calls))
+                .unwrap();
+        }
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        write_columnar_from_nodes_edges(
+            backend.all_nodes().unwrap(),
+            backend.all_edges().unwrap(),
+            path,
+        )
+        .unwrap();
+    };
+
+    fs::create_dir_all(repo.join(".rgctl")).unwrap();
+    write_snapshot(&repo.join(".rgctl/graph.snapshot.bin"), 6);
+    git_commit_all(repo, "base");
+
+    fs::write(repo.join("src/pkg.rs"), "fn target_fn() { /* changed */ }\n").unwrap();
+    write_snapshot(&repo.join(".rgctl/graph.snapshot.bin"), 6);
+    git_commit_all(repo, "head");
+
+    fs::create_dir_all(repo.join(".rgctl-base/.rgctl")).unwrap();
+    write_snapshot(&repo.join(".rgctl-base/.rgctl/graph.snapshot.bin"), 6);
+
+    let policy_path = repo.join("pr_policy.json");
+    fs::write(
+        &policy_path,
+        r#"{"max_impact_nodes": 5, "scope": {"new_violations_only": true}}"#,
+    )
+    .expect("write policy");
+
+    let output = run_rgctl(
+        repo,
+        &[
+            "-f",
+            "json",
+            "pr-check",
+            "--policy-file",
+            policy_path.to_str().unwrap(),
+            "--base-ref",
+            "HEAD~1",
+            "--head-ref",
+            "HEAD",
+            "--full-snapshots",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "pr-check pass failed: stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let doc: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("pr-check stdout json");
+    assert_eq!(doc["schema_version"].as_str(), Some("2"));
+    assert_eq!(doc["passed"].as_bool(), Some(true));
+    assert!(doc["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|v| v["classification"].as_str() == Some("existing")));
+}
+
+#[test]
+fn pr_check_json_fails_on_new_temporal_violation() {
+    use rgctl_graph::backend::GraphBackend;
+    use rgctl_graph::schema::{Edge, EdgeType, Node, NodeType};
+    use rgctl_graph::write_columnar_from_nodes_edges;
+
+    let dir = materialize_fixture();
+    let repo = dir.path();
+    init_git_repo(repo);
+    fs::create_dir_all(repo.join("src")).unwrap();
+    fs::write(repo.join("src/pkg.rs"), "fn target_fn() {}\n").unwrap();
+
+    let write_snapshot = |path: &Path, callers: usize| {
+        let mut backend = rgctl_graph::backend::MemoryBackend::new();
+        let target = Node::new(NodeType::Function, "target_fn").with_file_path("src/pkg.rs");
+        let target_id = target.id;
+        backend.insert_node(target).unwrap();
+        for i in 0..callers {
+            let caller =
+                Node::new(NodeType::Function, format!("caller{i}")).with_file_path("src/pkg.rs");
+            let caller_id = caller.id;
+            backend.insert_node(caller).unwrap();
+            backend
+                .insert_edge(Edge::new(caller_id, target_id, EdgeType::Calls))
+                .unwrap();
+        }
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        write_columnar_from_nodes_edges(
+            backend.all_nodes().unwrap(),
+            backend.all_edges().unwrap(),
+            path,
+        )
+        .unwrap();
+    };
+
+    fs::create_dir_all(repo.join(".rgctl")).unwrap();
+    write_snapshot(&repo.join(".rgctl/graph.snapshot.bin"), 0);
+    git_commit_all(repo, "base");
+
+    fs::write(repo.join("src/pkg.rs"), "fn target_fn() { /* changed */ }\n").unwrap();
+    write_snapshot(&repo.join(".rgctl/graph.snapshot.bin"), 6);
+    git_commit_all(repo, "head");
+
+    fs::create_dir_all(repo.join(".rgctl-base/.rgctl")).unwrap();
+    write_snapshot(&repo.join(".rgctl-base/.rgctl/graph.snapshot.bin"), 0);
+
+    let policy_path = repo.join("pr_policy.json");
+    fs::write(
+        &policy_path,
+        r#"{"max_impact_nodes": 5, "scope": {"new_violations_only": true}}"#,
+    )
+    .expect("write policy");
+
+    let output = run_rgctl(
+        repo,
+        &[
+            "-f",
+            "json",
+            "pr-check",
+            "--policy-file",
+            policy_path.to_str().unwrap(),
+            "--base-ref",
+            "HEAD~1",
+            "--head-ref",
+            "HEAD",
+            "--full-snapshots",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let doc: serde_json::Value =
+        serde_json::from_slice(&output.stdout).expect("pr-check stdout json");
+    assert_eq!(doc["passed"].as_bool(), Some(false));
+    assert!(doc["violations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|v| v["classification"].as_str() == Some("new")));
+}

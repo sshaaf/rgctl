@@ -79,6 +79,18 @@ pub enum PolicyViolation {
     },
 }
 
+impl PolicyViolation {
+    /// Stable policy rule identifier for ledger keys and temporal tracking.
+    pub fn rule_id(&self) -> &'static str {
+        match self {
+            Self::DomainIsolation { .. } => "forbidden_crossings",
+            Self::ScaleFailure { .. } => "max_impact_nodes",
+            Self::CascadeHazard { .. } => "centrality_alert_threshold",
+            Self::SanitizationBypass { .. } => "sanitization_bypass",
+        }
+    }
+}
+
 impl std::fmt::Display for PolicyViolation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

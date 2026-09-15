@@ -1,0 +1,14 @@
+{
+  "max_impact_nodes": 50,
+  "centrality_alert_threshold": 0.15,
+  "scope": {
+    "new_violations_only": true,
+    "strict_diff": false
+  },
+  "size_limits": {
+    "max_changed_files": 500,
+    "max_scoped_entities": 5000
+  },
+  "forbidden_crossings": [],
+  "node_domains": {}
+}

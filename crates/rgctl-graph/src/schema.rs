@@ -436,9 +436,14 @@ impl Node {
         self
     }
 
-    /// Set the file path
+    /// Set the file path and assign a deterministic [`id`](Self::id) from stable facets.
     pub fn with_file_path(mut self, file_path: impl Into<SharedStr>) -> Self {
         self.file_path = Some(file_path.into());
+        self.id = crate::stable_key::deterministic_node_id(
+            self.file_path.as_deref().map(|s| s.as_ref()),
+            self.name.as_ref(),
+            self.node_type,
+        );
         self
     }
 

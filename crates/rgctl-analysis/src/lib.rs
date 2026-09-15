@@ -7,6 +7,7 @@ pub mod analysis_pack;
 pub mod ast_skeleton;
 pub mod blast_engine_snapshot;
 pub mod blast_radius;
+pub mod calendar_policy;
 pub mod blast_radius_scc;
 pub mod blast_slice_handoff;
 pub mod callgraph;
@@ -40,7 +41,10 @@ pub mod migration;
 pub mod node_lookup;
 pub mod pdg;
 pub mod policy;
+pub mod policy_diff;
+pub mod violation_ledger;
 pub mod results;
+pub mod scoped_policy;
 pub mod semantic_code_daemon;
 pub mod semantic_diffuse;
 #[cfg(feature = "semantic-onnx")]
@@ -162,6 +166,21 @@ pub use pdg::{
     ProgramDependenceGraph,
 };
 pub use policy::{DomainId, PolicyRegistry, PolicyViolation, check_policies, evaluate_policies};
+pub use calendar_policy::{
+    CalendarDisposition, CalendarSeverity, GraceSeverity, PolicyTemporal,
+    evaluate_calendar_disposition, evaluate_calendar_for_deltas, iso_date_to_day_number,
+    system_today_days, system_unix_secs,
+};
+pub use policy_diff::{
+    PolicyDelta, TemporalClass, apply_ledger_regression, evaluate_temporal, record_deltas_to_ledger,
+};
+pub use violation_ledger::{
+    VIOLATION_LEDGER_FILE, ViolationLedger, ViolationLedgerEntry, ledger_entry_from_delta,
+};
+pub use scoped_policy::{
+    build_pr_check_centrality, collect_upstream_call_closure, hydrate_subset, load_centrality_cache,
+    scope_entity_ids,
+};
 pub use results::{
     AnalysisResults, BlastRadiusMetrics, BlastRadiusTable, CentralityMetrics, CentralityTable,
     CommunityTable, ComplexityTable, StructuralSketchTable,
