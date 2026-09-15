@@ -231,9 +231,10 @@ rgctl -r /path/to/repo install --skill   # specific repo
 This writes skill files to:
 
 - `<repo>/.claude/skills/rgctl/` (Claude Code) — `SKILL.md`, `references/`, …
+- `<repo>/.agents/skills/rgctl/` (Codex)
 - `<repo>/.cursor/skills/rgctl/` (Cursor)
 
-Limit to one host with `--host claude` or `--host cursor`. Use `--force` to overwrite after upgrading `rgctl`.
+Limit to one host with `--host claude`, `--host codex`, or `--host cursor`. Use `--force` to overwrite after upgrading `rgctl`.
 
 See the [Agent Skill guide](guides/agent-skill.md) and [AGENTS.md](../AGENTS.md).
 
@@ -318,6 +319,7 @@ rm -rf ~/.rgctl/cache
 
 ```bash
 rm -rf /path/to/repo/.claude/skills/rgctl
+rm -rf /path/to/repo/.agents/skills/rgctl
 rm -rf /path/to/repo/.cursor/skills/rgctl
 ```
 

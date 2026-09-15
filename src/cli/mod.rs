@@ -357,7 +357,7 @@ pub enum Commands {
 
     /// Install bundled artifacts into a repository
     Install {
-        /// Install the rgctl agent skill (Claude Code + Cursor project dirs)
+        /// Install the rgctl agent skill (Claude Code + Codex + Cursor project dirs)
         #[arg(long = "skill")]
         skill: bool,
 

@@ -78,8 +78,13 @@ pub fn run(ctx: &CliContext, args: InstallArgs) -> Result<()> {
 
 fn host_targets(host: SkillHost) -> &'static [InstallWriteHost] {
     match host {
-        SkillHost::All => &[InstallWriteHost::Claude, InstallWriteHost::Cursor],
+        SkillHost::All => &[
+            InstallWriteHost::Claude,
+            InstallWriteHost::Codex,
+            InstallWriteHost::Cursor,
+        ],
         SkillHost::Claude => &[InstallWriteHost::Claude],
+        SkillHost::Codex => &[InstallWriteHost::Codex],
         SkillHost::Cursor => &[InstallWriteHost::Cursor],
     }
 }
@@ -87,6 +92,7 @@ fn host_targets(host: SkillHost) -> &'static [InstallWriteHost] {
 fn skill_dir_for(repo: &Path, host: InstallWriteHost) -> PathBuf {
     let agent_dir = match host {
         InstallWriteHost::Claude => ".claude",
+        InstallWriteHost::Codex => ".agents",
         InstallWriteHost::Cursor => ".cursor",
     };
     repo.join(agent_dir).join("skills").join(SKILL_DIR_NAME)

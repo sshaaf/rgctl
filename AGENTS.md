@@ -10,7 +10,7 @@ rgctl is designed so agents answer **structural questions** from a pre-built gra
 
 Default for agents: spawn **`rgctl -f json`** subprocesses (or use foreground **`rgctl serve`** for repeated HTTP queries). Do **not** open the browser dashboard unless the user asks for a visual UI.
 
-Install the project skill once (Claude Code + Cursor dirs under the repo):
+Install the project skill once (Claude Code, Codex, and Cursor dirs under the repo):
 
 ```bash
 rgctl -r "$REPO" install --skill

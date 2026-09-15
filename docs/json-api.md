@@ -1036,7 +1036,7 @@ rgctl -r "$REPO" -f json cpg calls priceShoppingCart | jq '.edges[:10]'
 Copy the bundled rgctl agent skill into project skill directories. Does **not** require a prior `discover`. Types: `src/cli/install_output.rs`. `schema_version` is **1**.
 
 ```bash
-rgctl -r "$REPO" -f json install --skill [--host all|claude|cursor] [--force]
+rgctl -r "$REPO" -f json install --skill [--host all|claude|codex|cursor] [--force]
 ```
 
 ```typescript
@@ -1049,7 +1049,7 @@ type InstallResponse = {
   repo: string; // absolute repository root
   force: boolean;
   writes: Array<{
-    host: "claude" | "cursor";
+    host: "claude" | "codex" | "cursor";
     path: string; // absolute dest path
     status: InstallWriteStatus;
   }>;
@@ -1741,7 +1741,7 @@ See [json-api.md §18](json-api.md#18-install). Source: `src/cli/install_output.
 | `skill` | string | Always `"rgctl"` |
 | `repo` | string | Absolute repository root |
 | `force` | bool | Whether `--force` was set |
-| `writes[].host` | string | `"claude"` or `"cursor"` |
+| `writes[].host` | string | `"claude"`, `"codex"`, or `"cursor"` |
 | `writes[].path` | string | Absolute dest path |
 | `writes[].status` | string | `created` / `unchanged` / `overwritten` / `skipped_exists` |
 
