@@ -18,7 +18,7 @@ rgctl uses a **hybrid tiering** model:
 | **Tier 2** | Generic tree-sitter | `rgctl-lang-{id}/` + `config.rs` | Kinds from `LanguageConfig` | Optional | Usually none | Not required |
 | **Tier 3** | Regex | `rgctl-lang-{id}/` + regex patterns | Pattern-based symbols | No | No | No |
 
-**Tier 1 custom plugins today:** Rust, Python, TypeScript, JavaScript, Go, Java, C#, C, C++, PHP — see `languages.toml` (`handler = "custom"`).
+**Tier 1 custom plugins today:** Rust, Python, Ruby, PHP, TypeScript, JavaScript, Go, Java, C#, C, C++ — see `languages.toml` (`handler = "custom"`).
 
 **Markdown** is a separate **custom markup plugin** (`rgctl-lang-markdown`): documentation context graph only — not Tier 1 and not generic Tier 2. See [markdown-context.md](markdown-context.md).
 

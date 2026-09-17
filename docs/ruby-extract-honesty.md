@@ -15,3 +15,5 @@ Limits (static analysis only):
 - `include` / `prepend` modeled as mixin `Extends`; `extend` as `Uses`
 - Block/yield CFG uses nested sub-CFGs; yield edges are conservative
 - Chef/Rails magic deferred to follow-up plugins
+
+See also: [languages/ruby.md](languages/ruby.md) · [tier-1-language-support.md §8](tier-1-language-support.md#8-current-parity-snapshot-2026-07) · cold profile on `example/discourse` ([profile.md](internal/profile.md)).

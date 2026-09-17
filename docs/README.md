@@ -18,7 +18,7 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 **First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.  
 **Latest release:** [v0.4.14 release notes](releases/v0.4.14.md) (agent pack install, multi-tool workflow skills and slash commands).
 
-**Upgrading from v0.4.9:** no breaking changes — PHP is additive (`discover -l php`).
+**Upgrading from v0.4.9:** no breaking changes — PHP is additive (`discover -l php`). Ruby is additive (`discover -l ruby`).
 
 **Upgrading from v0.4.8:** [v0.4.9 release notes](releases/v0.4.9.md) (daemon/MCP removed; Kantra; in-repo `.rgctl/` only).
 

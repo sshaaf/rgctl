@@ -40,8 +40,8 @@ All guides in this section are **Tier 1**.
 | `--full` | Full pipeline (used on large Java example corpora) |
 
 ```bash
-rgctl discover . -l python,go,rust
-rgctl discover . -e node_modules,target,.git
+rgctl discover . -l python,go,rust,ruby
+rgctl discover . -e node_modules,target,.git,vendor,tmp
 ```
 
 ## Run all smoke tests

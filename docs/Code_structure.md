@@ -129,7 +129,7 @@ flowchart TB
 | **Analysis is graph-only** | Algorithms in `rgctl-analysis` take `MemoryBackend`, `PetGraphView`, or snapshots — not raw source files (except CFG/PDG/slice paths that explicitly need source). |
 | **CLI is thin** | `src/cli/` parses args, resolves paths, calls library crates. Heavy logic belongs in workspace crates, not new `src/cli/*.rs` helpers. JSON shape lives in `*_output.rs`; graph/cache enrichment stays in `rgctl-analysis`. |
 | **Errors are centralized** | Use `rgctl_error::Error` / `Result` from `rgctl-error`. Do not add ad-hoc error enums in the CLI. |
-| **All languages always linked** | The binary always includes all nine Tier 1 language plugins via `rgctl-languages`. |
+| **All languages always linked** | The binary always includes every Tier 1 `LanguagePlugin` in `rgctl-languages` (see [`languages.toml`](../languages.toml)). |
 
 ### Layer responsibilities
 

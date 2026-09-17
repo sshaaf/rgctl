@@ -76,7 +76,7 @@ cargo build --release --bin rgctl
 ./target/release/rgctl --version
 ```
 
-All **nine** Tier 1 languages (Rust, Python, JavaScript, TypeScript, Go, Java, C#, C, C++) plus markdown are always included in the binary -- no per-language feature flags.
+All **Tier 1** languages registered in [`languages.toml`](languages.toml) (Rust, Python, Ruby, PHP, JavaScript, TypeScript, Go, Java, C#, C, C++) plus markdown are always included in the binary — no per-language feature flags.
 
 **Optional ONNX weights** (only for `--embedder code-daemon`):
 

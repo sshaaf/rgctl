@@ -69,7 +69,7 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `node_javascript_cold_discover_within_baseline` | `example/node/test` | `-l javascript` | **5 s** |
 | `node_javascript_cold_discover_with_cfg_within_baseline` | `example/node/test` | `-l javascript --with-cfg` | **7 s** |
 | `home_assistant_python_cold_discover_within_baseline` | `example/home-assistant` | `-l python` | **20 s** |
-| `discourse_cold_discover_within_baseline` | `example/discourse` | `-l ruby` | env `RGCTL_DISCOURSE_RUBY_COLD_BASELINE_SECS` (default **120 s**) |
+| `discourse_cold_discover_within_baseline` | `example/discourse` | `-l ruby` | env `RGCTL_DISCOURSE_RUBY_COLD_BASELINE_SECS` (default **120 s**; see measured run below) |
 | `pr_check_rgctl_graph_slice_within_baseline` | `crates/rgctl-graph` | delta `pr-check` (base cache only) | **1.0 s** |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`-r <corpus>`, `discover . -v`).
@@ -232,6 +232,19 @@ Top stages (% of wall): `index_extract` **~6.4 s** (30%), `index_graph_build` **
 | Nodes / functions | **558,729** / **122,320** |
 | Files indexed | **18,628** |
 | `index_graph_build` | **~3.4 s** |
+
+### Discourse (`example/discourse`) — `-l ruby`
+
+| Metric | Value |
+|--------|-------|
+| **Gate baseline** | **120 s** (pass ≤ 132 s; override `RGCTL_DISCOURSE_RUBY_COLD_BASELINE_SECS`) — conservative placeholder until the team pins a stricter wall from reference hardware |
+| Corpus | [discourse/discourse](https://github.com/discourse/discourse) (`./scripts/fetch-profile-repos.sh` → `example/discourse`, depth-1 clone OK) |
+| Discover | `discover . -v -l ruby` from repo root (exclude heavy dirs via `-e vendor,tmp,node_modules` when profiling manually) |
+| Wall (reference, 2026-09-17, M3 Pro) | **~4.0 s** |
+| Nodes / functions | **~71,888** / **~42,944** |
+| `index_graph_build` | **~0.6 s** |
+
+Fixture-scale checks: `rgctl-tests/ecommerce-ruby` (`tests/ruby_langfeatures.rs`, `tests/ruby_cfg_analysis.rs`, `tests/dashboard_ecommerce_ruby.rs`).
 
 ### CFG on large C++ corpora (`--with-cfg`)
 
