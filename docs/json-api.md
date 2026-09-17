@@ -88,7 +88,7 @@ if (doc.schema_version !== 2) {
 | `semantic distill` | **1** | RBVK matrix write (hash/code-daemon teacher) |
 | `communities` | **1** | list / label |
 | `cpg` (status / mutations / flows / …) | **1** | per-subcommand shapes |
-| `install` | **1** | skill write report |
+| `install` | **2** | agent pack write report (`list-agents` JSON is separate; see §18) |
 
 **Omitted vs null:** optional fields are **absent** when unset (not `null`), unless noted otherwise. Empty collections are usually `[]`, not omitted.
 
@@ -1091,7 +1091,22 @@ rgctl -r "$REPO" -f json install --skill [--with-commands] [--with-policy] \
 rgctl -f json install --list-agents
 ```
 
-Omitting **`--tools`** installs **all** registry adapters (same as `--tools all`).
+Omitting **`--tools`** installs the **v1 default** adapters: `cursor`, `claude`, `codex`, `agents`. Use **`--tools all`** for every registry entry. Unknown ids in `--tools` are reported on stderr; if none are valid, exit **1**. **`--global`** is rejected for agents with `supports_global: false` in the registry.
+
+### `install --list-agents`
+
+Separate JSON payload (not install schema v2):
+
+```typescript
+type ListAgentsResponse = {
+  schema_version: 1;
+  command: "list-agents";
+  list_agents: true;
+  agents: Array<{ id: string; skills_path: string; supports_global: boolean; /* … */ }>;
+  workflows: Array<{ id: string; title: string }>;
+  rgctl_version: string;
+};
+```
 
 ```typescript
 type InstallWriteStatus = "created" | "unchanged" | "overwritten" | "skipped_exists";

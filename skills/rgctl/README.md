@@ -93,7 +93,7 @@ rgctl install --skill --with-commands --tools cursor,claude,codex,agents
 
 Installs meta skill `rgctl`, workflow skills (`rgctl-discover`, …), and optional slash commands per adapter. See [Agent commands guide](../../docs/guides/agent-commands.md).
 
-**Maintainers:** edit workflow bodies under `workflows/`; run `cargo build` to refresh `references/workflows.md`.
+**Maintainers:** edit workflow bodies under `workflows/`; regenerate `references/workflows.md` with `assemble_workflows_reference` (see `rgctl-agent-pack-codegen` test `workflows_reference_matches_fragments`).
 
 ## See Also
 

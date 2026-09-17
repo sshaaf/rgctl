@@ -31,8 +31,8 @@ You must pass at least one of **`--skill`** or **`--with-policy`**.
 | **`--skill`** | Meta skill **`rgctl`** (router + `references/`) and eight workflow skills: `rgctl-discover`, `rgctl-impact`, `rgctl-flow`, `rgctl-search`, `rgctl-gql`, `rgctl-migrate`, `rgctl-kantra`, `rgctl-gate`. |
 | **`--with-commands`** | Chat slash commands / prompts per adapter (e.g. Cursor `/rgctl-gql`, Claude `/rgctl:gql`). Use with **`--skill`** for the full experience. |
 | **`--with-policy`** | Structural bias snippet (e.g. `.cursor/rules/rgctl-structural.mdc`). Optional; does not replace skills. |
-| **`--tools id1,id2`** or **`--tools all`** | Which **registry adapters** receive files. **Default (omit flag):** every adapter in `agent-pack/agents/registry.toml` (~40 products). Prefer a subset to avoid clutter. |
-| **`-g` / `--global`** | Install under your **home** (e.g. `~/.cursor/skills/…`) instead of repo-local paths. |
+| **`--tools id1,id2`** or **`--tools all`** | Which **registry adapters** receive files. **Default (omit flag):** `cursor`, `claude`, `codex`, `agents` (v1 quad). **`all`** = full registry (~40 products). Unknown ids: stderr warning; if none valid, exit **1**. |
+| **`-g` / `--global`** | Install under your **home** (e.g. `~/.cursor/skills/…`) instead of repo-local paths. Only agents with `supports_global: true` in the registry (see `--list-agents`). |
 | **`--list-agents`** | Print the registry table and exit (no install). |
 | **`--force`** | Overwrite rgctl-managed files that differ from the bundled version. |
 | **`--host`** | **Deprecated** — use **`--tools`**. |
@@ -48,7 +48,7 @@ rgctl install --skill --with-commands --tools cursor,claude,codex,agents
 # Cursor only
 rgctl install --skill --with-commands --tools cursor
 
-# Every adapter in the registry (many dot-directories)
+# Full registry (many dot-directories)
 rgctl install --skill --with-commands --tools all
 
 # Optional Cursor rule when .rgctl/ exists
@@ -143,7 +143,7 @@ Uses **`schema_version`: 2** (`scope`, `agents`, `with_commands`, per-write `age
 rgctl install --with-policy --tools cursor
 ```
 
-Writes a best-effort rule nudging agents toward `rgctl -f json` when `.rgctl/` exists. Agents cannot hard-block grep.
+**Cursor-only today:** writes `.cursor/rules/rgctl-structural.mdc` regardless of `--tools` (other agents have no policy adapter yet). Best-effort nudge toward `rgctl -f json` when `.rgctl/` exists; agents cannot hard-block grep.
 
 ### AGENTS.md snippet
 

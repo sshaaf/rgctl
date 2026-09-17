@@ -124,8 +124,6 @@ pub fn generate(pack_root: &Path, out_dir: &Path, rgctl_version: &str) -> Result
         }
     }
 
-    sync_repo_workflows_reference(&repo_root, &root.workflows, &workflows_dir)?;
-
     let pack_manifest = PackManifest {
         profile: root.profile.clone(),
         version: root.version,
@@ -245,20 +243,6 @@ fn workflow_anchor(id: &str) -> String {
     format!("{id}-workflow")
 }
 
-fn sync_repo_workflows_reference(
-    repo_root: &Path,
-    workflows: &[WorkflowEntry],
-    workflows_dir: &Path,
-) -> Result<(), String> {
-    let assembled = assemble_workflows_reference(workflows, workflows_dir)?;
-    let ref_path = repo_root.join("skills/rgctl/references/workflows.md");
-    let existing = fs::read_to_string(&ref_path).ok();
-    if existing.as_deref() != Some(assembled.as_str()) {
-        fs::write(&ref_path, assembled).map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
 fn render_skill(name: &str, description: &str, body: &str, version: &str) -> String {
     format!(
         r#"---
@@ -275,12 +259,14 @@ metadata:
 }
 
 fn invoke_for(agent: &AgentDef, workflow_id: &str) -> String {
-    match agent.command_style.as_str() {
-        "colon" => format!("{}:{}", agent.invoke_prefix.trim_start_matches('/'), workflow_id),
-        "hyphen" => format!("{}-{}", agent.invoke_prefix, workflow_id),
-        "dollar" => format!("{}-{}", agent.invoke_prefix, workflow_id),
-        "slash" => format!("{}-{}", agent.invoke_prefix, workflow_id),
-        _ => format!("{}-{}", agent.invoke_prefix, workflow_id),
+    if agent.command_style == "colon" {
+        format!(
+            "{}:{}",
+            agent.invoke_prefix.trim_start_matches('/'),
+            workflow_id
+        )
+    } else {
+        format!("{}-{}", agent.invoke_prefix, workflow_id)
     }
 }
 
@@ -434,7 +420,7 @@ mod codegen_tests {
         assert_eq!(
             assembled,
             existing,
-            "skills/rgctl/references/workflows.md is stale; run `cargo build`"
+            "skills/rgctl/references/workflows.md is stale; regenerate from skills/rgctl/workflows/"
         );
     }
 

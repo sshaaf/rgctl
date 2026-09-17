@@ -252,43 +252,89 @@ pub fn bundle_bytes(bundle_rel: &Path) -> Option<&[u8]> {
         .map(|v| v.as_slice())
 }
 
-pub fn default_agent_ids(manifest: &PackManifest) -> Vec<String> {
+/// Default install targets when `--tools` is omitted (phased v1 per #84).
+pub const DEFAULT_INSTALL_AGENTS: &[&str] = &["cursor", "claude", "codex", "agents"];
+
+pub fn all_agent_ids(manifest: &PackManifest) -> Vec<String> {
     manifest.agents.iter().map(|a| a.id.clone()).collect()
 }
 
+pub fn default_agent_ids(manifest: &PackManifest) -> Vec<String> {
+    DEFAULT_INSTALL_AGENTS
+        .iter()
+        .filter(|id| manifest.agents.iter().any(|a| a.id == **id))
+        .map(|s| s.to_string())
+        .collect()
+}
+
+/// Resolve agent ids from `--tools`, deprecated `--host`, or v1 default.
 pub fn resolve_tools(
     manifest: &PackManifest,
     tools: Option<Vec<String>>,
     host: Option<super::args::SkillHost>,
-) -> Vec<String> {
+) -> Result<Vec<String>, String> {
     if let Some(list) = tools {
-        let ids = normalize_tool_ids(manifest, list);
-        if ids.is_empty() {
-            return default_agent_ids(manifest);
+        let (ids, unknown) = normalize_tool_ids(manifest, list)?;
+        if !unknown.is_empty() {
+            eprintln!(
+                "warning: unknown agent id(s) in --tools: {} (see `rgctl install --list-agents`)",
+                unknown.join(", ")
+            );
         }
-        return ids;
+        if ids.is_empty() {
+            return Err(
+                "no valid agent ids in --tools (use `rgctl install --list-agents`)".into(),
+            );
+        }
+        return Ok(ids);
     }
     if let Some(h) = host {
-        return match h {
+        return Ok(match h {
             super::args::SkillHost::All => default_agent_ids(manifest),
             super::args::SkillHost::Claude => vec!["claude".to_string()],
             super::args::SkillHost::Codex => vec!["codex".to_string()],
             super::args::SkillHost::Cursor => vec!["cursor".to_string()],
-        };
+        });
     }
-    default_agent_ids(manifest)
+    Ok(default_agent_ids(manifest))
 }
 
-/// Expand `all` and drop unknown ids.
-pub fn normalize_tool_ids(manifest: &PackManifest, tools: Vec<String>) -> Vec<String> {
+/// Expand `all`; return `(known ids, unknown ids)`.
+pub fn normalize_tool_ids(
+    manifest: &PackManifest,
+    tools: Vec<String>,
+) -> Result<(Vec<String>, Vec<String>), String> {
     let known: HashMap<&str, ()> = manifest.agents.iter().map(|a| (a.id.as_str(), ())).collect();
     if tools.iter().any(|t| t == "all") {
-        return default_agent_ids(manifest);
+        return Ok((all_agent_ids(manifest), Vec::new()));
     }
-    tools
-        .into_iter()
-        .filter(|t| known.contains_key(t.as_str()))
-        .collect()
+    let mut ids = Vec::new();
+    let mut unknown = Vec::new();
+    for t in tools {
+        if known.contains_key(t.as_str()) {
+            ids.push(t);
+        } else {
+            unknown.push(t);
+        }
+    }
+    Ok((ids, unknown))
+}
+
+/// Reject `-g` when any selected agent is project-local only.
+pub fn validate_global_install(manifest: &PackManifest, agent_ids: &[String]) -> Result<(), String> {
+    for id in agent_ids {
+        let entry = manifest
+            .agents
+            .iter()
+            .find(|a| a.id == *id)
+            .ok_or_else(|| format!("agent {id} missing from manifest"))?;
+        if !entry.supports_global {
+            return Err(format!(
+                "agent {id} does not support --global (project-local only; omit -g)"
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -302,6 +348,46 @@ mod tests {
             .filter(|p| p.to_string_lossy().starts_with("agents/host-cursor/skills/"))
             .count();
         assert!(n > 5, "expected cursor skills in zip, got {n}");
+    }
+
+    #[test]
+    fn default_install_agents_are_v1_quad() {
+        let m = load_manifest().expect("manifest");
+        let ids = default_agent_ids(&m);
+        assert_eq!(ids, ["cursor", "claude", "codex", "agents"]);
+    }
+
+    #[test]
+    fn normalize_all_expands_full_registry() {
+        let m = load_manifest().expect("manifest");
+        let (ids, unknown) = normalize_tool_ids(&m, vec!["all".to_string()]).expect("normalize");
+        assert!(unknown.is_empty());
+        assert!(ids.len() >= 30);
+        assert!(ids.iter().any(|id| id == "opencode"));
+    }
+
+    #[test]
+    fn normalize_unknown_ids_reported() {
+        let m = load_manifest().expect("manifest");
+        let (ids, unknown) =
+            normalize_tool_ids(&m, vec!["cursor".to_string(), "not-an-agent".to_string()])
+                .expect("normalize");
+        assert_eq!(ids, vec!["cursor".to_string()]);
+        assert_eq!(unknown, vec!["not-an-agent".to_string()]);
+    }
+
+    #[test]
+    fn resolve_tools_rejects_all_unknown() {
+        let m = load_manifest().expect("manifest");
+        let err = resolve_tools(&m, Some(vec!["typo".to_string()]), None).unwrap_err();
+        assert!(err.contains("no valid agent ids"));
+    }
+
+    #[test]
+    fn validate_global_rejects_project_only_agent() {
+        let m = load_manifest().expect("manifest");
+        let err = validate_global_install(&m, &["amazon-q".to_string()]).unwrap_err();
+        assert!(err.contains("does not support --global"));
     }
 
     #[test]

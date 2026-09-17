@@ -2,6 +2,7 @@
 
 use super::agent_pack::{
     PackArtifactKind, bundle_bytes, collect_artifacts, load_manifest, resolve_tools,
+    validate_global_install,
 };
 use super::args::{OutputFormat, SkillHost};
 use super::context::CliContext;
@@ -43,7 +44,11 @@ pub fn run(ctx: &CliContext, args: InstallArgs) -> Result<()> {
         );
     }
 
-    let agent_ids = resolve_tools(&manifest, args.tools.clone(), args.host);
+    let agent_ids =
+        resolve_tools(&manifest, args.tools.clone(), args.host).map_err(anyhow::Error::msg)?;
+    if args.global_install {
+        validate_global_install(&manifest, &agent_ids).map_err(anyhow::Error::msg)?;
+    }
     let scope = if args.global_install { "global" } else { "local" };
     let prefix = install_prefix(ctx, args.global_install)?;
 
@@ -133,7 +138,7 @@ fn emit_list_agents(ctx: &CliContext, manifest: &super::agent_pack::PackManifest
     if ctx.format == OutputFormat::Json {
         ctx.emit_json_value(&serde_json::json!({
             "schema_version": 1,
-            "command": "install",
+            "command": "list-agents",
             "list_agents": true,
             "agents": manifest.agents,
             "workflows": manifest.workflows,
@@ -157,21 +162,17 @@ fn emit_list_agents(ctx: &CliContext, manifest: &super::agent_pack::PackManifest
 }
 
 fn classify_write(dest: &Path, contents: &[u8], force: bool) -> Result<InstallWriteStatus> {
-    let meta = match fs::symlink_metadata(dest) {
-        Ok(m) => m,
+    match fs::symlink_metadata(dest) {
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             return Ok(InstallWriteStatus::Created);
         }
         Err(err) => {
             return Err(err).with_context(|| format!("stat {}", dest.display()));
         }
-    };
-    let is_symlink = meta.file_type().is_symlink();
+        Ok(_) => {}
+    }
     let existing = fs::read(dest).with_context(|| format!("read {}", dest.display()))?;
     if existing.as_slice() == contents {
-        if is_symlink {
-            return Ok(InstallWriteStatus::Overwritten);
-        }
         return Ok(InstallWriteStatus::Unchanged);
     }
     if force {

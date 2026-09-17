@@ -503,7 +503,7 @@ See **[Agent commands](agent-commands.md)** for the full table. Summary:
 | `--skill` | Meta `rgctl` + eight workflow skills (required for skills unless only `--with-policy`) |
 | `--with-commands` | Slash / prompt files per adapter |
 | `--with-policy` | Cursor structural rule snippet |
-| `--tools` | Registry ids or `all` (**default:** all adapters if omitted) |
+| `--tools` | Registry ids or `all` (**default:** `cursor`, `claude`, `codex`, `agents`) |
 | `-g` / `--global` | User home instead of repo |
 | `--force` | Overwrite differing rgctl-managed files |
 | `--list-agents` | Print registry; no install |

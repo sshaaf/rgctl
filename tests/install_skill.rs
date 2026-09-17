@@ -46,6 +46,7 @@ fn install_list_agents_json() {
     let output = run_in(cwd.path(), &["-f", "json", "install", "--list-agents"]);
     assert!(output.status.success());
     let doc = stdout_json(&output);
+    assert_eq!(doc["command"].as_str(), Some("list-agents"));
     assert_eq!(doc["list_agents"].as_bool(), Some(true));
     assert!(doc["agents"].as_array().is_some_and(|a| a.len() >= 30));
 }
@@ -236,6 +237,66 @@ fn install_opencode_and_pi_paths() {
     assert!(repo.join(".opencode/commands/rgctl-gql.md").is_file());
     assert!(repo.join(".pi/skills/rgctl-kantra/SKILL.md").is_file());
     assert!(repo.join(".pi/prompts/rgctl-kantra.md").is_file());
+}
+
+#[test]
+fn install_default_tools_is_v1_quad_not_opencode() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let repo = fs::canonicalize(dir.path()).expect("canonicalize");
+    let output = run_in(
+        dir.path(),
+        &["-r", &repo.display().to_string(), "install", "--skill"],
+    );
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(repo.join(".cursor/skills/rgctl/SKILL.md").is_file());
+    assert!(repo.join(".claude/skills/rgctl/SKILL.md").is_file());
+    assert!(repo.join(".agents/skills/rgctl/SKILL.md").is_file());
+    assert!(!repo.join(".opencode/skills/rgctl/SKILL.md").exists());
+}
+
+#[test]
+fn install_unknown_tools_exits_one() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let output = run_in(
+        dir.path(),
+        &[
+            "-r",
+            &dir.path().display().to_string(),
+            "install",
+            "--skill",
+            "--tools",
+            "typo",
+        ],
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("no valid agent ids"), "{err}");
+}
+
+#[test]
+fn install_global_rejects_project_only_agent() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("home");
+    let output = Command::new(rgctl_bin())
+        .env("HOME", home.path())
+        .args([
+            "-r",
+            &dir.path().display().to_string(),
+            "install",
+            "--skill",
+            "--tools",
+            "amazon-q",
+            "-g",
+        ])
+        .output()
+        .expect("spawn");
+    assert_eq!(output.status.code(), Some(1));
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("does not support --global"), "{err}");
 }
 
 #[test]
