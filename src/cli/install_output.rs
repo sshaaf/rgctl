@@ -11,6 +11,8 @@ pub const INSTALL_SCHEMA_VERSION: u32 = 1;
 pub enum InstallWriteHost {
     /// Claude Code project skills directory.
     Claude,
+    /// Codex project skills directory.
+    Codex,
     /// Cursor project skills directory.
     Cursor,
 }

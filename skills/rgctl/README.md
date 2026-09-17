@@ -93,7 +93,7 @@ From another repo:
 rgctl install --skill
 ```
 
-This writes `.claude/skills/rgctl/` and `.cursor/skills/rgctl/` from the embedded skill.
+This writes `.claude/skills/rgctl/`, `.agents/skills/rgctl/`, and `.cursor/skills/rgctl/` from the embedded skill.
 
 ## See Also
 

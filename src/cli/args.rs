@@ -40,11 +40,13 @@ pub enum PdgEdgeLayer {
 /// Agent host directories for `rgctl install --skill`.
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SkillHost {
-    /// Claude Code and Cursor project skill dirs.
+    /// Claude Code, Codex, and Cursor project skill dirs.
     #[default]
     All,
     /// `<repo>/.claude/skills/rgctl/`
     Claude,
+    /// `<repo>/.agents/skills/rgctl/`
+    Codex,
     /// `<repo>/.cursor/skills/rgctl/`
     Cursor,
 }

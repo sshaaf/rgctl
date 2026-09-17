@@ -222,4 +222,4 @@ rgctl -r "$REPO" -f json <command> …
 rgctl install --skill
 ```
 
-Writes `.claude/skills/rgctl/` and `.cursor/skills/rgctl/` from the embedded skill in the binary.
+Writes `.claude/skills/rgctl/`, `.agents/skills/rgctl/`, and `.cursor/skills/rgctl/` from the embedded skill in the binary.

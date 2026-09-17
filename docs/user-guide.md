@@ -103,9 +103,10 @@ rgctl -r /path/to/repo install --skill
 That writes:
 
 - `<repo>/.claude/skills/rgctl/` (Claude Code)
+- `<repo>/.agents/skills/rgctl/` (Codex)
 - `<repo>/.cursor/skills/rgctl/` (Cursor)
 
-Limit hosts with `--host claude` or `--host cursor` (default is `all`). Identical files are left unchanged. If a dest file differs, the command exits 1 unless you pass `--force`. Re-run `install --skill --force` after upgrading `rgctl` to refresh the project copy. Manual copy of `skills/rgctl/` remains a fallback if you have a git checkout.
+Limit hosts with `--host claude`, `--host codex`, or `--host cursor` (default is `all`). Identical files are left unchanged. If a dest file differs, the command exits 1 unless you pass `--force`. Re-run `install --skill --force` after upgrading `rgctl` to refresh the project copy. Manual copy of `skills/rgctl/` remains a fallback if you have a git checkout.
 
 ---
 
@@ -1243,7 +1244,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgctl/migration_p
 | `metrics` | PageRank, betweenness, communities summary |
 | `export` | Serialize graph (json, graphml, dot, mermaid, obsidian vault, okf) |
 | `check` | CI policy gateway |
-| `install` | Copy the bundled agent skill into `.claude/skills/` and `.cursor/skills/` |
+| `install` | Copy the bundled agent skill into `.claude/skills/`, `.agents/skills/`, and `.cursor/skills/` |
 | `semantic` | Opt-in semantic index + query (`--scope community`, `docs`, `all`) |
 | `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--no-pipeline` fail-fast |
 

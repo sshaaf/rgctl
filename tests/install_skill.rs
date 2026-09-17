@@ -46,7 +46,13 @@ fn bundled_file_count() -> usize {
 }
 
 fn skill_dest(repo: &Path, host: &str, rel: &Path) -> PathBuf {
-    repo.join(format!(".{host}/skills/rgctl")).join(rel)
+    let agent_dir = match host {
+        "claude" => ".claude",
+        "codex" => ".agents",
+        "cursor" => ".cursor",
+        _ => panic!("unknown agent host: {host}"),
+    };
+    repo.join(agent_dir).join("skills/rgctl").join(rel)
 }
 
 fn assert_host_matches_bundle(repo: &Path, host: &str) {
@@ -108,11 +114,12 @@ fn install_without_skill_exits_one_and_writes_nothing() {
         "error should mention --skill: {err}"
     );
     assert!(!dir.path().join(".claude/skills/rgctl").exists());
+    assert!(!dir.path().join(".agents/skills/rgctl").exists());
     assert!(!dir.path().join(".cursor/skills/rgctl").exists());
 }
 
 #[test]
-fn install_skill_writes_both_hosts_matching_bundle() {
+fn install_skill_writes_all_hosts_matching_bundle() {
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = fs::canonicalize(dir.path()).expect("canonicalize repo");
     let output = run_in(
@@ -124,13 +131,13 @@ fn install_skill_writes_both_hosts_matching_bundle() {
         "stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
-    for host in ["claude", "cursor"] {
+    for host in ["claude", "codex", "cursor"] {
         assert_host_matches_bundle(&repo, host);
     }
 }
 
 #[test]
-fn install_host_claude_does_not_create_cursor_and_repo_flag_ignores_cwd() {
+fn install_host_claude_writes_claude_directory_only_and_repo_flag_ignores_cwd() {
     let repo_dir = tempfile::tempdir().expect("repo");
     let cwd_dir = tempfile::tempdir().expect("cwd");
     let repo = fs::canonicalize(repo_dir.path()).expect("canonicalize repo");
@@ -151,9 +158,35 @@ fn install_host_claude_does_not_create_cursor_and_repo_flag_ignores_cwd() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_host_matches_bundle(&repo, "claude");
+    assert!(!repo.join(".agents/skills/rgctl").exists());
     assert!(!cwd_dir.path().join(".claude").exists());
     assert!(!repo.join(".cursor/skills/rgctl").exists());
     assert!(!cwd_dir.path().join(".cursor").exists());
+}
+
+#[test]
+fn install_host_codex_writes_agents_directory_only() {
+    let repo_dir = tempfile::tempdir().expect("repo");
+    let repo = fs::canonicalize(repo_dir.path()).expect("canonicalize repo");
+    let output = run_in(
+        repo_dir.path(),
+        &[
+            "-r",
+            &repo.display().to_string(),
+            "install",
+            "--skill",
+            "--host",
+            "codex",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_host_matches_bundle(&repo, "codex");
+    assert!(!repo.join(".claude/skills/rgctl").exists());
+    assert!(!repo.join(".cursor/skills/rgctl").exists());
 }
 
 #[test]
@@ -175,7 +208,7 @@ fn install_second_run_unchanged_conflict_then_force() {
     );
     let doc = stdout_json(&second);
     let writes = doc["writes"].as_array().expect("writes");
-    assert_eq!(writes.len(), bundled_file_count() * 2);
+    assert_eq!(writes.len(), bundled_file_count() * 3);
     assert!(
         writes
             .iter()
@@ -268,9 +301,9 @@ fn install_json_created_shape() {
     assert!(per_host >= 2, "bundle should include SKILL.md and references");
 
     let writes = doc["writes"].as_array().expect("writes");
-    assert_eq!(writes.len(), per_host * 2);
+    assert_eq!(writes.len(), per_host * 3);
 
-    for host in ["claude", "cursor"] {
+    for host in ["claude", "codex", "cursor"] {
         let host_writes: Vec<_> = writes
             .iter()
             .filter(|w| w["host"].as_str() == Some(host))
@@ -305,6 +338,7 @@ fn install_help_mentions_flags() {
     );
     assert!(help.contains("--skill"), "{help}");
     assert!(help.contains("--host"), "{help}");
+    assert!(help.contains("codex"), "{help}");
     assert!(help.contains("--force"), "{help}");
 }
 
