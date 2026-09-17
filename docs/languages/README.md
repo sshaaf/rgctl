@@ -16,6 +16,7 @@ rgctl indexes source through **Tier 1 custom language plugins** (`LanguagePlugin
 | [JavaScript](javascript.md) | `.js`, `.jsx`, `.mjs` | `verify-extraction-gql-javascript.sh` |
 | [PHP](php.md) | `.php` | `verify-extraction-gql-php.sh` |
 | [Python](python.md) | `.py`, `.pyw` | `verify-extraction-gql-python.sh` |
+| [Ruby](ruby.md) | `.rb`, `.rake`, … | `verify-extraction-gql-ruby.sh` |
 | [Rust](rust.md) | `.rs` | `verify-extraction-gql-rust.sh` |
 | [TypeScript](typescript.md) | `.ts`, `.tsx` | `verify-extraction-gql-typescript.sh` |
 
@@ -39,8 +40,8 @@ All guides in this section are **Tier 1**.
 | `--full` | Full pipeline (used on large Java example corpora) |
 
 ```bash
-rgctl discover . -l python,go,rust
-rgctl discover . -e node_modules,target,.git
+rgctl discover . -l python,go,rust,ruby
+rgctl discover . -e node_modules,target,.git,vendor,tmp
 ```
 
 ## Run all smoke tests

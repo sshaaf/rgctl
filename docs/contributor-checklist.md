@@ -66,7 +66,7 @@ Copy-paste **PR checklist** block: [tier-1 §7](tier-1-language-support.md#7-pr-
 | E5 Dashboard bundle | E | `cargo test --release --test dashboard_ecommerce_{lang}` + shared [dashboard_harness.rs](../tests/dashboard_harness.rs) |
 | E6 Workspace clean | E | [§5 standard test workflow](#5-standard-test-workflow) |
 | F6 Field-write golden | F | `crates/rgctl-analysis/src/field_write.rs` — `{id}_cfg_captures_field_write_and_query` |
-| Langfeature GQL probes | E/F | `cargo test --test java_langfeatures` · `cargo test --test go_langfeatures` (see [go-language-coverage.md](design/go-language-coverage.md)) |
+| Langfeature GQL probes | E/F | `cargo test --test java_langfeatures` · `cargo test --test go_langfeatures` · `cargo test --test ruby_langfeatures` (see [go-language-coverage.md](design/go-language-coverage.md), [languages/ruby.md](languages/ruby.md)) |
 
 **Dashboard gates by language** (release mode; external fixture repos — set `RGCTL_*_REPO` if needed):
 
@@ -81,6 +81,8 @@ Copy-paste **PR checklist** block: [tier-1 §7](tier-1-language-support.md#7-pr-
 | Rust | `dashboard_ecommerce_rust` |
 | JavaScript | `dashboard_ecommerce_javascript` |
 | TypeScript | `dashboard_ecommerce_typescript` |
+| PHP | `dashboard_ecommerce_php` |
+| Ruby | `dashboard_ecommerce_ruby` |
 
 Fast dashboard smoke (tiny in-tree fixture): `cargo test --test dashboard_bundle`.
 

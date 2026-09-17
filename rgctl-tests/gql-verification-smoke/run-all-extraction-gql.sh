@@ -12,6 +12,7 @@ LANGS=(
   javascript
   php
   python
+  ruby
   rust
   typescript
 )

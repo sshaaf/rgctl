@@ -19,6 +19,55 @@ pub const PHP_CALL_KINDS: &[&str] = &[
     "scoped_call_expression",
     "nullsafe_member_call_expression",
 ];
+pub const RUBY_CALL_KINDS: &[&str] = &["call"];
+
+/// Callee name from a Ruby `call` node (`receiver.method`, command call, or operator).
+pub fn ruby_call_callee(call: Node, source: &[u8]) -> Option<String> {
+    if call.kind() != "call" {
+        return None;
+    }
+    if let Some(method) = call.child_by_field_name("method") {
+        if method.kind() == "operator" {
+            return method.utf8_text(source).ok().map(str::to_string);
+        }
+        return callee_name(method, source).or_else(|| {
+            method
+                .utf8_text(source)
+                .ok()
+                .map(|s| s.trim_start_matches(':').to_string())
+        });
+    }
+    if let Some(op) = call.child_by_field_name("operator") {
+        return op.utf8_text(source).ok().map(str::to_string);
+    }
+    None
+}
+
+/// Whether a Ruby call has a non-static callee (variable receiver or dynamic method).
+pub fn ruby_call_unresolved(call: Node, source: &[u8]) -> bool {
+    if call.kind() != "call" {
+        return false;
+    }
+    if let Some(recv) = call.child_by_field_name("receiver") {
+        if !matches!(recv.kind(), "constant" | "scope_resolution" | "self") {
+            return true;
+        }
+    }
+    if let Some(method) = call.child_by_field_name("method") {
+        if !matches!(
+            method.kind(),
+            "identifier" | "constant" | "simple_symbol" | "operator"
+        ) {
+            return true;
+        }
+        if method.kind() == "identifier" {
+            if method.utf8_text(source).ok().is_some_and(|t| t.starts_with('@')) {
+                return true;
+            }
+        }
+    }
+    false
+}
 
 /// Find the innermost function symbol containing `node`.
 ///
@@ -126,12 +175,18 @@ pub fn push_call_relation(
         return;
     }
 
-    let callee = node
-        .child_by_field_name("function")
-        .or_else(|| node.child_by_field_name("macro"))
-        .or_else(|| node.child_by_field_name("name"))
-        .and_then(|n| callee_name(n, source))
-        .or_else(|| callee_name(node, source));
+    let callee = if language == "ruby" && node.kind() == "call" {
+        ruby_call_callee(node, source)
+    } else {
+        None
+    }
+    .or_else(|| {
+        node.child_by_field_name("function")
+            .or_else(|| node.child_by_field_name("macro"))
+            .or_else(|| node.child_by_field_name("name"))
+            .and_then(|n| callee_name(n, source))
+            .or_else(|| callee_name(node, source))
+    });
 
     let Some(callee) = callee else {
         return;
@@ -197,6 +252,9 @@ pub fn push_call_relation(
         if let Some(unresolved) = python_call_unresolved(node, source) {
             meta["unresolved"] = serde_json::Value::Bool(unresolved);
         }
+    }
+    if language == "ruby" && ruby_call_unresolved(node, source) {
+        meta["unresolved"] = serde_json::Value::Bool(true);
     }
 
     // Prefer a unique same-file match; if ambiguous, keep bare name and rely on hints.

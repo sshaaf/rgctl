@@ -160,6 +160,24 @@ impl GraphBuilder {
                         .push(node.id);
                 }
             }
+            // Ruby method QN uses `#` / `.` (e.g. `OrderDTO#mark_processed`, `OrderService.build`).
+            if !is_field_member {
+                if let Some((_, method)) = qualified.rsplit_once('#') {
+                    if !method.is_empty() {
+                        self.symbols_by_suffix
+                            .entry(method.to_string())
+                            .or_default()
+                            .push(node.id);
+                    }
+                } else if let Some((_, method)) = qualified.rsplit_once('.') {
+                    if !method.is_empty() {
+                        self.symbols_by_suffix
+                            .entry(method.to_string())
+                            .or_default()
+                            .push(node.id);
+                    }
+                }
+            }
         } else {
             self.symbols_by_suffix
                 .entry(node.name.to_string())

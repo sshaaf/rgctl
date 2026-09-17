@@ -15,6 +15,7 @@ pub fn register_languages(registry: &mut LanguageRegistry) {
     rgctl_lang_cpp::register(registry);
     rgctl_lang_markdown::register(registry);
     rgctl_lang_php::register(registry);
+    rgctl_lang_ruby::register(registry);
 }
 
 /// Default registry with config formats and all built-in languages.
@@ -60,6 +61,16 @@ mod tests {
             .get_plugin_for_file(Path::new("src/User.php"))
             .expect("php plugin");
         assert_eq!(plugin.language_id(), "php");
+    }
+
+    #[test]
+    fn default_registry_can_process_ruby_files() {
+        let registry = default_registry();
+        assert!(registry.can_process_file(Path::new("app/models/user.rb")));
+        let plugin = registry
+            .get_plugin_for_file(Path::new("lib/order.rb"))
+            .expect("ruby plugin");
+        assert_eq!(plugin.language_id(), "ruby");
     }
 
     #[test]

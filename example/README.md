@@ -25,6 +25,7 @@ Per-language cold discover gates for extraction-depth work. Fetch via `./scripts
 | JavaScript | `node/` | nodejs/node (`test/`, sparse) | `-l javascript` on `test/` | ~9k `.js` |
 | PHP | `magento2/` | magento/magento2 | `-l php` on `app/` `lib/` `setup/` | ~10k+ `.php` |
 | Python | `home-assistant/` | home-assistant/core | `-l python` | ~12k+ `.py` |
+| Ruby | `discourse/` | discourse/discourse (shallow clone OK) | `-l ruby` | ~26k+ `.rb` in tree; gate indexes Ruby only |
 | Rust | `rust/` | rust-lang/rust (`library/` `compiler/`) | `-l rust` | ~10k+ `.rs` |
 | TypeScript | `vscode/` | microsoft/vscode (`src/`) | `-l typescript` | ~10k+ `.ts` |
 
@@ -54,7 +55,8 @@ The fetch script now pulls all large profiling fixtures in one go:
 - `example/kubernetes`
 - `example/magento2`
 - `example/k8s-website` (sparse `content/en`)
+- `example/discourse` (Ruby `-l ruby` cold gate)
 
-Override paths with `RGCTL_LINUX_REPO`, `RGCTL_KAFKA_REPO`, `RGCTL_K8S_WEBSITE_REPO`, `RGCTL_MAGENTO2_REPO`, `RGCTL_RUST_REPO`, `RGCTL_HOME_ASSISTANT_REPO`, `RGCTL_VSCODE_REPO`, `RGCTL_NODE_REPO`, `RGCTL_ROSLYN_REPO`, `RGCTL_LLVM_REPO`.
+Override paths with `RGCTL_LINUX_REPO`, `RGCTL_KAFKA_REPO`, `RGCTL_K8S_WEBSITE_REPO`, `RGCTL_MAGENTO2_REPO`, `RGCTL_RUST_REPO`, `RGCTL_HOME_ASSISTANT_REPO`, `RGCTL_DISCOURSE_REPO`, `RGCTL_VSCODE_REPO`, `RGCTL_NODE_REPO`, `RGCTL_ROSLYN_REPO`, `RGCTL_LLVM_REPO`.
 
 **Cold profile:** gates remove `example/<repo>/.rgctl/` before discover and require `target/release/rgctl` (`cargo build --release --bin rgctl`). Do not profile against a warm or partial cache — numbers will be wrong.

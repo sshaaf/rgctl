@@ -351,7 +351,7 @@ Hybrid CPG quality is gated by language plugins. **Layer F is required for every
 
 | Status | Languages |
 |--------|-----------|
-| **Parity shipped** | Java, C#, Go, C, C++, TypeScript, JavaScript, Python, Rust — fields/ctors/typed params + `field_write` golden mutation tests + `field_write_locals` merge |
+| **Parity shipped** | Java, C#, Go, C, C++, TypeScript, JavaScript, Python, Rust, PHP, Ruby — fields/ctors/typed params + `field_write` golden mutation tests + `field_write_locals` merge |
 
 Do **not** put full type checkers in plugins. Bound resolution: decl / param / field / import. Dynamic languages (JS/Python without annotations) may still return more `Unresolved` receivers — that is expected, not a pass to skip F1–F6 shapes.
 

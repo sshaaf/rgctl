@@ -6,7 +6,7 @@ covered by Rust integration tests:
 
 | Test crate | Scope |
 |------------|--------|
-| `tests/user_guide_scenarios.rs` | Full workflow on all nine `rgctl-tests/ecommerce-*` projects (each copied to an isolated temp repo) |
+| `tests/user_guide_scenarios.rs` | Full workflow on the nine `ecommerce-*` projects wired in `user_guide_harness.rs` (Ruby and PHP use separate dashboard / langfeatures gates) |
 | `tests/markdown_context_cli.rs` | Markdown fixture GQL queries + VHS tape `jq` pipes |
 
 Each project run copies the fixture into a temp directory so `.rgctl/` artifacts stay isolated (see `tests/support/user_guide_harness.rs`).

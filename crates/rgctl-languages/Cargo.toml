@@ -20,3 +20,4 @@ rgctl-lang-c = { workspace = true }
 rgctl-lang-cpp = { workspace = true }
 rgctl-lang-markdown = { workspace = true }
 rgctl-lang-php = { workspace = true }
+rgctl-lang-ruby = { workspace = true }

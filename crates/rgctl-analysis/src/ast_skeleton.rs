@@ -199,7 +199,9 @@ fn walk_skeleton(
         && node.kind() != "function_item"
         && node.kind() != "function_declaration"
         && node.kind() != "constructor_declaration"
-        && node.kind() != "function_definition";
+        && node.kind() != "function_definition"
+        && node.kind() != "method"
+        && node.kind() != "singleton_method";
 
     let mut child_parent = parent;
     if emit {
@@ -227,10 +229,13 @@ fn walk_skeleton(
 fn classify(kind: &str) -> Option<AstSkeletonKind> {
     Some(match kind {
         "block" | "compound_statement" | "statement_block" | "body" => AstSkeletonKind::Block,
-        "if_statement" | "if_expression" => AstSkeletonKind::If,
+        "if_statement" | "if_expression" | "if" | "unless" => AstSkeletonKind::If,
         "while_statement" | "while_expression" | "for_statement" | "for_expression"
-        | "loop_expression" | "do_statement" | "foreach_statement" => AstSkeletonKind::Loop,
-        "call_expression" | "method_invocation" | "invocation_expression" | "function_call" => {
+        | "loop_expression" | "do_statement" | "foreach_statement" | "while" | "until" | "for" => {
+            AstSkeletonKind::Loop
+        }
+        "call_expression" | "method_invocation" | "invocation_expression" | "function_call"
+        | "call" => {
             AstSkeletonKind::Call
         }
         "assignment_expression"

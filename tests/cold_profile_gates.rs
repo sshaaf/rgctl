@@ -43,6 +43,7 @@ const NODE_JAVASCRIPT_COLD_WALL_BASELINE_SECS: f64 = 5.0;
 const NODE_JAVASCRIPT_COLD_WITH_CFG_WALL_BASELINE_SECS: f64 = 7.0;
 /// home-assistant/core with `-l python`. Baseline: **20 s** on reference M3 Pro (2026-09-04).
 const HOME_ASSISTANT_PYTHON_COLD_WALL_BASELINE_SECS: f64 = 20.0;
+const DISCOURSE_RUBY_COLD_WALL_BASELINE_SECS: f64 = 120.0;
 /// kubernetes/website `content/en`, markdown-only discover (~2–3s on maintainer machine).
 const K8S_WEBSITE_MARKDOWN_COLD_WALL_BASELINE_SECS: f64 = 3.0;
 /// ecommerce-java default discover cold wall (inheritance stub gate).
@@ -143,6 +144,14 @@ pub fn home_assistant_python_repo_path() -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
             PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/home-assistant")
+        })
+}
+
+pub fn discourse_ruby_repo_path() -> PathBuf {
+    std::env::var("RGCTL_DISCOURSE_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("example/discourse")
         })
 }
 
@@ -1055,5 +1064,41 @@ fn pr_check_rgctl_graph_slice_within_baseline() {
         baseline
     );
     assert_within_baseline("pr-check rgctl-graph slice", elapsed, baseline);
+}
+
+#[test]
+#[ignore = "manual: cold discover on example/discourse (-l ruby app lib plugins); set RGCTL_DISCOURSE_RUBY_COLD_BASELINE_SECS after reference run"]
+fn discourse_cold_discover_within_baseline() {
+    let repo = discourse_ruby_repo_path();
+    if !repo.is_dir() {
+        eprintln!(
+            "skip: discourse corpus not at {} (clone example/discourse or set RGCTL_DISCOURSE_REPO)",
+            repo.display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_DISCOURSE_RUBY_COLD_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DISCOURSE_RUBY_COLD_WALL_BASELINE_SECS);
+
+    let (output, elapsed) = run_cold_discover_timed(&repo, &["-l", "ruby"]);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "discover failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+    let profile = resolve_profile_summary(&stdout, &stderr, elapsed);
+    eprintln!(
+        "discourse ruby cold: wall={:.1}s nodes={} functions={} index_graph_build={:?} (baseline {:.0}s)",
+        profile.wall_secs,
+        profile.nodes,
+        profile.functions,
+        profile.index_graph_build_secs,
+        baseline
+    );
+    assert_within_baseline("discourse ruby cold discover", elapsed, baseline);
 }
 

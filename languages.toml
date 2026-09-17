@@ -136,3 +136,16 @@ class_kinds = ["class_declaration", "interface_declaration", "trait_declaration"
 import_kinds = ["namespace_use_declaration", "use_declaration"]
 enable_complexity = true
 enable_type_inference = false
+
+[languages.ruby]
+handler = "custom"
+plugin = "RubyPlugin"
+module = "crate::languages::builtin::ruby"
+crate = "tree-sitter-ruby"
+extensions = ["rb"]
+aliases = ["ruby", "rb"]
+function_kinds = ["method", "singleton_method"]
+class_kinds = ["class", "module", "singleton_class"]
+import_kinds = ["call"]
+enable_complexity = true
+enable_type_inference = false

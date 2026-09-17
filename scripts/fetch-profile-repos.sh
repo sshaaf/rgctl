@@ -10,6 +10,7 @@
 # - k8s-website (kubernetes/website content/en via sparse checkout)
 # - rust (rust-lang/rust — Rust language-scale cold profile)
 # - home-assistant (Python ~12k files)
+# - discourse (Ruby app/lib/plugins — language-scale cold profile)
 # - vscode (TypeScript in src/)
 # - node (nodejs/node test/ — JavaScript language-scale corpus)
 # - roslyn (C# compiler)
@@ -91,6 +92,7 @@ clone_sparse_llvm_clang_if_missing() {
 # Language-scale corpora (~10k source files) — see openspec/changes/_shared/starting-context.md
 clone_if_missing "https://github.com/rust-lang/rust.git" "$EXAMPLE_DIR/rust" 1
 clone_if_missing "https://github.com/home-assistant/core.git" "$EXAMPLE_DIR/home-assistant" 1
+clone_if_missing "https://github.com/discourse/discourse.git" "$EXAMPLE_DIR/discourse" 1
 clone_if_missing "https://github.com/microsoft/vscode.git" "$EXAMPLE_DIR/vscode" 1
 clone_if_missing "https://github.com/dotnet/roslyn.git" "$EXAMPLE_DIR/roslyn" 1
 clone_sparse_llvm_clang_if_missing "$EXAMPLE_DIR/llvm-project"
