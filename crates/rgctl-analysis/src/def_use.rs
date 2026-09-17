@@ -100,6 +100,13 @@ fn collect_assignment_lhs<'a>(
             defined.insert(def);
         }
         collect_field_access_base_uses(left, source, used, stack, depth);
+    } else if left.kind() == "instance_variable" {
+        if let Ok(name) = left.utf8_text(source) {
+            defined.insert(DefVar::Field {
+                receiver: "self".into(),
+                member: name.trim_start_matches('@').into(),
+            });
+        }
     } else {
         collect_pattern_defs(left, source, defined, depth + 1);
     }

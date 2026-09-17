@@ -421,7 +421,29 @@ impl<'a> CfgBuilder<'a> {
             return Ok(());
         }
         match node.kind() {
-            // Rust + Python conditionals
+            // Ruby control flow
+            "if" | "unless" => self.visit_if(node, source),
+            "while" | "until" => self.visit_while(node, source),
+            "for" => self.visit_for(node, source),
+            "case" => self.visit_switch(node, source),
+            "begin_block" => self.visit_ruby_begin_block(node, source),
+            "return" => self.visit_return(node, source),
+            "next" => self.visit_continue(node, source),
+            "break" => self.visit_break(node, source),
+            "if_modifier" | "unless_modifier" | "while_modifier" | "until_modifier"
+            | "rescue_modifier" => self.visit_ruby_modifier_statement(node, source),
+
+            "call" => {
+                if let Some(block) = node.child_by_field_name("block") {
+                    self.visit_nested_subcfg(block, source)?;
+                }
+                if let Some(do_block) = node.child_by_field_name("do_block") {
+                    self.visit_nested_subcfg(do_block, source)?;
+                }
+                self.visit_expression_stmt(node, source)
+            }
+
+            // Rust + Python conditionals (continued)
             "if_statement" | "if_expression" => self.visit_if(node, source),
             "while_statement" | "while_expression" => self.visit_while(node, source),
             "do_statement" => self.visit_do(node, source),
@@ -575,7 +597,12 @@ impl<'a> CfgBuilder<'a> {
     }
 
     fn visit_expression_stmt(&mut self, node: Node, source: &[u8]) -> Result<()> {
-        let inner = node.named_child(0).unwrap_or(node);
+        // Ruby `call` must stay rooted at the `call` node — first named child is only the receiver.
+        let inner = if node.kind() == "call" {
+            node
+        } else {
+            node.named_child(0).unwrap_or(node)
+        };
         match inner.kind() {
             "if_statement"
             | "if_expression"
@@ -1104,6 +1131,80 @@ impl<'a> CfgBuilder<'a> {
             "if_expression" | "if_statement" => StatementKind::Branch,
             _ => StatementKind::Expression,
         }
+    }
+
+    fn visit_ruby_begin_block(&mut self, node: Node, source: &[u8]) -> Result<()> {
+        let mut rescue_handlers = Vec::new();
+        if let Some(begin) = find_child_kind(node, "begin") {
+            let mut c = begin.walk();
+            for child in begin.children(&mut c) {
+                if child.kind() == "rescue" {
+                    rescue_handlers.push(self.new_block());
+                }
+            }
+        }
+        if !rescue_handlers.is_empty() {
+            self.try_catch_stack.push(rescue_handlers);
+        }
+        self.visit_block(node, source)?;
+        if !self.try_catch_stack.is_empty() {
+            self.try_catch_stack.pop();
+        }
+        Ok(())
+    }
+
+    fn visit_ruby_modifier_statement(&mut self, node: Node, source: &[u8]) -> Result<()> {
+        let body = node.child_by_field_name("body");
+        let cond = node.child_by_field_name("condition");
+        match node.kind() {
+            "if_modifier" => {
+                if let Some(cond) = cond {
+                    let merge = self.new_block();
+                    let then_b = self.new_block();
+                    self.wire_condition(cond, source, then_b, merge)?;
+                    self.flow_active = true;
+                    self.current_block = then_b;
+                    if let Some(body) = body {
+                        self.visit_statement(body, source)?;
+                    }
+                    self.flow_active = true;
+                    self.current_block = merge;
+                } else if let Some(body) = body {
+                    self.visit_statement(body, source)?;
+                }
+            }
+            "unless_modifier" => {
+                if let Some(cond) = cond {
+                    let merge = self.new_block();
+                    let then_b = self.new_block();
+                    self.wire_condition(cond, source, merge, then_b)?;
+                    self.flow_active = true;
+                    self.current_block = then_b;
+                    if let Some(body) = body {
+                        self.visit_statement(body, source)?;
+                    }
+                    self.flow_active = true;
+                    self.current_block = merge;
+                } else if let Some(body) = body {
+                    self.visit_statement(body, source)?;
+                }
+            }
+            "while_modifier" | "until_modifier" | "rescue_modifier" => {
+                // Conservative: record modifier; avoid re-entering the modifier node (stack overflow).
+                if let Some(body) = body {
+                    self.visit_statement(body, source)?;
+                }
+                if let Some(cond) = cond {
+                    self.add_statement(cond, source, StatementKind::Branch)?;
+                }
+            }
+            _ => {
+                if let Some(body) = body {
+                    self.visit_statement(body, source)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn visit_if(&mut self, node: Node, source: &[u8]) -> Result<()> {
@@ -3220,6 +3321,10 @@ fn is_block_like(kind: &str) -> bool {
             | "source_file"
             | "function_body"
             | "block_expression"
+            | "body_statement"
+            | "begin_block"
+            | "do_block"
+            | "program"
     )
 }
 
@@ -6574,5 +6679,59 @@ function example($items) {
 "#;
         let cfg = build_cfg_for_function("php", code, "example").unwrap();
         assert!(cfg.has_cycle(), "foreach must cycle");
+    }
+
+    #[test]
+    fn test_ruby_if_else_branching() {
+        let code = r#"
+def example(x)
+  if x > 0
+    return 1
+  else
+    return 2
+  end
+end
+"#;
+        let cfg = build_cfg_for_function("ruby", code, "example").unwrap();
+        assert!(cfg.blocks.len() >= 4, "expected branching CFG for Ruby if/else");
+    }
+
+    #[test]
+    fn test_ruby_while_cycle() {
+        let code = r#"
+def example(items)
+  while items.length > 0
+    items.pop
+  end
+end
+"#;
+        let cfg = build_cfg_for_function("ruby", code, "example").unwrap();
+        assert!(cfg.has_cycle(), "while must cycle");
+    }
+
+    #[test]
+    fn test_ruby_begin_rescue_exception_edge() {
+        let code = r#"
+def example
+  begin
+    risky
+  rescue StandardError
+    recover
+  end
+end
+"#;
+        let cfg = build_cfg_for_function("ruby", code, "example").unwrap();
+        assert!(cfg.blocks.len() >= 2, "expected CFG for begin/rescue body");
+    }
+
+    #[test]
+    fn test_ruby_if_modifier_no_stack_overflow() {
+        let code = r#"
+def create(params)
+  system(params[:debug]) if params[:debug]
+end
+"#;
+        let cfg = build_cfg_for_function("ruby", code, "create").unwrap();
+        assert!(cfg.blocks.len() >= 2, "expected branches for if modifier");
     }
 }

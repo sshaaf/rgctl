@@ -58,6 +58,7 @@ fn language_visit(language: &str) -> Option<(tree_sitter::Language, VisitFn)> {
         "c" => (tree_sitter_c::LANGUAGE.into(), visit_c_family),
         "cpp" => (tree_sitter_cpp::LANGUAGE.into(), visit_c_family),
         "php" => (tree_sitter_php::LANGUAGE_PHP.into(), visit_php),
+        "ruby" => (tree_sitter_ruby::LANGUAGE.into(), visit_ruby),
         _ => return None,
     })
 }
@@ -197,6 +198,7 @@ pub fn language_from_path(path: &str) -> String {
             "c" | "h" => "c",
             "cpp" | "cc" | "cxx" | "hpp" | "hh" => "cpp",
             "php" => "php",
+            "rb" => "ruby",
             _ => "unknown",
         })
         .unwrap_or("unknown")
@@ -623,6 +625,57 @@ fn visit_php(
         now_in,
         visit_php,
         &["function_definition", "method_declaration"],
+    );
+}
+
+fn visit_ruby(
+    node: Node,
+    source: &[u8],
+    function_name: &str,
+    env: &mut HashMap<String, String>,
+    in_target: bool,
+) {
+    let kind = node.kind();
+    let mut now_in = in_target;
+    if matches!(kind, "method" | "singleton_method") {
+        let name = node
+            .child_by_field_name("name")
+            .and_then(|n| text_of(n, source))
+            .unwrap_or_default();
+        now_in = name == function_name;
+    }
+    if now_in && kind == "identifier" {
+        if let Some(parent) = node.parent() {
+            if parent.kind() == "method_parameters" || parent.kind() == "block_parameters" {
+                if let Some(n) = text_of(node, source) {
+                    insert_ty(env, &n, "Object");
+                }
+            }
+        }
+    }
+    if now_in && kind == "self" {
+        let mut cur = node.parent();
+        while let Some(n) = cur {
+            if n.kind() == "class" {
+                if let Some(cn) = n
+                    .child_by_field_name("name")
+                    .and_then(|x| text_of(x, source))
+                {
+                    insert_ty(env, "self", &cn);
+                }
+                break;
+            }
+            cur = n.parent();
+        }
+    }
+    walk_children(
+        node,
+        source,
+        function_name,
+        env,
+        now_in,
+        visit_ruby,
+        &["method", "singleton_method"],
     );
 }
 

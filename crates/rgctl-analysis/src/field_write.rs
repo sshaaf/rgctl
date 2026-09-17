@@ -1049,15 +1049,43 @@ function process(OrderDTO $order): void {
     }
 
     #[test]
+    fn ruby_cfg_captures_field_write_and_query() {
+        let source = r#"
+class OrderDTO
+  def initialize(status)
+    @status = status
+  end
+
+  def mark_processed
+    @status = "PROCESSED"
+  end
+end
+"#;
+        mutation_hit_helper(
+            "ruby",
+            source,
+            "initialize",
+            "mark_processed",
+            fn_node("initialize", "OrderDTO.<init>", "order.rb", true, vec![]),
+            fn_node(
+                "mark_processed",
+                "OrderDTO#mark_processed",
+                "order.rb",
+                false,
+                vec![("self", "OrderDTO")],
+            ),
+            "OrderDTO",
+            "status",
+        );
+    }
+
+    #[test]
     fn c_cfg_captures_field_write_and_query() {
         let source = r#"
 typedef struct { char *status; } OrderDTO;
 void order_dto_init(OrderDTO *o, char *status) { o->status = status; }
 void process(OrderDTO *order) { order->status = "PROCESSED"; }
 "#;
-        // C has no real ctor flag — both writes are non-ctor; query by member still works if we
-        // only index `process` as non-ctor and init as ctor via name heuristic won't apply.
-        // Mark init as constructor in the graph node so exclude_ctors works.
         mutation_hit_helper(
             "c",
             source,

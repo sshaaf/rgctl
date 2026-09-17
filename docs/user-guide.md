@@ -88,7 +88,7 @@ cargo build --release --bin rgctl
 ./target/release/rgctl --version
 ```
 
-All **nine** Tier 1 languages (Rust, Python, JavaScript, TypeScript, Go, Java, C#, C, C++) are always included in the binary.
+All **Tier 1** languages registered in [`languages.toml`](../languages.toml) (including Rust, Python, Ruby, PHP, JavaScript, TypeScript, Go, Java, C#, C, C++) are included in the release binary.
 
 ### Install the agent skill
 

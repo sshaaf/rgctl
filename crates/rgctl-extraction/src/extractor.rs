@@ -364,6 +364,99 @@ mod tests {
     }
 
     #[test]
+    fn ruby_include_extends_populates_graph() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../rgctl-tests/ecommerce-ruby/lib/order_dto.rb");
+        if !path.is_file() {
+            return;
+        }
+        let registry = std::sync::Arc::new(rgctl_languages::default_registry());
+        let extractor = Extractor::new(registry);
+        let extraction = extractor.extract_file(&path).expect("extract");
+        assert!(
+            extraction
+                .relations
+                .iter()
+                .any(|r| r.relation_type == rgctl_plugin_api::RelationType::Extends)
+        );
+        let mut builder = GraphBuilder::new();
+        extractor
+            .populate_graph(&[extraction], &mut builder)
+            .expect("populate");
+        let (_, edges) = builder.into_graph();
+        assert!(
+            edges
+                .iter()
+                .any(|e| e.edge_type == rgctl_graph::schema::EdgeType::Extends),
+            "expected Extends edge for include Trackable"
+        );
+    }
+
+    #[test]
+    fn test_populate_graph_ruby_ecommerce_calls() {
+        use crate::discovery::DiscoveryConfig;
+        use std::path::Path;
+
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../rgctl-tests/ecommerce-ruby");
+        if !root.is_dir() {
+            return;
+        }
+        let registry = Arc::new(rgctl_languages::default_registry());
+        let extractor = Extractor::new(registry);
+        let mut discovery = DiscoveryConfig::default();
+        discovery.languages = Some(vec!["ruby".to_string()]);
+        let extractions = extractor
+            .extract_repository(&root, &discovery)
+            .expect("extract");
+        let call_rels = extractions
+            .iter()
+            .flat_map(|e| e.relations.iter())
+            .filter(|r| r.relation_type == rgctl_plugin_api::RelationType::Calls)
+            .count();
+        assert!(call_rels > 0, "plugin should emit Calls relations");
+        let extend_rels = extractions
+            .iter()
+            .flat_map(|e| e.relations.iter())
+            .filter(|r| r.relation_type == rgctl_plugin_api::RelationType::Extends)
+            .count();
+        assert!(extend_rels > 0, "plugin should emit Extends relations");
+        let mut builder = GraphBuilder::new();
+        extractor
+            .populate_graph(&extractions, &mut builder)
+            .expect("populate");
+        assert!(
+            builder.edge_count() > call_rels,
+            "expected graph edges including resolved Calls (edges={}, call_rels={})",
+            builder.edge_count(),
+            call_rels
+        );
+
+        let spill_dir = tempfile::TempDir::new().unwrap();
+        let mut spill_builder = GraphBuilder::with_spill(spill_dir.path()).expect("spill");
+        let extractions2 = extractor
+            .extract_repository(&root, &discovery)
+            .expect("extract2");
+        let mut tails = Vec::new();
+        for mut ex in extractions2 {
+            tails.push(
+                extractor
+                    .populate_pass1(&mut ex, &mut spill_builder)
+                    .expect("pass1"),
+            );
+        }
+        spill_builder.build_resolution_indexes();
+        extractor
+            .populate_pass2(&tails, &mut spill_builder)
+            .expect("pass2");
+        assert!(
+            spill_builder.edge_count() > call_rels + extend_rels,
+            "spill path should retain Calls/Extends (edges={})",
+            spill_builder.edge_count()
+        );
+    }
+
+    #[test]
     fn test_populate_graph() {
         let temp = TempDir::new().unwrap();
         let path = temp.path().join("lib.rs");

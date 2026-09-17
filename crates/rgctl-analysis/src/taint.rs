@@ -158,7 +158,46 @@ impl<'a> TaintAnalyzer<'a> {
             "c" => self.detect_c_patterns(),
             "cpp" => self.detect_cpp_patterns(),
             "php" => self.detect_php_patterns(),
+            "ruby" => self.detect_ruby_patterns(),
             _ => {}
+        }
+    }
+
+    fn detect_ruby_patterns(&mut self) {
+        for (node_id, node) in &self.pdg.nodes {
+            let text = &node.statement.text;
+            if text.contains("params[")
+                || text.contains("request.")
+                || text.contains("cookies[")
+                || text.contains("ENV[")
+                || text.contains("ARGV")
+            {
+                self.sources.insert(*node_id, TaintSource::HttpParameter);
+            } else if text.contains("File.read") || text.contains("IO.read") || text.contains("gets") {
+                self.sources.insert(*node_id, TaintSource::FileInput);
+            }
+
+            if text.contains("system(")
+                || text.contains("Open3")
+                || text.contains("exec(")
+                || text.contains("`")
+                || text.contains("%x{")
+            {
+                self.sinks.insert(*node_id, TaintSink::ShellCommand);
+            } else if text.contains("eval(")
+                || text.contains("instance_eval")
+                || text.contains("class_eval")
+            {
+                self.sinks.insert(*node_id, TaintSink::CodeEval);
+            } else if text.contains("execute(") || text.contains("where(") || text.contains(".execute(") {
+                self.sinks.insert(*node_id, TaintSink::SqlQuery);
+            } else if text.contains("render") {
+                self.sinks.insert(*node_id, TaintSink::HtmlRender);
+            }
+
+            if text.contains("CGI.escapeHTML") || text.contains("ERB::Util.html_escape") {
+                self.sanitizers.insert(*node_id, Sanitizer::HtmlEscape);
+            }
         }
     }
 
@@ -892,6 +931,43 @@ fn bad() {
         assert!(!flows.is_empty(), "expected env -> sqlx SQL flow");
         assert_eq!(flows[0].source_type, TaintSource::EnvironmentVar);
         assert_eq!(flows[0].sink_type, TaintSink::SqlQuery);
+    }
+
+    #[test]
+    fn test_ruby_taint_params_to_sql_flow() {
+        let code = r#"
+def handle_request
+  user_id = params[:id]
+  DB.execute(user_id)
+end
+"#;
+        let cfg = build_cfg_for_function("ruby", code, "handle_request").unwrap();
+        let pdg = ProgramDependenceGraph::build(&cfg, code.as_bytes()).unwrap();
+        let mut analyzer = TaintAnalyzer::new(&pdg, &cfg);
+        analyzer.detect_patterns("ruby");
+        let flows = analyzer.vulnerable_flows();
+        assert!(
+            !flows.is_empty(),
+            "expected params -> SQL execute flow"
+        );
+        assert_eq!(flows[0].source_type, TaintSource::HttpParameter);
+        assert_eq!(flows[0].sink_type, TaintSink::SqlQuery);
+    }
+
+    #[test]
+    fn test_ruby_taint_detect_patterns_smoke() {
+        let code = r#"
+def handle_request
+  user_id = params[:id]
+  DB.execute(user_id)
+end
+"#;
+        let cfg = build_cfg_for_function("ruby", code, "handle_request").unwrap();
+        assert!(cfg.blocks.len() >= 2, "expected CFG statements for Ruby method body");
+        let pdg = ProgramDependenceGraph::build(&cfg, code.as_bytes()).unwrap();
+        assert!(!pdg.nodes.is_empty(), "expected PDG nodes for Ruby");
+        let mut analyzer = TaintAnalyzer::new(&pdg, &cfg);
+        analyzer.detect_patterns("ruby");
     }
 
     #[test]

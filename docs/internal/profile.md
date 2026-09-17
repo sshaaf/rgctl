@@ -69,6 +69,7 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `node_javascript_cold_discover_within_baseline` | `example/node/test` | `-l javascript` | **5 s** |
 | `node_javascript_cold_discover_with_cfg_within_baseline` | `example/node/test` | `-l javascript --with-cfg` | **7 s** |
 | `home_assistant_python_cold_discover_within_baseline` | `example/home-assistant` | `-l python` | **20 s** |
+| `discourse_cold_discover_within_baseline` | `example/discourse` | `-l ruby` | env `RGCTL_DISCOURSE_RUBY_COLD_BASELINE_SECS` (default **120 s**) |
 | `pr_check_rgctl_graph_slice_within_baseline` | `crates/rgctl-graph` | delta `pr-check` (base cache only) | **1.0 s** |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`-r <corpus>`, `discover . -v`).

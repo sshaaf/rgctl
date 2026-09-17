@@ -67,6 +67,13 @@ pub fn default_php_repo() -> PathBuf {
     in_tree_ecommerce("ecommerce-php")
 }
 
+/// Default Ruby ecommerce test repo (override with env).
+pub fn default_ruby_repo() -> PathBuf {
+    env_rg("ECOMMERCE_RUBY_REPO")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| in_tree_ecommerce("ecommerce-ruby"))
+}
+
 pub fn golden_repo_path() -> PathBuf {
     env_rg("DASHBOARD_GOLDEN_REPO")
         .map(PathBuf::from)
