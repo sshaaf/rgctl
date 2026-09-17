@@ -9,14 +9,14 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 | Install rgctl + choose operating mode | **[Installation](installation.md)** |
 | Step-by-step feature how-tos (CoolStore) | **[Guides](guides/README.md)** |
 | Per-language extraction + GQL probes | **[Languages](languages/README.md)** |
-| LLM / agent workflows | [AGENTS.md](../AGENTS.md) · [Agent recipes](agent-recipes.md) |
+| LLM / agent workflows | [AGENTS.md](../AGENTS.md) · [Agent commands](guides/agent-commands.md) · [Agent recipes](agent-recipes.md) |
 | JSON shapes (`schema_version`, fields) | [JSON API](json-api.md) |
 | CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
 | Concepts (what / why) | [Introduction](Introduction.md) |
 
 **Agent loop:** [AGENTS.md](../AGENTS.md) → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json`.  
 **First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.  
-**Latest release:** [v0.4.13 release notes](releases/v0.4.13.md) (temporal `pr-check`, deterministic node IDs, installed-binary dashboard extraction).
+**Latest release:** [v0.4.14 release notes](releases/v0.4.14.md) (agent pack install, multi-tool workflow skills and slash commands).
 
 **Upgrading from v0.4.9:** no breaking changes — PHP is additive (`discover -l php`).
 

@@ -41,15 +41,19 @@ export default function InstallPage() {
         <TerminalBlock
           lines={[
             "rgctl --version",
-            "rgctl install --skill",
+            "rgctl install --skill --with-commands --tools cursor,claude,codex,agents",
           ]}
         />
         <p className="text-sm text-[var(--mute)]">
-          That writes{" "}
-          <code className="font-mono">.claude/skills/rgctl/</code> and{" "}
-          <code className="font-mono">.cursor/skills/rgctl/</code>. See the{" "}
+          Installs meta skill <code className="font-mono">rgctl</code>, workflow
+          skills, and slash commands under each adapter (e.g.{" "}
+          <code className="font-mono">.cursor/skills/</code>). See{" "}
+          <Link href="/docs/guides/agent-commands/" className="underline">
+            agent commands
+          </Link>{" "}
+          and the{" "}
           <Link href="/docs/guides/agent-skill/" className="underline">
-            agent skill guide
+            agent skill walkthrough
           </Link>
           .
         </p>

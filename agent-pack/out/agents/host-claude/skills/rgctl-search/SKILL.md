@@ -1,0 +1,36 @@
+---
+name: rgctl-search
+description: "Semantic and structural search. Use for rgctl search workflow. Spawn rgctl -f json; parse schema_version from stdout."
+rgctl-managed: true
+metadata:
+  generatedBy: "rgctl 0.4.13"
+---
+
+# Search workflow
+
+**When:** Natural-language or intent-based code location (requires `semantic index`).
+
+```bash
+rgctl -r "$REPO" -f json semantic query "…" [--limit 10]
+rgctl -r "$REPO" -f json semantic query "…" --scope community --limit 10
+rgctl -r "$REPO" -f json gql --macro-name all_communities unused
+```
+
+Fusion is on by default for semantic query; use GQL for exact graph patterns.
+
+
+## Agent loop
+
+1. Parse the user question (natural language).
+2. Run `rgctl -f json <command> …` (or `rgctl serve` + HTTP for repeated queries).
+3. Parse `schema_version` and payload from **stdout** only.
+4. Summarize facts; do not dump raw JSON.
+5. Re-query if the graph may be stale after edits.
+
+**Never** redirect stderr to `/dev/null`. If `.rgctl/` exists and the question is structural, use rgctl before ripgrep or bulk file reads.
+
+```bash
+export REPO=/path/to/repo
+rgctl -r "$REPO" -f json <command>
+```
+

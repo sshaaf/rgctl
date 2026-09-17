@@ -92,21 +92,17 @@ All **nine** Tier 1 languages (Rust, Python, JavaScript, TypeScript, Go, Java, C
 
 ### Install the agent skill
 
-After `rgctl` is on your `PATH`, install the bundled rgctl skill into the **target repository** (the same root you pass to `discover` via `-r` / `--repo`, or the current directory):
+After `rgctl` is on your `PATH`, install the **agent pack** into the **target repository** (the same root you pass to `discover` via `-r` / `--repo`, or the current directory):
 
 ```bash
-rgctl install --skill
-# or, from another cwd:
-rgctl -r /path/to/repo install --skill
+rgctl install --skill --with-commands
+rgctl -r /path/to/repo install --skill --with-commands
+rgctl install --list-agents
 ```
 
-That writes:
+That writes workflow skills (`rgctl-discover`, `rgctl-migrate`, `rgctl-kantra`, …), meta-skill `rgctl`, and optional slash commands. **Default (no `--tools`):** `cursor`, `claude`, `codex`, `agents`. Use **`--tools all`** for the full registry.
 
-- `<repo>/.claude/skills/rgctl/` (Claude Code)
-- `<repo>/.agents/skills/rgctl/` (Codex)
-- `<repo>/.cursor/skills/rgctl/` (Cursor)
-
-Limit hosts with `--host claude`, `--host codex`, or `--host cursor` (default is `all`). Identical files are left unchanged. If a dest file differs, the command exits 1 unless you pass `--force`. Re-run `install --skill --force` after upgrading `rgctl` to refresh the project copy. Manual copy of `skills/rgctl/` remains a fallback if you have a git checkout.
+Full flag reference, adapter paths, and workflow ↔ CLI table: **[Agent commands](guides/agent-commands.md)**. Walkthrough: [Agent skill](guides/agent-skill.md). Add `--with-policy` for a Cursor structural-rules snippet. Use `-g` for a global install. Exit code **1** if a managed file differs unless you pass `--force`. Install does not run `discover`.
 
 ---
 

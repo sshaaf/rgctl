@@ -66,7 +66,7 @@ rgctl slice src/Foo.java --line 42 --variable x
 ```
 
 **🤖 Using with LLM IDEs?**
-Simply point your AI assistant to our **[AGENTS.md](AGENTS.md)** file, or install the agent skill natively via `rgctl install --skill` to use the **[Agent skill](skills/rgctl/SKILL.md)** playbook for seamless IDE routing.
+Point your assistant at **[AGENTS.md](AGENTS.md)**, or install the embedded pack: `rgctl install --skill --with-commands --tools cursor,claude` (see **[Agent commands](docs/guides/agent-commands.md)** and the **[Agent skill](skills/rgctl/SKILL.md)** playbook).
 
 ---
 

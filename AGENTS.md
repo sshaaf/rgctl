@@ -3,6 +3,7 @@
 rgctl is designed so agents answer **structural questions** from a pre-built graph instead of reading whole files into context.
 
 **Installation:** [docs/installation.md](docs/installation.md) (prerequisites, setup)  
+**Agent pack install:** [docs/guides/agent-commands.md](docs/guides/agent-commands.md) (`install --skill --with-commands`, `--tools`, workflows)  
 **Full JSON reference:** [docs/json-api.md](docs/json-api.md) (also on the site: [sshaaf.github.io/rgctl/docs/json-api/](https://sshaaf.github.io/rgctl/docs/json-api/))  
 **Copy-paste recipes:** [docs/agent-recipes.md](docs/agent-recipes.md)  
 **Human walkthrough:** [docs/user-guide.md](docs/user-guide.md)  
@@ -10,10 +11,10 @@ rgctl is designed so agents answer **structural questions** from a pre-built gra
 
 Default for agents: spawn **`rgctl -f json`** subprocesses (or use foreground **`rgctl serve`** for repeated HTTP queries). Do **not** open the browser dashboard unless the user asks for a visual UI.
 
-Install the project skill once (Claude Code, Codex, and Cursor dirs under the repo):
+Install the agent pack once (limit `--tools` to the IDEs you use; default is all registry adapters):
 
 ```bash
-rgctl -r "$REPO" install --skill
+rgctl -r "$REPO" install --skill --with-commands --tools cursor,claude,codex,agents
 ```
 
 ---

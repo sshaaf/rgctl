@@ -88,7 +88,7 @@ if (doc.schema_version !== 2) {
 | `semantic distill` | **1** | RBVK matrix write (hash/code-daemon teacher) |
 | `communities` | **1** | list / label |
 | `cpg` (status / mutations / flows / …) | **1** | per-subcommand shapes |
-| `install` | **1** | skill write report |
+| `install` | **2** | agent pack write report (`list-agents` JSON is separate; see §18) |
 
 **Omitted vs null:** optional fields are **absent** when unset (not `null`), unless noted otherwise. Empty collections are usually `[]`, not omitted.
 
@@ -1081,33 +1081,62 @@ rgctl -r "$REPO" -f json cpg calls priceShoppingCart | jq '.edges[:10]'
 
 ## 18. `install`
 
-Copy the bundled rgctl agent skill into project skill directories. Does **not** require a prior `discover`. Types: `src/cli/install_output.rs`. `schema_version` is **1**.
+Install the embedded **agent pack** (workflow skills, optional commands, optional policy). Does **not** require a prior `discover` and does **not** run `discover`. Types: `src/cli/install_output.rs`. `schema_version` is **2**.
+
+Human-readable install reference: [Agent commands guide](guides/agent-commands.md).
 
 ```bash
-rgctl -r "$REPO" -f json install --skill [--host all|claude|codex|cursor] [--force]
+rgctl -r "$REPO" -f json install --skill [--with-commands] [--with-policy] \
+  [--tools cursor,claude,codex,agents|all] [-g] [--force]
+rgctl -f json install --list-agents
+```
+
+Omitting **`--tools`** installs the **v1 default** adapters: `cursor`, `claude`, `codex`, `agents`. Use **`--tools all`** for every registry entry. Unknown ids in `--tools` are reported on stderr; if none are valid, exit **1**. **`--global`** is rejected for agents with `supports_global: false` in the registry.
+
+### `install --list-agents`
+
+Separate JSON payload (not install schema v2):
+
+```typescript
+type ListAgentsResponse = {
+  schema_version: 1;
+  command: "list-agents";
+  list_agents: true;
+  agents: Array<{ id: string; skills_path: string; supports_global: boolean; /* … */ }>;
+  workflows: Array<{ id: string; title: string }>;
+  rgctl_version: string;
+};
 ```
 
 ```typescript
 type InstallWriteStatus = "created" | "unchanged" | "overwritten" | "skipped_exists";
+type InstallWriteKind = "skill" | "command" | "policy" | "meta";
 
 type InstallResponse = {
-  schema_version: 1;
+  schema_version: 2;
   command: "install";
   skill: "rgctl";
-  repo: string; // absolute repository root
+  repo: string; // absolute install prefix (repo or home for -g)
+  scope: "local" | "global";
+  agents: string[];
+  with_commands: boolean;
+  with_policy: boolean;
   force: boolean;
   writes: Array<{
-    host: "claude" | "codex" | "cursor";
-    path: string; // absolute dest path
+    agent: string;
+    workflow?: string;
+    kind: InstallWriteKind;
+    path: string;
     status: InstallWriteStatus;
+    host?: "claude" | "codex" | "cursor"; // legacy compat when set
   }>;
 };
 ```
 
-Without `--skill` the process exits 1 and does not emit this payload. If any write is `skipped_exists`, JSON is still printed and the process exits 1.
+Pass `--skill` and/or `--with-policy`. `--host` is deprecated (use `--tools`). Workflow markdown is authored under `skills/rgctl/workflows/`; installed `references/workflows.md` is assembled at rgctl build time. If any write is `skipped_exists`, JSON is still printed and the process exits 1.
 
 ```bash
-rgctl -r "$REPO" -f json install --skill | jq '.writes[] | {host, status}'
+rgctl -r "$REPO" -f json install --skill --with-commands | jq '.writes[] | {agent, workflow, kind, status}'
 ```
 
 ---

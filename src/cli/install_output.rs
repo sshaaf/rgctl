@@ -3,65 +3,78 @@
 use serde::{Deserialize, Serialize};
 
 /// Current install JSON schema version.
-pub const INSTALL_SCHEMA_VERSION: u32 = 1;
+pub const INSTALL_SCHEMA_VERSION: u32 = 2;
 
-/// Agent host that received a skill file write.
+/// Legacy host ids (schema v1); prefer `agent` string in v2.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum InstallWriteHost {
-    /// Claude Code project skills directory.
     Claude,
-    /// Codex project skills directory.
     Codex,
-    /// Cursor project skills directory.
     Cursor,
+}
+
+/// Kind of installed artifact.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum InstallWriteKind {
+    Skill,
+    Command,
+    Policy,
+    Meta,
 }
 
 /// Outcome of one destination file.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum InstallWriteStatus {
-    /// File did not exist and was written.
     Created,
-    /// Existing file matched the bundle; left unchanged.
     Unchanged,
-    /// Existing file was replaced (`--force`, or a symlink converted to a regular file).
     Overwritten,
-    /// Existing file differed and `--force` was not set.
     SkippedExists,
 }
 
 /// One planned or completed file write.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct InstallWrite {
-    /// Agent host for this dest path.
-    pub host: InstallWriteHost,
+    /// Agent registry id (`cursor`, `claude`, …).
+    pub agent: String,
+    /// Workflow id when applicable (`gql`, `migrate`, …).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub workflow: Option<String>,
+    /// Artifact kind.
+    pub kind: InstallWriteKind,
     /// Absolute destination path.
     pub path: String,
     /// Write outcome.
     pub status: InstallWriteStatus,
+    /// Schema v1 compatibility.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<InstallWriteHost>,
 }
 
 /// Top-level install JSON payload.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct InstallJsonResponse {
-    /// Schema version (1).
     pub schema_version: u32,
-    /// Always `"install"`.
     pub command: String,
-    /// Bundled skill id (`rgctl`).
     pub skill: String,
-    /// Absolute repository root used as install prefix.
     pub repo: String,
-    /// Whether `--force` was set.
+    pub scope: String,
+    pub agents: Vec<String>,
+    pub with_commands: bool,
+    pub with_policy: bool,
     pub force: bool,
-    /// Per-file results.
     pub writes: Vec<InstallWrite>,
 }
 
 /// Build the install response object.
 pub fn build_install_response(
     repo: &str,
+    scope: &str,
+    agents: Vec<String>,
+    with_commands: bool,
+    with_policy: bool,
     force: bool,
     writes: Vec<InstallWrite>,
 ) -> InstallJsonResponse {
@@ -70,7 +83,20 @@ pub fn build_install_response(
         command: "install".into(),
         skill: "rgctl".into(),
         repo: repo.to_string(),
+        scope: scope.to_string(),
+        agents,
+        with_commands,
+        with_policy,
         force,
         writes,
+    }
+}
+
+pub fn host_compat(agent: &str) -> Option<InstallWriteHost> {
+    match agent {
+        "claude" => Some(InstallWriteHost::Claude),
+        "codex" | "agents" => Some(InstallWriteHost::Codex),
+        "cursor" => Some(InstallWriteHost::Cursor),
+        _ => None,
     }
 }

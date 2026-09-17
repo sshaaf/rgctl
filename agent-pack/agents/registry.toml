@@ -1,0 +1,477 @@
+# Agent adapters (OpenSpec-aligned paths). See docs/guides/agent-commands.md
+# command_style: hyphen | colon | dollar | slash
+# command_extension: md (default), prompt, prompt.md, toml
+# global_skills / global_commands: reserved for future -g path wiring (install uses agent_dir under prefix today)
+
+[[agent]]
+id = "agents"
+agent_dir = ".agents"
+skills_subdir = "skills"
+commands_subdir = ""
+command_style = "slash"
+invoke_prefix = "/rgctl"
+commands_enabled = false
+supports_global = true
+global_skills = ".agents/skills"
+global_commands = ""
+
+[[agent]]
+id = "amazon-q"
+agent_dir = ".amazonq"
+skills_subdir = "skills"
+commands_subdir = "prompts"
+command_style = "hyphen"
+command_extension = "md"
+invoke_prefix = "@rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "antigravity"
+agent_dir = ".agent"
+skills_subdir = "skills"
+commands_subdir = "workflows"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "auggie"
+agent_dir = ".augment"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "bob"
+agent_dir = ".bob"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "claude"
+agent_dir = ".claude"
+skills_subdir = "skills"
+commands_subdir = "commands/rgctl"
+command_style = "colon"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = true
+global_skills = ".claude/skills"
+global_commands = ".claude/commands/rgctl"
+
+[[agent]]
+id = "cline"
+agent_dir = ".cline"
+skills_subdir = "skills"
+commands_subdir = "clinerules/workflows"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "codeartsagent"
+agent_dir = ".codeartsdoer"
+skills_subdir = "skills"
+commands_subdir = ""
+command_style = "slash"
+invoke_prefix = "/rgctl"
+commands_enabled = false
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "codeassistant"
+agent_dir = ".codeassistant"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "codebuddy"
+agent_dir = ".codebuddy"
+skills_subdir = "skills"
+commands_subdir = "commands/rgctl"
+command_style = "colon"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "codex"
+agent_dir = ".agents"
+skills_subdir = "skills"
+commands_subdir = ""
+command_style = "dollar"
+invoke_prefix = "$rgctl"
+commands_enabled = false
+supports_global = true
+global_skills = ".agents/skills"
+global_commands = ""
+
+[[agent]]
+id = "command-code"
+agent_dir = ".commandcode"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "continue"
+agent_dir = ".continue"
+skills_subdir = "skills"
+commands_subdir = "prompts"
+command_style = "hyphen"
+command_extension = "prompt"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "costrict"
+agent_dir = ".cospec"
+skills_subdir = "skills"
+commands_subdir = "openspec/commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "crush"
+agent_dir = ".crush"
+skills_subdir = "skills"
+commands_subdir = "commands/rgctl"
+command_style = "colon"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "cursor"
+agent_dir = ".cursor"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = true
+global_skills = ".cursor/skills"
+global_commands = ".cursor/commands"
+
+[[agent]]
+id = "devin"
+agent_dir = ".devin"
+skills_subdir = "skills"
+commands_subdir = "workflows"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "factory"
+agent_dir = ".factory"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "forgecode"
+agent_dir = ".forge"
+skills_subdir = "skills"
+commands_subdir = ""
+command_style = "slash"
+invoke_prefix = "/rgctl"
+commands_enabled = false
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "gemini"
+agent_dir = ".gemini"
+skills_subdir = "skills"
+commands_subdir = "commands/rgctl"
+command_style = "colon"
+command_extension = "toml"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "github-copilot"
+agent_dir = ".github"
+skills_subdir = "skills"
+commands_subdir = "prompts"
+command_style = "hyphen"
+command_extension = "prompt.md"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "hermes"
+agent_dir = ".hermes"
+skills_subdir = "skills"
+commands_subdir = ""
+command_style = "slash"
+invoke_prefix = "/rgctl"
+commands_enabled = false
+supports_global = true
+global_skills = ".hermes/skills"
+global_commands = ""
+
+[[agent]]
+id = "iflow"
+agent_dir = ".iflow"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "junie"
+agent_dir = ".junie"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "kilocode"
+agent_dir = ".kilocode"
+skills_subdir = "skills"
+commands_subdir = "workflows"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "kimi"
+agent_dir = ".kimi-code"
+skills_subdir = "skills"
+commands_subdir = ""
+command_style = "slash"
+invoke_prefix = "/skill:rgctl"
+commands_enabled = false
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "kiro"
+agent_dir = ".kiro"
+skills_subdir = "skills"
+commands_subdir = "prompts"
+command_style = "hyphen"
+command_extension = "prompt.md"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "lingma"
+agent_dir = ".lingma"
+skills_subdir = "skills"
+commands_subdir = "commands/rgctl"
+command_style = "colon"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "oh-my-pi"
+agent_dir = ".omp"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "opencode"
+agent_dir = ".opencode"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "pi"
+agent_dir = ".pi"
+skills_subdir = "skills"
+commands_subdir = "prompts"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "qoder"
+agent_dir = ".qoder"
+skills_subdir = "skills"
+commands_subdir = "commands/rgctl"
+command_style = "colon"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "qwen"
+agent_dir = ".qwen"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "roocode"
+agent_dir = ".roo"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "rovodev"
+agent_dir = ".rovodev"
+skills_subdir = "skills"
+commands_subdir = ""
+command_style = "slash"
+invoke_prefix = "/rgctl"
+commands_enabled = false
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "trae"
+agent_dir = ".trae"
+skills_subdir = "skills"
+commands_subdir = "commands"
+command_style = "hyphen"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "vibe"
+agent_dir = ".vibe"
+skills_subdir = "skills"
+commands_subdir = ""
+command_style = "slash"
+invoke_prefix = "/rgctl"
+commands_enabled = false
+supports_global = false
+global_skills = ""
+global_commands = ""
+
+[[agent]]
+id = "zed"
+agent_dir = ".agents"
+skills_subdir = "skills"
+commands_subdir = ""
+command_style = "slash"
+invoke_prefix = "/rgctl"
+commands_enabled = false
+supports_global = true
+global_skills = ".agents/skills"
+global_commands = ""
+
+[[agent]]
+id = "zcode"
+agent_dir = ".zcode"
+skills_subdir = "skills"
+commands_subdir = "commands/rgctl"
+command_style = "colon"
+invoke_prefix = "/rgctl"
+commands_enabled = true
+supports_global = false
+global_skills = ""
+global_commands = ""
