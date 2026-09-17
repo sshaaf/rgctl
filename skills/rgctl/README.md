@@ -16,9 +16,10 @@ A skill for answering structural questions about codebases using the rgctl CLI g
 skills/rgctl/
 ├── SKILL.md                              # Main skill (352 lines)
 ├── README.md                             # This file
+├── workflows/                            # Source for slash skills + references/workflows.md (assembled at build)
 └── references/
     ├── command-encyclopedia.md           # All commands with JSON samples (19KB)
-    ├── workflows.md                      # Migration, Kantra rules, refactor, audit scenarios
+    ├── workflows.md                      # Generated from workflows/ at build (do not edit by hand)
     ├── gql-reference.md                  # GQL patterns & limitations (4.7KB)
     └── communities-and-policy.md         # Community detection + CI policy (13KB)
 ```
@@ -49,12 +50,9 @@ skills/rgctl/
 - Prerequisites and pitfalls
 - "What to report" guidelines
 
-#### workflows.md
-- Migration & audit workflows (incl. Konveyor Kantra `--with-kantra`)
-- Intent discovery & subsystem mapping
-- Pre-refactor safety analysis
-- CI gates & policy
-- Advanced patterns
+#### workflows.md (generated)
+- Assembled from `workflows/*.md` when the agent pack is built (`cargo build`)
+- Edit fragments under `workflows/` (e.g. `migrate.md`, `kantra.md`); order comes from `agent-pack/manifest.yaml`
 
 #### gql-reference.md
 - Cypher subset capabilities
@@ -87,13 +85,15 @@ skills/rgctl/
 
 ## Installation
 
-From another repo:
+From a target repository (not the rgctl source tree unless you are dogfooding):
 
 ```bash
-rgctl install --skill
+rgctl install --skill --with-commands --tools cursor,claude,codex,agents
 ```
 
-This writes `.claude/skills/rgctl/`, `.agents/skills/rgctl/`, and `.cursor/skills/rgctl/` from the embedded skill.
+Installs meta skill `rgctl`, workflow skills (`rgctl-discover`, …), and optional slash commands per adapter. See [Agent commands guide](../../docs/guides/agent-commands.md).
+
+**Maintainers:** edit workflow bodies under `workflows/`; run `cargo build` to refresh `references/workflows.md`.
 
 ## See Also
 

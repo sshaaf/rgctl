@@ -36,6 +36,7 @@ members = [
     "crates/rgctl-lang-markdown",
     "crates/rgctl-lang-php",
     "crates/rgctl-languages",
+    "crates/rgctl-agent-pack-codegen",
 ]
 resolver = "2"
 
@@ -122,6 +123,11 @@ readme = "README.md"
 keywords = ["code-analysis", "graph", "ai", "knowledge-graph"]
 categories = ["development-tools", "command-line-utilities"]
 
+[build-dependencies]
+rgctl-agent-pack-codegen = { path = "crates/rgctl-agent-pack-codegen" }
+walkdir = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
 [dependencies]
 # Workspace crates
 rgctl-core = { workspace = true }
@@ -149,6 +155,8 @@ rgctl-languages = { workspace = true }
 
 rgctl-macros = { path = "rgctl-macros", optional = true }
 
+dirs = "6"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"

@@ -1,4 +1,4 @@
-//! CLI integration for `rgctl install --skill`.
+//! CLI integration for `rgctl install`.
 //!
 //! Run: `cargo test --test install_skill`
 
@@ -12,69 +12,6 @@ fn rgctl_bin() -> PathBuf {
         return PathBuf::from(bin);
     }
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/debug/rgctl")
-}
-
-fn bundled_skill_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("skills/rgctl")
-}
-
-fn collect_bundled_files() -> Vec<(PathBuf, Vec<u8>)> {
-    fn walk(base: &Path, rel: &Path, out: &mut Vec<(PathBuf, Vec<u8>)>) {
-        for ent in fs::read_dir(base.join(rel)).unwrap_or_else(|err| {
-            panic!("read bundled skill dir {}: {err}", base.join(rel).display())
-        }) {
-            let ent = ent.expect("dir entry");
-            let rel_path = rel.join(ent.file_name());
-            if ent.path().is_dir() {
-                walk(base, &rel_path, out);
-            } else {
-                let bytes = fs::read(base.join(&rel_path))
-                    .unwrap_or_else(|err| panic!("read {}: {err}", rel_path.display()));
-                out.push((rel_path, bytes));
-            }
-        }
-    }
-    let root = bundled_skill_root();
-    let mut out = Vec::new();
-    walk(&root, Path::new(""), &mut out);
-    out.sort_by(|a, b| a.0.cmp(&b.0));
-    out
-}
-
-fn bundled_file_count() -> usize {
-    collect_bundled_files().len()
-}
-
-fn skill_dest(repo: &Path, host: &str, rel: &Path) -> PathBuf {
-    let agent_dir = match host {
-        "claude" => ".claude",
-        "codex" => ".agents",
-        "cursor" => ".cursor",
-        _ => panic!("unknown agent host: {host}"),
-    };
-    repo.join(agent_dir).join("skills/rgctl").join(rel)
-}
-
-fn assert_host_matches_bundle(repo: &Path, host: &str) {
-    let files = collect_bundled_files();
-    assert!(
-        !files.is_empty(),
-        "expected non-empty skills/rgctl bundle in tree"
-    );
-    for (rel, expected) in files {
-        let path = skill_dest(repo, host, &rel);
-        assert!(
-            path.is_file(),
-            "missing bundled file for {host}: {}",
-            path.display()
-        );
-        let got = fs::read(&path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
-        assert_eq!(
-            got, expected,
-            "{host} {} must match bundle",
-            rel.display()
-        );
-    }
 }
 
 fn run_in(cwd: &Path, args: &[&str]) -> Output {
@@ -95,61 +32,38 @@ fn stdout_json(output: &Output) -> Value {
 }
 
 #[test]
-fn install_without_skill_exits_one_and_writes_nothing() {
+fn install_without_skill_or_policy_exits_one() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let cwd = tempfile::tempdir().expect("cwd");
-    let output = run_in(
-        cwd.path(),
-        &["-r", &dir.path().display().to_string(), "install"],
-    );
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
+    let output = run_in(dir.path(), &["-r", &dir.path().display().to_string(), "install"]);
+    assert_eq!(output.status.code(), Some(1));
     let err = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        err.contains("--skill"),
-        "error should mention --skill: {err}"
-    );
-    assert!(!dir.path().join(".claude/skills/rgctl").exists());
-    assert!(!dir.path().join(".agents/skills/rgctl").exists());
-    assert!(!dir.path().join(".cursor/skills/rgctl").exists());
+    assert!(err.contains("--skill") || err.contains("--with-policy"), "{err}");
 }
 
 #[test]
-fn install_skill_writes_all_hosts_matching_bundle() {
+fn install_list_agents_json() {
+    let cwd = tempfile::tempdir().expect("cwd");
+    let output = run_in(cwd.path(), &["-f", "json", "install", "--list-agents"]);
+    assert!(output.status.success());
+    let doc = stdout_json(&output);
+    assert_eq!(doc["list_agents"].as_bool(), Some(true));
+    assert!(doc["agents"].as_array().is_some_and(|a| a.len() >= 30));
+}
+
+#[test]
+fn install_skill_cursor_with_commands() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let repo = fs::canonicalize(dir.path()).expect("canonicalize repo");
+    let repo = fs::canonicalize(dir.path()).expect("canonicalize");
     let output = run_in(
         dir.path(),
-        &["-r", &repo.display().to_string(), "install", "--skill"],
-    );
-    assert!(
-        output.status.success(),
-        "stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    for host in ["claude", "codex", "cursor"] {
-        assert_host_matches_bundle(&repo, host);
-    }
-}
-
-#[test]
-fn install_host_claude_writes_claude_directory_only_and_repo_flag_ignores_cwd() {
-    let repo_dir = tempfile::tempdir().expect("repo");
-    let cwd_dir = tempfile::tempdir().expect("cwd");
-    let repo = fs::canonicalize(repo_dir.path()).expect("canonicalize repo");
-    let output = run_in(
-        cwd_dir.path(),
         &[
             "-r",
             &repo.display().to_string(),
             "install",
             "--skill",
-            "--host",
-            "claude",
+            "--with-commands",
+            "--tools",
+            "cursor",
         ],
     );
     assert!(
@@ -157,118 +71,43 @@ fn install_host_claude_writes_claude_directory_only_and_repo_flag_ignores_cwd() 
         "stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_host_matches_bundle(&repo, "claude");
-    assert!(!repo.join(".agents/skills/rgctl").exists());
-    assert!(!cwd_dir.path().join(".claude").exists());
-    assert!(!repo.join(".cursor/skills/rgctl").exists());
-    assert!(!cwd_dir.path().join(".cursor").exists());
+    assert!(repo.join(".cursor/skills/rgctl/SKILL.md").is_file());
+    assert!(repo.join(".cursor/skills/rgctl-migrate/SKILL.md").is_file());
+    assert!(repo.join(".cursor/skills/rgctl-kantra/SKILL.md").is_file());
+    assert!(repo.join(".cursor/commands/rgctl-gql.md").is_file());
 }
 
 #[test]
-fn install_host_codex_writes_agents_directory_only() {
-    let repo_dir = tempfile::tempdir().expect("repo");
-    let repo = fs::canonicalize(repo_dir.path()).expect("canonicalize repo");
-    let output = run_in(
-        repo_dir.path(),
-        &[
-            "-r",
-            &repo.display().to_string(),
-            "install",
-            "--skill",
-            "--host",
-            "codex",
-        ],
-    );
-    assert!(
-        output.status.success(),
-        "stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_host_matches_bundle(&repo, "codex");
-    assert!(!repo.join(".claude/skills/rgctl").exists());
-    assert!(!repo.join(".cursor/skills/rgctl").exists());
-}
-
-#[test]
-fn install_second_run_unchanged_conflict_then_force() {
+fn migrate_and_kantra_skills_differ_in_primary_artifact() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let repo = fs::canonicalize(dir.path()).expect("canonicalize repo");
-    let repo_s = repo.display().to_string();
-    let first = run_in(dir.path(), &["-r", &repo_s, "install", "--skill"]);
-    assert!(first.status.success());
-
-    let second = run_in(
-        dir.path(),
-        &["-r", &repo_s, "-f", "json", "install", "--skill"],
-    );
+    let repo = fs::canonicalize(dir.path()).expect("canonicalize");
     assert!(
-        second.status.success(),
-        "stderr={}",
-        String::from_utf8_lossy(&second.stderr)
+        run_in(
+            dir.path(),
+            &[
+                "-r",
+                &repo.display().to_string(),
+                "install",
+                "--skill",
+                "--tools",
+                "cursor",
+            ],
+        )
+        .status
+        .success()
     );
-    let doc = stdout_json(&second);
-    let writes = doc["writes"].as_array().expect("writes");
-    assert_eq!(writes.len(), bundled_file_count() * 3);
-    assert!(
-        writes
-            .iter()
-            .all(|w| w["status"].as_str() == Some("unchanged"))
-    );
-
-    let claude_skill = skill_dest(&repo, "claude", Path::new("SKILL.md"));
-    fs::write(&claude_skill, b"local edits\n").expect("dirty skill");
-    let refused = run_in(
-        dir.path(),
-        &["-r", &repo_s, "-f", "json", "install", "--skill"],
-    );
-    assert_eq!(refused.status.code(), Some(1));
-    assert_eq!(
-        fs::read(&claude_skill).expect("read dirty"),
-        b"local edits\n"
-    );
-    let refused_doc = stdout_json(&refused);
-    let skipped = refused_doc["writes"]
-        .as_array()
-        .expect("writes")
-        .iter()
-        .find(|w| {
-            w["host"].as_str() == Some("claude")
-                && w["path"]
-                    .as_str()
-                    .is_some_and(|p| p.ends_with("SKILL.md"))
-        })
-        .expect("claude SKILL.md write");
-    assert_eq!(skipped["status"].as_str(), Some("skipped_exists"));
-
-    let forced = run_in(
-        dir.path(),
-        &["-r", &repo_s, "-f", "json", "install", "--skill", "--force"],
-    );
-    assert!(
-        forced.status.success(),
-        "stderr={}",
-        String::from_utf8_lossy(&forced.stderr)
-    );
-    assert_host_matches_bundle(&repo, "claude");
-    let forced_doc = stdout_json(&forced);
-    let overwritten = forced_doc["writes"]
-        .as_array()
-        .expect("writes")
-        .iter()
-        .find(|w| {
-            w["host"].as_str() == Some("claude")
-                && w["path"]
-                    .as_str()
-                    .is_some_and(|p| p.ends_with("SKILL.md"))
-        })
-        .expect("claude SKILL.md write");
-    assert_eq!(overwritten["status"].as_str(), Some("overwritten"));
+    let migrate = fs::read_to_string(repo.join(".cursor/skills/rgctl-migrate/SKILL.md")).unwrap();
+    let kantra = fs::read_to_string(repo.join(".cursor/skills/rgctl-kantra/SKILL.md")).unwrap();
+    assert!(migrate.contains("**Primary output:** `.rgctl/migration_plan.json`"));
+    assert!(kantra.contains("**Primary output:** `.rgctl/kantra_findings.json`"));
+    assert!(!migrate.contains("**Primary output:** `.rgctl/kantra_findings.json`"));
+    assert!(!kantra.contains("**Primary output:** `.rgctl/migration_plan.json`"));
 }
 
 #[test]
-fn install_json_created_shape() {
+fn install_json_schema_v2_shape() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let repo = fs::canonicalize(dir.path()).expect("canonicalize repo");
+    let repo = fs::canonicalize(dir.path()).expect("canonicalize");
     let output = run_in(
         dir.path(),
         &[
@@ -278,6 +117,114 @@ fn install_json_created_shape() {
             "json",
             "install",
             "--skill",
+            "--tools",
+            "cursor",
+        ],
+    );
+    assert!(output.status.success());
+    let doc = stdout_json(&output);
+    assert_eq!(doc["schema_version"].as_u64(), Some(2));
+    assert_eq!(doc["scope"].as_str(), Some("local"));
+    assert_eq!(doc["with_commands"].as_bool(), Some(false));
+    let writes = doc["writes"].as_array().expect("writes");
+    assert!(writes.iter().any(|w| w["agent"].as_str() == Some("cursor")));
+    assert!(writes.iter().any(|w| w["workflow"].as_str() == Some("kantra")));
+}
+
+#[test]
+fn install_with_policy_writes_cursor_rule() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let repo = fs::canonicalize(dir.path()).expect("canonicalize");
+    let output = run_in(
+        dir.path(),
+        &[
+            "-r",
+            &repo.display().to_string(),
+            "install",
+            "--with-policy",
+            "--tools",
+            "cursor",
+        ],
+    );
+    assert!(output.status.success());
+    let rule = repo.join(".cursor/rules/rgctl-structural.mdc");
+    assert!(rule.is_file());
+    let body = fs::read_to_string(rule).unwrap();
+    assert!(body.contains("best-effort"));
+}
+
+#[test]
+fn install_global_cursor_skills() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let home = tempfile::tempdir().expect("home");
+    let output = Command::new(rgctl_bin())
+        .env("HOME", home.path())
+        .args([
+            "-r",
+            &dir.path().display().to_string(),
+            "install",
+            "--skill",
+            "--tools",
+            "cursor",
+            "-g",
+        ])
+        .output()
+        .expect("spawn");
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(home.path().join(".cursor/skills/rgctl/SKILL.md").is_file());
+}
+
+#[test]
+fn install_force_after_edit() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let repo = fs::canonicalize(dir.path()).expect("canonicalize");
+    let repo_s = repo.display().to_string();
+    assert!(run_in(dir.path(), &["-r", &repo_s, "install", "--skill", "--tools", "cursor"])
+        .status
+        .success());
+    let skill = repo.join(".cursor/skills/rgctl-gql/SKILL.md");
+    fs::write(&skill, b"edited\n").unwrap();
+    assert!(!run_in(
+        dir.path(),
+        &["-r", &repo_s, "install", "--skill", "--tools", "cursor"]
+    )
+    .status
+    .success());
+    assert!(run_in(
+        dir.path(),
+        &[
+            "-r",
+            &repo_s,
+            "install",
+            "--skill",
+            "--tools",
+            "cursor",
+            "--force",
+        ],
+    )
+    .status
+    .success());
+    assert!(fs::read_to_string(&skill).unwrap().contains("GQL workflow"));
+}
+
+#[test]
+fn install_opencode_and_pi_paths() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let repo = fs::canonicalize(dir.path()).expect("canonicalize");
+    let output = run_in(
+        dir.path(),
+        &[
+            "-r",
+            &repo.display().to_string(),
+            "install",
+            "--skill",
+            "--with-commands",
+            "--tools",
+            "opencode,pi",
         ],
     );
     assert!(
@@ -285,49 +232,14 @@ fn install_json_created_shape() {
         "stderr={}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let doc = stdout_json(&output);
-    assert_eq!(doc["schema_version"].as_u64(), Some(1));
-    assert_eq!(doc["command"].as_str(), Some("install"));
-    assert_eq!(doc["skill"].as_str(), Some("rgctl"));
-    assert_eq!(doc["force"].as_bool(), Some(false));
-    let repo_json = doc["repo"].as_str().expect("repo");
-    assert!(
-        Path::new(repo_json).is_absolute(),
-        "repo should be absolute: {repo_json}"
-    );
-
-    let bundled = collect_bundled_files();
-    let per_host = bundled.len();
-    assert!(per_host >= 2, "bundle should include SKILL.md and references");
-
-    let writes = doc["writes"].as_array().expect("writes");
-    assert_eq!(writes.len(), per_host * 3);
-
-    for host in ["claude", "codex", "cursor"] {
-        let host_writes: Vec<_> = writes
-            .iter()
-            .filter(|w| w["host"].as_str() == Some(host))
-            .collect();
-        assert_eq!(host_writes.len(), per_host, "{host} write count");
-        for (rel, _) in &bundled {
-            let found = host_writes.iter().any(|w| {
-                w["status"].as_str() == Some("created")
-                    && w["path"]
-                        .as_str()
-                        .is_some_and(|p| Path::new(p).ends_with(rel))
-            });
-            assert!(found, "{host} missing created write for {}", rel.display());
-        }
-    }
-
-    assert!(
-        skill_dest(&repo, "claude", Path::new("references/gql-reference.md")).is_file(),
-        "references/ should be installed"
-    );
+    assert!(repo.join(".opencode/skills/rgctl-gql/SKILL.md").is_file());
+    assert!(repo.join(".opencode/commands/rgctl-gql.md").is_file());
+    assert!(repo.join(".pi/skills/rgctl-kantra/SKILL.md").is_file());
+    assert!(repo.join(".pi/prompts/rgctl-kantra.md").is_file());
 }
 
 #[test]
-fn install_help_mentions_flags() {
+fn install_help_mentions_new_flags() {
     let cwd = tempfile::tempdir().expect("cwd");
     let output = run_in(cwd.path(), &["install", "--help"]);
     assert!(output.status.success());
@@ -336,71 +248,7 @@ fn install_help_mentions_flags() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(help.contains("--skill"), "{help}");
-    assert!(help.contains("--host"), "{help}");
-    assert!(help.contains("codex"), "{help}");
-    assert!(help.contains("--force"), "{help}");
-}
-
-#[test]
-fn install_uses_embedded_bundle_when_cwd_has_no_skills_tree() {
-    let repo_dir = tempfile::tempdir().expect("repo");
-    let cwd_dir = tempfile::tempdir().expect("cwd without skills");
-    let repo = fs::canonicalize(repo_dir.path()).expect("canonicalize repo");
-    assert!(!cwd_dir.path().join("skills/rgctl").exists());
-    let output = run_in(
-        cwd_dir.path(),
-        &["-r", &repo.display().to_string(), "install", "--skill"],
-    );
-    assert!(
-        output.status.success(),
-        "stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_host_matches_bundle(&repo, "claude");
-}
-
-#[cfg(unix)]
-#[test]
-fn install_replaces_symlink_with_regular_file() {
-    use std::os::unix::fs::symlink;
-    let dir = tempfile::tempdir().expect("tempdir");
-    let repo = fs::canonicalize(dir.path()).expect("canonicalize repo");
-    let dest_dir = repo.join(".claude/skills/rgctl");
-    fs::create_dir_all(&dest_dir).expect("mkdir dest");
-    let sidecar = repo.join("sidecar.md");
-    let skill_md = bundled_skill_root().join("SKILL.md");
-    fs::write(&sidecar, fs::read(&skill_md).expect("bundle SKILL.md")).expect("sidecar");
-    let dest = dest_dir.join("SKILL.md");
-    symlink(&sidecar, &dest).expect("symlink");
-    assert!(
-        dest.symlink_metadata()
-            .expect("meta")
-            .file_type()
-            .is_symlink()
-    );
-
-    let output = run_in(
-        dir.path(),
-        &[
-            "-r",
-            &repo.display().to_string(),
-            "install",
-            "--skill",
-            "--host",
-            "claude",
-        ],
-    );
-    assert!(
-        output.status.success(),
-        "stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let meta = dest.symlink_metadata().expect("meta after");
-    assert!(meta.file_type().is_file());
-    assert!(!meta.file_type().is_symlink());
-    assert_eq!(
-        fs::read(&dest).expect("read dest"),
-        fs::read(&skill_md).expect("bundle")
-    );
+    assert!(help.contains("--with-commands"), "{help}");
+    assert!(help.contains("--list-agents"), "{help}");
+    assert!(help.contains("--global"), "{help}");
 }

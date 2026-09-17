@@ -56,7 +56,8 @@ Active Commands:
 ├── migrate-cache [--name NAME]
 │   └── Copy legacy ~/.rgctl/cache/{name}/.rgctl/ into current repo
 │
-├── install --skill [--host all|claude|codex|cursor] [--force]
+├── install [--skill] [--with-commands] [--with-policy] [--tools IDS|all] [-g] [--list-agents] [--force]
+│   └── (--skill and/or --with-policy required for install; --host deprecated → --tools)
 │
 ├── gql <QUERY>
 │   ├── --explain                   Execution plan

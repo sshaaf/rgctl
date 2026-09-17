@@ -66,8 +66,13 @@ const guides = [
     href: "/docs/guides/hybrid-cpg/",
   },
   {
+    title: "Agent commands",
+    blurb: "install --skill --with-commands, --tools, workflow slash commands.",
+    href: "/docs/guides/agent-commands/",
+  },
+  {
     title: "Agent skill",
-    blurb: "rgctl install --skill for Claude Code and Cursor.",
+    blurb: "Use cases and NL → CLI routing for AI agents.",
     href: "/docs/guides/agent-skill/",
   },
 ];

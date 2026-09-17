@@ -1,0 +1,69 @@
+{
+  "profile": "core",
+  "version": 1,
+  "rgctl_version": "0.4.13",
+  "workflows": [
+    {
+      "id": "discover",
+      "title": "Index and discover"
+    },
+    {
+      "id": "impact",
+      "title": "Blast radius and impact"
+    },
+    {
+      "id": "flow",
+      "title": "Data flow and slices"
+    },
+    {
+      "id": "search",
+      "title": "Semantic and structural search"
+    },
+    {
+      "id": "gql",
+      "title": "Graph query language"
+    },
+    {
+      "id": "migrate",
+      "title": "Migration roadmap"
+    },
+    {
+      "id": "kantra",
+      "title": "Konveyor Kantra rules"
+    },
+    {
+      "id": "gate",
+      "title": "CI and policy gates"
+    }
+  ],
+  "agents": [
+    {
+      "id": "agents",
+      "skills_path": ".agents/skills/",
+      "commands_path": null,
+      "invoke_prefix": "/rgctl",
+      "supports_global": true
+    },
+    {
+      "id": "claude",
+      "skills_path": ".claude/skills/",
+      "commands_path": ".claude/commands/rgctl/",
+      "invoke_prefix": "/rgctl",
+      "supports_global": true
+    },
+    {
+      "id": "codex",
+      "skills_path": ".agents/skills/",
+      "commands_path": null,
+      "invoke_prefix": "$rgctl",
+      "supports_global": true
+    },
+    {
+      "id": "cursor",
+      "skills_path": ".cursor/skills/",
+      "commands_path": ".cursor/commands/",
+      "invoke_prefix": "/rgctl",
+      "supports_global": true
+    }
+  ]
+}

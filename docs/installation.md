@@ -13,7 +13,7 @@ Everything you need to install rgctl (`rgctl`), choose the right operating mode,
 3. [Add to PATH](#add-to-path)
 4. [Verify the installation](#verify-the-installation)
 5. [Choose your operating mode](#choose-your-operating-mode)
-6. [Install the agent skill](#install-the-agent-skill)
+6. [Install the agent pack](#install-the-agent-pack)
 7. [Optional: semantic search setup](#optional-semantic-search-setup)
 8. [Upgrading](#upgrading)
 9. [Uninstalling](#uninstalling)
@@ -219,24 +219,28 @@ rgctl migrate-cache --name coolstore --force   # explicit cache name
 
 ---
 
-## Install the agent skill
+## Install the agent pack
 
-After `rgctl` is on your PATH, install the bundled skill into the target repository:
+After `rgctl` is on your PATH, install the **embedded agent pack** into the **target repository** (same root you use for `discover`):
 
 ```bash
-rgctl install --skill                    # current directory
-rgctl -r /path/to/repo install --skill   # specific repo
+rgctl install --skill --with-commands --tools cursor,claude,codex,agents
+rgctl -r /path/to/repo install --skill --with-commands --tools cursor
+rgctl install --list-agents
 ```
 
-This writes skill files to:
+This copies from the binary (no network):
 
-- `<repo>/.claude/skills/rgctl/` (Claude Code) — `SKILL.md`, `references/`, …
-- `<repo>/.agents/skills/rgctl/` (Codex)
-- `<repo>/.cursor/skills/rgctl/` (Cursor)
+- **Meta skill** `rgctl` — `SKILL.md`, `references/` (workflows assembled from `skills/rgctl/workflows/` at rgctl build time)
+- **Workflow skills** — `rgctl-discover`, `rgctl-migrate`, `rgctl-kantra`, … (eight workflows)
+- **Optional chat commands** — with `--with-commands` (e.g. `.cursor/commands/rgctl-gql.md`, Claude `/rgctl:gql` files)
+- **Optional policy** — `--with-policy` (Cursor structural rule snippet)
 
-Limit to one host with `--host claude`, `--host codex`, or `--host cursor`. Use `--force` to overwrite after upgrading `rgctl`.
+Default **`--tools`** is **all adapters** in the registry (~40 product-specific paths). Limit with **`--tools cursor`** or a comma-separated list. **`--host`** is deprecated. Use **`-g`** for a global install under your home directory. If a managed file differs from the bundle, the command exits **1** unless you pass **`--force`**.
 
-See the [Agent Skill guide](guides/agent-skill.md) and [AGENTS.md](../AGENTS.md).
+Install does **not** run `discover` — index the repo separately (`rgctl discover .`).
+
+**Full reference:** [Agent commands guide](guides/agent-commands.md) · [Agent skill walkthrough](guides/agent-skill.md) · [AGENTS.md](../AGENTS.md)
 
 ---
 
@@ -275,10 +279,10 @@ chmod +x ~/.local/bin/rgctl
 rgctl --version
 ```
 
-After upgrading, refresh agent skills in each repository:
+After upgrading, refresh the agent pack in each repository:
 
 ```bash
-rgctl install --skill --force
+rgctl install --skill --with-commands --tools cursor,claude --force
 ```
 
 ### From source

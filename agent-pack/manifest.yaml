@@ -1,0 +1,22 @@
+profile: core
+version: 1
+workflows:
+  - id: discover
+    title: Index and discover
+  - id: impact
+    title: Blast radius and impact
+  - id: flow
+    title: Data flow and slices
+  - id: search
+    title: Semantic and structural search
+  - id: gql
+    title: Graph query language
+  - id: migrate
+    title: Migration roadmap
+  - id: kantra
+    title: Konveyor Kantra rules
+  - id: gate
+    title: CI and policy gates
+meta_skills:
+  - id: rgctl
+    title: rgctl router

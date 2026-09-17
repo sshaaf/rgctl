@@ -9,7 +9,7 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 | Install rgctl + choose operating mode | **[Installation](installation.md)** |
 | Step-by-step feature how-tos (CoolStore) | **[Guides](guides/README.md)** |
 | Per-language extraction + GQL probes | **[Languages](languages/README.md)** |
-| LLM / agent workflows | [AGENTS.md](../AGENTS.md) · [Agent recipes](agent-recipes.md) |
+| LLM / agent workflows | [AGENTS.md](../AGENTS.md) · [Agent commands](guides/agent-commands.md) · [Agent recipes](agent-recipes.md) |
 | JSON shapes (`schema_version`, fields) | [JSON API](json-api.md) |
 | CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
 | Concepts (what / why) | [Introduction](Introduction.md) |

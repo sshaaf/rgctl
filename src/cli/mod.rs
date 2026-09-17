@@ -21,6 +21,7 @@ pub mod gql_output;
 mod http_serve;
 mod inspect;
 pub mod inspect_output;
+mod agent_pack;
 mod install;
 pub mod install_output;
 mod markup;
@@ -425,17 +426,37 @@ pub enum Commands {
         force: bool,
     },
 
-    /// Install bundled artifacts into a repository
+    /// Install bundled agent pack (skills, optional commands, optional policy)
     Install {
-        /// Install the rgctl agent skill (Claude Code + Codex + Cursor project dirs)
+        /// Install workflow skills and meta-skill `rgctl`
         #[arg(long = "skill")]
         skill: bool,
 
-        /// Which agent skill directories to write
-        #[arg(long = "host", value_enum, default_value = "all")]
-        host: SkillHost,
+        /// Install slash-command / prompt files per agent adapter
+        #[arg(long = "with-commands")]
+        with_commands: bool,
 
-        /// Overwrite existing skill files that differ from the bundle
+        /// Install structural policy snippet (Cursor rules; best-effort)
+        #[arg(long = "with-policy")]
+        with_policy: bool,
+
+        /// Print agent registry and exit
+        #[arg(long = "list-agents")]
+        list_agents: bool,
+
+        /// User-level agent dirs instead of repository-local paths
+        #[arg(short = 'g', long = "global")]
+        global_install: bool,
+
+        /// Agent ids to install (comma-separated), or `all` for every adapter in the registry
+        #[arg(long = "tools", value_delimiter = ',')]
+        tools: Option<Vec<String>>,
+
+        /// Deprecated: use `--tools`
+        #[arg(long = "host", value_enum)]
+        host: Option<SkillHost>,
+
+        /// Overwrite rgctl-managed files that differ from the bundle
         #[arg(long)]
         force: bool,
     },
@@ -1063,9 +1084,28 @@ impl Cli {
                     query,
                 },
             ),
-            Commands::Install { skill, host, force } => {
-                install::run(&ctx, install::InstallArgs { skill, host, force })
-            }
+            Commands::Install {
+                skill,
+                with_commands,
+                with_policy,
+                list_agents,
+                global_install,
+                tools,
+                host,
+                force,
+            } => install::run(
+                &ctx,
+                install::InstallArgs {
+                    skill,
+                    with_commands,
+                    with_policy,
+                    list_agents,
+                    global_install,
+                    tools,
+                    host,
+                    force,
+                },
+            ),
             Commands::MigrateCache { name, from, force } => migrate_cache::run(
                 &ctx,
                 migrate_cache::MigrateCacheArgs { name, from, force },

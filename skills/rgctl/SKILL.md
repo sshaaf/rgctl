@@ -219,7 +219,7 @@ rgctl -r "$REPO" -f json <command> …
 ## Installation
 
 ```bash
-rgctl install --skill
+rgctl install --skill --with-commands --tools cursor,claude,codex,agents
 ```
 
-Writes `.claude/skills/rgctl/`, `.agents/skills/rgctl/`, and `.cursor/skills/rgctl/` from the embedded skill in the binary.
+Installs workflow skills (`rgctl-discover`, `rgctl-migrate`, `rgctl-kantra`, …), meta-skill `rgctl`, and slash commands for each selected adapter. Omitting `--tools` targets **all** registry agents. See [docs/guides/agent-commands.md](../../docs/guides/agent-commands.md). Workflow source: `skills/rgctl/workflows/` (assembled into `references/workflows.md` at rgctl build time).
