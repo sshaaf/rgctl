@@ -2,7 +2,7 @@
 
 End-to-end guide for installing rgctl, indexing an in-tree example, and querying a codebase from the **command line**. Sample outputs target **`rgctl-tests/ecommerce-java`**. Runnable examples are backed by scenarios under [`user-guide/scenarios/`](user-guide/scenarios/) (see change `docs-agent-first-diataxis`).
 
-**Concepts:** [Introduction](Introduction.md). **Agents:** [AGENTS.md](../AGENTS.md). **JSON fields:** [json-api.md](json-api.md).
+**Concepts:** [Introduction](Introduction.md). **Use with agents:** [agent-commands](guides/agent-commands.md) · [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md). **Contribute:** [AGENTS.md](../AGENTS.md). **JSON fields:** [json-api.md](json-api.md).
 
 ### How this guide is organized
 
@@ -1344,5 +1344,7 @@ RUST_LOG=info,profile=info rgctl discover . -v 2>&1 | grep '\[profile\]'
 - [cli-getting-started.md](cli-getting-started.md) — deprecated stub (use this User Guide)
 - [http-api.md](http-api.md) — dashboard HTTP API
 - [json-api.md](json-api.md) — machine-readable output + field catalogs
-- [AGENTS.md](../AGENTS.md) — agent-oriented command recipes
+- [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md) — paste into consumer repos’ `AGENTS.md`
+- [AGENTS.md](../AGENTS.md) — contributor agent README for this repository
+- [agent-commands](guides/agent-commands.md) — skill install
 - [`rgctl-tests/README.md`](../rgctl-tests/README.md) — all language fixtures + correctness suite

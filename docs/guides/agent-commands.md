@@ -145,13 +145,18 @@ rgctl install --with-policy --tools cursor
 
 **Cursor-only today:** writes `.cursor/rules/rgctl-structural.mdc` regardless of `--tools` (other agents have no policy adapter yet). Best-effort nudge toward `rgctl -f json` when `.rgctl/` exists; agents cannot hard-block grep.
 
-### AGENTS.md snippet
+### AGENTS.md for *your* repo
 
-If you skip `--with-policy`, paste into repo root **`AGENTS.md`**:
+Prefer **`rgctl install --skill`**. If you skip `--with-policy` / skills, paste either:
+
+- the short nudge below into your repo’s root **`AGENTS.md`**, or
+- the full playbook from [USER_AGENTS_TEMPLATE.md](../agents/USER_AGENTS_TEMPLATE.md)
 
 ```markdown
 When `.rgctl/` exists, answer structural questions via `rgctl -f json` before ripgrep or bulk file reads.
 ```
+
+The **rgctl source tree** root [`AGENTS.md`](../../AGENTS.md) is for **contributing to rgctl** (not a consumer CLI cookbook).
 
 ---
 
@@ -160,5 +165,6 @@ When `.rgctl/` exists, answer structural questions via `rgctl -f json` before ri
 - [Agent skill](agent-skill.md) — use cases and agent loop
 - [Installation](../installation.md) — binary setup
 - [JSON API §18](../json-api.md#18-install) — install payload types
-- [AGENTS.md](../../AGENTS.md) — minimal agent contract
+- [USER_AGENTS_TEMPLATE.md](../agents/USER_AGENTS_TEMPLATE.md) — paste into consumer repos
+- [AGENTS.md](../../AGENTS.md) — contributor agent README for this repository
 - Release notes: [agent-pack-install](../releases/agent-pack-install.md) · GitHub [#84](https://github.com/sshaaf/rgctl/issues/84)

@@ -9,12 +9,14 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 | Install rgctl + choose operating mode | **[Installation](installation.md)** |
 | Step-by-step feature how-tos (CoolStore) | **[Guides](guides/README.md)** |
 | Per-language extraction + GQL probes | **[Languages](languages/README.md)** |
-| LLM / agent workflows | [AGENTS.md](../AGENTS.md) · [Agent commands](guides/agent-commands.md) · [Agent recipes](agent-recipes.md) |
+| Contribute to rgctl (agent README) | [AGENTS.md](../AGENTS.md) — rules, cold profiles, tests/benches |
+| Use rgctl with LLM IDEs | [Agent commands](guides/agent-commands.md) · [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md) · [Agent recipes](agent-recipes.md) |
 | JSON shapes (`schema_version`, fields) | [JSON API](json-api.md) |
 | CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
 | Concepts (what / why) | [Introduction](Introduction.md) |
 
-**Agent loop:** [AGENTS.md](../AGENTS.md) → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json`.  
+**Use rgctl (consumer agent loop):** install skills → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json` ([agent-commands](guides/agent-commands.md)).  
+**Contribute to this repo:** [AGENTS.md](../AGENTS.md).  
 **First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.  
 **Latest release:** [v0.4.14 release notes](releases/v0.4.14.md) (agent pack install, multi-tool workflow skills and slash commands).
 

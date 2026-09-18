@@ -2,6 +2,8 @@
 
 How to run **accurate** discover timings on large local checkouts under `example/`. This doc replaces the old scratch file `temp.md`.
 
+**Agent entry (summarized policy + Gate A/B + benches):** repository root [`AGENTS.md`](../../AGENTS.md) — *Starting context & performance* and *Profiles, tests, and benches*. This file is the **maintainer deep dive** (stage logs, reference machine, baseline tables).
+
 **Scope:** developer-machine smoke tests — **not** isolated CI. Numbers vary with CPU governor, background apps, disk cache, and thermal throttling. Use gates for regression bounds; use manual runs here to inspect `[profile]` stages.
 
 ---
@@ -309,4 +311,4 @@ Deterministic node IDs + delta `pr-check` did not regress cold discover on the p
 - `tests/cold_profile_gates.rs` — baselines and `TOLERANCE` (+10%)
 - `example/README.md` — fetch script and optional corpora
 - `docs/analysis-architecture.md` — discover pipeline and centrality gating
-- `AGENTS.md` — agent cold-profile recipe
+- [`AGENTS.md`](../../AGENTS.md) — agent-facing cold-profile + Gate A/B summary (canonical for contributors)

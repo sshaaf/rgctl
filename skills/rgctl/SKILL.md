@@ -213,7 +213,8 @@ rgctl -r "$REPO" -f json <command> …
 - [User Guide](../../docs/user-guide.md) — Complete CLI tutorial
 - [JSON API](../../docs/json-api.md) — Schema specifications
 - [Agent Recipes](../../docs/agent-recipes.md) — Copy-paste recipes
-- [AGENTS.md](../../AGENTS.md) — Minimal agent contract
+- [USER_AGENTS_TEMPLATE.md](../../docs/agents/USER_AGENTS_TEMPLATE.md) — paste into consumer repos
+- [AGENTS.md](../../AGENTS.md) — contributor agent README (rgctl source tree)
 - [Policy Format](../../docs/policy-format.md) — CI policy schema
 
 ## Installation

@@ -66,7 +66,7 @@ rgctl slice src/Foo.java --line 42 --variable x
 ```
 
 **🤖 Using with LLM IDEs?**
-Point your assistant at **[AGENTS.md](AGENTS.md)**, or install the embedded pack: `rgctl install --skill --with-commands --tools cursor,claude` (see **[Agent commands](docs/guides/agent-commands.md)** and the **[Agent skill](skills/rgctl/SKILL.md)** playbook).
+Install the embedded pack: `rgctl install --skill --with-commands --tools cursor,claude,codex,agents` (see **[Agent commands](docs/guides/agent-commands.md)** and the **[Agent skill](skills/rgctl/SKILL.md)** playbook). Optional paste template for *your* repo: **[USER_AGENTS_TEMPLATE.md](docs/agents/USER_AGENTS_TEMPLATE.md)**. Contributing to rgctl itself: **[AGENTS.md](AGENTS.md)**.
 
 ---
 
@@ -164,8 +164,9 @@ rgctl ships with deep, enterprise-ready features for heavy modernization workloa
 | **[v0.4.8 release notes](docs/releases/v0.4.8.md)** | Agent docs (historical — daemon era) |
 | **[Introduction](docs/Introduction.md)** | Concepts — graph, reachability, capability map |
 | **[User Guide](docs/user-guide.md)** | ecommerce-java fixture, every CLI command |
-| **[Agent skill](skills/rgctl/SKILL.md)** | **Canonical agent playbook** — NL routing + CLI samples. |
-| **[AGENTS.md](AGENTS.md)** | Minimal agent contract (points at skill) |
+| **[Agent skill](skills/rgctl/SKILL.md)** | **Canonical agent playbook** — NL routing + CLI samples |
+| **[USER_AGENTS_TEMPLATE](docs/agents/USER_AGENTS_TEMPLATE.md)** | Paste into *other* repos as `AGENTS.md` (use rgctl) |
+| **[AGENTS.md](AGENTS.md)** | Contributor agent README for this repository |
 | **[Agent recipes](docs/agent-recipes.md)** | Copy-paste automation workflows |
 | **[JSON API](docs/json-api.md)** | Parse `-f json` payloads + field catalogs |
 | **[HTTP API](docs/http-api.md)** | `rgctl serve` → `/api/query` and `/api/semantic/*` |

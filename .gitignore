@@ -24,6 +24,9 @@ Cargo.lock
 # scripts
 .scripts
 
+# Agent pack codegen output (embed uses OUT_DIR only)
+agent-pack/out/
+
 #misc
 skills-lock.json
 /dist

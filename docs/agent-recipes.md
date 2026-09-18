@@ -234,5 +234,7 @@ rgctl -r "$REPO" cpg export --format graphson --output cart-cpg.json --path-cont
 
 ## See also
 
-- [AGENTS.md](../AGENTS.md)
+- [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md) — paste into consumer repos
+- [AGENTS.md](../AGENTS.md) — contribute to rgctl
+- [agent-commands](guides/agent-commands.md) — skill install
 - [User Guide](user-guide.md)

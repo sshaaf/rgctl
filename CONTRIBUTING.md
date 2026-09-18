@@ -102,7 +102,8 @@ Tier 1 depth (Layers A–F): [docs/tier-1-language-support.md](docs/tier-1-langu
 ## Documentation changes
 
 - **User-facing:** `docs/Introduction.md`, `docs/user-guide.md`, `docs/dashboard-user-guide.md`
-- **Agents:** `AGENTS.md`, `docs/json-api.md`, `docs/agent-recipes.md`
+- **Agents (contribute to rgctl):** root [`AGENTS.md`](AGENTS.md) (starting-context, profiles/tests/benches) · [`docs/json-api.md`](docs/json-api.md)
+- **Agents (use rgctl elsewhere):** [`docs/guides/agent-commands.md`](docs/guides/agent-commands.md) · [`docs/agents/USER_AGENTS_TEMPLATE.md`](docs/agents/USER_AGENTS_TEMPLATE.md) · [`docs/agent-recipes.md`](docs/agent-recipes.md)
 - **Accuracy:** keep CLI examples aligned with `dashboard/scripts/validate-guide-cli-gbuilder.sh` where possible
 
 ---

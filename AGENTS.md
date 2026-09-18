@@ -1,148 +1,162 @@
-# rgctl for AI agents
+# Agent instructions for rgctl
 
-rgctl is designed so agents answer **structural questions** from a pre-built graph instead of reading whole files into context.
+## Summary
 
-**Installation:** [docs/installation.md](docs/installation.md) (prerequisites, setup)  
-**Agent pack install:** [docs/guides/agent-commands.md](docs/guides/agent-commands.md) (`install --skill --with-commands`, `--tools`, workflows)  
-**Full JSON reference:** [docs/json-api.md](docs/json-api.md) (also on the site: [sshaaf.github.io/rgctl/docs/json-api/](https://sshaaf.github.io/rgctl/docs/json-api/))  
-**Copy-paste recipes:** [docs/agent-recipes.md](docs/agent-recipes.md)  
-**Human walkthrough:** [docs/user-guide.md](docs/user-guide.md)  
-**Docs hub:** [docs/README.md](docs/README.md) · [site docs](https://sshaaf.github.io/rgctl/docs/)
+`rgctl` is a high-performance Rust code knowledge graph for LLM agents: tree-sitter extraction, typed relations, mmap snapshots, blast-radius / communities / CPG, and JSON-first CLI (`-f json`).
 
-Default for agents: spawn **`rgctl -f json`** subprocesses (or use foreground **`rgctl serve`** for repeated HTTP queries). Do **not** open the browser dashboard unless the user asks for a visual UI.
+**Your goal when contributing here:** preserve ingest scale, query correctness, memory discipline, and deterministic artifacts under `.rgctl/` — not add convenience at the cost of Tokio blocking, whole-repo clones, or ungated cold regressions.
 
-Install the agent pack once (limit `--tools` to the IDEs you use; default is all registry adapters):
-
-```bash
-rgctl -r "$REPO" install --skill --with-commands --tools cursor,claude,codex,agents
-```
+> **Looking for how to *use* rgctl on another codebase?** Install skills (`rgctl install --skill --with-commands`) or copy [docs/agents/USER_AGENTS_TEMPLATE.md](docs/agents/USER_AGENTS_TEMPLATE.md) into *that* repo’s `AGENTS.md`. See [docs/guides/agent-commands.md](docs/guides/agent-commands.md).
 
 ---
 
-## Agent workflow
+## Must-follow rules
 
-```text
-1. cd "$REPO" && rgctl discover .     # or rgctl -r PATH discover (no trailing . with -r)
-2. rgctl -f json <command>            # compact facts on stdout
-3. Parse schema_version + payload     # never scrape stderr for JSON
-```
-
-Artifacts live at **`{repo}/.rgctl/`**. Set `REPO` to the repository root:
-
-```bash
-export REPO=/path/to/repo
-rgctl -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 20'
-```
-
-Upgrading from an old daemon install: `rgctl migrate-cache` copies `~/.rgctl/cache/{name}/.rgctl/` into the repo (see [installation.md](docs/installation.md)).
+- **Async vs CPU:** Discover/serve use `tokio`. Do **not** run heavy CPU (parse, graph analytics, CFG) on the async executor — use `spawn_blocking` / Rayon where the pipeline already does.
+- **Parallel ingest:** Per-file plugin extraction runs on the discover worker pool. Do not replace with a serial whole-repo walk when parallel ingest exists.
+- **Streaming commits:** Emit symbols/relations file-by-file; avoid unbounded `Vec<Relation>` / whole-repo ASTs before commit (`rgctl-extraction` spill patterns).
+- **Clone hygiene:** Prefer `&[u8]` / `Cow` / borrows in tree-sitter walkers; `Vec::with_capacity` when sizes are known; no `unwrap()` in library paths.
+- **Typed graph:** Respect `EdgeType` / node kinds; do not invent ad-hoc string edges for hot paths.
+- **Artifacts:** Session data lives in `{repo}/.rgctl/`. Warm caches invalidate wall-time claims.
+- **Features:** Default semantic embedder is compiled **vocab**. Do not require ONNX / Python ML unless behind an explicit feature (e.g. `semantic-onnx` / code-daemon + Git LFS).
+- **OpenSpec language work:** Still cite [openspec/changes/_shared/starting-context.md](openspec/changes/_shared/starting-context.md) (pointer here); follow the sections below.
 
 ---
 
-## High-value commands (low token cost)
+## Context & architecture
 
-| Intent | Command |
+- **Discover** walks the tree, runs language plugins (tree-sitter), builds the graph, writes compact caches to `.rgctl/`.
+- **Query** paths are read-oriented and return versioned JSON (`schema_version` on stdout — never scrape stderr).
+- **Analysis** (`rgctl-analysis`) projects CSR / callgraph / centrality / blast-radius / CFG–PDG; see [docs/analysis-architecture.md](docs/analysis-architecture.md).
+- **Languages:** `crates/rgctl-lang-*` + `rgctl-plugin-api`; register in `languages.toml`.
+
+---
+
+## Starting context & performance policy
+
+Applies to all extraction / language / discover hot-path work (and OpenSpec `*-extraction-depth` / `add-*-language-support` changes).
+
+### Implementation model
+
+1. **Async** — existing `tokio` orchestration; offload CPU-heavy work.
+2. **Parallel** — discover file pool (`rayon` / workers).
+3. **Streaming** — incremental graph commit; match extraction spill/channel patterns.
+4. **Idiomatic Rust** — `Result` + `thiserror`; follow `rgctl-lang-java` / `rgctl-extraction` conventions.
+
+### Cold profile (mandatory for scale / perf claims)
+
+1. **Release binary only:** `cargo build --release --bin rgctl`
+2. **Delete artifacts:** `rm -rf <corpus>/.rgctl/`
+3. **Run from inside the corpus** (`cd example/<corpus> && rgctl discover . -v`) — positional `.` sets session root; `-r` is ignored when `.` is passed.
+4. **Logging:** `RUST_LOG=info,profile=info`
+
+Deep stage timings and reference machine notes: [docs/internal/profile.md](docs/internal/profile.md) · corpora: [example/README.md](example/README.md).
+
+### Gate A — cross-language regression
+
+| Corpus | Test gate | Discover | Baseline (ref M3 Pro, +10%) |
+|--------|-----------|----------|------------------------------|
+| Linux kernel | `linux_cold_discover_within_baseline` | default | **145 s** wall |
+
+```bash
+cargo build --release --bin rgctl
+cargo test --release --test cold_profile_gates linux_cold_discover_within_baseline -- --ignored --nocapture
+```
+
+### Gate B — language-scale (~10k source files)
+
+Language changes add (or document) a language-filtered cold discover on a ~10k-file corpus. Record `wall_secs`, `nodes`, `functions`, `index_graph_build` from `[profile] discover summary`; add a gate in `tests/cold_profile_gates.rs` once baselined (+10%).
+
+Fetch: `./scripts/fetch-profile-repos.sh`
+
+| Language | Corpus | Path | Discover | Env override |
+|----------|--------|------|----------|--------------|
+| **C** | Linux | `example/linux` | default | `RGCTL_LINUX_REPO` |
+| **C++** | LLVM | `example/llvm-project` | `-l cpp` on `clang/` | `RGCTL_LLVM_REPO` |
+| **C#** | Roslyn | `example/roslyn` | `-l csharp` on `src/` | `RGCTL_ROSLYN_REPO` |
+| **Go** | Kubernetes | `example/kubernetes` | `-l go` on `pkg/` `cmd/` | — |
+| **Java** | metasfresh | `example/metasfresh-4.9.8b` | `--full` | `METASFRESH_REPO` |
+| **JavaScript** | Node.js | `example/node` | `-l javascript` on `test/` | `RGCTL_NODE_REPO` |
+| **PHP** | Magento 2 | `example/magento2` | `-l php` | `RGCTL_MAGENTO2_REPO` |
+| **Python** | Home Assistant | `example/home-assistant` | `-l python` | `RGCTL_HOME_ASSISTANT_REPO` |
+| **Ruby** | Discourse | `example/discourse` | `-l ruby` | — |
+| **Rust** | rustc | `example/rust` | `-l rust` | `RGCTL_RUST_REPO` |
+| **TypeScript** | VS Code | `example/vscode` | `-l typescript` on `src/` | `RGCTL_VSCODE_REPO` |
+
+File counts are approximate (goal **O(10⁴)** sources). Exclude `vendor/`, `node_modules/`, `target/`, `third_party/`.
+
+---
+
+## Profiles, tests, and benches
+
+### Cargo profiles
+
+| Profile | When |
+|---------|------|
+| default / `dev` | Iterate, unit tests |
+| `--release` | Discover wall times, cold gates, any published timing |
+| `cargo bench` (`[profile.bench]`) | Criterion microbenchmarks |
+
+### Tests (run what you touched)
+
+| Kind | Command | Practice |
+|------|---------|----------|
+| Workspace | `cargo test` | Default before merge for touched crates |
+| Release CLI goldens | `cargo test --release --test subprocess_golden_path` (and related) | CLI surface changes |
+| Cold profile gates | `cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-threads=1` | Perf / extraction / ingest; **Gate A** for scale-sensitive work |
+| Dashboard / lang | `dashboard_*`, langfeature / ecommerce fixture tests | When that path changes |
+| Corpora | `./scripts/fetch-profile-repos.sh` | Before ignored gates needing `example/` |
+
+Warm or partial `.rgctl/` **invalidates** cold timings.
+
+### Benches
+
+| Target | Command |
 |--------|---------|
-| Full session (graph + CFG + dashboard + semantic) | `rgctl discover PATH --full` (queryable after stage 1; status in `.rgctl/pipeline_status.json`) |
-| HTTP session (auto-pipeline) | `rgctl serve` — `GET /api/status`; `--no-pipeline` restores fail-fast |
-| Inventory functions | `rgctl -f json gql --macro-name all_functions unused` |
-| List communities | `rgctl -f json gql --macro-name all_communities unused` |
-| Find symbol by pattern | `rgctl -f json gql "MATCH (n:Function) WHERE n.name LIKE '*Service*' RETURN n LIMIT 20"` |
-| Find by FQN (not `n.name`) | `rgctl -f json gql "MATCH (n:Class) WHERE n.qualified_name = 'com.example.Foo' RETURN n"` |
-| Community members | `rgctl -f json gql "MATCH (f:Function) WHERE f.community_id = '12' RETURN f LIMIT 20"` |
-| Natural-language function search | `rgctl semantic index` then `rgctl -f json semantic query "checkout flow" --limit 10` |
-| Community semantic search | `rgctl -f json semantic query "checkout" --scope community --limit 10` |
-| Impact before editing | `rgctl -f json blast-radius <Symbol> [--depth N]` |
-| Architectural hotspots | `rgctl -f json metrics --pagerank` |
-| Call neighborhood | `rgctl -f json gql "MATCH (a:Function)-[:CALLS*1..3]->(b:Function) RETURN a,b LIMIT 50"` |
-| Doc headings / cross-links | `discover` indexes `.md` / `.mdx` by default; GQL on `:Module` with `kind=heading` and `REFERENCES` — see [markdown-context.md](docs/markdown-context.md) |
-| Obsidian vault from docs | `rgctl -r "$REPO" discover -l markdown` then `export --export-format obsidian --export-output "$REPO/vault" --query all` — see [markdown-context.md](docs/markdown-context.md#obsidian-vault-export) |
-| Doc section semantic search | `rgctl semantic index --scope docs --embedder hash` then `rgctl -f json semantic query "checkout flow" --scope docs --limit 10` (query scope does not filter — index must be doc-scoped) |
-| Hybrid CPG status / CALL / PDG / slice | `rgctl -f json cpg status` then `cpg function\|calls\|pdg\|slice` (needs `discover --with-cfg` for PDG/slice) |
-| Field mutations (cart / DTO safety) | `rgctl -f json cpg mutations --type ShoppingCart --exclude-ctors` (ecommerce CoolStore; or any type name; needs `--with-cfg`) |
-| Data flows / slice (CPG) | `rgctl -f json cpg flows FILE --line N --variable V --function F [--direction forward\|backward] [--with-alias]` |
-| Loop-carried DFG tags | `rgctl discover . --with-cfg --with-dfg-loops` (tags `DataDependency.loop_carried` in PDG) |
-| AST skeleton | `rgctl discover --with-ast-skeleton` then `rgctl -f json cpg ast <Symbol>` |
-| CPG export | `rgctl cpg export --format graphson --output cpg.json [--path-contains src/]` |
-| Migration plan | `rgctl discover . --with-cfg --with-security --with-taint --with-dashboard --with-harmonic --export-migration-hints` then read `.rgctl/migration_plan.json` (or dashboard copy) |
-| CI gate on changes | `rgctl -f json check --policy-file policy.json` (exit 1 = violations) |
-| Temporal PR gate | `rgctl -f json pr-check --policy-file rgctl-pr-policy.json --base-artifact .rgctl-base --base-ref origin/main --head-ref HEAD --strict` (delta head default; `--full-snapshots`, `--bisect`, `--synthetic-head worktree`, `--cascade-depth`, `--strict-calendar`) |
-| Check temporal bridge | `rgctl -f json check --temporal --policy-file policy.json --base-ref origin/main --head-ref HEAD` |
-| Calendar grace / SLA | Policy `temporal` block + ledger `.rgctl/violation_ledger.jsonl`; warn during grace unless `--strict-calendar` |
-| Incremental file index | `rgctl discover --files src/foo.rs,src/bar.rs` (requires existing `.rgctl/` snapshot) |
-| Kantra migration rules | `rgctl discover . --with-kantra` (embedded Konveyor catalog; `.rgctl/kantra_findings.json`) |
-| Kantra target filter | `rgctl discover . --with-kantra --kantra-target quarkus` |
-| Kantra rules inventory (GQL) | `rgctl -f json gql "MATCH (r:KantraRule) RETURN r LIMIT 20"` (after `--with-kantra` index) |
-| Kantra violations → code nodes | `rgctl -f json gql "MATCH (r:KantraRule)-[:VIOLATES]->(n) RETURN r, n LIMIT 20"` (after full eval, not `--kantra-index-only`) |
-| Kantra rules by Konveyor target | `rgctl -f json gql` on `:KantraRule` with `` r.`konveyor.io/target` `` property filter — [user guide](docs/user-guide.md#kantra-migration-rules---with-kantra) |
-| Kantra fixture override (CI) | `rgctl discover . --with-kantra --kantra-rules tests/fixtures/kantra-rules` |
+| Workspace | `cargo bench` — `parsing`, `graph`, `graph_benchmarks`, `analysis_benchmarks`, `centrality_benchmarks`, `community_benchmarks`, `blast_radius_benchmarks` |
+| Snapshot diff | `cargo bench -p rgctl-graph --bench snapshot_diff` |
+
+Baselines and notes: [docs/internal/profile.md](docs/internal/profile.md#snapshot-diff-micro-benchmarks).
 
 ---
 
-## Repeated queries in one session
+## Must-read documents
 
-**Option A — CLI subprocess (default for agents):**
+| Doc | Why |
+|-----|-----|
+| [docs/analysis-architecture.md](docs/analysis-architecture.md) | Graph tiers, spill, CSR |
+| [docs/design/blast-radius-design.md](docs/design/blast-radius-design.md) | Reachability / SCC |
+| [docs/internal/profile.md](docs/internal/profile.md) | Cold profile deep dive |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, tests, PR norms |
+| [docs/contributor-checklist.md](docs/contributor-checklist.md) | Language / feature checklist |
+| [docs/guides/semantic-search.md](docs/guides/semantic-search.md) | Embedders (if touching semantic) |
+| [openspec/changes/_shared/starting-context.md](openspec/changes/_shared/starting-context.md) | OpenSpec pointer (canonical policy is this file) |
+
+---
+
+## Build and day-to-day commands
 
 ```bash
-export REPO=/path/to/repo
-rgctl -r "$REPO" -f json gql 'MATCH (n:Function) RETURN n LIMIT 5'
-rgctl -r "$REPO" -f json blast-radius ShoppingCartService
+cargo build --release --bin rgctl
+./target/release/rgctl --version
+cargo test
 ```
 
-**Option B — HTTP (one long-lived process):**
+Dashboard UI changes:
 
 ```bash
-rgctl -r "$REPO" serve --open
-# POST http://127.0.0.1:8080/api/query  {"query":"MATCH (n:Function) RETURN n LIMIT 5"}
+./scripts/build-dashboard.sh   # or dashboard/ npm ci && npm run build
+cargo build --release
 ```
 
-See [docs/http-api.md](docs/http-api.md).
+Code-daemon / ONNX weights: `git lfs pull` when using that embedder feature.
 
----
-
-## Rules of thumb
-
-0. **Artifacts** — always `{repo}/.rgctl/` after `discover`. Add `.rgctl/` to `.gitignore`.
-1. **Index first** — `gql`, `blast-radius`, `metrics` fail without `discover`.
-2. **Discover target** — `cd repo && rgctl discover .` or `rgctl -r PATH discover` (no trailing `.` with `-r`; `discover .` uses cwd, not `-r`).
-3. **Use `-f json`** — stable `schema_version` fields; see [json-api.md](docs/json-api.md).
-4. **`inspect` takes a symbol only** — no `--class` (use `blast-radius` for disambiguation).
-5. **`slice --function`** is the **method/function name**, not the class name.
-6. **`export --query`** uses filter syntax (`name:Foo`, `type:Function`, `all`) — not full GQL `MATCH`. Obsidian/OKF export use `--query all` (full heading set).
-7. **Deep analysis** needs `discover --with-cfg` (and `--with-taint` for discover-time taint) (slice, inspect, taint).
-8. **Semantic search** needs `semantic index` (separate from discover). Default is **vocab** (compiled token table, no ONNX). Optional **code-daemon** (`--embedder code-daemon`, Git LFS weights) or `--embedder hash`. `--embed-bodies` re-reads function source (off by default). Optional `semantic distill --matrix PATH` writes an RBVK matrix from **our** token list through a teacher (not `vocab`); copy to `assets/vocab_matrix.bin` and rebuild for `vocab-accumulate-v2`. Doc sections: `semantic index --scope docs` (embeds headings + code blocks); query `--scope docs` does not filter hits — only index scope matters (`community` is the exception). Fusion is on by default (`--no-fusion` to disable).
-9. **Profile discover** — `discover -v` with `RUST_LOG=profile=info` for `[profile] stage` and centrality sub-phase timings (see [analysis-architecture.md](docs/analysis-architecture.md)). **Cold profile** (accurate perf): delete `.rgctl/`, build release `rgctl`, then run ignored gates — warm/partial caches skew timings. `cargo build --release --bin rgctl` then `cargo test --release --test cold_profile_gates -- --ignored --nocapture`. Linux: `linux_cold_discover_within_baseline` on `example/linux` (baseline **~145 s**). metasfresh: `metasfresh_cold_discover_within_baseline` with `--full` (baseline **~74 s**). Ruby: `discourse_cold_discover_within_baseline` on `example/discourse` (`-l ruby`; fetch via `./scripts/fetch-profile-repos.sh`). Markdown: `./scripts/fetch-profile-repos.sh` then `k8s_website_markdown_cold_discover_within_baseline` on `example/k8s-website` (baseline ~3s, `-l markdown`). See [docs/internal/profile.md](docs/internal/profile.md) and `example/README.md`.
-10. **Dashboard is optional** — only with `--with-dashboard` / `serve` when a human wants a UI; never required for structural answers.
-11. **Markdown docs** — `.md` / `.mdx` are indexed on `discover` (headings, links, frontmatter). Use GQL for doc navigation; `semantic index --scope docs` for NL section search; Obsidian export for human vault browsing; `slice` / `inspect` / `cpg flows` reject markup paths. See [markdown-context.md](docs/markdown-context.md).
----
-
-## On-disk artifacts for agents
-
-After `discover`, artifacts live under **`{repo}/.rgctl/`**:
-
-| Path | Content |
-|------|---------|
-| `graph.snapshot.bin` | Graph snapshot |
-| `content_store.bin` | Large markdown bodies / files (Blake3-keyed; used by Obsidian export + doc semantic index) |
-| `dashboard/manifest.json` | Counts, feature flags |
-| `dashboard/migration_plan.json` | Migration export (with `--with-dashboard` and/or `--export-migration-hints`) |
-| `dashboard/graph_payload.bin` | Columnar graph for dashboard WASM |
-| `semantic_index.bin` | Opt-in semantic search index (`semantic index`) |
-
----
-
-## Exit codes
-
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | Policy violation (`check`, `blast-radius --policy-file`) or command error |
+Dogfood fixtures: `rgctl-tests/` (e.g. ecommerce-*). Consumer agent pack: `rgctl install --skill --with-commands --tools cursor`.
 
 ---
 
 ## See also
 
-- [Introduction](docs/Introduction.md) — concepts
-- [User Guide](docs/user-guide.md) — full CLI
-- [Integration test matrix](docs/internal/integration-tests.md) — CI harness
-- [Markdown context graph](docs/markdown-context.md) — `.md` / `.mdx` indexing and GQL
-- [Further reading](docs/further-reading.md) — research map and contribution ideas
+- [docs/README.md](docs/README.md) — docs hub
+- [docs/agents/USER_AGENTS_TEMPLATE.md](docs/agents/USER_AGENTS_TEMPLATE.md) — paste into *other* repos
+- [docs/json-api.md](docs/json-api.md) — JSON schemas for CLI output

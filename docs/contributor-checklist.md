@@ -187,7 +187,8 @@ CLI I/O layer reference: [cli-io-sanity-qe.md](cli-io-sanity-qe.md). Workflow mi
 | Change type | Update |
 |-------------|--------|
 | User CLI | [user-guide.md](user-guide.md) · validate with `cargo test --test user_guide_scenarios` |
-| Agent / JSON | [AGENTS.md](../AGENTS.md) · [json-api.md](json-api.md) · [agent-recipes.md](agent-recipes.md) |
+| Contribute (agent README) | [AGENTS.md](../AGENTS.md) |
+| Use rgctl / JSON | [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md) · [json-api.md](json-api.md) · [agent-recipes.md](agent-recipes.md) · [agent-commands](guides/agent-commands.md) |
 | Languages list | [languages/README.md](languages/README.md) |
 | Dashboard UX | [dashboard-user-guide.md](dashboard-user-guide.md) |
 | New capability | Matching doc in [design/](design/README.md) |

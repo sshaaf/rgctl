@@ -2,7 +2,7 @@
 
 **What rgctl is** and how a **code knowledge graph** works — before you run commands.
 
-**Hands-on:** [User Guide](user-guide.md) (ecommerce-java). **Agents:** [AGENTS.md](../AGENTS.md). **JSON:** [json-api.md](json-api.md).
+**Hands-on:** [User Guide](user-guide.md) (ecommerce-java). **Use with agents:** [agent-commands](guides/agent-commands.md) · [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md). **Contribute to rgctl:** [AGENTS.md](../AGENTS.md). **JSON:** [json-api.md](json-api.md).
 
 ---
 
@@ -44,7 +44,7 @@ You do not need graph theory to use the CLI: **indexing builds the map; commands
 
 1. **Once** (or after large changes): `discover` from the repo you mean to index — see [Discovering and indexing](guides/discovering-and-indexing.md) for `-r` vs `.` pitfalls.  
 2. **Many times:** query commands read `{repo}/.rgctl/`.  
-3. **Agents:** always prefer `-f json` ([AGENTS.md](../AGENTS.md)).  
+3. **Agents (consumers):** always prefer `-f json` ([agent-commands](guides/agent-commands.md) · [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md)).  
 4. **Dashboard:** optional visual UI after `--with-dashboard` — not required for structural answers.
 
 Capability designs for contributors: [design/](design/README.md).
@@ -80,7 +80,8 @@ Languages: [languages/README.md](languages/README.md). Research: [further-readin
 | You want… | Go to |
 |-----------|--------|
 | Install and run every CLI command | [User Guide](user-guide.md) |
-| Agent recipes | [AGENTS.md](../AGENTS.md) · [agent-recipes.md](agent-recipes.md) |
+| Agent recipes (use rgctl) | [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md) · [agent-recipes.md](agent-recipes.md) · [agent-commands](guides/agent-commands.md) |
+| Contribute (agent README) | [AGENTS.md](../AGENTS.md) |
 | JSON fields | [json-api.md](json-api.md) |
 | Markdown / doc graph | [markdown-context.md](markdown-context.md) |
 | Contribute / internals | [docs hub — For contributors](README.md#for-contributors) |

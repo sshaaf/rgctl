@@ -240,7 +240,7 @@ Default **`--tools`** (omit flag) is **`cursor`, `claude`, `codex`, `agents`**. 
 
 Install does **not** run `discover` — index the repo separately (`rgctl discover .`).
 
-**Full reference:** [Agent commands guide](guides/agent-commands.md) · [Agent skill walkthrough](guides/agent-skill.md) · [AGENTS.md](../AGENTS.md)
+**Full reference:** [Agent commands guide](guides/agent-commands.md) · [Agent skill walkthrough](guides/agent-skill.md) · [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md) · [AGENTS.md](../AGENTS.md) (contribute to rgctl)
 
 ---
 
@@ -374,7 +374,8 @@ Start with the default mode (no extra flags). Add `--with-cfg`, `--with-taint`, 
 |------|-------------|
 | Full CLI walkthrough | [User Guide](user-guide.md) |
 | Concepts and architecture | [Introduction](Introduction.md) |
-| Agent workflows | [AGENTS.md](../AGENTS.md) |
+| Use rgctl with agents | [Agent commands](guides/agent-commands.md) · [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md) |
+| Contribute to rgctl (agent README) | [AGENTS.md](../AGENTS.md) |
 | Step-by-step feature guides | [Guides](guides/README.md) |
 | JSON output reference | [JSON API](json-api.md) |
 | HTTP API details | [HTTP API](http-api.md) |

@@ -29,7 +29,7 @@ Per-language cold discover gates for extraction-depth work. Fetch via `./scripts
 | Rust | `rust/` | rust-lang/rust (`library/` `compiler/`) | `-l rust` | ~10k+ `.rs` |
 | TypeScript | `vscode/` | microsoft/vscode (`src/`) | `-l typescript` | ~10k+ `.ts` |
 
-OpenSpec reference: `openspec/changes/_shared/starting-context.md`
+OpenSpec / contributor policy: root [`AGENTS.md`](../AGENTS.md) (pointer: [`openspec/changes/_shared/starting-context.md`](../openspec/changes/_shared/starting-context.md)).
 
 **JavaScript corpus note:** `nodejs/node` `lib/` is only ~400 `.js` files (the runtime stdlib). The language-scale gate uses sparse-checkout **`test/`** (~9.2k discoverable `.js`/`.mjs`). Set `RGCTL_NODE_REPO` to override the discover root (default `example/node/test`).
 
