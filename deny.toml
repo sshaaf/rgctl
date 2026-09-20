@@ -14,6 +14,8 @@ unknown-git = "warn"
 github = ["*"]
 
 [licenses]
-unlicensed = "deny"
-allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0"]
+# `unlicensed` was removed in cargo-deny (EmbarkStudios/cargo-deny#611): a
+# crate whose license cannot be determined now fails against `allow` below,
+# which is what this key asked for anyway.
+allow =["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0"]
 confidence-threshold = 0.8
