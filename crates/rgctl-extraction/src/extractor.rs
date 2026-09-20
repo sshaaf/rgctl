@@ -84,8 +84,14 @@ impl Extractor {
 
     /// Extract symbols, relations, and config references from one file.
     pub fn extract_file(&self, path: &Path) -> Result<FileExtraction> {
-        let source = std::fs::read(path)?;
+        self.extract_file_with_source(path, std::fs::read(path)?)
+    }
 
+    /// Same as [`Extractor::extract_file`], with the bytes supplied by the
+    /// caller. `path` is still used for language detection and for the paths
+    /// recorded on the returned symbols and relations, but it does not have to
+    /// exist on disk.
+    pub fn extract_file_with_source(&self, path: &Path, source: Vec<u8>) -> Result<FileExtraction> {
         if let Ok(plugin) = self.registry.get_plugin_for_file(path) {
             let extracted = plugin.extract_all(path, &source)?;
             let config_usages = ConfigUsageDetector::detect(plugin.language_id(), &source, path);
@@ -510,6 +516,28 @@ mod tests {
                 .any(|r| { r.relation_type == rgctl_plugin_api::RelationType::References }),
             "References relation"
         );
+    }
+
+    #[test]
+    fn extract_file_with_source_needs_no_file_on_disk() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("absent/lib.rs");
+        assert!(!path.exists(), "path must not exist on disk");
+
+        let registry = Arc::new(rgctl_languages::default_registry());
+        let extractor = Extractor::new(registry);
+        let extraction = extractor
+            .extract_file_with_source(
+                &path,
+                b"pub fn add(a: i32, b: i32) -> i32 { a + b }\n".to_vec(),
+            )
+            .unwrap();
+
+        assert!(
+            extraction.symbols.iter().any(|s| s.name == "add"),
+            "symbol from caller-supplied bytes"
+        );
+        assert_eq!(extraction.path, path);
     }
 
     #[test]
