@@ -18,7 +18,7 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 **Use rgctl (consumer agent loop):** install skills → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json` ([agent-commands](guides/agent-commands.md)).  
 **Contribute to this repo:** [AGENTS.md](../AGENTS.md).  
 **First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.  
-**Latest release:** [v0.4.14 release notes](releases/v0.4.14.md) (agent pack install, multi-tool workflow skills and slash commands).
+**Latest release:** [v0.4.15 release notes](releases/v0.4.15.md) (Antigravity skill install, in-memory extraction).
 
 **Upgrading from v0.4.9:** no breaking changes — PHP is additive (`discover -l php`). Ruby is additive (`discover -l ruby`).
 
