@@ -1,2 +1,2 @@
 # ONNX external weights exceed GitHub's 100 MB blob limit — stored via Git LFS.
-crates/rgbuilder-analysis/assets/code-daemon-embed-v1/model.onnx.data filter=lfs diff=lfs merge=lfs -text
+crates/rgctl-analysis/assets/code-daemon-embed-v1/model.onnx.data filter=lfs diff=lfs merge=lfs -text
