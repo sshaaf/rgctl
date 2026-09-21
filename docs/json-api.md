@@ -1091,7 +1091,7 @@ rgctl -r "$REPO" -f json install --skill [--with-commands] [--with-policy] \
 rgctl -f json install --list-agents
 ```
 
-Omitting **`--tools`** installs the **v1 default** adapters: `cursor`, `claude`, `codex`, `agents`. Use **`--tools all`** for every registry entry. Unknown ids in `--tools` are reported on stderr; if none are valid, exit **1**. **`--global`** is rejected for agents with `supports_global: false` in the registry.
+Omitting **`--tools`** installs the default adapters: `cursor`, `claude`, `codex`, `agents`, `antigravity`. Use **`--tools all`** for every registry entry. Unknown ids in `--tools` are reported on stderr; if none are valid, exit **1**. **`--global`** is rejected for agents with `supports_global: false` in the registry.
 
 ### `install --list-agents`
 

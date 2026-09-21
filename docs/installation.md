@@ -224,7 +224,7 @@ rgctl migrate-cache --name coolstore --force   # explicit cache name
 After `rgctl` is on your PATH, install the **embedded agent pack** into the **target repository** (same root you use for `discover`):
 
 ```bash
-rgctl install --skill --with-commands --tools cursor,claude,codex,agents
+rgctl install --skill --with-commands --tools cursor,claude,codex,antigravity,agents
 rgctl -r /path/to/repo install --skill --with-commands --tools cursor
 rgctl install --list-agents
 ```
@@ -236,7 +236,7 @@ This copies from the binary (no network):
 - **Optional chat commands** — with `--with-commands` (e.g. `.cursor/commands/rgctl-gql.md`, Claude `/rgctl:gql` files)
 - **Optional policy** — `--with-policy` (Cursor structural rule snippet)
 
-Default **`--tools`** (omit flag) is **`cursor`, `claude`, `codex`, `agents`**. Use **`--tools all`** for the full registry (~40 paths). Unknown tool ids warn on stderr; **`--global`** requires `supports_global: true` per agent. **`--host`** is deprecated. Use **`-g`** for a global install under your home directory. If a managed file differs from the bundle, the command exits **1** unless you pass **`--force`**.
+Default **`--tools`** (omit flag) is **`cursor`, `claude`, `codex`, `agents`, `antigravity`**. Use **`--tools all`** for the full registry (~40 paths). Unknown tool ids warn on stderr; **`--global`** requires `supports_global: true` per agent. **`--host`** is deprecated. Use **`-g`** for a global install under your home directory. If a managed file differs from the bundle, the command exits **1** unless you pass **`--force`**.
 
 Install does **not** run `discover` — index the repo separately (`rgctl discover .`).
 

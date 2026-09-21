@@ -240,7 +240,7 @@ fn install_opencode_and_pi_paths() {
 }
 
 #[test]
-fn install_default_tools_is_v1_quad_not_opencode() {
+fn install_default_tools_includes_antigravity() {
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = fs::canonicalize(dir.path()).expect("canonicalize");
     let output = run_in(
@@ -255,7 +255,34 @@ fn install_default_tools_is_v1_quad_not_opencode() {
     assert!(repo.join(".cursor/skills/rgctl/SKILL.md").is_file());
     assert!(repo.join(".claude/skills/rgctl/SKILL.md").is_file());
     assert!(repo.join(".agents/skills/rgctl/SKILL.md").is_file());
+    assert!(repo.join(".agent/skills/rgctl/SKILL.md").is_file());
     assert!(!repo.join(".opencode/skills/rgctl/SKILL.md").exists());
+}
+
+#[test]
+fn install_tools_antigravity_writes_agent_directory_only() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let repo = fs::canonicalize(dir.path()).expect("canonicalize");
+    let output = run_in(
+        dir.path(),
+        &[
+            "-r",
+            &repo.display().to_string(),
+            "install",
+            "--skill",
+            "--tools",
+            "antigravity",
+        ],
+    );
+    assert!(
+        output.status.success(),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(repo.join(".agent/skills/rgctl/SKILL.md").is_file());
+    assert!(!repo.join(".claude/skills/rgctl/SKILL.md").exists());
+    assert!(!repo.join(".cursor/skills/rgctl/SKILL.md").exists());
+    assert!(!repo.join(".agents/skills/rgctl/SKILL.md").exists());
 }
 
 #[test]

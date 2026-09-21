@@ -100,7 +100,7 @@ rgctl -r /path/to/repo install --skill --with-commands
 rgctl install --list-agents
 ```
 
-That writes workflow skills (`rgctl-discover`, `rgctl-migrate`, `rgctl-kantra`, …), meta-skill `rgctl`, and optional slash commands. **Default (no `--tools`):** `cursor`, `claude`, `codex`, `agents`. Use **`--tools all`** for the full registry.
+That writes workflow skills (`rgctl-discover`, `rgctl-migrate`, `rgctl-kantra`, …), meta-skill `rgctl`, and optional slash commands. **Default (no `--tools`):** `cursor`, `claude`, `codex`, `agents`, `antigravity`. Use **`--tools all`** for the full registry.
 
 Full flag reference, adapter paths, and workflow ↔ CLI table: **[Agent commands](guides/agent-commands.md)**. Walkthrough: [Agent skill](guides/agent-skill.md). Add `--with-policy` for a Cursor structural-rules snippet. Use `-g` for a global install. Exit code **1** if a managed file differs unless you pass `--force`. Install does not run `discover`.
 
@@ -1240,7 +1240,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgctl/migration_p
 | `metrics` | PageRank, betweenness, communities summary |
 | `export` | Serialize graph (json, graphml, dot, mermaid, obsidian vault, okf) |
 | `check` | CI policy gateway |
-| `install` | Copy the bundled agent skill into `.claude/skills/`, `.agents/skills/`, and `.cursor/skills/` |
+| `install` | Copy the bundled agent skill into `.claude/skills/`, `.agents/skills/`, `.agent/skills/`, and `.cursor/skills/` |
 | `semantic` | Opt-in semantic index + query (`--scope community`, `docs`, `all`) |
 | `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--no-pipeline` fail-fast |
 

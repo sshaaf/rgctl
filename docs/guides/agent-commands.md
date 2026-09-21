@@ -31,7 +31,7 @@ You must pass at least one of **`--skill`** or **`--with-policy`**.
 | **`--skill`** | Meta skill **`rgctl`** (router + `references/`) and eight workflow skills: `rgctl-discover`, `rgctl-impact`, `rgctl-flow`, `rgctl-search`, `rgctl-gql`, `rgctl-migrate`, `rgctl-kantra`, `rgctl-gate`. |
 | **`--with-commands`** | Chat slash commands / prompts per adapter (e.g. Cursor `/rgctl-gql`, Claude `/rgctl:gql`). Use with **`--skill`** for the full experience. |
 | **`--with-policy`** | Structural bias snippet (e.g. `.cursor/rules/rgctl-structural.mdc`). Optional; does not replace skills. |
-| **`--tools id1,id2`** or **`--tools all`** | Which **registry adapters** receive files. **Default (omit flag):** `cursor`, `claude`, `codex`, `agents` (v1 quad). **`all`** = full registry (~40 products). Unknown ids: stderr warning; if none valid, exit **1**. |
+| **`--tools id1,id2`** or **`--tools all`** | Which **registry adapters** receive files. **Default (omit flag):** `cursor`, `claude`, `codex`, `agents`, `antigravity`. **`all`** = full registry (~40 products). Unknown ids: stderr warning; if none valid, exit **1**. |
 | **`-g` / `--global`** | Install under your **home** (e.g. `~/.cursor/skills/…`) instead of repo-local paths. Only agents with `supports_global: true` in the registry (see `--list-agents`). |
 | **`--list-agents`** | Print the registry table and exit (no install). |
 | **`--force`** | Overwrite rgctl-managed files that differ from the bundled version. |
@@ -43,10 +43,13 @@ You must pass at least one of **`--skill`** or **`--with-policy`**.
 cd /path/to/your-app
 
 # Skills + slash commands for common IDEs (repo-local)
-rgctl install --skill --with-commands --tools cursor,claude,codex,agents
+rgctl install --skill --with-commands --tools cursor,claude,codex,antigravity,agents
 
 # Cursor only
 rgctl install --skill --with-commands --tools cursor
+
+# Antigravity only
+rgctl install --skill --with-commands --tools antigravity
 
 # Full registry (many dot-directories)
 rgctl install --skill --with-commands --tools all

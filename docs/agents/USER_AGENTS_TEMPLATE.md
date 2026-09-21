@@ -5,7 +5,7 @@
 > **Preferred (automated):** install the agent pack instead of (or in addition to) pasting this file:
 >
 > ```bash
-> rgctl -r "$REPO" install --skill --with-commands --tools cursor,claude,codex,agents
+> rgctl -r "$REPO" install --skill --with-commands --tools cursor,claude,codex,antigravity,agents
 > ```
 >
 > See [Agent commands](../guides/agent-commands.md). This template is a fallback / complementary channel — skills remain the canonical runtime guidance.
@@ -28,7 +28,7 @@ Default for agents: spawn **`rgctl -f json`** subprocesses (or use foreground **
 Install the agent pack once (limit `--tools` to the IDEs you use; default is all registry adapters):
 
 ```bash
-rgctl -r "$REPO" install --skill --with-commands --tools cursor,claude,codex,agents
+rgctl -r "$REPO" install --skill --with-commands --tools cursor,claude,codex,antigravity,agents
 ```
 
 ---

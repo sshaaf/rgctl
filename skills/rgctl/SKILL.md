@@ -220,7 +220,7 @@ rgctl -r "$REPO" -f json <command> …
 ## Installation
 
 ```bash
-rgctl install --skill --with-commands --tools cursor,claude,codex,agents
+rgctl install --skill --with-commands --tools cursor,claude,codex,antigravity,agents
 ```
 
-Installs workflow skills (`rgctl-discover`, `rgctl-migrate`, `rgctl-kantra`, …), meta-skill `rgctl`, and slash commands for each selected adapter. Omitting `--tools` installs **cursor, claude, codex, agents**; use `--tools all` for the full registry. See [docs/guides/agent-commands.md](../../docs/guides/agent-commands.md). Workflow source: `skills/rgctl/workflows/`; keep `references/workflows.md` in sync via `cargo test -p rgctl-agent-pack-codegen workflows_reference_matches_fragments`.
+Installs workflow skills (`rgctl-discover`, `rgctl-migrate`, `rgctl-kantra`, …), meta-skill `rgctl`, and slash commands for each selected adapter. Omitting `--tools` installs **cursor, claude, codex, agents, antigravity**; use `--tools all` for the full registry. See [docs/guides/agent-commands.md](../../docs/guides/agent-commands.md). Workflow source: `skills/rgctl/workflows/`; keep `references/workflows.md` in sync via `cargo test -p rgctl-agent-pack-codegen workflows_reference_matches_fragments`.
