@@ -41,7 +41,7 @@ export default function InstallPage() {
         <TerminalBlock
           lines={[
             "rgctl --version",
-            "rgctl install --skill --with-commands --tools cursor,claude,codex,agents",
+            "rgctl install --skill --with-commands --tools cursor,claude,codex,antigravity,agents",
           ]}
         />
         <p className="text-sm text-[var(--mute)]">

@@ -253,7 +253,8 @@ pub fn bundle_bytes(bundle_rel: &Path) -> Option<&[u8]> {
 }
 
 /// Default install targets when `--tools` is omitted (phased v1 per #84).
-pub const DEFAULT_INSTALL_AGENTS: &[&str] = &["cursor", "claude", "codex", "agents"];
+pub const DEFAULT_INSTALL_AGENTS: &[&str] =
+    &["cursor", "claude", "codex", "agents", "antigravity"];
 
 pub fn all_agent_ids(manifest: &PackManifest) -> Vec<String> {
     manifest.agents.iter().map(|a| a.id.clone()).collect()
@@ -354,7 +355,10 @@ mod tests {
     fn default_install_agents_are_v1_quad() {
         let m = load_manifest().expect("manifest");
         let ids = default_agent_ids(&m);
-        assert_eq!(ids, ["cursor", "claude", "codex", "agents"]);
+        assert_eq!(
+            ids,
+            ["cursor", "claude", "codex", "agents", "antigravity"]
+        );
     }
 
     #[test]

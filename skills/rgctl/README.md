@@ -88,7 +88,7 @@ skills/rgctl/
 From a target repository (not the rgctl source tree unless you are dogfooding):
 
 ```bash
-rgctl install --skill --with-commands --tools cursor,claude,codex,agents
+rgctl install --skill --with-commands --tools cursor,claude,codex,antigravity,agents
 ```
 
 Installs meta skill `rgctl`, workflow skills (`rgctl-discover`, …), and optional slash commands per adapter. See [Agent commands guide](../../docs/guides/agent-commands.md).

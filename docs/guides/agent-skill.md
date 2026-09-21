@@ -2,9 +2,9 @@
 
 ## Introduction
 
-The rgctl **agent skill** is a structured instruction set that teaches AI coding agents (Claude Code, Codex, Cursor) how to use the rgctl CLI to answer structural questions about a codebase. When installed into a repository, the skill gives your agent the ability to automatically map natural-language questions to the right rgctl commands, interpret the results, and report findings -- all without the developer needing to know the CLI syntax.
+The rgctl **agent skill** is a structured instruction set that teaches AI coding agents (Claude Code, Antigravity, Codex, Cursor) how to use the rgctl CLI to answer structural questions about a codebase. When installed into a repository, the skill gives your agent the ability to automatically map natural-language questions to the right rgctl commands, interpret the results, and report findings -- all without the developer needing to know the CLI syntax.
 
-The **agent pack** embeds skills and optional chat commands into the `rgctl` binary. `rgctl install` copies them into per-product paths (`.cursor/skills/rgctl/`, `.claude/skills/rgctl/`, `.agents/skills/rgctl/`, OpenCode, Pi, … — see [Agent commands](agent-commands.md)). You get a **meta skill** `rgctl`, eight **workflow skills** (`rgctl-discover`, `rgctl-gql`, …), and with `--with-commands` slash/prompt files that map to the same workflows. No external downloads. Once installed, the agent follows a structured loop: parse the question, route to the right workflow or CLI command, run `rgctl -f json`, summarize results.
+The **agent pack** embeds skills and optional chat commands into the `rgctl` binary. `rgctl install` copies them into per-product paths (`.cursor/skills/rgctl/`, `.claude/skills/rgctl/`, `.agents/skills/rgctl/`, `.agent/skills/rgctl/`, OpenCode, Pi, … — see [Agent commands](agent-commands.md)). You get a **meta skill** `rgctl`, eight **workflow skills** (`rgctl-discover`, `rgctl-gql`, …), and with `--with-commands` slash/prompt files that map to the same workflows. No external downloads. Once installed, the agent follows a structured loop: parse the question, route to the right workflow or CLI command, run `rgctl -f json`, summarize results.
 
 The skill turns rgctl from a CLI tool into an **always-available architectural advisor** inside your editor.
 
@@ -47,7 +47,7 @@ rgctl -r example/coolstore discover --with-cfg
 Install the rgctl agent skill into your repository:
 
 ```bash
-rgctl -r example/coolstore install --skill --with-commands --tools cursor,claude,codex,agents
+rgctl -r example/coolstore install --skill --with-commands --tools cursor,claude,codex,antigravity,agents
 ```
 
 Text mode lists each created or updated path. Typical layout (Cursor example):
@@ -121,6 +121,7 @@ Limit adapters with **`--tools`** (comma-separated registry ids):
 ```bash
 rgctl -r example/coolstore install --skill --with-commands --tools claude
 rgctl -r example/coolstore install --skill --with-commands --tools codex,agents
+rgctl -r example/coolstore install --skill --with-commands --tools antigravity
 rgctl -r example/coolstore install --skill --with-commands --tools cursor
 rgctl install --list-agents   # all ids and paths
 ```
@@ -503,7 +504,7 @@ See **[Agent commands](agent-commands.md)** for the full table. Summary:
 | `--skill` | Meta `rgctl` + eight workflow skills (required for skills unless only `--with-policy`) |
 | `--with-commands` | Slash / prompt files per adapter |
 | `--with-policy` | Cursor structural rule snippet |
-| `--tools` | Registry ids or `all` (**default:** `cursor`, `claude`, `codex`, `agents`) |
+| `--tools` | Registry ids or `all` (**default:** `cursor`, `claude`, `codex`, `agents`, `antigravity`) |
 | `-g` / `--global` | User home instead of repo |
 | `--force` | Overwrite differing rgctl-managed files |
 | `--list-agents` | Print registry; no install |
