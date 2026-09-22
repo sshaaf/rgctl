@@ -1,7 +1,8 @@
 //! Heap-backed `HashMap` that avoids allocating until first insert.
 
+use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::ops::{Deref, DerefMut};
 use std::sync::OnceLock;
 
@@ -35,6 +36,11 @@ impl LazyStringMap {
         self.deref().clone()
     }
 
+    /// Clone into a sorted `BTreeMap` for deterministic snapshot serialization.
+    pub fn to_btreemap(&self) -> BTreeMap<String, String> {
+        self.deref().iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    }
+
     /// Build from a populated map (allocates only when non-empty).
     pub fn from_hashmap(map: HashMap<String, String>) -> Self {
         if map.is_empty() {
@@ -42,6 +48,12 @@ impl LazyStringMap {
         } else {
             Self(Some(Box::new(map)))
         }
+    }
+}
+
+impl FromIterator<(String, String)> for LazyStringMap {
+    fn from_iter<T: IntoIterator<Item = (String, String)>>(iter: T) -> Self {
+        Self::from_hashmap(iter.into_iter().collect())
     }
 }
 
@@ -79,7 +91,16 @@ impl DerefMut for LazyStringMap {
 
 impl Serialize for LazyStringMap {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.deref().serialize(serializer)
+        let map = self.deref();
+        let mut seq = serializer.serialize_map(Some(map.len()))?;
+        if !map.is_empty() {
+            let mut entries: Vec<(&String, &String)> = map.iter().collect();
+            entries.sort_unstable_by_key(|&(k, _)| k);
+            for (k, v) in entries {
+                seq.serialize_entry(k, v)?;
+            }
+        }
+        seq.end()
     }
 }
 
@@ -91,5 +112,47 @@ impl<'de> Deserialize<'de> for LazyStringMap {
         } else {
             Ok(Self(Some(Box::new(map))))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lazy_string_map_serialization_is_order_independent() {
+        let mut m1 = LazyStringMap::new();
+        m1.insert("cyclomatic".into(), "1".into());
+        m1.insert("cognitive".into(), "2".into());
+        m1.insert("loc".into(), "3".into());
+        m1.insert("nesting_depth".into(), "4".into());
+
+        let mut m2 = LazyStringMap::new();
+        m2.insert("nesting_depth".into(), "4".into());
+        m2.insert("loc".into(), "3".into());
+        m2.insert("cognitive".into(), "2".into());
+        m2.insert("cyclomatic".into(), "1".into());
+
+        let b1 = bincode::serialize(&m1).expect("serialize m1");
+        let b2 = bincode::serialize(&m2).expect("serialize m2");
+        assert_eq!(
+            b1, b2,
+            "LazyStringMap bincode output must be identical regardless of insertion order"
+        );
+    }
+
+    #[test]
+    fn lazy_string_map_empty_and_cleared_equivalence() {
+        let m_unallocated = LazyStringMap::new();
+        let mut m_cleared = LazyStringMap::new();
+        m_cleared.insert("k".into(), "v".into());
+        m_cleared.clear();
+
+        let b1 = bincode::serialize(&m_unallocated).unwrap();
+        let b2 = bincode::serialize(&m_cleared).unwrap();
+        assert_eq!(
+            b1, b2,
+            "Unallocated and cleared maps must serialize to identical bytes"
+        );
     }
 }

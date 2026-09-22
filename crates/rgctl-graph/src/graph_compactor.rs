@@ -421,4 +421,48 @@ mod tests {
         .unwrap();
         assert!(!stale_call);
     }
+
+    #[test]
+    fn compactor_preserves_extension_digests_for_multi_property_nodes() {
+        let tmp = TempDir::new().unwrap();
+        let base_path = tmp.path().join("base.bin");
+
+        let node = Node::new(NodeType::Function, "worker")
+            .with_file_path("worker.rs")
+            .with_property("cyclomatic".into(), "3".into())
+            .with_property("cognitive".into(), "2".into())
+            .with_property("loc".into(), "80".into())
+            .with_property("nesting_depth".into(), "1".into());
+
+        write_columnar_from_nodes_edges(vec![node], vec![], &base_path).unwrap();
+
+        let file = File::open(&base_path).unwrap();
+        // SAFETY: test file is read-only; mapping covers the written snapshot bytes only.
+        let mmap = Arc::new(unsafe { Mmap::map(&file).unwrap() });
+        let base = ColumnarGraphMmap::open(mmap).unwrap();
+        let base_digest = crate::stable_key::node_row_ref(&base, 0)
+            .unwrap()
+            .extension_digest;
+
+        let out = tmp.path().join("compacted.bin");
+        let scratch = tmp.path().join("scratch");
+        let stats = GraphCompactor::new(&base, DeltaSegment::default())
+            .compact_to_path(&out, &scratch)
+            .unwrap();
+        assert_eq!(stats.nodes_kept, 1);
+        assert_eq!(stats.nodes_dropped, 0);
+        assert_eq!(stats.nodes_from_delta, 0);
+
+        let out_file = File::open(&out).unwrap();
+        // SAFETY: test file is read-only; mapping covers the written snapshot bytes only.
+        let out_mmap = Arc::new(unsafe { Mmap::map(&out_file).unwrap() });
+        let compacted = ColumnarGraphMmap::open(out_mmap).unwrap();
+        let compacted_digest = crate::stable_key::node_row_ref(&compacted, 0)
+            .unwrap()
+            .extension_digest;
+        assert_eq!(
+            base_digest, compacted_digest,
+            "Compacted node must preserve exact extension_digest"
+        );
+    }
 }

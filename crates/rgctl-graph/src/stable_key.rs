@@ -232,4 +232,28 @@ mod tests {
             stable_key_from_row(&col_props, 0).unwrap()
         );
     }
+
+    #[test]
+    fn extension_digest_is_stable_for_identical_properties() {
+        let mk = || {
+            Node::new(NodeType::Function, "fn")
+                .with_file_path("x.rs")
+                .with_property("cyclomatic".into(), "1".into())
+                .with_property("cognitive".into(), "2".into())
+                .with_property("loc".into(), "3".into())
+                .with_property("nesting_depth".into(), "4".into())
+        };
+
+        let (_t0, c0) = open_columnar(vec![mk()]);
+        let baseline = node_row_ref(&c0, 0).unwrap().extension_digest;
+
+        for i in 0..50 {
+            let (_t, c) = open_columnar(vec![mk()]);
+            let d = node_row_ref(&c, 0).unwrap().extension_digest;
+            assert_eq!(
+                d, baseline,
+                "digest differs on iteration {i} for identical input"
+            );
+        }
+    }
 }
