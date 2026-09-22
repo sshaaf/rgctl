@@ -61,6 +61,10 @@ const K8S_WEBSITE_OBSIDIAN_EXPORT_BASELINE_SECS: f64 = 30.0;
 /// Delta `pr-check` on `crates/rgctl-graph` self-slice (`HEAD~5..HEAD`, base cache only).
 /// Baseline: **1.0 s** wall on reference M3 Pro (2026-09-10, release binary).
 const PR_CHECK_RGCTL_GRAPH_SLICE_BASELINE_SECS: f64 = 1.0;
+/// Linux cold *diff* (v7.1 vs HEAD snapshots under `.rgctl-diff/`). Separate from cold discover.
+/// Provisional baseline until recorded on reference machine; override via
+/// `RGCTL_LINUX_COLD_DIFF_BASELINE_SECS`.
+const LINUX_COLD_DIFF_WALL_BASELINE_SECS: f64 = 30.0;
 const TOLERANCE: f64 = 1.10;
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -1100,5 +1104,149 @@ fn discourse_cold_discover_within_baseline() {
         baseline
     );
     assert_within_baseline("discourse ruby cold discover", elapsed, baseline);
+}
+
+#[derive(Debug, Clone, Default, PartialEq)]
+struct DiffProfileSummary {
+    wall_secs: f64,
+    open_secs: f64,
+    digest_secs: f64,
+    diff_secs: f64,
+    nodes_added: u64,
+    nodes_removed: u64,
+    nodes_changed: u64,
+}
+
+fn parse_diff_profile_summary(log: &str) -> Option<DiffProfileSummary> {
+    let mut summary = DiffProfileSummary::default();
+    for line in log.lines() {
+        if !line.contains("[profile] diff summary") {
+            continue;
+        }
+        if let Some(v) = parse_field_f64(line, "wall_secs=") {
+            summary.wall_secs = v;
+        }
+        if let Some(v) = parse_field_f64(line, "open_secs=") {
+            summary.open_secs = v;
+        }
+        if let Some(v) = parse_field_f64(line, "digest_secs=") {
+            summary.digest_secs = v;
+        }
+        if let Some(v) = parse_field_f64(line, "diff_secs=") {
+            summary.diff_secs = v;
+        }
+        if let Some(v) = parse_field_u64(line, "nodes_added=") {
+            summary.nodes_added = v;
+        }
+        if let Some(v) = parse_field_u64(line, "nodes_removed=") {
+            summary.nodes_removed = v;
+        }
+        if let Some(v) = parse_field_u64(line, "nodes_changed=") {
+            summary.nodes_changed = v;
+        }
+    }
+    if summary.wall_secs > 0.0 {
+        Some(summary)
+    } else {
+        None
+    }
+}
+
+fn parse_diff_json(stdout: &str) -> Option<DiffProfileSummary> {
+    let anchor = stdout.find("\"schema_version\"")?;
+    let start = stdout[..anchor].rfind('{')?;
+    let slice = &stdout[start..];
+    let end = find_json_object_end(slice)?;
+    let value: Value = serde_json::from_str(&slice[..=end]).ok()?;
+    let timings = value.get("timings")?;
+    Some(DiffProfileSummary {
+        wall_secs: timings.get("wall_secs")?.as_f64()?,
+        open_secs: timings.get("open_secs").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        digest_secs: timings
+            .get("digest_secs")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(0.0),
+        diff_secs: timings.get("diff_secs").and_then(|v| v.as_f64()).unwrap_or(0.0),
+        nodes_added: value.get("nodes_added")?.as_u64()?,
+        nodes_removed: value.get("nodes_removed")?.as_u64()?,
+        nodes_changed: value.get("nodes_changed")?.as_u64()?,
+    })
+}
+
+fn linux_diff_pair_paths(repo: &Path) -> (PathBuf, PathBuf) {
+    let root = repo.join(".rgctl-diff");
+    (root.join("base"), root.join("head"))
+}
+
+/// Cold snapshot-pair diff (not discover). Prep with:
+/// `./scripts/prepare-linux-diff-snapshots.sh` (default BASE_REF=v7.1, HEAD_REF=HEAD).
+#[test]
+#[ignore = "manual: cold diff profile on example/linux/.rgctl-diff (run prepare-linux-diff-snapshots.sh first)"]
+fn linux_cold_diff_within_baseline() {
+    let repo = linux_repo_path();
+    let (base, head) = linux_diff_pair_paths(&repo);
+    let base_snap = base.join("graph.snapshot.bin");
+    let head_snap = head.join("graph.snapshot.bin");
+    if !base_snap.is_file() || !head_snap.is_file() {
+        eprintln!(
+            "skip: linux diff snapshots missing at {} (run ./scripts/prepare-linux-diff-snapshots.sh)",
+            repo.join(".rgctl-diff").display()
+        );
+        return;
+    }
+
+    let baseline = std::env::var("RGCTL_LINUX_COLD_DIFF_BASELINE_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(LINUX_COLD_DIFF_WALL_BASELINE_SECS);
+
+    let bin = rgctl_bin();
+    assert!(
+        bin.is_file(),
+        "rgctl binary not found at {} — run cargo build --release --bin rgctl",
+        bin.display()
+    );
+
+    let start = Instant::now();
+    let output = Command::new(&bin)
+        .current_dir(&repo)
+        .env("RUST_LOG", "info,profile=info")
+        .args([
+            "-f",
+            "json",
+            "diff",
+            "--base",
+            base.to_str().expect("utf8 base path"),
+            "--head",
+            head.to_str().expect("utf8 head path"),
+        ])
+        .output()
+        .expect("spawn rgctl diff");
+    let elapsed = start.elapsed();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.success(),
+        "diff failed:\nstdout={stdout}\nstderr={stderr}"
+    );
+
+    let profile = parse_diff_json(&stdout)
+        .or_else(|| parse_diff_profile_summary(&stderr))
+        .unwrap_or(DiffProfileSummary {
+            wall_secs: elapsed.as_secs_f64(),
+            ..DiffProfileSummary::default()
+        });
+    eprintln!(
+        "linux cold diff: wall={:.3}s open={:.3}s digest={:.3}s diff={:.3}s added={} removed={} changed={} (baseline {:.1}s)",
+        profile.wall_secs,
+        profile.open_secs,
+        profile.digest_secs,
+        profile.diff_secs,
+        profile.nodes_added,
+        profile.nodes_removed,
+        profile.nodes_changed,
+        baseline
+    );
+    assert_within_baseline("linux cold diff", elapsed, baseline);
 }
 

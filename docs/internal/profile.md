@@ -73,8 +73,11 @@ cargo test --release --test cold_profile_gates -- --ignored --nocapture --test-t
 | `home_assistant_python_cold_discover_within_baseline` | `example/home-assistant` | `-l python` | **20 s** |
 | `discourse_cold_discover_within_baseline` | `example/discourse` | `-l ruby` | env `RGCTL_DISCOURSE_RUBY_COLD_BASELINE_SECS` (default **120 s**; see measured run below) |
 | `pr_check_rgctl_graph_slice_within_baseline` | `crates/rgctl-graph` | delta `pr-check` (base cache only) | **1.0 s** |
+| `linux_cold_diff_within_baseline` | `example/linux/.rgctl-diff` | `diff` (prep script; not discover) | **30 s** provisional |
 
 Gates call `run_cold_discover_timed` in `tests/cold_profile_gates.rs` (`-r <corpus>`, `discover . -v`).
+
+**Cold diff** (compare path only): `./scripts/prepare-linux-diff-snapshots.sh` then `linux_cold_diff_within_baseline`. See [Cold diff profile](#cold-diff-profile-linux-two-ref-pair).
 
 **ecommerce-java gate** (inheritance external stubs): small Java fixture; asserts wall time and `[profile] stage index_graph_build` after `Extends`/`Implements`/`Permits` stub edges. Override with `RGCTL_ECOMMERCE_JAVA_COLD_BASELINE_SECS` / `RGCTL_ECOMMERCE_JAVA_INDEX_GRAPH_BUILD_BASELINE_SECS`.
 
@@ -276,6 +279,25 @@ Groups: `digest_fast_path_equal`, `node_index_parallel`, `edge_merge_join`, `ful
 | `edge_merge_join/10000` | ~1.58 ms |
 | `edge_merge_join/50000` | ~8.28 ms |
 | `full_diff_noop_sink` (10k nodes / 40k edges) | ~6.51 ms |
+
+### Cold diff profile (linux two-ref pair)
+
+**Separate from cold discover.** Measures open + digest + `diff_snapshots` on two pre-built columnar snapshots (noop sink). Default pair: **v7.1** vs **HEAD** of `example/linux`.
+
+```bash
+cargo build --release --bin rgctl
+./scripts/prepare-linux-diff-snapshots.sh   # worktrees + discover → example/linux/.rgctl-diff/{base,head}/
+RUST_LOG=info,profile=info ./target/release/rgctl -f json diff \
+  --base example/linux/.rgctl-diff/base \
+  --head example/linux/.rgctl-diff/head
+cargo test --release --test cold_profile_gates linux_cold_diff_within_baseline -- --ignored --nocapture
+```
+
+| Gate | Artifacts | Baseline (wall, +10%) |
+|------|-----------|------------------------|
+| `linux_cold_diff_within_baseline` | `example/linux/.rgctl-diff/{base,head}/graph.snapshot.bin` | **30 s** provisional (`RGCTL_LINUX_COLD_DIFF_BASELINE_SECS`) |
+
+Look for `[profile] diff summary` (`wall_secs`, `open_secs`, `digest_secs`, `diff_secs`, node/edge delta counts). Prep is expensive (two cold discovers); the gate only times the compare path. Override refs: `BASE_REF=v6.1 HEAD_REF=v6.6 ./scripts/prepare-linux-diff-snapshots.sh`.
 
 ### `pr-check` end-to-end (rgctl-graph self-slice)
 
