@@ -186,11 +186,12 @@ fn build_node_index_parallel(
     col: &crate::columnar_snapshot::ColumnarGraphMmap,
 ) -> Result<HashMap<StableNodeKey, NodeRowRef>> {
     let count = col.node_count();
+    let shard_cap = count / NODE_INDEX_SHARDS + 64;
     let shard_maps: Vec<HashMap<StableNodeKey, NodeRowRef>> = (0..NODE_INDEX_SHARDS)
         .into_par_iter()
         .map(|shard| {
-            let mut map = HashMap::new();
-            for idx in (0..count).filter(|i| i % NODE_INDEX_SHARDS == shard) {
+            let mut map = HashMap::with_capacity(shard_cap);
+            for idx in (shard..count).step_by(NODE_INDEX_SHARDS) {
                 if let Ok(key) = stable_key_from_row(col, idx) {
                     if let Ok(row_ref) = node_row_ref(col, idx) {
                         map.insert(key, row_ref);
@@ -502,5 +503,138 @@ mod tests {
         assert_eq!(stats.nodes_removed, 0);
         assert_eq!(stats.edges_added, 0);
         assert_eq!(stats.edges_removed, 0);
+    }
+
+    #[test]
+    fn diff_snapshots_identical_with_properties_has_zero_changed_nodes() {
+        let tmp = TempDir::new().unwrap();
+
+        let mk_node = |name: &str| {
+            Node::new(NodeType::Function, name)
+                .with_file_path("pkg/service.rs")
+                .with_property("cyclomatic".into(), "5".into())
+                .with_property("cognitive".into(), "3".into())
+                .with_property("loc".into(), "42".into())
+                .with_property("nesting_depth".into(), "2".into())
+        };
+
+        let base_path = write_snap(
+            tmp.path(),
+            "base.bin",
+            vec![mk_node("handle_request"), mk_node("validate_input")],
+            vec![],
+        );
+
+        let head_path = write_snap(
+            tmp.path(),
+            "head.bin",
+            vec![mk_node("handle_request"), mk_node("validate_input")],
+            vec![],
+        );
+
+        let pair = SnapshotPair::open(&base_path, &head_path).unwrap();
+        assert!(
+            pair.digest_equal().unwrap(),
+            "content digests must match between two snapshots of identical nodes"
+        );
+
+        let mut sink = VecDiffSink::default();
+        let stats = diff_snapshots(&pair.base, &pair.head, &mut sink).unwrap();
+        assert_eq!(stats.nodes_changed, 0, "must report 0 changed nodes for identical input");
+        assert_eq!(stats.nodes_added, 0);
+        assert_eq!(stats.nodes_removed, 0);
+        assert!(sink.nodes.is_empty(), "sink should receive 0 node deltas");
+    }
+
+    #[test]
+    fn diff_detects_property_value_change() {
+        let tmp = TempDir::new().unwrap();
+        let mk = |loc_val: &str| {
+            Node::new(NodeType::Function, "run")
+                .with_file_path("job.rs")
+                .with_property("cyclomatic".into(), "1".into())
+                .with_property("loc".into(), loc_val.into())
+        };
+
+        let base_path = write_snap(tmp.path(), "base.bin", vec![mk("10")], vec![]);
+        let head_path = write_snap(tmp.path(), "head.bin", vec![mk("20")], vec![]);
+
+        let pair = SnapshotPair::open(&base_path, &head_path).unwrap();
+        assert!(!pair.digest_equal().unwrap());
+
+        let mut sink = VecDiffSink::default();
+        let stats = diff_snapshots(&pair.base, &pair.head, &mut sink).unwrap();
+        assert_eq!(stats.nodes_changed, 1);
+        assert_eq!(sink.nodes[0].kind, NodeDeltaKind::Changed);
+    }
+
+    #[test]
+    fn diff_detects_property_addition_and_removal() {
+        let tmp = TempDir::new().unwrap();
+        let base_node = Node::new(NodeType::Function, "run")
+            .with_file_path("job.rs")
+            .with_property("loc".into(), "10".into());
+
+        let head_added = Node::new(NodeType::Function, "run")
+            .with_file_path("job.rs")
+            .with_property("loc".into(), "10".into())
+            .with_property("is_async".into(), "true".into());
+
+        let base_path = write_snap(tmp.path(), "base.bin", vec![base_node.clone()], vec![]);
+        let head_path = write_snap(tmp.path(), "head.bin", vec![head_added], vec![]);
+
+        let pair = SnapshotPair::open(&base_path, &head_path).unwrap();
+        let mut sink = VecDiffSink::default();
+        let stats = diff_snapshots(&pair.base, &pair.head, &mut sink).unwrap();
+        assert_eq!(
+            stats.nodes_changed, 1,
+            "Adding a property must be flagged as Changed"
+        );
+
+        let head_removed = Node::new(NodeType::Function, "run").with_file_path("job.rs");
+        let head_rm_path = write_snap(tmp.path(), "head_rm.bin", vec![head_removed], vec![]);
+        let pair_rm = SnapshotPair::open(&base_path, &head_rm_path).unwrap();
+        let mut sink_rm = VecDiffSink::default();
+        let stats_rm = diff_snapshots(&pair_rm.base, &pair_rm.head, &mut sink_rm).unwrap();
+        assert_eq!(
+            stats_rm.nodes_changed, 1,
+            "Removing a property must be flagged as Changed"
+        );
+    }
+
+    #[test]
+    fn write_columnar_scale_determinism_ten_thousand_nodes() {
+        let mk_nodes = || {
+            (0..10_000)
+                .map(|i| {
+                    Node::new(NodeType::Function, format!("fn_{i}"))
+                        .with_file_path(format!("src/module_{}.rs", i % 100))
+                        .with_property("cyclomatic".into(), (i % 7).to_string())
+                        .with_property("cognitive".into(), (i % 5).to_string())
+                        .with_property("loc".into(), (i * 12).to_string())
+                        .with_property("nesting_depth".into(), (i % 4).to_string())
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let tmp = TempDir::new().unwrap();
+        let p1 = tmp.path().join("snap1.bin");
+        let p2 = tmp.path().join("snap2.bin");
+
+        let d1 = write_columnar_from_nodes_edges(mk_nodes(), vec![], &p1).unwrap();
+        let d2 = write_columnar_from_nodes_edges(mk_nodes(), vec![], &p2).unwrap();
+        assert_eq!(d1, d2, "Content digests must match across 10,000 nodes");
+
+        let pair = SnapshotPair::open(&p1, &p2).unwrap();
+        assert!(pair.digest_equal().unwrap());
+
+        let mut sink = VecDiffSink::default();
+        let stats = diff_snapshots(&pair.base, &pair.head, &mut sink).unwrap();
+        assert_eq!(
+            stats.nodes_changed, 0,
+            "Zero changed nodes across 10,000 identical symbols"
+        );
+        assert_eq!(stats.nodes_added, 0);
+        assert_eq!(stats.nodes_removed, 0);
     }
 }

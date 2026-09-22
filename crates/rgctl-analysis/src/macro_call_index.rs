@@ -605,4 +605,42 @@ mod tests {
             42.0
         );
     }
+
+    #[test]
+    fn macro_call_fingerprint_matches_rebuilt_snapshot() {
+        use rgctl_graph::schema::{Node, NodeType};
+        use rgctl_graph::write_columnar_from_nodes_edges;
+
+        let tmp = TempDir::new().unwrap();
+        let repo_dir = tmp.path();
+        let rgctl_dir = repo_dir.join(rgctl_graph::code_graph::GRAPH_DIR);
+        std::fs::create_dir_all(&rgctl_dir).unwrap();
+
+        let mk_node = || {
+            Node::new(NodeType::Function, "log_event")
+                .with_file_path("src/log.rs")
+                .with_property("cyclomatic".into(), "2".into())
+                .with_property("cognitive".into(), "1".into())
+                .with_property("loc".into(), "15".into())
+                .with_property("nesting_depth".into(), "1".into())
+        };
+
+        let snap_path = rgctl_dir.join(rgctl_graph::snapshot::SNAPSHOT_FILE);
+
+        let d1 = write_columnar_from_nodes_edges(vec![mk_node()], vec![], &snap_path).unwrap();
+        let fingerprint = GraphFingerprint {
+            file_size: std::fs::metadata(&snap_path).unwrap().len(),
+            node_count: 1,
+            edge_count: 0,
+            graph_digest: Some(d1.clone()),
+        };
+
+        let d2 = write_columnar_from_nodes_edges(vec![mk_node()], vec![], &snap_path).unwrap();
+        assert_eq!(d1, d2, "rebuilt snapshot digest must be stable with properties");
+
+        assert!(
+            fingerprint.matches_repo(repo_dir).unwrap(),
+            "Fingerprint must match when snapshot is rebuilt from identical inputs"
+        );
+    }
 }

@@ -32,6 +32,9 @@ const _: () = assert!(std::mem::size_of::<NodeRow>() == NODE_ROW_SIZE);
 const _: () = assert!(std::mem::size_of::<EdgeRow>() == EDGE_ROW_SIZE);
 
 /// Per-node cold fields stored as a small bincode blob.
+///
+/// `properties` uses [`LazyStringMap`], which serializes keys in sorted order so
+/// extension blob bytes (and [`crate::stable_key::extension_digest`]) are stable (#93).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct NodeExtension {
     qualified_name: Option<String>,
@@ -40,8 +43,34 @@ struct NodeExtension {
     #[serde(default)]
     token_bloom: Option<[u64; 4]>,
     parameters: Vec<GraphParameter>,
-    properties: HashMap<String, String>,
+    properties: LazyStringMap,
     labels: Vec<String>,
+}
+
+/// Borrowed view for write-path serialization (no String/Vec clones).
+#[derive(Serialize)]
+struct NodeExtensionRef<'a> {
+    qualified_name: Option<&'a str>,
+    return_type: Option<&'a str>,
+    code_hash: Option<&'a str>,
+    token_bloom: Option<[u64; 4]>,
+    parameters: &'a [GraphParameter],
+    properties: &'a LazyStringMap,
+    labels: &'a [String],
+}
+
+impl NodeExtensionRef<'_> {
+    fn from_node(node: &Node) -> NodeExtensionRef<'_> {
+        NodeExtensionRef {
+            qualified_name: node.qualified_name.as_deref(),
+            return_type: node.return_type.as_deref(),
+            code_hash: node.code_hash.as_deref(),
+            token_bloom: node.token_bloom,
+            parameters: &node.parameters,
+            properties: &node.properties,
+            labels: &node.labels,
+        }
+    }
 }
 
 /// Pre-`token_bloom` extension layout for columnar snapshot backward compatibility.
@@ -51,7 +80,7 @@ struct NodeExtensionV1 {
     return_type: Option<String>,
     code_hash: Option<String>,
     parameters: Vec<GraphParameter>,
-    properties: HashMap<String, String>,
+    properties: LazyStringMap,
     labels: Vec<String>,
 }
 
@@ -400,13 +429,15 @@ impl ColumnarGraphMmap {
         name_index: &mut HashMap<String, Vec<Uuid>>,
         type_index: &mut HashMap<NodeType, Vec<Uuid>>,
         node_rows: &mut Vec<NodeRow>,
+        scratch: &mut Vec<u8>,
     ) -> Result<()> {
         let node = self.materialize_node(idx)?;
-        let node_bytes = bincode::serialize(&node).map_err(bincode_err)?;
+        scratch.clear();
+        bincode::serialize_into(&mut *scratch, &node).map_err(bincode_err)?;
         let extension_bytes = self.extension_bytes_at(idx)?;
         append_node_columnar_prehashed(
             &node,
-            &node_bytes,
+            scratch,
             hasher,
             strings,
             extensions_blob,
@@ -488,7 +519,7 @@ impl ColumnarGraphMmap {
             file_path: file_path.map(SharedStr::from),
             start_line: (row.start_line > 0).then_some(row.start_line as usize),
             end_line: (row.end_line > 0).then_some(row.end_line as usize),
-            properties: LazyStringMap::from_hashmap(extension.properties),
+            properties: extension.properties,
             labels: extension.labels,
         })
     }
@@ -528,23 +559,18 @@ impl PreparedGraphSnapshot {
         let mut strings = StringPool::new();
         let mut node_rows = Vec::with_capacity(self.nodes.len());
         let mut extensions_blob = Vec::new();
+        let mut ext_scratch = Vec::with_capacity(256);
 
         for node in &self.nodes {
             let name_off = strings.intern(&node.name);
             let file_path_off = strings.intern_opt(node.file_path.as_deref());
             let signature_off = strings.intern_opt(node.signature.as_deref());
-            let extension = NodeExtension {
-                qualified_name: node.qualified_name.as_ref().map(|s| s.to_string()),
-                return_type: node.return_type.as_ref().map(|s| s.to_string()),
-                code_hash: node.code_hash.as_ref().map(|s| s.to_string()),
-                token_bloom: node.token_bloom,
-                parameters: node.parameters.clone(),
-                properties: node.properties.to_hashmap(),
-                labels: node.labels.clone(),
-            };
-            let ext_bytes = bincode::serialize(&extension).map_err(bincode_err)?;
+            let extension = NodeExtensionRef::from_node(node);
+            ext_scratch.clear();
+            bincode::serialize_into(&mut ext_scratch, &extension).map_err(bincode_err)?;
             let extension_off = extensions_blob.len() as u32;
-            extensions_blob.extend_from_slice(&ext_bytes);
+            let extension_len = ext_scratch.len() as u32;
+            extensions_blob.extend_from_slice(&ext_scratch);
 
             node_rows.push(NodeRow {
                 id: *node.id.as_bytes(),
@@ -559,7 +585,7 @@ impl PreparedGraphSnapshot {
                 start_line: node.start_line.unwrap_or(0) as u32,
                 end_line: node.end_line.unwrap_or(0) as u32,
                 extension_off,
-                extension_len: ext_bytes.len() as u32,
+                extension_len,
                 _pad_end: 0,
             });
         }
@@ -781,7 +807,7 @@ fn node_matches_invalidated_path(
     };
 
     let norm = normalize_path_str(path);
-    if invalidated.contains(&norm) {
+    if invalidated.contains(norm.as_ref()) {
         return true;
     }
 
@@ -965,11 +991,13 @@ pub(crate) fn append_node_columnar(
     name_index: &mut HashMap<String, Vec<Uuid>>,
     type_index: &mut HashMap<NodeType, Vec<Uuid>>,
     node_rows: &mut Vec<NodeRow>,
+    scratch: &mut Vec<u8>,
 ) -> Result<()> {
-    let node_bytes = bincode::serialize(node).map_err(bincode_err)?;
+    scratch.clear();
+    bincode::serialize_into(&mut *scratch, node).map_err(bincode_err)?;
     append_node_columnar_prehashed(
         node,
-        &node_bytes,
+        scratch,
         hasher,
         strings,
         extensions_blob,
@@ -1001,23 +1029,19 @@ pub(crate) fn append_node_columnar_prehashed(
     let name_off = strings.intern(&node.name);
     let file_path_off = strings.intern_opt(node.file_path.as_deref());
     let signature_off = strings.intern_opt(node.signature.as_deref());
-    let ext_bytes = match extension_bytes {
-        Some(bytes) => bytes.to_vec(),
+    let extension_off = extensions_blob.len() as u32;
+    let extension_len = match extension_bytes {
+        Some(bytes) => {
+            extensions_blob.extend_from_slice(bytes);
+            bytes.len() as u32
+        }
         None => {
-            let extension = NodeExtension {
-                qualified_name: node.qualified_name.as_ref().map(|s| s.to_string()),
-                return_type: node.return_type.as_ref().map(|s| s.to_string()),
-                code_hash: node.code_hash.as_ref().map(|s| s.to_string()),
-                token_bloom: node.token_bloom,
-                parameters: node.parameters.clone(),
-                properties: node.properties.to_hashmap(),
-                labels: node.labels.clone(),
-            };
-            bincode::serialize(&extension).map_err(bincode_err)?
+            let start = extensions_blob.len();
+            let extension = NodeExtensionRef::from_node(node);
+            bincode::serialize_into(&mut *extensions_blob, &extension).map_err(bincode_err)?;
+            (extensions_blob.len() - start) as u32
         }
     };
-    let extension_off = extensions_blob.len() as u32;
-    extensions_blob.extend_from_slice(&ext_bytes);
 
     node_rows.push(NodeRow {
         id: *node.id.as_bytes(),
@@ -1032,7 +1056,7 @@ pub(crate) fn append_node_columnar_prehashed(
         start_line: node.start_line.unwrap_or(0) as u32,
         end_line: node.end_line.unwrap_or(0) as u32,
         extension_off,
-        extension_len: ext_bytes.len() as u32,
+        extension_len,
         _pad_end: 0,
     });
 
@@ -1143,6 +1167,7 @@ pub fn write_columnar_from_nodes_edges(
     let mut extensions_blob = Vec::new();
     let mut name_index: HashMap<String, Vec<Uuid>> = HashMap::new();
     let mut type_index: HashMap<NodeType, Vec<Uuid>> = HashMap::new();
+    let mut scratch = Vec::with_capacity(512);
 
     for node in &nodes {
         append_node_columnar(
@@ -1153,6 +1178,7 @@ pub fn write_columnar_from_nodes_edges(
             &mut name_index,
             &mut type_index,
             &mut node_rows,
+            &mut scratch,
         )?;
     }
     drop(nodes);
@@ -1200,6 +1226,7 @@ pub fn write_columnar_from_backend(backend: &MemoryBackend, path: &Path) -> Resu
     let mut extensions_blob = Vec::new();
     let mut name_index: HashMap<String, Vec<Uuid>> = HashMap::new();
     let mut type_index: HashMap<NodeType, Vec<Uuid>> = HashMap::new();
+    let mut scratch = Vec::with_capacity(512);
 
     backend.for_each_node_by_ids(&ids, |node| {
         append_node_columnar(
@@ -1210,6 +1237,7 @@ pub fn write_columnar_from_backend(backend: &MemoryBackend, path: &Path) -> Resu
             &mut name_index,
             &mut type_index,
             &mut node_rows,
+            &mut scratch,
         )?;
         Ok(())
     })?;
@@ -1539,5 +1567,303 @@ mod tests {
     fn read_node_row_rejects_out_of_range() {
         let mmap = vec![0u8; 32];
         assert!(read_node_row(&mmap, 0, 0).is_err());
+    }
+
+    /// Pre-#93 writers emitted `HashMap` property pairs in arbitrary order.
+    /// Build a current-schema extension blob with reverse-lex key order (not
+    /// `BTreeMap` order) to stand in for those on-disk bytes.
+    fn legacy_unsorted_metric_extension_bytes() -> Vec<u8> {
+        use serde::ser::SerializeMap;
+        use serde::{Serialize, Serializer};
+
+        struct UnsortedProps(&'static [(&'static str, &'static str)]);
+
+        impl Serialize for UnsortedProps {
+            fn serialize<S: Serializer>(
+                &self,
+                serializer: S,
+            ) -> std::result::Result<S::Ok, S::Error> {
+                let mut map = serializer.serialize_map(Some(self.0.len()))?;
+                for &(k, v) in self.0 {
+                    map.serialize_entry(k, v)?;
+                }
+                map.end()
+            }
+        }
+
+        #[derive(Serialize)]
+        struct LegacyUnsortedExtension {
+            qualified_name: Option<String>,
+            return_type: Option<String>,
+            code_hash: Option<String>,
+            token_bloom: Option<[u64; 4]>,
+            parameters: Vec<crate::schema::GraphParameter>,
+            properties: UnsortedProps,
+            labels: Vec<String>,
+        }
+
+        // Sorted order would be: cognitive, cyclomatic, loc, nesting_depth.
+        // Emit the reverse so the blob cannot match a post-fix BTreeMap encode.
+        let ext = LegacyUnsortedExtension {
+            qualified_name: None,
+            return_type: None,
+            code_hash: None,
+            token_bloom: None,
+            parameters: Vec::new(),
+            properties: UnsortedProps(&[
+                ("nesting_depth", "4"),
+                ("loc", "3"),
+                ("cyclomatic", "1"),
+                ("cognitive", "2"),
+            ]),
+            labels: Vec::new(),
+        };
+        bincode::serialize(&ext).expect("serialize legacy unsorted extension")
+    }
+
+    #[test]
+    fn legacy_unsorted_extension_properties_decode_and_materialize() {
+        let legacy_bytes = legacy_unsorted_metric_extension_bytes();
+
+        // Golden pin: reverse-lex metric properties on an otherwise-empty
+        // NodeExtension (current schema with `token_bloom`). Stand-in for a
+        // pre-#93 HashMap iteration order. Layout (bincode):
+        //   4× Option::None (1 byte each) + empty parameters (u64 len 0)
+        //   + map{nesting_depth,loc,cyclomatic,cognitive} + empty labels.
+        const GOLDEN_HEX: &str = "00000000000000000000000004000000000000000d000000000000006e657374696e675f646570746801000000000000003403000000000000006c6f630100000000000000330a000000000000006379636c6f6d617469630100000000000000310900000000000000636f676e69746976650100000000000000320000000000000000";
+        let golden: Vec<u8> = (0..GOLDEN_HEX.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&GOLDEN_HEX[i..i + 2], 16).expect("hex"))
+            .collect();
+        assert_eq!(
+            legacy_bytes, golden,
+            "legacy unsorted extension bytes drifted; update GOLDEN_HEX if intentional"
+        );
+
+        let decoded = decode_node_extension(&legacy_bytes).expect("decode legacy extension");
+        assert_eq!(decoded.properties.get("cyclomatic").map(String::as_str), Some("1"));
+        assert_eq!(decoded.properties.get("cognitive").map(String::as_str), Some("2"));
+        assert_eq!(decoded.properties.get("loc").map(String::as_str), Some("3"));
+        assert_eq!(
+            decoded.properties.get("nesting_depth").map(String::as_str),
+            Some("4")
+        );
+
+        // Rewriting with BTreeMap yields sorted keys — different bytes, same props.
+        let rewritten = bincode::serialize(&decoded).expect("re-serialize");
+        assert_ne!(rewritten, legacy_bytes);
+        let redecoded = decode_node_extension(&rewritten).expect("decode rewritten");
+        assert_eq!(
+            redecoded.properties.to_hashmap(),
+            decoded.properties.to_hashmap()
+        );
+
+        // Full path: inject legacy extension bytes into a columnar snapshot and materialize.
+        let node = Node::new(NodeType::Function, "legacy_fn").with_file_path("legacy.rs");
+        let node_bytes = bincode::serialize(&node).expect("node bytes");
+        let mut hasher = blake3::Hasher::new();
+        let mut strings = StringPool::new();
+        let mut extensions_blob = Vec::new();
+        let mut name_index = HashMap::new();
+        let mut type_index = HashMap::new();
+        let mut node_rows = Vec::new();
+        append_node_columnar_prehashed(
+            &node,
+            &node_bytes,
+            &mut hasher,
+            &mut strings,
+            &mut extensions_blob,
+            &mut name_index,
+            &mut type_index,
+            &mut node_rows,
+            Some(&legacy_bytes),
+        )
+        .expect("append with legacy extension");
+        let digest = hasher.finalize().to_hex().to_string();
+
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("legacy.bin");
+        write_columnar_assembled(
+            &path,
+            &node_rows,
+            &[],
+            &strings,
+            &extensions_blob,
+            &name_index,
+            &type_index,
+            &digest,
+        )
+        .expect("write snapshot");
+
+        let file = std::fs::File::open(&path).unwrap();
+        // SAFETY: test file is read-only; mapping covers the written snapshot bytes only.
+        let mmap = Arc::new(unsafe { Mmap::map(&file).unwrap() });
+        let col = ColumnarGraphMmap::open(mmap).unwrap();
+        let materialized = col.materialize_node_at(0).expect("materialize");
+        assert_eq!(materialized.get_property("cyclomatic"), Some("1"));
+        assert_eq!(materialized.get_property("cognitive"), Some("2"));
+        assert_eq!(materialized.get_property("loc"), Some("3"));
+        assert_eq!(materialized.get_property("nesting_depth"), Some("4"));
+    }
+
+    #[test]
+    fn write_columnar_stable_digest_with_multi_property_nodes() {
+        let mk_nodes = || {
+            (0..20)
+                .map(|i| {
+                    Node::new(NodeType::Function, format!("fn_{i}"))
+                        .with_file_path("src/lib.rs")
+                        .with_property("cyclomatic".into(), (i % 5).to_string())
+                        .with_property("cognitive".into(), (i % 3).to_string())
+                        .with_property("loc".into(), (i * 10).to_string())
+                        .with_property("nesting_depth".into(), "1".into())
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let tmp = TempDir::new().unwrap();
+        let p1 = tmp.path().join("s1.bin");
+        let p2 = tmp.path().join("s2.bin");
+
+        let d1 = write_columnar_from_nodes_edges(mk_nodes(), vec![], &p1).unwrap();
+        let d2 = write_columnar_from_nodes_edges(mk_nodes(), vec![], &p2).unwrap();
+        assert_eq!(
+            d1, d2,
+            "content_digest must match across runs for nodes with properties"
+        );
+
+        // Name/type indexes are still HashMaps on the wire, so full-file bytes
+        // are not guaranteed identical — only the content digest is.
+        let open = |path: &std::path::Path| {
+            let file = std::fs::File::open(path).unwrap();
+            // SAFETY: test file is read-only; mapping covers the written snapshot bytes only.
+            let mmap = Arc::new(unsafe { Mmap::map(&file).unwrap() });
+            ColumnarGraphMmap::open(mmap).unwrap()
+        };
+        let c1 = open(&p1);
+        let c2 = open(&p2);
+        assert_eq!(c1.node_count(), c2.node_count());
+        for i in 0..c1.node_count() {
+            let d_a = crate::stable_key::node_row_ref(&c1, i)
+                .unwrap()
+                .extension_digest;
+            let d_b = crate::stable_key::node_row_ref(&c2, i)
+                .unwrap()
+                .extension_digest;
+            assert_eq!(d_a, d_b, "extension_digest mismatch at node {i}");
+        }
+    }
+
+    #[test]
+    fn write_columnar_backend_and_nodes_edges_match_with_properties() {
+        let n = Node::new(NodeType::Function, "compute")
+            .with_file_path("main.rs")
+            .with_property("loc".into(), "50".into())
+            .with_property("cyclomatic".into(), "4".into())
+            .with_property("cognitive".into(), "2".into())
+            .with_property("nesting_depth".into(), "1".into());
+
+        let mut backend = crate::backend::MemoryBackend::new();
+        backend.insert_node(n.clone()).unwrap();
+
+        let tmp = TempDir::new().unwrap();
+        let d_backend =
+            write_columnar_from_backend(&backend, &tmp.path().join("backend.bin")).unwrap();
+        let d_vecs =
+            write_columnar_from_nodes_edges(vec![n], vec![], &tmp.path().join("vecs.bin")).unwrap();
+        assert_eq!(
+            d_backend, d_vecs,
+            "Backend and Vecs ingest must produce matching digests with properties"
+        );
+    }
+
+    #[test]
+    fn rematerialize_round_trip_stable_with_multi_property_nodes() {
+        let a = Node::new(NodeType::Function, "a")
+            .with_file_path("a.rs")
+            .with_property("cyclomatic".into(), "3".into())
+            .with_property("cognitive".into(), "2".into())
+            .with_property("loc".into(), "40".into())
+            .with_property("nesting_depth".into(), "1".into());
+        let b = Node::new(NodeType::Function, "b")
+            .with_file_path("b.rs")
+            .with_property("cyclomatic".into(), "1".into())
+            .with_property("cognitive".into(), "1".into())
+            .with_property("loc".into(), "10".into())
+            .with_property("nesting_depth".into(), "0".into());
+
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("g.bin");
+        let written = write_columnar_from_nodes_edges(vec![a, b], vec![], &path).unwrap();
+
+        let file = std::fs::File::open(&path).unwrap();
+        // SAFETY: test file is read-only; mapping covers the written snapshot bytes only.
+        let mmap = Arc::new(unsafe { Mmap::map(&file).unwrap() });
+        let col = ColumnarGraphMmap::open(mmap).unwrap();
+
+        let mut nodes: Vec<Node> = (0..col.node_count())
+            .map(|i| col.materialize_node_at(i).unwrap())
+            .collect();
+        nodes.sort_by_key(|n| n.id);
+
+        let rewritten_path = tmp.path().join("g2.bin");
+        let rewritten = write_columnar_from_nodes_edges(nodes, vec![], &rewritten_path).unwrap();
+        assert_eq!(
+            written, rewritten,
+            "rematerialize + rewrite must preserve content_digest when properties are present"
+        );
+    }
+
+    #[test]
+    fn deserialize_legacy_hashmap_extension_properties() {
+        #[derive(Serialize)]
+        struct LegacyNodeExtension {
+            qualified_name: Option<String>,
+            return_type: Option<String>,
+            code_hash: Option<String>,
+            token_bloom: Option<[u64; 4]>,
+            parameters: Vec<crate::schema::GraphParameter>,
+            properties: HashMap<String, String>,
+            labels: Vec<String>,
+        }
+
+        let mut map = HashMap::new();
+        map.insert("loc".into(), "42".into());
+        map.insert("cyclomatic".into(), "3".into());
+
+        let legacy = LegacyNodeExtension {
+            qualified_name: None,
+            return_type: None,
+            code_hash: None,
+            token_bloom: None,
+            parameters: Vec::new(),
+            properties: map,
+            labels: Vec::new(),
+        };
+        let legacy_bytes = bincode::serialize(&legacy).unwrap();
+        let ext = decode_node_extension(&legacy_bytes).expect("must decode legacy map bytes");
+        assert_eq!(ext.properties.get("loc").map(String::as_str), Some("42"));
+        assert_eq!(
+            ext.properties.get("cyclomatic").map(String::as_str),
+            Some("3")
+        );
+    }
+
+    #[test]
+    fn decode_node_extension_handles_truncated_bytes_gracefully() {
+        let corrupt_bytes = [0xFF, 0xFE, 0x00, 0x12];
+        let result = decode_node_extension(&corrupt_bytes);
+        assert!(result.is_err(), "Must return Err on corrupt payload");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("node extension") || err.to_lowercase().contains("serde"),
+            "expected serde-style error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn decode_node_extension_handles_empty_slice_gracefully() {
+        let result = decode_node_extension(&[]);
+        assert!(result.is_err(), "empty slice must not panic");
     }
 }
