@@ -8,6 +8,7 @@
 
 use crate::backend::MemoryBackend;
 use crate::csr::{edge_type_from_u8, edge_type_to_u8};
+use crate::lazy_collections::LazyStringMap;
 use crate::normalize_path_str;
 use crate::schema::{Edge, EdgeType, GraphParameter, Node, NodeType, SharedStr};
 use crate::snapshot::{PreparedGraphSnapshot, PreparedIndexes, SNAPSHOT_MAGIC};
@@ -16,7 +17,7 @@ use rgctl_error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -32,8 +33,8 @@ const _: () = assert!(std::mem::size_of::<EdgeRow>() == EDGE_ROW_SIZE);
 
 /// Per-node cold fields stored as a small bincode blob.
 ///
-/// `properties` is a [`BTreeMap`] so extension blob bytes (and thus
-/// [`crate::stable_key::extension_digest`]) are stable across runs (#93).
+/// `properties` uses [`LazyStringMap`], which serializes keys in sorted order so
+/// extension blob bytes (and [`crate::stable_key::extension_digest`]) are stable (#93).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct NodeExtension {
     qualified_name: Option<String>,
@@ -42,8 +43,34 @@ struct NodeExtension {
     #[serde(default)]
     token_bloom: Option<[u64; 4]>,
     parameters: Vec<GraphParameter>,
-    properties: BTreeMap<String, String>,
+    properties: LazyStringMap,
     labels: Vec<String>,
+}
+
+/// Borrowed view for write-path serialization (no String/Vec clones).
+#[derive(Serialize)]
+struct NodeExtensionRef<'a> {
+    qualified_name: Option<&'a str>,
+    return_type: Option<&'a str>,
+    code_hash: Option<&'a str>,
+    token_bloom: Option<[u64; 4]>,
+    parameters: &'a [GraphParameter],
+    properties: &'a LazyStringMap,
+    labels: &'a [String],
+}
+
+impl NodeExtensionRef<'_> {
+    fn from_node(node: &Node) -> NodeExtensionRef<'_> {
+        NodeExtensionRef {
+            qualified_name: node.qualified_name.as_deref(),
+            return_type: node.return_type.as_deref(),
+            code_hash: node.code_hash.as_deref(),
+            token_bloom: node.token_bloom,
+            parameters: &node.parameters,
+            properties: &node.properties,
+            labels: &node.labels,
+        }
+    }
 }
 
 /// Pre-`token_bloom` extension layout for columnar snapshot backward compatibility.
@@ -53,7 +80,7 @@ struct NodeExtensionV1 {
     return_type: Option<String>,
     code_hash: Option<String>,
     parameters: Vec<GraphParameter>,
-    properties: BTreeMap<String, String>,
+    properties: LazyStringMap,
     labels: Vec<String>,
 }
 
@@ -490,7 +517,7 @@ impl ColumnarGraphMmap {
             file_path: file_path.map(SharedStr::from),
             start_line: (row.start_line > 0).then_some(row.start_line as usize),
             end_line: (row.end_line > 0).then_some(row.end_line as usize),
-            properties: extension.properties.into_iter().collect(),
+            properties: extension.properties,
             labels: extension.labels,
         })
     }
@@ -535,15 +562,7 @@ impl PreparedGraphSnapshot {
             let name_off = strings.intern(&node.name);
             let file_path_off = strings.intern_opt(node.file_path.as_deref());
             let signature_off = strings.intern_opt(node.signature.as_deref());
-            let extension = NodeExtension {
-                qualified_name: node.qualified_name.as_ref().map(|s| s.to_string()),
-                return_type: node.return_type.as_ref().map(|s| s.to_string()),
-                code_hash: node.code_hash.as_ref().map(|s| s.to_string()),
-                token_bloom: node.token_bloom,
-                parameters: node.parameters.clone(),
-                properties: node.properties.to_btreemap(),
-                labels: node.labels.clone(),
-            };
+            let extension = NodeExtensionRef::from_node(node);
             let ext_bytes = bincode::serialize(&extension).map_err(bincode_err)?;
             let extension_off = extensions_blob.len() as u32;
             extensions_blob.extend_from_slice(&ext_bytes);
@@ -1006,15 +1025,7 @@ pub(crate) fn append_node_columnar_prehashed(
     let ext_bytes = match extension_bytes {
         Some(bytes) => bytes.to_vec(),
         None => {
-            let extension = NodeExtension {
-                qualified_name: node.qualified_name.as_ref().map(|s| s.to_string()),
-                return_type: node.return_type.as_ref().map(|s| s.to_string()),
-                code_hash: node.code_hash.as_ref().map(|s| s.to_string()),
-                token_bloom: node.token_bloom,
-                parameters: node.parameters.clone(),
-                properties: node.properties.to_btreemap(),
-                labels: node.labels.clone(),
-            };
+            let extension = NodeExtensionRef::from_node(node);
             bincode::serialize(&extension).map_err(bincode_err)?
         }
     };
@@ -1627,7 +1638,10 @@ mod tests {
         let rewritten = bincode::serialize(&decoded).expect("re-serialize");
         assert_ne!(rewritten, legacy_bytes);
         let redecoded = decode_node_extension(&rewritten).expect("decode rewritten");
-        assert_eq!(redecoded.properties, decoded.properties);
+        assert_eq!(
+            redecoded.properties.to_hashmap(),
+            decoded.properties.to_hashmap()
+        );
 
         // Full path: inject legacy extension bytes into a columnar snapshot and materialize.
         let node = Node::new(NodeType::Function, "legacy_fn").with_file_path("legacy.rs");

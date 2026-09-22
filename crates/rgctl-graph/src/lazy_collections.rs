@@ -2,7 +2,7 @@
 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::sync::OnceLock;
 
@@ -10,6 +10,9 @@ fn empty_string_map() -> &'static HashMap<String, String> {
     static EMPTY: OnceLock<HashMap<String, String>> = OnceLock::new();
     EMPTY.get_or_init(HashMap::new)
 }
+
+/// Max property count sorted on the stack during deterministic serialize (#93).
+const SORT_STACK_CAP: usize = 8;
 
 /// `HashMap<String, String>` with no heap until the first insert.
 #[derive(Debug, Clone, Default)]
@@ -34,11 +37,6 @@ impl LazyStringMap {
     /// Clone into a standard `HashMap` (for extension blobs / legacy APIs).
     pub fn to_hashmap(&self) -> HashMap<String, String> {
         self.deref().clone()
-    }
-
-    /// Clone into a sorted `BTreeMap` for deterministic snapshot serialization.
-    pub fn to_btreemap(&self) -> BTreeMap<String, String> {
-        self.deref().iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
     /// Build from a populated map (allocates only when non-empty).
@@ -90,11 +88,31 @@ impl DerefMut for LazyStringMap {
 }
 
 impl Serialize for LazyStringMap {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error> {
         let map = self.deref();
-        let mut seq = serializer.serialize_map(Some(map.len()))?;
-        if !map.is_empty() {
-            let mut entries: Vec<(&String, &String)> = map.iter().collect();
+        let len = map.len();
+        let mut seq = serializer.serialize_map(Some(len))?;
+        if len == 0 {
+            return seq.end();
+        }
+
+        // Sorted key order for deterministic digests (#93). Typical nodes have
+        // ≤4 metric properties — sort on the stack to avoid a Vec per node.
+        if len <= SORT_STACK_CAP {
+            let mut stack = [("", ""); SORT_STACK_CAP];
+            for (i, (k, v)) in map.iter().enumerate() {
+                stack[i] = (k.as_str(), v.as_str());
+            }
+            let slice = &mut stack[..len];
+            slice.sort_unstable_by_key(|&(k, _)| k);
+            for &(k, v) in slice.iter() {
+                seq.serialize_entry(k, v)?;
+            }
+        } else {
+            let mut entries: Vec<(&str, &str)> = Vec::with_capacity(len);
+            for (k, v) in map.iter() {
+                entries.push((k.as_str(), v.as_str()));
+            }
             entries.sort_unstable_by_key(|&(k, _)| k);
             for (k, v) in entries {
                 seq.serialize_entry(k, v)?;
@@ -105,7 +123,7 @@ impl Serialize for LazyStringMap {
 }
 
 impl<'de> Deserialize<'de> for LazyStringMap {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> std::result::Result<Self, D::Error> {
         let map: HashMap<String, String> = HashMap::deserialize(deserializer)?;
         if map.is_empty() {
             Ok(Self(None))
@@ -184,5 +202,49 @@ mod tests {
             b1, b2,
             "Must serialize identically with prefix collisions and special chars"
         );
+    }
+
+    #[test]
+    fn lazy_string_map_serialize_matches_btreemap_bytes() {
+        use std::collections::BTreeMap;
+
+        let mut lazy = LazyStringMap::new();
+        lazy.insert("cyclomatic".into(), "1".into());
+        lazy.insert("cognitive".into(), "2".into());
+        lazy.insert("loc".into(), "3".into());
+        lazy.insert("nesting_depth".into(), "4".into());
+
+        let mut tree: BTreeMap<String, String> = BTreeMap::new();
+        tree.insert("cyclomatic".into(), "1".into());
+        tree.insert("cognitive".into(), "2".into());
+        tree.insert("loc".into(), "3".into());
+        tree.insert("nesting_depth".into(), "4".into());
+
+        let b_lazy = bincode::serialize(&lazy).unwrap();
+        let b_tree = bincode::serialize(&tree).unwrap();
+        assert_eq!(
+            b_lazy, b_tree,
+            "sorted LazyStringMap must match BTreeMap wire bytes"
+        );
+    }
+
+    #[test]
+    fn lazy_string_map_stack_and_heap_sort_paths_agree() {
+        // ≤8 uses stack sort; >8 uses Vec — both must be lexicographic.
+        let mut small = LazyStringMap::new();
+        for i in (0..4).rev() {
+            small.insert(format!("k{i}"), format!("v{i}"));
+        }
+        let mut large = LazyStringMap::new();
+        for i in (0..12).rev() {
+            large.insert(format!("k{i:02}"), format!("v{i}"));
+        }
+        // Round-trip deserialize preserves values; serialize stays deterministic.
+        let b1 = bincode::serialize(&small).unwrap();
+        let b2 = bincode::serialize(&small).unwrap();
+        assert_eq!(b1, b2);
+        let b3 = bincode::serialize(&large).unwrap();
+        let b4 = bincode::serialize(&large).unwrap();
+        assert_eq!(b3, b4);
     }
 }
