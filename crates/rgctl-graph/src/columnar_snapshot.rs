@@ -429,13 +429,15 @@ impl ColumnarGraphMmap {
         name_index: &mut HashMap<String, Vec<Uuid>>,
         type_index: &mut HashMap<NodeType, Vec<Uuid>>,
         node_rows: &mut Vec<NodeRow>,
+        scratch: &mut Vec<u8>,
     ) -> Result<()> {
         let node = self.materialize_node(idx)?;
-        let node_bytes = bincode::serialize(&node).map_err(bincode_err)?;
+        scratch.clear();
+        bincode::serialize_into(&mut *scratch, &node).map_err(bincode_err)?;
         let extension_bytes = self.extension_bytes_at(idx)?;
         append_node_columnar_prehashed(
             &node,
-            &node_bytes,
+            scratch,
             hasher,
             strings,
             extensions_blob,
@@ -557,15 +559,18 @@ impl PreparedGraphSnapshot {
         let mut strings = StringPool::new();
         let mut node_rows = Vec::with_capacity(self.nodes.len());
         let mut extensions_blob = Vec::new();
+        let mut ext_scratch = Vec::with_capacity(256);
 
         for node in &self.nodes {
             let name_off = strings.intern(&node.name);
             let file_path_off = strings.intern_opt(node.file_path.as_deref());
             let signature_off = strings.intern_opt(node.signature.as_deref());
             let extension = NodeExtensionRef::from_node(node);
-            let ext_bytes = bincode::serialize(&extension).map_err(bincode_err)?;
+            ext_scratch.clear();
+            bincode::serialize_into(&mut ext_scratch, &extension).map_err(bincode_err)?;
             let extension_off = extensions_blob.len() as u32;
-            extensions_blob.extend_from_slice(&ext_bytes);
+            let extension_len = ext_scratch.len() as u32;
+            extensions_blob.extend_from_slice(&ext_scratch);
 
             node_rows.push(NodeRow {
                 id: *node.id.as_bytes(),
@@ -580,7 +585,7 @@ impl PreparedGraphSnapshot {
                 start_line: node.start_line.unwrap_or(0) as u32,
                 end_line: node.end_line.unwrap_or(0) as u32,
                 extension_off,
-                extension_len: ext_bytes.len() as u32,
+                extension_len,
                 _pad_end: 0,
             });
         }
@@ -802,7 +807,7 @@ fn node_matches_invalidated_path(
     };
 
     let norm = normalize_path_str(path);
-    if invalidated.contains(&norm) {
+    if invalidated.contains(norm.as_ref()) {
         return true;
     }
 
@@ -986,11 +991,13 @@ pub(crate) fn append_node_columnar(
     name_index: &mut HashMap<String, Vec<Uuid>>,
     type_index: &mut HashMap<NodeType, Vec<Uuid>>,
     node_rows: &mut Vec<NodeRow>,
+    scratch: &mut Vec<u8>,
 ) -> Result<()> {
-    let node_bytes = bincode::serialize(node).map_err(bincode_err)?;
+    scratch.clear();
+    bincode::serialize_into(&mut *scratch, node).map_err(bincode_err)?;
     append_node_columnar_prehashed(
         node,
-        &node_bytes,
+        scratch,
         hasher,
         strings,
         extensions_blob,
@@ -1022,15 +1029,19 @@ pub(crate) fn append_node_columnar_prehashed(
     let name_off = strings.intern(&node.name);
     let file_path_off = strings.intern_opt(node.file_path.as_deref());
     let signature_off = strings.intern_opt(node.signature.as_deref());
-    let ext_bytes = match extension_bytes {
-        Some(bytes) => bytes.to_vec(),
+    let extension_off = extensions_blob.len() as u32;
+    let extension_len = match extension_bytes {
+        Some(bytes) => {
+            extensions_blob.extend_from_slice(bytes);
+            bytes.len() as u32
+        }
         None => {
+            let start = extensions_blob.len();
             let extension = NodeExtensionRef::from_node(node);
-            bincode::serialize(&extension).map_err(bincode_err)?
+            bincode::serialize_into(&mut *extensions_blob, &extension).map_err(bincode_err)?;
+            (extensions_blob.len() - start) as u32
         }
     };
-    let extension_off = extensions_blob.len() as u32;
-    extensions_blob.extend_from_slice(&ext_bytes);
 
     node_rows.push(NodeRow {
         id: *node.id.as_bytes(),
@@ -1045,7 +1056,7 @@ pub(crate) fn append_node_columnar_prehashed(
         start_line: node.start_line.unwrap_or(0) as u32,
         end_line: node.end_line.unwrap_or(0) as u32,
         extension_off,
-        extension_len: ext_bytes.len() as u32,
+        extension_len,
         _pad_end: 0,
     });
 
@@ -1156,6 +1167,7 @@ pub fn write_columnar_from_nodes_edges(
     let mut extensions_blob = Vec::new();
     let mut name_index: HashMap<String, Vec<Uuid>> = HashMap::new();
     let mut type_index: HashMap<NodeType, Vec<Uuid>> = HashMap::new();
+    let mut scratch = Vec::with_capacity(512);
 
     for node in &nodes {
         append_node_columnar(
@@ -1166,6 +1178,7 @@ pub fn write_columnar_from_nodes_edges(
             &mut name_index,
             &mut type_index,
             &mut node_rows,
+            &mut scratch,
         )?;
     }
     drop(nodes);
@@ -1213,6 +1226,7 @@ pub fn write_columnar_from_backend(backend: &MemoryBackend, path: &Path) -> Resu
     let mut extensions_blob = Vec::new();
     let mut name_index: HashMap<String, Vec<Uuid>> = HashMap::new();
     let mut type_index: HashMap<NodeType, Vec<Uuid>> = HashMap::new();
+    let mut scratch = Vec::with_capacity(512);
 
     backend.for_each_node_by_ids(&ids, |node| {
         append_node_columnar(
@@ -1223,6 +1237,7 @@ pub fn write_columnar_from_backend(backend: &MemoryBackend, path: &Path) -> Resu
             &mut name_index,
             &mut type_index,
             &mut node_rows,
+            &mut scratch,
         )?;
         Ok(())
     })?;

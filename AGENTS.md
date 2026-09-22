@@ -115,8 +115,11 @@ Warm or partial `.rgctl/` **invalidates** cold timings.
 |--------|---------|
 | Workspace | `cargo bench` — `parsing`, `graph`, `graph_benchmarks`, `analysis_benchmarks`, `centrality_benchmarks`, `community_benchmarks`, `blast_radius_benchmarks` |
 | Snapshot diff | `cargo bench -p rgctl-graph --bench snapshot_diff` |
+| Cold diff (linux) | `./scripts/prepare-linux-diff-snapshots.sh` then `linux_cold_diff_within_baseline` — see [profile.md](docs/internal/profile.md#cold-diff-profile-linux-two-ref-pair) |
 
 Baselines and notes: [docs/internal/profile.md](docs/internal/profile.md#snapshot-diff-micro-benchmarks).
+
+**Cold diff ≠ cold discover.** Diff gate times mmap open + digest + `diff_snapshots` on a prepared v7.1↔HEAD pair under `example/linux/.rgctl-diff/`.
 
 ---
 

@@ -1222,7 +1222,7 @@ fn normalize_file_key(path: &str) -> String {
             Component::Normal(part) => out.push(part),
         }
     }
-    normalize_path_str(out.to_string_lossy().as_ref())
+    normalize_path_str(out.to_string_lossy().as_ref()).into_owned()
 }
 
 fn join_path_normalized(base: &Path, rel: &str) -> String {

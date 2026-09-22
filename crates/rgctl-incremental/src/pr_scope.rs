@@ -84,11 +84,11 @@ impl ScopedPaths {
     /// Whether a normalized file path is in scope.
     pub fn contains_path(&self, path: &str) -> bool {
         let normalized = normalize_path_str(path);
-        self.files.contains(normalized.as_str())
+        self.files.contains(normalized.as_ref())
             || self
                 .files
                 .iter()
-                .any(|p| normalized.ends_with(p.as_ref()) || p.as_ref().ends_with(&normalized))
+                .any(|p| normalized.ends_with(p.as_ref()) || p.as_ref().ends_with(normalized.as_ref()))
     }
 
     /// Interned path set.
@@ -149,7 +149,7 @@ impl HunkIndex {
     /// Line ranges for a normalized file path, if any.
     pub fn ranges_for(&self, path: &str) -> Option<&[LineRange]> {
         let normalized = normalize_path_str(path);
-        self.ranges.get(normalized.as_str()).map(|v| v.as_slice())
+        self.ranges.get(normalized.as_ref()).map(|v| v.as_slice())
     }
 }
 
@@ -269,7 +269,7 @@ pub fn function_symbols_in_paths(backend: &MemoryBackend, paths: &[String]) -> V
         if let Some(ref fp) = node.file_path {
             if paths.iter().any(|p| {
                 let normalized = normalize_path_str(p);
-                fp.ends_with(&normalized) || normalized.ends_with(fp.as_str())
+                fp.ends_with(normalized.as_ref()) || normalized.ends_with(fp.as_str())
             }) {
                 symbols.push(node.name.to_string());
             }
@@ -329,26 +329,34 @@ pub fn parse_name_status_z(stdout: &[u8]) -> ChangeSet {
         match letter {
             Some('A') => {
                 if idx < parts.len() {
-                    added.push(normalize_path_str(&String::from_utf8_lossy(parts[idx])));
+                    added.push(
+                        normalize_path_str(&String::from_utf8_lossy(parts[idx])).into_owned(),
+                    );
                     idx += 1;
                 }
             }
             Some('M') | Some('T') => {
                 if idx < parts.len() {
-                    changed.push(normalize_path_str(&String::from_utf8_lossy(parts[idx])));
+                    changed.push(
+                        normalize_path_str(&String::from_utf8_lossy(parts[idx])).into_owned(),
+                    );
                     idx += 1;
                 }
             }
             Some('D') => {
                 if idx < parts.len() {
-                    deleted.push(normalize_path_str(&String::from_utf8_lossy(parts[idx])));
+                    deleted.push(
+                        normalize_path_str(&String::from_utf8_lossy(parts[idx])).into_owned(),
+                    );
                     idx += 1;
                 }
             }
             Some('R') | Some('C') => {
                 if idx + 1 < parts.len() {
-                    let old_path = normalize_path_str(&String::from_utf8_lossy(parts[idx]));
-                    let new_path = normalize_path_str(&String::from_utf8_lossy(parts[idx + 1]));
+                    let old_path =
+                        normalize_path_str(&String::from_utf8_lossy(parts[idx])).into_owned();
+                    let new_path =
+                        normalize_path_str(&String::from_utf8_lossy(parts[idx + 1])).into_owned();
                     renamed.push((old_path, new_path));
                     idx += 2;
                 }

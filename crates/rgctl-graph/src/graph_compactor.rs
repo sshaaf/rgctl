@@ -38,7 +38,7 @@ impl DeltaSegment {
     /// Record a path as invalidated (normalized separators).
     pub fn invalidate_file(&mut self, path: impl AsRef<str>) {
         self.invalidated_files
-            .insert(normalize_path_str(path.as_ref()));
+            .insert(normalize_path_str(path.as_ref()).into_owned());
     }
 }
 
@@ -130,6 +130,7 @@ impl<'a> GraphCompactor<'a> {
         let mut extensions_blob = Vec::new();
         let mut name_index = std::collections::HashMap::new();
         let mut type_index = std::collections::HashMap::new();
+        let mut scratch = Vec::with_capacity(512);
 
         for entry in &entries {
             match entry.source {
@@ -142,6 +143,7 @@ impl<'a> GraphCompactor<'a> {
                         &mut name_index,
                         &mut type_index,
                         &mut node_rows,
+                        &mut scratch,
                     )?;
                 }
                 CompactNodeSource::Delta(i) => {
@@ -154,6 +156,7 @@ impl<'a> GraphCompactor<'a> {
                         &mut name_index,
                         &mut type_index,
                         &mut node_rows,
+                        &mut scratch,
                     )?;
                 }
             }
@@ -270,7 +273,7 @@ fn node_matches_invalidated_path(
     };
 
     let norm = normalize_path_str(path);
-    if invalidated.contains(&norm) {
+    if invalidated.contains(norm.as_ref()) {
         return true;
     }
 

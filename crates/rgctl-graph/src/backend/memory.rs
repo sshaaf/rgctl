@@ -598,7 +598,7 @@ impl MemoryBackend {
         let normalized = normalize_path_str(file_path);
         let ids_to_delete: HashSet<Uuid> = read_lock(&self.nodes)?
             .values()
-            .filter(|n| node_matches_file(n, &normalized))
+            .filter(|n| node_matches_file(n, normalized.as_ref()))
             .map(|n| n.id)
             .collect();
 
@@ -1123,7 +1123,7 @@ fn node_matches_file(node: &Node, file_path: &str) -> bool {
     let target = normalize_path_str(file_path);
     let matches_path = |path: &str| {
         let norm = normalize_path_str(path);
-        norm == target || norm.ends_with(&format!("/{target}"))
+        norm == target || norm.ends_with(format!("/{target}").as_str())
     };
 
     if let Some(fp) = &node.file_path {

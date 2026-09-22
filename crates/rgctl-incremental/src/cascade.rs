@@ -10,8 +10,10 @@ use uuid::Uuid;
 
 fn path_matches_scope(path: &str, scope: &HashSet<String>) -> bool {
     let norm = normalize_path_str(path);
-    scope.contains(&norm)
-        || scope.iter().any(|p| norm.ends_with(p.as_str()) || p.ends_with(&norm))
+    scope.contains(norm.as_ref())
+        || scope
+            .iter()
+            .any(|p| norm.ends_with(p.as_str()) || p.ends_with(norm.as_ref()))
 }
 
 fn node_ids_for_files(
@@ -45,14 +47,17 @@ pub fn incoming_callers_files_depth(
         return Ok(Vec::new());
     }
 
-    let seeds: HashSet<String> = seed_files.iter().map(|p| normalize_path_str(p)).collect();
+    let seeds: HashSet<String> = seed_files
+        .iter()
+        .map(|p| normalize_path_str(p).into_owned())
+        .collect();
     let mut id_to_path: HashMap<Uuid, String> = HashMap::new();
     let mut file_to_ids: HashMap<String, HashSet<Uuid>> = HashMap::new();
 
     for idx in 0..col.node_count() {
         let id = node_row_ref(col, idx)?.id;
         if let Some(path) = node_scope_path_at(col, idx)? {
-            let norm = normalize_path_str(path);
+            let norm = normalize_path_str(path).into_owned();
             id_to_path.insert(id, norm.clone());
             file_to_ids.entry(norm).or_default().insert(id);
         }

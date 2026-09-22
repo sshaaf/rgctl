@@ -34,6 +34,7 @@ skills-lock.json
 # Generated graph data (any depth — never commit local indexes)
 **/.rgbuilder/
 **/.rgctl/
+**/.rgctl-diff/
 /coverage
 *.profraw
 *.profdata

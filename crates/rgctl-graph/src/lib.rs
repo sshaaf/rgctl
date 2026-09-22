@@ -77,6 +77,35 @@ pub use structural_sketch::{
 };
 
 /// Normalize path separators for consistent comparison.
-pub fn normalize_path_str(path: &str) -> String {
-    path.replace('\\', "/")
+///
+/// Returns a borrow when the path already uses `/` (typical on POSIX), avoiding
+/// a heap allocation on the snapshot-diff / stable-key hot path.
+pub fn normalize_path_str(path: &str) -> std::borrow::Cow<'_, str> {
+    if path.contains('\\') {
+        std::borrow::Cow::Owned(path.replace('\\', "/"))
+    } else {
+        std::borrow::Cow::Borrowed(path)
+    }
+}
+
+#[cfg(test)]
+mod normalize_path_tests {
+    use super::normalize_path_str;
+    use std::borrow::Cow;
+
+    #[test]
+    fn posix_path_is_borrowed() {
+        let path = "src/main.rs";
+        match normalize_path_str(path) {
+            Cow::Borrowed(b) => assert_eq!(b, path),
+            Cow::Owned(_) => panic!("expected borrow for POSIX path"),
+        }
+    }
+
+    #[test]
+    fn backslash_path_is_normalized_owned() {
+        let out = normalize_path_str("src\\main.rs");
+        assert_eq!(out.as_ref(), "src/main.rs");
+        assert!(matches!(out, Cow::Owned(_)));
+    }
 }

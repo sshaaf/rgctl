@@ -10,6 +10,7 @@ pub mod check_output;
 mod communities;
 mod context;
 mod cpg;
+mod diff;
 mod discover;
 mod discover_cfg;
 mod discover_impl;
@@ -424,6 +425,17 @@ pub enum Commands {
         /// Overwrite existing `{repo}/.rgctl/`
         #[arg(long)]
         force: bool,
+    },
+
+    /// Diff two columnar graph snapshots (cold diff profiling / compare path)
+    Diff {
+        /// Base snapshot file or directory containing `graph.snapshot.bin`
+        #[arg(long, value_name = "PATH")]
+        base: std::path::PathBuf,
+
+        /// Head snapshot file or directory containing `graph.snapshot.bin`
+        #[arg(long, value_name = "PATH")]
+        head: std::path::PathBuf,
     },
 
     /// Install bundled agent pack (skills, optional commands, optional policy)
@@ -1110,6 +1122,10 @@ impl Cli {
                 &ctx,
                 migrate_cache::MigrateCacheArgs { name, from, force },
             ),
+            Commands::Diff { base, head } => diff::run(
+                &ctx,
+                diff::DiffArgs { base, head },
+            ),
             Commands::Serve {
                 path,
                 no_pipeline,
@@ -1175,6 +1191,7 @@ fn command_label_for(command: &Commands) -> &'static str {
         Commands::Export { .. } => "export",
         Commands::Install { .. } => "install",
         Commands::MigrateCache { .. } => "migrate-cache",
+        Commands::Diff { .. } => "diff",
         Commands::Serve { .. } => "serve",
     }
 }

@@ -186,11 +186,12 @@ fn build_node_index_parallel(
     col: &crate::columnar_snapshot::ColumnarGraphMmap,
 ) -> Result<HashMap<StableNodeKey, NodeRowRef>> {
     let count = col.node_count();
+    let shard_cap = count / NODE_INDEX_SHARDS + 64;
     let shard_maps: Vec<HashMap<StableNodeKey, NodeRowRef>> = (0..NODE_INDEX_SHARDS)
         .into_par_iter()
         .map(|shard| {
-            let mut map = HashMap::new();
-            for idx in (0..count).filter(|i| i % NODE_INDEX_SHARDS == shard) {
+            let mut map = HashMap::with_capacity(shard_cap);
+            for idx in (shard..count).step_by(NODE_INDEX_SHARDS) {
                 if let Ok(key) = stable_key_from_row(col, idx) {
                     if let Ok(row_ref) = node_row_ref(col, idx) {
                         map.insert(key, row_ref);
