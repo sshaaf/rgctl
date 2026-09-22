@@ -1819,4 +1819,22 @@ mod tests {
             Some("3")
         );
     }
+
+    #[test]
+    fn decode_node_extension_handles_truncated_bytes_gracefully() {
+        let corrupt_bytes = [0xFF, 0xFE, 0x00, 0x12];
+        let result = decode_node_extension(&corrupt_bytes);
+        assert!(result.is_err(), "Must return Err on corrupt payload");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("node extension") || err.to_lowercase().contains("serde"),
+            "expected serde-style error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn decode_node_extension_handles_empty_slice_gracefully() {
+        let result = decode_node_extension(&[]);
+        assert!(result.is_err(), "empty slice must not panic");
+    }
 }

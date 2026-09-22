@@ -600,4 +600,40 @@ mod tests {
             "Removing a property must be flagged as Changed"
         );
     }
+
+    #[test]
+    fn write_columnar_scale_determinism_ten_thousand_nodes() {
+        let mk_nodes = || {
+            (0..10_000)
+                .map(|i| {
+                    Node::new(NodeType::Function, format!("fn_{i}"))
+                        .with_file_path(format!("src/module_{}.rs", i % 100))
+                        .with_property("cyclomatic".into(), (i % 7).to_string())
+                        .with_property("cognitive".into(), (i % 5).to_string())
+                        .with_property("loc".into(), (i * 12).to_string())
+                        .with_property("nesting_depth".into(), (i % 4).to_string())
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let tmp = TempDir::new().unwrap();
+        let p1 = tmp.path().join("snap1.bin");
+        let p2 = tmp.path().join("snap2.bin");
+
+        let d1 = write_columnar_from_nodes_edges(mk_nodes(), vec![], &p1).unwrap();
+        let d2 = write_columnar_from_nodes_edges(mk_nodes(), vec![], &p2).unwrap();
+        assert_eq!(d1, d2, "Content digests must match across 10,000 nodes");
+
+        let pair = SnapshotPair::open(&p1, &p2).unwrap();
+        assert!(pair.digest_equal().unwrap());
+
+        let mut sink = VecDiffSink::default();
+        let stats = diff_snapshots(&pair.base, &pair.head, &mut sink).unwrap();
+        assert_eq!(
+            stats.nodes_changed, 0,
+            "Zero changed nodes across 10,000 identical symbols"
+        );
+        assert_eq!(stats.nodes_added, 0);
+        assert_eq!(stats.nodes_removed, 0);
+    }
 }

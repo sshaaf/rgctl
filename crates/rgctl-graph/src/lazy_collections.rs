@@ -155,4 +155,34 @@ mod tests {
             "Unallocated and cleared maps must serialize to identical bytes"
         );
     }
+
+    #[test]
+    fn lazy_string_map_special_characters_and_prefix_collisions() {
+        let mut m1 = LazyStringMap::new();
+        m1.insert("konveyor.io/target".into(), "quarkus".into());
+        m1.insert("konveyor.io/target-version".into(), "3.0".into());
+        m1.insert("loc".into(), "10".into());
+        m1.insert("loc_lines".into(), "10".into());
+        m1.insert("loc:lines".into(), "10".into());
+        m1.insert("Loc".into(), "uppercase".into());
+        m1.insert("".into(), "empty_key".into());
+        m1.insert("empty_val".into(), "".into());
+
+        let mut m2 = LazyStringMap::new();
+        m2.insert("empty_val".into(), "".into());
+        m2.insert("".into(), "empty_key".into());
+        m2.insert("Loc".into(), "uppercase".into());
+        m2.insert("loc:lines".into(), "10".into());
+        m2.insert("loc_lines".into(), "10".into());
+        m2.insert("loc".into(), "10".into());
+        m2.insert("konveyor.io/target-version".into(), "3.0".into());
+        m2.insert("konveyor.io/target".into(), "quarkus".into());
+
+        let b1 = bincode::serialize(&m1).unwrap();
+        let b2 = bincode::serialize(&m2).unwrap();
+        assert_eq!(
+            b1, b2,
+            "Must serialize identically with prefix collisions and special chars"
+        );
+    }
 }
