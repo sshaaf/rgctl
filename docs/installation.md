@@ -53,6 +53,8 @@ Pre-built binaries are published on the project **Releases** page:
    | Linux (x86_64) | `rgctl-*-x86_64-unknown-linux-gnu.tar.gz` |
    | Windows | `rgctl-*-x86_64-pc-windows-msvc.zip` |
 
+   **Linux glibc note:** the `x86_64-unknown-linux-gnu` release is linked against a relatively new glibc (CI runner). It may **not** run on older LTS hosts such as **Ubuntu 22.04**. If `./rgctl` fails with `GLIBC_… not found`, build from source on that host (see Option B), or track a future musl/manylinux asset.
+
 3. Extract the archive:
 
 ```bash
@@ -69,6 +71,8 @@ Expand-Archive rgctl-*-x86_64-pc-windows-msvc.zip -DestinationPath .
 
 ### Option B -- Build from source
 
+Requires **Rust 1.88+** (workspace `rust-version`; edition 2024). Check with `rustc --version`.
+
 ```bash
 git clone https://github.com/sshaaf/rgctl.git
 cd rgctl
@@ -77,6 +81,12 @@ cargo build --release --bin rgctl
 ```
 
 All **Tier 1** languages registered in [`languages.toml`](languages.toml) (Rust, Python, Ruby, PHP, JavaScript, TypeScript, Go, Java, C#, C, C++) plus markdown are always included in the binary — no per-language feature flags.
+
+**Default features** include `semantic-onnx` (links `ort` / ONNX Runtime for the optional `code-daemon` embedder). If the build fails linking `ort-sys` or you do not need ONNX, build without default features (vocab embedder still works):
+
+```bash
+cargo build --release --bin rgctl --no-default-features
+```
 
 **Optional ONNX weights** (only for `--embedder code-daemon`):
 
@@ -362,9 +372,11 @@ Start with the default mode (no extra flags). Add `--with-cfg`, `--with-taint`, 
 
 ### Build from source fails
 
-- Confirm Rust 1.88+: `rustc --version`
+- Confirm **Rust 1.88+** (workspace `rust-version`): `rustc --version`
 - Update Rust: `rustup update`
 - Clean build: `cargo clean && cargo build --release --bin rgctl`
+- ONNX / `ort-sys` link errors: `cargo build --release --bin rgctl --no-default-features` (disables default `semantic-onnx`; default `vocab` semantic search still works)
+- Linux binary from GitHub Releases fails with missing `GLIBC_*`: the gnu release needs a newer glibc than Ubuntu 22.04; build from source on the target host (musl/manylinux assets are a tracked follow-up)
 
 ---
 

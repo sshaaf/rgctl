@@ -7,8 +7,9 @@ pub mod tree_sitter;
 
 pub use complexity::ComplexityCalculator;
 pub use ecmascript::{
-    extract_cjs_require_symbols, extract_class_extends_relations, extract_import_symbols,
-    find_child_kind, simple_type_name, type_name_from_node,
+    bound_function_expression_name, extract_cjs_require_symbols, extract_class_extends_relations,
+    extract_import_symbols, find_child_kind, is_function_expression_kind, simple_type_name,
+    type_name_from_node,
 };
 pub use python::{
     containing_class_name, decorator_name_and_args, decorators_for_node,

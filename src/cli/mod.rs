@@ -46,9 +46,24 @@ use crate::analysis::{DEFAULT_CANDIDATE_POOL, DEFAULT_EMBEDDING_DIMENSIONS};
 use args::{
     ExportFormat, InspectLayer, PdgEdgeLayer, SkillHost, SliceDirection, SliceView,
 };
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use context::CliContext;
 use std::time::{Duration, Instant};
+
+/// Merge repeated `-e` / `--exclude` values and comma-separated lists into one CSV.
+fn join_exclude_patterns(patterns: &[String]) -> Option<String> {
+    let parts: Vec<&str> = patterns
+        .iter()
+        .flat_map(|s| s.split(','))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join(","))
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "rgctl")]
@@ -85,8 +100,9 @@ pub enum Commands {
         #[arg(short = 'l', long = "languages")]
         languages: Option<String>,
 
-        #[arg(short = 'e', long = "exclude")]
-        exclude: Option<String>,
+        /// Path exclude glob (repeatable; comma-separated values also accepted)
+        #[arg(short = 'e', long = "exclude", action = ArgAction::Append)]
+        exclude: Vec<String>,
 
         #[arg(short = 'v', long = "verbose")]
         verbose: bool,
@@ -782,7 +798,7 @@ impl Cli {
                     discover::DiscoverArgs {
                         path,
                         languages,
-                        exclude,
+                        exclude: join_exclude_patterns(&exclude),
                         with_security,
                         with_cfg,
                         with_taint,
