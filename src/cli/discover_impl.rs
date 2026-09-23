@@ -350,11 +350,39 @@ pub(crate) fn run_full_analysis(
     analysis_results.fill_community(&community_result);
     profile.community.secs = secs(community_start.elapsed());
     if human_output {
-        info!(
-            "[✓] Detected {} communities (modularity: {:.2})",
-            community_result.communities.len(),
-            community_result.modularity
-        );
+        let n_communities = community_result.communities.len();
+        let n_nodes = petgraph_view.node_count().max(1);
+        let mut call_use_edges = 0usize;
+        let _ = petgraph_view.for_each_edge(|_, _, ty| {
+            if matches!(
+                ty,
+                rgctl_graph::schema::EdgeType::Calls | rgctl_graph::schema::EdgeType::Uses
+            ) {
+                call_use_edges += 1;
+            }
+        });
+        // Sparse Calls/Uses relative to nodes ≈ flat call graph (communities ≈ isolates).
+        let flat_call_graph = call_use_edges == 0 || call_use_edges * 10 < n_nodes;
+        let degenerate = n_communities * 10 >= n_nodes * 9;
+        if flat_call_graph || degenerate {
+            warn!(
+                communities = n_communities,
+                nodes = n_nodes,
+                call_use_edges,
+                flat_call_graph,
+                degenerate,
+                "[!] Community partition may be meaningless (flat call graph or near 1:1 clustering)"
+            );
+            info!(
+                "[!] Communities: {} (modularity: {:.2}) — warn: flat or degenerate clustering",
+                n_communities, community_result.modularity
+            );
+        } else {
+            info!(
+                "[✓] Detected {} communities (modularity: {:.2})",
+                n_communities, community_result.modularity
+            );
+        }
     }
     debug!("{}", mem_monitor.report());
 
@@ -676,8 +704,11 @@ pub(crate) fn run_full_analysis(
                 println!("  CFG/PDG/Dominance: {} functions analyzed", success_count);
                 if error_count > 0 {
                     println!(
-                        "  Skipped: {} functions (unsupported language or parse error)",
-                        error_count
+                        "  Skipped: {} functions (unsupported_language={}, missing_source={}, analysis_error={})",
+                        error_count,
+                        batch.skip_unsupported_language,
+                        batch.skip_missing_source,
+                        batch.skip_analysis_error
                     );
                 }
 
@@ -692,6 +723,15 @@ pub(crate) fn run_full_analysis(
                     "  No functions analyzed (CFG supported: {})",
                     cfg_language_list()
                 );
+                if error_count > 0 {
+                    println!(
+                        "  Skipped: {} functions (unsupported_language={}, missing_source={}, analysis_error={})",
+                        error_count,
+                        batch.skip_unsupported_language,
+                        batch.skip_missing_source,
+                        batch.skip_analysis_error
+                    );
+                }
             }
             if verbose {
                 if batch.cache_hits > 0 || batch.recomputed > 0 || batch.skipped_unchanged > 0 {
@@ -704,6 +744,17 @@ pub(crate) fn run_full_analysis(
                     );
                 }
                 println!("{}", mem_monitor.report());
+            }
+        }
+        if verbose {
+            for skip in &batch.skips {
+                info!(
+                    target: "profile",
+                    path = %skip.file_path,
+                    symbol = %skip.symbol,
+                    reason = skip.reason.as_str(),
+                    "[profile] cfg skip"
+                );
             }
         }
     }

@@ -29,16 +29,15 @@ The LLM reasons on **summaries and facts**, not raw repo grep — fewer tokens, 
 
 ## Quick Start
 
-**1. Install** from [GitHub Releases](https://github.com/sshaaf/rgctl/releases/latest) (binary **`rgctl`**) or build from source ([Installation docs](docs/installation.md)):
+**1. Install** from [GitHub Releases](https://github.com/sshaaf/rgctl/releases/latest) (binary **`rgctl`**) or build from source ([Installation docs](docs/installation.md) — glibc / Ubuntu 22.04 caveat, Rust **1.88+**, and `--no-default-features` if ONNX/`ort` link fails):
 
 ```bash
 git clone https://github.com/sshaaf/rgctl.git
 cd rgctl
 git lfs pull   # only if you use `semantic index --embedder code-daemon` (~206 MB)
 cargo build --release --bin rgctl
-
+# If ort-sys fails: cargo build --release --bin rgctl --no-default-features
 ```
-
 **2. Discover (Index your repo):**
 Run this once to build the graph and reachability caches. Artifacts land in `{repo}/.rgctl/`.
 

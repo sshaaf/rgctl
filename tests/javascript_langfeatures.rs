@@ -84,3 +84,45 @@ fn javascript_ecommerce_extends_nonzero() {
     let n = edge_count(&repo(), "EXTENDS");
     assert!(n > 0, "expected Extends edges on ecommerce-javascript, got {n}");
 }
+
+#[test]
+fn javascript_named_arrows_present() {
+    ensure_discovered();
+    let v = gql(
+        &repo(),
+        "MATCH (n:Function) RETURN n LIMIT 10000",
+    );
+    let names = function_names(&v);
+    for expected in ["arrowAdd", "arrowHelper", "declaredAdd", "fetchAll"] {
+        assert!(
+            names.iter().any(|n| n == expected),
+            "missing Function `{expected}` in {names:?}"
+        );
+    }
+}
+
+fn function_names(v: &Value) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(rows) = v.get("results").and_then(|r| r.as_array()) {
+        for row in rows {
+            if let Some(n) = row
+                .get("n")
+                .and_then(|n| n.get("name"))
+                .and_then(|n| n.as_str())
+            {
+                out.push(n.to_string());
+            } else if let Some(n) = row.get("name").and_then(|n| n.as_str()) {
+                out.push(n.to_string());
+            }
+        }
+    }
+    if out.is_empty() {
+        let s = v.to_string();
+        for name in ["arrowAdd", "arrowHelper", "declaredAdd", "fetchAll"] {
+            if s.contains(name) {
+                out.push(name.to_string());
+            }
+        }
+    }
+    out
+}

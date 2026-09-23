@@ -149,8 +149,34 @@ jobs:
         run: |
           set -euo pipefail
           cd dist
-          shasum -a 256 rgctl-* > SHA256SUMS.txt
+          # Artifacts may land flat (merge-multiple) or under per-target dirs.
+          mapfile -t archives < <(
+            find . -type f \( -name 'rgctl-*.tar.gz' -o -name 'rgctl-*.zip' \) | sort
+          )
+          if [[ ${#archives[@]} -eq 0 ]]; then
+            echo "error: no rgctl archives under dist/; refusing empty SHA256SUMS.txt" >&2
+            find . -type f | head -50 >&2
+            exit 1
+          fi
+          # Flatten into dist/ so softprops uploads a single flat file set.
+          for f in "${archives[@]}"; do
+            base="$(basename "$f")"
+            if [[ "$f" != "./$base" ]]; then
+              mv -f "$f" "./$base"
+            fi
+          done
+          : > SHA256SUMS.txt
+          for f in rgctl-*.tar.gz rgctl-*.zip; do
+            [[ -f "$f" ]] || continue
+            shasum -a 256 "$f" >> SHA256SUMS.txt
+          done
+          if [[ ! -s SHA256SUMS.txt ]]; then
+            echo "error: SHA256SUMS.txt is empty" >&2
+            exit 1
+          fi
+          echo "--- SHA256SUMS.txt ---"
           cat SHA256SUMS.txt
+          echo "lines=$(wc -l < SHA256SUMS.txt)"
 
       - name: Resolve release tag
         id: meta

@@ -375,6 +375,98 @@ pub fn find_child_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
     None
 }
 
+/// True for arrow / anonymous function expressions (not declarations or methods).
+pub fn is_function_expression_kind(kind: &str) -> bool {
+    matches!(kind, "arrow_function" | "function_expression")
+}
+
+/// Resolve a display name for `arrow_function` / `function_expression` from a
+/// parent binding: `variable_declarator`, object `pair`, or class field.
+///
+/// Returns `None` for true callbacks (e.g. `arr.map(x => …)`).
+pub fn bound_function_expression_name(node: Node, source: &[u8]) -> Option<String> {
+    if !is_function_expression_kind(node.kind())
+        && !(node.kind() == "function" && node.child_by_field_name("name").is_none())
+    {
+        return None;
+    }
+
+    let mut current = node;
+    for _ in 0..12 {
+        let parent = current.parent()?;
+        match parent.kind() {
+            "variable_declarator" => {
+                return identifier_text(parent.child_by_field_name("name")?, source);
+            }
+            "pair" => {
+                let key = parent
+                    .child_by_field_name("key")
+                    .or_else(|| find_direct_child_kinds(parent, &["property_identifier", "identifier", "string", "number"]))?;
+                return property_key_text(key, source);
+            }
+            "public_field_definition" | "field_definition" | "property_definition" => {
+                let name = parent.child_by_field_name("name").or_else(|| {
+                    find_direct_child_kinds(
+                        parent,
+                        &[
+                            "property_identifier",
+                            "private_property_identifier",
+                            "identifier",
+                        ],
+                    )
+                })?;
+                return identifier_text(name, source);
+            }
+            "assignment_expression" => {
+                let left = parent.child_by_field_name("left")?;
+                return match left.kind() {
+                    "identifier" => identifier_text(left, source),
+                    "member_expression" | "subscript_expression" => left
+                        .child_by_field_name("property")
+                        .and_then(|p| property_key_text(p, source)),
+                    _ => None,
+                };
+            }
+            // Peel type / grouping wrappers without consuming a binding.
+            "parenthesized_expression"
+            | "as_expression"
+            | "type_assertion"
+            | "satisfies_expression"
+            | "non_null_expression"
+            | "await_expression"
+            | "ternary_expression" => {
+                current = parent;
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn find_direct_child_kinds<'a>(node: Node<'a>, kinds: &[&str]) -> Option<Node<'a>> {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if kinds.contains(&child.kind()) {
+            return Some(child);
+        }
+    }
+    None
+}
+
+fn identifier_text(node: Node, source: &[u8]) -> Option<String> {
+    node.utf8_text(source).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+}
+
+fn property_key_text(node: Node, source: &[u8]) -> Option<String> {
+    let raw = node.utf8_text(source).ok()?.trim();
+    let trimmed = raw.trim_matches(['"', '\'', '`']);
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 fn push_relation(
     from: &str,
     to: &str,
@@ -513,5 +605,59 @@ mod tests {
                 .iter()
                 .any(|r| r.relation_type == RelationType::Extends && r.to == "Error")
         );
+    }
+
+    fn find_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
+        if node.kind() == kind {
+            return Some(node);
+        }
+        let mut cursor = node.walk();
+        for child in node.children(&mut cursor) {
+            if let Some(found) = find_kind(child, kind) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn test_bound_name_const_arrow() {
+        let source = "const multiply = (x, y) => x * y;";
+        let tree = parse_ts(source);
+        let arrow = find_kind(tree.root_node(), "arrow_function").unwrap();
+        assert_eq!(
+            bound_function_expression_name(arrow, source.as_bytes()).as_deref(),
+            Some("multiply")
+        );
+    }
+
+    #[test]
+    fn test_bound_name_object_property_arrow() {
+        let source = "const api = { fetchAll: async () => 1 };";
+        let tree = parse_ts(source);
+        let arrow = find_kind(tree.root_node(), "arrow_function").unwrap();
+        assert_eq!(
+            bound_function_expression_name(arrow, source.as_bytes()).as_deref(),
+            Some("fetchAll")
+        );
+    }
+
+    #[test]
+    fn test_bound_name_class_field_arrow() {
+        let source = "class C { foo = () => 2; }";
+        let tree = parse_ts(source);
+        let arrow = find_kind(tree.root_node(), "arrow_function").unwrap();
+        assert_eq!(
+            bound_function_expression_name(arrow, source.as_bytes()).as_deref(),
+            Some("foo")
+        );
+    }
+
+    #[test]
+    fn test_callback_arrow_has_no_bound_name() {
+        let source = "[1].map(x => x + 1);";
+        let tree = parse_js(source);
+        let arrow = find_kind(tree.root_node(), "arrow_function").unwrap();
+        assert_eq!(bound_function_expression_name(arrow, source.as_bytes()), None);
     }
 }

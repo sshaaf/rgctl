@@ -6,8 +6,8 @@
 use rgctl_plugin_api::*;
 use rgctl_plugin_api::{Error, Result};
 use rgctl_plugin_helpers::{
-    extract_class_extends_relations, extract_import_symbols, find_child_kind, simple_type_name,
-    type_name_from_node,
+    bound_function_expression_name, extract_class_extends_relations, extract_import_symbols,
+    find_child_kind, is_function_expression_kind, simple_type_name, type_name_from_node,
 };
 use std::collections::HashMap;
 use std::path::Path;
@@ -161,11 +161,15 @@ impl TypeScriptPlugin {
         let mut parameters = Vec::new();
         let mut return_type = None;
         let mut modifiers = Vec::new();
+        // Arrow / function expressions put the binding on a parent; their first
+        // identifier child is often a parameter (e.g. `x => x`), not a name.
+        let is_expr = is_function_expression_kind(node.kind())
+            || (node.kind() == "function" && node.child_by_field_name("name").is_none());
 
         for child in node.children(&mut cursor) {
             match child.kind() {
                 "identifier" | "property_identifier" => {
-                    if name.is_none() {
+                    if name.is_none() && !is_expr {
                         name = Some(child.utf8_text(source)?.to_string());
                     }
                 }
@@ -188,7 +192,15 @@ impl TypeScriptPlugin {
             }
         }
 
-        let raw_name = name.unwrap_or_else(|| "anonymous".to_string());
+        let raw_name = name
+            .or_else(|| bound_function_expression_name(node, source))
+            .unwrap_or_else(|| {
+                if is_expr {
+                    format!("anonymous@L{}", node.start_position().row + 1)
+                } else {
+                    "anonymous".to_string()
+                }
+            });
         let is_constructor = raw_name == "constructor" && node.kind() == "method_definition";
         let class_name = if is_constructor {
             self.find_containing_class_name(node, source)
@@ -1262,6 +1274,49 @@ mod tests {
             .expect("add function not found");
         assert_eq!(add_fn.symbol_type, SymbolType::Function);
         assert_eq!(add_fn.parameters.len(), 2);
+    }
+
+    #[test]
+    fn test_extract_arrow_function() {
+        let plugin = TypeScriptPlugin::new().unwrap();
+        let source = b"const multiply = (x: number, y: number): number => x * y;";
+        let symbols = plugin
+            .extract_symbols(Path::new("test.ts"), source)
+            .unwrap();
+
+        assert_eq!(symbols.len(), 1);
+        assert_eq!(symbols[0].symbol_type, SymbolType::Function);
+        assert_eq!(symbols[0].name, "multiply");
+    }
+
+    #[test]
+    fn test_extract_named_arrows_distinct() {
+        let plugin = TypeScriptPlugin::new().unwrap();
+        let source = br#"
+export function declaredAdd(a: number, b: number): number { return a + b; }
+export const arrowAdd = (a: number, b: number): number => a + b;
+const arrowHelper = (): number => 1;
+const api = { fetchAll: async (): Promise<number> => 0 };
+class C { foo = (): number => 2; }
+[1].map((x) => x + 1);
+"#;
+        let symbols = plugin
+            .extract_symbols(Path::new("arrows.ts"), source)
+            .unwrap();
+        let names: Vec<_> = symbols
+            .iter()
+            .filter(|s| s.symbol_type == SymbolType::Function)
+            .map(|s| s.name.as_str())
+            .collect();
+        assert!(names.contains(&"declaredAdd"), "{names:?}");
+        assert!(names.contains(&"arrowAdd"), "{names:?}");
+        assert!(names.contains(&"arrowHelper"), "{names:?}");
+        assert!(names.contains(&"fetchAll"), "{names:?}");
+        assert!(names.contains(&"foo"), "{names:?}");
+        assert!(
+            names.iter().any(|n| n.starts_with("anonymous@L")),
+            "callback should stay span-disambiguated anonymous: {names:?}"
+        );
     }
 
     #[test]

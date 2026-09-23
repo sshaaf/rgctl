@@ -30,6 +30,35 @@ pub struct CfgAnalysisOptions {
     pub dfg_loops: bool,
 }
 
+/// Why a function was not CFG-analyzed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CfgSkipReason {
+    /// Extension / language has no CFG builder.
+    UnsupportedLanguage,
+    /// Source text was not available for the function's file.
+    MissingSource,
+    /// Parse or CFG/PDG construction failed (or empty body).
+    AnalysisError,
+}
+
+impl CfgSkipReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::UnsupportedLanguage => "unsupported_language",
+            Self::MissingSource => "missing_source",
+            Self::AnalysisError => "analysis_error",
+        }
+    }
+}
+
+/// One skipped function (populated when `verbose` is set).
+#[derive(Debug, Clone)]
+pub struct CfgSkipEvent {
+    pub file_path: String,
+    pub symbol: String,
+    pub reason: CfgSkipReason,
+}
+
 /// Wall-clock totals for CFG sub-stages (sum of per-function work).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct CfgStageProfile {
@@ -44,6 +73,10 @@ pub struct CfgStageProfile {
 pub struct CfgAnalysisBatchResult {
     pub success_count: usize,
     pub error_count: usize,
+    pub skip_unsupported_language: usize,
+    pub skip_missing_source: usize,
+    pub skip_analysis_error: usize,
+    pub skips: Vec<CfgSkipEvent>,
     pub total_flows: usize,
     pub vulnerable_flows: usize,
     pub cache_hits: usize,
@@ -53,6 +86,30 @@ pub struct CfgAnalysisBatchResult {
     pub archive_records: Vec<CfgPdgRecord>,
     pub archive_unchanged: bool,
     pub stage_profile: Option<CfgStageProfile>,
+}
+
+impl CfgAnalysisBatchResult {
+    fn record_skip(
+        &mut self,
+        reason: CfgSkipReason,
+        file_path: &str,
+        symbol: &str,
+        verbose: bool,
+    ) {
+        self.error_count += 1;
+        match reason {
+            CfgSkipReason::UnsupportedLanguage => self.skip_unsupported_language += 1,
+            CfgSkipReason::MissingSource => self.skip_missing_source += 1,
+            CfgSkipReason::AnalysisError => self.skip_analysis_error += 1,
+        }
+        if verbose {
+            self.skips.push(CfgSkipEvent {
+                file_path: file_path.to_string(),
+                symbol: symbol.to_string(),
+                reason,
+            });
+        }
+    }
 }
 
 #[derive(Default)]
@@ -195,7 +252,7 @@ pub fn run_cfg_analysis_batch(
         dfg_loops: options.dfg_loops,
     };
 
-    let nested: Vec<Vec<Option<CfgFunctionWork>>> = with_large_stack(|| {
+    let nested: Vec<Vec<Result<CfgFunctionWork, CfgSkipReason>>> = with_large_stack(|| {
         with_large_pool(options.thread_count, || {
             groups
                 .par_iter()
@@ -203,10 +260,20 @@ pub fn run_cfg_analysis_batch(
                 .collect()
         })
     });
-    let flat: Vec<Option<CfgFunctionWork>> = nested.into_iter().flatten().collect();
+
+    let mut in_group = vec![false; functions.len()];
+    for group in &groups {
+        for &idx in &group.func_indices {
+            in_group[idx] = true;
+        }
+    }
 
     let stage_profile = stage_ref.map(|stage| {
-        let analyzed = flat.iter().filter_map(|w| w.as_ref()).count();
+        let analyzed = nested
+            .iter()
+            .flatten()
+            .filter(|w| w.is_ok())
+            .count();
         emit_stage_profile(stage, analyzed)
     });
     if let (Some(log), true) = (timing_log, options.verbose) {
@@ -215,27 +282,51 @@ pub fn run_cfg_analysis_batch(
 
     let mut saves: Vec<FunctionAnalysis> = Vec::new();
     let mut result = CfgAnalysisBatchResult::default();
-    for work in flat {
-        match work {
-            None => result.error_count += 1,
-            Some(w) => {
-                if w.from_cache {
-                    result.cache_hits += 1;
-                } else {
-                    result.recomputed += 1;
+
+    for (idx, func) in functions.iter().enumerate() {
+        if in_group[idx] {
+            continue;
+        }
+        let path = func.file_path.as_deref().unwrap_or("<unknown>");
+        result.record_skip(
+            CfgSkipReason::UnsupportedLanguage,
+            path,
+            &func.name,
+            options.verbose,
+        );
+    }
+
+    for (group, outcomes) in groups.iter().zip(nested.into_iter()) {
+        for (&func_idx, outcome) in group.func_indices.iter().zip(outcomes.into_iter()) {
+            let func = &functions[func_idx];
+            match outcome {
+                Err(reason) => {
+                    result.record_skip(
+                        reason,
+                        &group.file_path,
+                        &func.name,
+                        options.verbose,
+                    );
                 }
-                if w.skip_persist {
-                    result.skipped_unchanged += 1;
-                }
-                result.success_count += 1;
-                result.total_flows += w.flow_count;
-                result.vulnerable_flows += w.vulnerable_count;
-                if let Some(record) = w.archive_record {
-                    result.archive_records.push(record);
-                }
-                if let Some(analysis) = w.analysis {
-                    if !w.skip_persist {
-                        saves.push(analysis);
+                Ok(w) => {
+                    if w.from_cache {
+                        result.cache_hits += 1;
+                    } else {
+                        result.recomputed += 1;
+                    }
+                    if w.skip_persist {
+                        result.skipped_unchanged += 1;
+                    }
+                    result.success_count += 1;
+                    result.total_flows += w.flow_count;
+                    result.vulnerable_flows += w.vulnerable_count;
+                    if let Some(record) = w.archive_record {
+                        result.archive_records.push(record);
+                    }
+                    if let Some(analysis) = w.analysis {
+                        if !w.skip_persist {
+                            saves.push(analysis);
+                        }
                     }
                 }
             }
@@ -357,9 +448,11 @@ fn group_work_items_by_file(functions: &[Node]) -> Vec<FileWorkGroup> {
 fn process_file_group(
     group: &FileWorkGroup,
     ctx: &CfgWorkContext<'_>,
-) -> Vec<Option<CfgFunctionWork>> {
+) -> Vec<Result<CfgFunctionWork, CfgSkipReason>> {
     let Some(source) = ctx.sources.get(&group.file_path) else {
-        return (0..group.func_indices.len()).map(|_| None).collect();
+        return (0..group.func_indices.len())
+            .map(|_| Err(CfgSkipReason::MissingSource))
+            .collect();
     };
     let mut parsed: Option<ParsedSourceFile> = None;
     let mut parse_attempted = false;
@@ -381,6 +474,7 @@ fn process_file_group(
                 ctx.enable_taint,
                 ctx.dfg_loops,
             )
+            .ok_or(CfgSkipReason::AnalysisError)
         })
         .collect()
 }
