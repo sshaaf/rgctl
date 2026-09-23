@@ -23,10 +23,10 @@ export default function DemoPage() {
       </p>
 
       <h2 className="mt-10 text-2xl tracking-tight text-[var(--ink)]">
-        Agent skill scenarios
+        Agent pack scenarios
       </h2>
       <p className="mt-2 max-w-2xl text-sm text-[var(--body)]">
-        Commands match the live CLI.
+        Workflow skills and slash commands map to these CLI recipes.
       </p>
       <div className="mt-8">
         <DemoPlayground />

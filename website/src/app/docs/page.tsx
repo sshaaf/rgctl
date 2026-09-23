@@ -67,12 +67,13 @@ const guides = [
   },
   {
     title: "Agent commands",
-    blurb: "install --skill --with-commands, --tools, workflow slash commands.",
+    blurb:
+      "Agent pack: meta + eight workflow skills, --with-commands slash prompts, --tools registry.",
     href: "/docs/guides/agent-commands/",
   },
   {
-    title: "Agent skill",
-    blurb: "Use cases and NL → CLI routing for AI agents.",
+    title: "Agent pack walkthrough",
+    blurb: "Use cases and NL → workflow skill / slash command → CLI routing.",
     href: "/docs/guides/agent-skill/",
   },
 ];

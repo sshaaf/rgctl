@@ -15,7 +15,7 @@ Agent-first docs: index once, query with `-f json`, deepen in the User Guide whe
 | CLI walkthrough (ecommerce-java) | [User Guide](user-guide.md) |
 | Concepts (what / why) | [Introduction](Introduction.md) |
 
-**Use rgctl (consumer agent loop):** install skills → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json` ([agent-commands](guides/agent-commands.md)).  
+**Use rgctl (consumer agent loop):** install the agent pack (`--skill --with-commands`) → `discover` once → `gql` / `blast-radius` / `cpg` with `-f json` ([agent-commands](guides/agent-commands.md)).  
 **Contribute to this repo:** [AGENTS.md](../AGENTS.md).  
 **First hour (human):** [Install](installation.md) → User Guide §1–4 on [ecommerce-java](user-guide.md#3-example-project-ecommerce-java), then a [Guide](guides/README.md) for the feature you need.  
 **Latest release:** [v0.4.15 release notes](releases/v0.4.15.md) (Antigravity skill install, in-memory extraction).

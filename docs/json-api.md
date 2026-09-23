@@ -110,7 +110,7 @@ if (doc.schema_version !== 2) {
 | `semantic` | ✅ | `hits` / `functions_indexed` | Opt-in NL / keyword search |
 | `communities` | ✅ | `communities`, `modularity` | Named community labels |
 | `cpg` | ✅ | varies by subcommand | Hybrid CPG façade |
-| `install` | ✅ | `writes` | Install bundled agent skill |
+| `install` | ✅ | `writes` | Install bundled agent pack (skills + optional commands) |
 | `export` | ❌ (file) | — | Full-graph serialization |
 | `serve` | ❌ | — | HTTP dashboard + `/api/query` (foreground) |
 

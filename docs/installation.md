@@ -240,7 +240,7 @@ Default **`--tools`** (omit flag) is **`cursor`, `claude`, `codex`, `agents`, `a
 
 Install does **not** run `discover` — index the repo separately (`rgctl discover .`).
 
-**Full reference:** [Agent commands guide](guides/agent-commands.md) · [Agent skill walkthrough](guides/agent-skill.md) · [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md) · [AGENTS.md](../AGENTS.md) (contribute to rgctl)
+**Full reference:** [Agent commands guide](guides/agent-commands.md) · [Agent pack walkthrough](guides/agent-skill.md) · [USER_AGENTS_TEMPLATE](agents/USER_AGENTS_TEMPLATE.md) · [AGENTS.md](../AGENTS.md) (contribute to rgctl)
 
 ---
 

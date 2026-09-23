@@ -1,16 +1,23 @@
-# Agent Skill
+# Agent pack (skills & commands)
 
 ## Introduction
 
-The rgctl **agent skill** is a structured instruction set that teaches AI coding agents (Claude Code, Antigravity, Codex, Cursor) how to use the rgctl CLI to answer structural questions about a codebase. When installed into a repository, the skill gives your agent the ability to automatically map natural-language questions to the right rgctl commands, interpret the results, and report findings -- all without the developer needing to know the CLI syntax.
+The rgctl **agent pack** teaches AI coding agents (Claude Code, Antigravity, Codex, Cursor, …) how to answer structural questions with the rgctl CLI. It is **not a single skill file** — install writes:
 
-The **agent pack** embeds skills and optional chat commands into the `rgctl` binary. `rgctl install` copies them into per-product paths (`.cursor/skills/rgctl/`, `.claude/skills/rgctl/`, `.agents/skills/rgctl/`, `.agent/skills/rgctl/`, OpenCode, Pi, … — see [Agent commands](agent-commands.md)). You get a **meta skill** `rgctl`, eight **workflow skills** (`rgctl-discover`, `rgctl-gql`, …), and with `--with-commands` slash/prompt files that map to the same workflows. No external downloads. Once installed, the agent follows a structured loop: parse the question, route to the right workflow or CLI command, run `rgctl -f json`, summarize results.
+| Piece | What it is | Example (Cursor, repo-local) |
+|-------|------------|------------------------------|
+| **Meta skill** | Router + `references/` | `.cursor/skills/rgctl/SKILL.md` |
+| **Workflow skills** (8) | Focused playbooks | `.cursor/skills/rgctl-gql/SKILL.md`, … |
+| **Slash / prompt commands** | Chat steers (optional `--with-commands`) | `.cursor/commands/rgctl-gql.md` → `/rgctl-gql` |
+| **Policy snippet** | Optional structural bias | `.cursor/rules/rgctl-structural.mdc` (`--with-policy`) |
 
-The skill turns rgctl from a CLI tool into an **always-available architectural advisor** inside your editor.
+The pack is **embedded in the `rgctl` binary**. `rgctl install --skill --with-commands` copies it into per-product paths (see [Agent commands](agent-commands.md)). Agents map natural-language questions to a workflow skill or slash command, run `rgctl -f json`, and summarize — without the developer memorizing CLI syntax.
+
+Workflows: **discover**, **impact**, **flow**, **search**, **gql**, **migrate**, **kantra**, **gate**. Chat commands are steering wheels; the engine remains the terminal CLI.
 
 ## Use Cases
 
-The agent skill unlocks several powerful workflows where the combination of structural graph analysis and AI reasoning produces results that neither could achieve alone.
+The pack unlocks several workflows where structural graph analysis and AI reasoning combine:
 
 ### Refactoring with Confidence
 
@@ -30,7 +37,7 @@ The agent can analyze a function's control-flow graph, identify all branch paths
 
 ### Continuous Architecture Review
 
-With the skill installed, every code review conversation has access to architectural context. The agent can check policy compliance, detect coupling drift, and flag high-impact changes before they are merged.
+With the pack installed, every code review conversation has access to architectural context. The agent can check policy compliance, detect coupling drift, and flag high-impact changes before they are merged.
 
 ## Example Project
 
@@ -42,9 +49,9 @@ rgctl -r example/coolstore discover --with-cfg
 
 ## Step-by-Step
 
-### 1. Install the Skill
+### 1. Install the pack
 
-Install the rgctl agent skill into your repository:
+Install meta skill, workflow skills, and slash commands into your repository:
 
 ```bash
 rgctl -r example/coolstore install --skill --with-commands --tools cursor,claude,codex,antigravity,agents
@@ -53,8 +60,8 @@ rgctl -r example/coolstore install --skill --with-commands --tools cursor,claude
 Text mode lists each created or updated path. Typical layout (Cursor example):
 
 - `.cursor/skills/rgctl/SKILL.md` — meta router + `references/`
-- `.cursor/skills/rgctl-gql/SKILL.md` — per-workflow skills (eight workflows)
-- `.cursor/commands/rgctl-gql.md` — slash command stub (with `--with-commands`)
+- `.cursor/skills/rgctl-discover/` … `rgctl-gate/` — **eight** workflow skills
+- `.cursor/commands/rgctl-*.md` — **eight** slash command stubs (with `--with-commands`)
 
 **What happened:**
 

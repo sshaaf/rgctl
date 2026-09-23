@@ -35,8 +35,10 @@ export default function InstallPage() {
             Releases
           </a>
           , put <code className="font-mono text-[var(--body-strong)]">rgctl</code>{" "}
-          on your <code className="font-mono">PATH</code>, then install the agent
-          skill into the repo you will index:
+          on your <code className="font-mono">PATH</code>, then install the{" "}
+          <strong className="font-medium text-[var(--ink)]">agent pack</strong>{" "}
+          into the repo you will index (meta skill, eight workflow skills, and
+          slash commands):
         </p>
         <TerminalBlock
           lines={[
@@ -46,14 +48,18 @@ export default function InstallPage() {
         />
         <p className="text-sm text-[var(--mute)]">
           Installs meta skill <code className="font-mono">rgctl</code>, workflow
-          skills, and slash commands under each adapter (e.g.{" "}
-          <code className="font-mono">.cursor/skills/</code>). See{" "}
+          skills (<code className="font-mono">rgctl-discover</code>,{" "}
+          <code className="font-mono">rgctl-gql</code>, …{" "}
+          <code className="font-mono">rgctl-gate</code>), and matching slash
+          commands under each adapter (e.g.{" "}
+          <code className="font-mono">.cursor/skills/</code> and{" "}
+          <code className="font-mono">.cursor/commands/</code>). See{" "}
           <Link href="/docs/guides/agent-commands/" className="underline">
             agent commands
           </Link>{" "}
           and the{" "}
           <Link href="/docs/guides/agent-skill/" className="underline">
-            agent skill walkthrough
+            agent pack walkthrough
           </Link>
           .
         </p>

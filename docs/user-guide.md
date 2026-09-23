@@ -40,7 +40,7 @@ End-to-end guide for installing rgctl, indexing an in-tree example, and querying
 
 ## 1. Installation
 
-> **Standalone guide:** [Installation](installation.md) covers prerequisites, CLI and HTTP modes, agent skill setup, upgrading, and troubleshooting.
+> **Standalone guide:** [Installation](installation.md) covers prerequisites, CLI and HTTP modes, agent pack setup, upgrading, and troubleshooting.
 
 ### Option A — GitHub release (recommended)
 
@@ -90,7 +90,7 @@ cargo build --release --bin rgctl
 
 All **Tier 1** languages registered in [`languages.toml`](../languages.toml) (including Rust, Python, Ruby, PHP, JavaScript, TypeScript, Go, Java, C#, C, C++) are included in the release binary.
 
-### Install the agent skill
+### Install the agent pack
 
 After `rgctl` is on your `PATH`, install the **agent pack** into the **target repository** (the same root you pass to `discover` via `-r` / `--repo`, or the current directory):
 
@@ -100,9 +100,15 @@ rgctl -r /path/to/repo install --skill --with-commands
 rgctl install --list-agents
 ```
 
-That writes workflow skills (`rgctl-discover`, `rgctl-migrate`, `rgctl-kantra`, …), meta-skill `rgctl`, and optional slash commands. **Default (no `--tools`):** `cursor`, `claude`, `codex`, `agents`, `antigravity`. Use **`--tools all`** for the full registry.
+That writes:
 
-Full flag reference, adapter paths, and workflow ↔ CLI table: **[Agent commands](guides/agent-commands.md)**. Walkthrough: [Agent skill](guides/agent-skill.md). Add `--with-policy` for a Cursor structural-rules snippet. Use `-g` for a global install. Exit code **1** if a managed file differs unless you pass `--force`. Install does not run `discover`.
+- **Meta skill** `rgctl` (router + references)
+- **Eight workflow skills** — `rgctl-discover`, `rgctl-impact`, `rgctl-flow`, `rgctl-search`, `rgctl-gql`, `rgctl-migrate`, `rgctl-kantra`, `rgctl-gate`
+- **Eight slash / prompt commands** (with `--with-commands`) — e.g. Cursor `/rgctl-gql`, Claude `/rgctl:gql`
+
+**Default (no `--tools`):** `cursor`, `claude`, `codex`, `agents`, `antigravity`. Use **`--tools all`** for the full registry.
+
+Full flag reference, adapter paths, and workflow ↔ CLI table: **[Agent commands](guides/agent-commands.md)**. Walkthrough: [Agent pack](guides/agent-skill.md). Add `--with-policy` for a Cursor structural-rules snippet. Use `-g` for a global install. Exit code **1** if a managed file differs unless you pass `--force`. Install does not run `discover`.
 
 ---
 
@@ -1240,7 +1246,7 @@ Migration hints (with `--export-migration-hints`) land under `.rgctl/migration_p
 | `metrics` | PageRank, betweenness, communities summary |
 | `export` | Serialize graph (json, graphml, dot, mermaid, obsidian vault, okf) |
 | `check` | CI policy gateway |
-| `install` | Copy the bundled agent skill into `.claude/skills/`, `.agents/skills/`, `.agent/skills/`, and `.cursor/skills/` |
+| `install` | Copy the bundled agent pack (meta + workflow skills; optional slash commands) into adapter dirs |
 | `semantic` | Opt-in semantic index + query (`--scope community`, `docs`, `all`) |
 | `serve` | HTTP dashboard + `/api/query` + `/api/status` (auto full pipeline); `--no-pipeline` fail-fast |
 

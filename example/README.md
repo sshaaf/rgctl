@@ -4,7 +4,7 @@
 
 | Path | Fetch | Gate |
 |------|-------|------|
-| `linux/` | Linux kernel tree (maintainer checkout) | `linux_cold_discover_within_baseline` — default discover, wall ≤ **145 s** (+10%) |
+| `linux/` | Linux kernel tree (maintainer checkout) | `linux_cold_discover_within_baseline` — default discover, wall ≤ **145 s** (+10%); cold *diff*: `./scripts/prepare-linux-diff-snapshots.sh` then `linux_cold_diff_within_baseline` |
 | `metasfresh-4.9.8b/` | metasfresh ERP checkout | `metasfresh_cold_discover_within_baseline` — `discover --full`, wall ≤ **74 s** (+10%) |
 | `kafka/` | Kafka source tree | `kafka_cold_discover_within_baseline` |
 | `kubernetes/` | Kubernetes source tree | manual / future gate |

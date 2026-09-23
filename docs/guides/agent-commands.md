@@ -5,9 +5,11 @@ rgctl has two command surfaces:
 | Layer | What it is | Where it lives |
 |--------|------------|----------------|
 | **Engine** | `rgctl discover`, `rgctl -f json gql`, … | Your PATH; graph artifacts in `{repo}/.rgctl/` |
-| **Agent pack** | Skills, optional slash commands, optional policy | Repo-local agent dirs (or home with `-g`) |
+| **Agent pack** | Meta skill + **eight workflow skills** + optional **slash commands** + optional policy | Repo-local agent dirs (or home with `-g`) |
 
 The pack is **embedded in the `rgctl` binary** (no separate download). Install the CLI first: [Installation](../installation.md).
+
+`--skill` alone installs the meta router and eight workflow skills. Add **`--with-commands`** for the matching chat commands (`/rgctl-gql`, `/rgctl:impact`, …) — one command per workflow, per adapter. Prefer both for the full agent experience.
 
 Workflow text is authored under **`skills/rgctl/workflows/`**; `references/workflows.md` in the installed meta skill is **assembled at build time** from those fragments (single source of truth).
 
@@ -165,7 +167,7 @@ The **rgctl source tree** root [`AGENTS.md`](../../AGENTS.md) is for **contribut
 
 ## Related
 
-- [Agent skill](agent-skill.md) — use cases and agent loop
+- [Agent pack walkthrough](agent-skill.md) — use cases and agent loop
 - [Installation](../installation.md) — binary setup
 - [JSON API §18](../json-api.md#18-install) — install payload types
 - [USER_AGENTS_TEMPLATE.md](../agents/USER_AGENTS_TEMPLATE.md) — paste into consumer repos

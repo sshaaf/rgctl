@@ -171,15 +171,20 @@ export default function HomePage() {
               From prompt → graph facts → edit
             </h2>
             <p className="text-[var(--body)]">
-              Drop{" "}
+              Install the agent pack (
+              <code className="font-mono text-sm">
+                rgctl install --skill --with-commands
+              </code>
+              ) for a router skill, eight workflow skills, and slash commands —
+              or drop{" "}
               <Link
                 href="/agents/"
                 className="font-medium text-[var(--primary)] underline"
               >
                 AGENTS.md
               </Link>{" "}
-              into your agent workflow. The model calls rgctl instead of
-              grepping blindly — then reasons on structured impact.
+              into your repo. The model calls rgctl instead of grepping
+              blindly — then reasons on structured impact.
             </p>
             <Button variant="ghost" asChild>
               <Link href="/agents/">
@@ -190,8 +195,8 @@ export default function HomePage() {
           <TerminalBlock
             lines={[
               "cd your-repo",
+              "rgctl install --skill --with-commands --tools cursor",
               "rgctl discover .",
-              'rgctl -f json semantic query "checkout flow" --limit 5',
               'rgctl -f json blast-radius "priceShoppingCart" --depth 2',
             ]}
           />
