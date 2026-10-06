@@ -236,7 +236,7 @@ rgctl install --list-agents
 
 This copies from the binary (no network):
 
-- **Skill `rgctl`** — `SKILL.md`, `references/` (workflows assembled from `skills/rgctl/workflows/` at rgctl build time)
+- **Skill `rgctl`** — `SKILL.md`, `references/` (including `workflows.md`)
 - **Optional policy** — `--with-policy` (Cursor structural rule snippet)
 
 Install no longer writes separate `rgctl-discover` / `rgctl-impact` / … skill directories.

@@ -101,12 +101,20 @@ impl ContentStore {
     pub fn load(cache_file: PathBuf) -> Result<Self> {
         if cache_file.exists() {
             let bytes = std::fs::read(&cache_file)?;
-            let blobs: HashMap<String, Vec<u8>> = bincode::deserialize(&bytes)
-                .map_err(|e| Error::SerdeError(format!("content store decode: {e}")))?;
-            Ok(Self {
-                blobs,
-                cache_file: Some(cache_file),
-            })
+            match decode_blob_map(&bytes) {
+                Ok(blobs) => Ok(Self {
+                    blobs,
+                    cache_file: Some(cache_file),
+                }),
+                Err(err) => {
+                    tracing::warn!(
+                        path = %cache_file.display(),
+                        error = %err,
+                        "content store unreadable — starting empty"
+                    );
+                    Ok(Self::with_cache_file(cache_file))
+                }
+            }
         } else {
             Ok(Self::with_cache_file(cache_file))
         }
@@ -116,6 +124,63 @@ impl ContentStore {
     pub fn default_path(repo_root: &Path) -> PathBuf {
         repo_root.join(".rgctl").join(CONTENT_STORE_FILE)
     }
+}
+
+fn decode_blob_map(bytes: &[u8]) -> Result<HashMap<String, Vec<u8>>> {
+    if bytes.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let mut cur = 0usize;
+    let count = read_bincode_u64(bytes, &mut cur)?;
+    let max_entries = bytes.len() / 16;
+    if count as usize > max_entries {
+        return Err(Error::SerdeError(format!(
+            "content store entry count {count} exceeds file size"
+        )));
+    }
+    let mut blobs = HashMap::new();
+    blobs.try_reserve(count as usize).map_err(|_| {
+        Error::SerdeError(format!("content store entry count {count} too large"))
+    })?;
+    for _ in 0..count {
+        let klen = read_bincode_u64(bytes, &mut cur)? as usize;
+        let key_bytes = read_exact_slice(bytes, &mut cur, klen, "key")?;
+        let key = std::str::from_utf8(key_bytes)
+            .map_err(|e| Error::SerdeError(format!("content store key: {e}")))?
+            .to_string();
+        let vlen = read_bincode_u64(bytes, &mut cur)? as usize;
+        let val = read_exact_slice(bytes, &mut cur, vlen, "blob")?.to_vec();
+        blobs.insert(key, val);
+    }
+    Ok(blobs)
+}
+
+fn read_bincode_u64(bytes: &[u8], cur: &mut usize) -> Result<u64> {
+    if *cur + 8 > bytes.len() {
+        return Err(Error::SerdeError("content store truncated".into()));
+    }
+    let v = u64::from_le_bytes(bytes[*cur..*cur + 8].try_into().unwrap());
+    *cur += 8;
+    Ok(v)
+}
+
+fn read_exact_slice<'a>(
+    bytes: &'a [u8],
+    cur: &mut usize,
+    len: usize,
+    what: &str,
+) -> Result<&'a [u8]> {
+    let end = cur
+        .checked_add(len)
+        .ok_or_else(|| Error::SerdeError(format!("content store {what} length overflow")))?;
+    if end > bytes.len() {
+        return Err(Error::SerdeError(format!(
+            "content store {what} truncated (len {len})"
+        )));
+    }
+    let slice = &bytes[*cur..end];
+    *cur = end;
+    Ok(slice)
 }
 
 #[cfg(test)]
@@ -134,5 +199,15 @@ mod tests {
 
         let loaded = ContentStore::load(path).unwrap();
         assert_eq!(loaded.get_str(&hash), Some("large section body"));
+    }
+
+    #[test]
+    fn garbage_ascii_prefix_does_not_abort_load() {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join(CONTENT_STORE_FILE);
+        // Same 8-byte ASCII hex that was observed as a ~exabyte allocation request.
+        std::fs::write(&path, b"d3be6c88").unwrap();
+        let loaded = ContentStore::load(path).unwrap();
+        assert!(loaded.is_empty());
     }
 }

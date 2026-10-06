@@ -62,11 +62,11 @@ Text mode lists each created or updated path. Typical layout (Cursor example):
 
 **What happened:**
 
-- rgctl unpacked the embedded **agent pack** (generated at build time from `skills/rgctl/`; workflow fragments under `workflows/` assemble into `references/workflows.md`).
+- rgctl unpacked the embedded **agent pack** (generated at build time from `skills/rgctl/`, including `references/workflows.md`).
 - **Claude** uses `.claude/skills/`.
 - **Codex / agents / zed** share `.agents/skills/` (install dedupes).
 - **Cursor** uses `.cursor/skills/`.
-- Workflow prose lives in `skills/rgctl/workflows/*.md`; installed `references/workflows.md` is assembled from those fragments.
+- Scenario prose lives in `skills/rgctl/references/workflows.md` and is copied into the installed skill.
 - No network — content matches your `rgctl` binary version.
 
 See [Install options reference](#install-options-reference) below for the full flag table and registry (`install --list-agents`).
@@ -551,7 +551,7 @@ Intent → CLI mappings live in the skill’s NL routing table and `references/w
 
 ## How the pack is distributed
 
-At **rgctl build** time, `rgctl-agent-pack-codegen` generates the pack from `agent-pack/manifest.yaml`, `agent-pack/agents/registry.toml`, and `skills/rgctl/workflows/`, then embeds it as a zip in the binary. This means:
+At **rgctl build** time, `rgctl-agent-pack-codegen` generates the pack from `agent-pack/manifest.yaml`, `agent-pack/agents/registry.toml`, and `skills/rgctl/` (including `references/workflows.md`), then embeds it as a zip in the binary. This means:
 
 - No network access needed to install.
 - Pack version matches the CLI version.

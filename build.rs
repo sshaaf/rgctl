@@ -12,7 +12,6 @@ fn main() {
 
     println!("cargo:rerun-if-changed=agent-pack/manifest.yaml");
     println!("cargo:rerun-if-changed=agent-pack/agents/registry.toml");
-    println!("cargo:rerun-if-changed=skills/rgctl/workflows");
     println!("cargo:rerun-if-changed=skills/rgctl/SKILL.md");
     println!("cargo:rerun-if-changed=skills/rgctl/README.md");
     println!("cargo:rerun-if-changed=skills/rgctl/references");

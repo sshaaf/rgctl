@@ -12,7 +12,7 @@ Multi-tool agent pack: single skill `rgctl`, optional structural policy, and a r
 | **Policy** | `--with-policy` installs Cursor structural rule snippet. |
 | **Discovery** | `install --list-agents` prints `agent-pack/agents/registry.toml` entries. |
 | **JSON** | `install -f json` uses **`schema_version`: 3** (`agent`, `workflow`, `kind`, `scope`, …). |
-| **Workflow docs** | Single source: `skills/rgctl/workflows/*.md`; `references/workflows.md` generated at build. |
+| **Workflow docs** | `skills/rgctl/references/workflows.md` is copied into the pack at build. |
 | **Embed** | Agent pack generated in `build.rs`, zipped into the binary (replaces single-tree `include_dir` for install). |
 
 ## Upgrade

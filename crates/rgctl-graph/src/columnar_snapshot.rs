@@ -659,11 +659,21 @@ impl PreparedGraphSnapshot {
             file.extend_from_slice(&encode_edge_row(row));
         }
         file.extend_from_slice(&strings.bytes);
-        file.extend_from_slice(&extensions_blob);
+    file.extend_from_slice(&extensions_blob);
 
-        std::fs::write(path, file)?;
-        Ok(())
-    }
+    let tmp = path.with_file_name(format!(
+        "{}.tmp",
+        path.file_name()
+            .map(|n| n.to_string_lossy())
+            .unwrap_or_else(|| "graph.snapshot.bin".into())
+    ));
+    std::fs::write(&tmp, &file)?;
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        e
+    })?;
+    Ok(())
+}
 }
 
 pub(crate) struct StringPool {

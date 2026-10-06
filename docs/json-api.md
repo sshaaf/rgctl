@@ -1203,7 +1203,7 @@ type InstallResponse = {
 };
 ```
 
-Pass `--skill` and/or `--with-policy`. `--host` is deprecated (use `--tools`). Workflow markdown is authored under `skills/rgctl/workflows/`; installed `references/workflows.md` is assembled at rgctl build time. If any write is `skipped_exists`, JSON is still printed and the process exits 1.
+Pass `--skill` and/or `--with-policy`. `--host` is deprecated (use `--tools`). Workflow markdown is `skills/rgctl/references/workflows.md`, copied into the pack at rgctl build time. If any write is `skipped_exists`, JSON is still printed and the process exits 1.
 
 ```bash
 rgctl -r "$REPO" -f json install --skill | jq '.writes[] | {agent, workflow, kind, status}'

@@ -1130,6 +1130,10 @@ pub(crate) fn run_full_analysis(
     file_tracker.save()?;
     profile.save_tracker.secs = secs(save_tracker_start.elapsed());
 
+    // Release the snapshot mmap before Kantra rewrites `graph.snapshot.bin`.
+    // In-place truncate of a mapped file can SIGBUS or yield garbage length reads.
+    drop(cold);
+
     if with_kantra {
         super::kantra_discover::run_kantra_index(
             store,

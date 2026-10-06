@@ -5,7 +5,7 @@ A skill for answering structural questions about codebases using the rgctl CLI g
 ## Quick Stats
 
 - **One skill:** `rgctl` (router + structured verb tables + references)
-- **Reference files:** command encyclopedia, workflows (assembled), communities & policy
+- **Reference files:** command encyclopedia, workflows, communities & policy
 - **Workflow families (docs only):** discover, impact, flow, search, migrate, kantra, gate
 - **Agent query path:** `find` / `callers` / `callees` / `relations` / `inventory` / `status` (no Cypher)
 
@@ -15,10 +15,9 @@ A skill for answering structural questions about codebases using the rgctl CLI g
 skills/rgctl/
 ├── SKILL.md                              # Main skill
 ├── README.md                             # This file
-├── workflows/                            # Fragments assembled into references/workflows.md at build
 └── references/
     ├── command-encyclopedia.md           # All commands with JSON samples
-    ├── workflows.md                      # Generated from workflows/ at build (do not edit by hand)
+    ├── workflows.md                      # Worked NL scenarios (discover, impact, migrate, …)
     └── communities-and-policy.md         # Community detection + CI policy
 ```
 
@@ -49,9 +48,9 @@ skills/rgctl/
 - Prerequisites and pitfalls
 - "What to report" guidelines
 
-#### workflows.md (generated)
-- Assembled from `workflows/*.md` when the agent pack is built (`cargo build`)
-- Edit fragments under `workflows/` (e.g. `migrate.md`, `kantra.md`); order comes from `agent-pack/manifest.yaml`
+#### workflows.md
+- Worked NL scenarios (discover, impact, flow, search, migrate, kantra, gate, vuln)
+- Edit this file directly; `rgctl install --skill` copies it as-is
 
 #### communities-and-policy.md
 - **Community Detection:** list, semantic scope, ownership workflows
@@ -77,7 +76,7 @@ Installs a single skill named `rgctl`. See [Agent pack walkthrough](../../docs/g
 
 If an older pack left `rgctl-discover` / `rgctl-impact` / … directories behind, delete them manually — install no longer writes those folders.
 
-**Maintainers:** edit workflow bodies under `workflows/`; regenerate `references/workflows.md` with `assemble_workflows_reference` (see `rgctl-agent-pack-codegen` test `workflows_reference_matches_fragments`).
+**Maintainers:** edit `references/workflows.md` in this tree; the agent pack copies it at `rgctl` build time.
 
 ## See Also
 

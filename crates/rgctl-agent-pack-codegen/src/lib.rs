@@ -1,4 +1,4 @@
-//! Generate the embedded agent pack from manifest, `skills/rgctl/workflows/`, and agent adapters.
+//! Generate the embedded agent pack from `skills/rgctl/` and agent adapters.
 
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -61,29 +61,22 @@ pub fn generate(pack_root: &Path, out_dir: &Path, rgctl_version: &str) -> Result
         return Err("manifest meta_skills must include id rgctl".into());
     }
 
-    let repo_root = repo_root_from_pack(pack_root);
-    let workflows_dir = skills_workflows_dir(&repo_root);
     let agents = load_agents(&pack_root.join("agents"))?;
-    let workflows_reference =
-        assemble_workflows_reference(&root.workflows, &workflows_dir)?;
+    let meta_src = pack_root
+        .parent()
+        .unwrap_or(pack_root)
+        .join("skills/rgctl");
+    if !meta_src.join("references/workflows.md").is_file() {
+        return Err("skills/rgctl/references/workflows.md missing".into());
+    }
 
     for agent in &agents {
-        // Single skill `rgctl`: copy tree from skills/rgctl and assemble workflows reference.
-        // Workflow fragments stay as references/workflows.md — not separate rgctl-* skills.
-        let meta_src = pack_root
-            .parent()
-            .unwrap_or(pack_root)
-            .join("skills/rgctl");
+        // Single skill `rgctl`: copy `skills/rgctl` (including references/workflows.md).
         if meta_src.is_dir() {
             let meta_dest = agent_out_root(out_dir, &agent.id)
                 .join(&agent.skills_subdir)
                 .join("rgctl");
             copy_meta_skill_tree(&meta_src, &meta_dest)?;
-            let ref_dest = meta_dest.join("references/workflows.md");
-            if let Some(parent) = ref_dest.parent() {
-                fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-            }
-            fs::write(&ref_dest, &workflows_reference).map_err(|e| e.to_string())?;
             ensure_rgctl_managed_frontmatter(&meta_dest.join("SKILL.md"), rgctl_version)?;
         }
     }
@@ -134,59 +127,6 @@ fn load_agents(agents_dir: &Path) -> Result<Vec<AgentDef>, String> {
     Ok(out)
 }
 
-fn repo_root_from_pack(pack_root: &Path) -> PathBuf {
-    pack_root
-        .parent()
-        .unwrap_or(pack_root)
-        .to_path_buf()
-}
-
-fn skills_workflows_dir(repo_root: &Path) -> PathBuf {
-    repo_root.join("skills/rgctl/workflows")
-}
-
-fn read_workflow_fragment(workflows_dir: &Path, id: &str) -> Result<String, String> {
-    let path = workflows_dir.join(format!("{id}.md"));
-    fs::read_to_string(&path).map_err(|e| format!("read {}: {}", path.display(), e))
-}
-
-/// Assemble the meta-skill `references/workflows.md` from workflow fragments.
-pub fn assemble_workflows_reference(
-    workflows: &[WorkflowEntry],
-    workflows_dir: &Path,
-) -> Result<String, String> {
-    let mut out = String::from(
-        "# Workflow Scenarios\n\n\
-Worked NL scenarios showing the discover → query → reason → act pattern for common tasks.\n\n\
-## Table of Contents\n\n",
-    );
-    for wf in workflows {
-        let anchor = workflow_anchor(&wf.id);
-        out.push_str(&format!("- [{}](#{})\n", wf.title, anchor));
-    }
-    out.push_str("- [Advanced patterns](#advanced-patterns)\n\n---\n\n");
-    for wf in workflows {
-        let body = read_workflow_fragment(workflows_dir, &wf.id)?;
-        out.push_str(&body);
-        out.push_str("\n\n---\n\n");
-    }
-    let advanced = workflows_dir.join("_advanced.md");
-    if advanced.is_file() {
-        out.push_str(&fs::read_to_string(&advanced).map_err(|e| e.to_string())?);
-        out.push_str("\n\n---\n\n");
-    }
-    let see_also = workflows_dir.join("_see-also.md");
-    if see_also.is_file() {
-        out.push_str(&fs::read_to_string(&see_also).map_err(|e| e.to_string())?);
-        out.push('\n');
-    }
-    Ok(out)
-}
-
-fn workflow_anchor(id: &str) -> String {
-    format!("{id}-workflow")
-}
-
 /// Embed directory name (avoid `.cursor`/`.claude` gitignore collisions on case-insensitive FS).
 fn embed_agent_dir(agent_id: &str) -> String {
     format!("host-{agent_id}")
@@ -196,7 +136,7 @@ fn agent_out_root(out_dir: &Path, agent_id: &str) -> PathBuf {
     out_dir.join("agents").join(embed_agent_dir(agent_id))
 }
 
-/// Copy `skills/rgctl` for install, excluding build-only `workflows/` and generated `references/workflows.md`.
+/// Copy `skills/rgctl` for install. Skip a leftover `workflows/` dir if present.
 fn copy_meta_skill_tree(src: &Path, dest: &Path) -> Result<(), String> {
     fs::create_dir_all(dest).map_err(|e| e.to_string())?;
     for ent in walkdir::WalkDir::new(src) {
@@ -206,9 +146,6 @@ fn copy_meta_skill_tree(src: &Path, dest: &Path) -> Result<(), String> {
             .strip_prefix(src)
             .map_err(|e| e.to_string())?;
         if rel.components().next().is_some_and(|c| c.as_os_str() == "workflows") {
-            continue;
-        }
-        if rel.as_os_str() == "references/workflows.md" {
             continue;
         }
         let target = dest.join(rel);
@@ -255,7 +192,7 @@ mod codegen_tests {
     use std::path::PathBuf;
 
     #[test]
-    fn workflows_reference_matches_fragments() {
+    fn generate_copies_workflows_reference() {
         let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
@@ -263,19 +200,17 @@ mod codegen_tests {
             .unwrap()
             .to_path_buf();
         let pack = repo.join("agent-pack");
-        let manifest_yaml =
-            fs::read_to_string(pack.join("manifest.yaml")).expect("manifest");
-        let root: RootManifest = serde_yaml::from_str(&manifest_yaml).expect("yaml");
-        let workflows_dir = skills_workflows_dir(&repo);
-        let assembled =
-            assemble_workflows_reference(&root.workflows, &workflows_dir).expect("assemble");
-        let on_disk = repo.join("skills/rgctl/references/workflows.md");
-        let existing = fs::read_to_string(&on_disk).expect("workflows.md");
-        assert_eq!(
-            assembled,
-            existing,
-            "skills/rgctl/references/workflows.md is stale; regenerate from skills/rgctl/workflows/"
-        );
+        let out = repo.join("target/agent-pack-test-workflows-ref");
+        generate(&pack, &out, "test").expect("gen");
+        let src = fs::read(repo.join("skills/rgctl/references/workflows.md")).expect("src");
+        let dest = fs::read(
+            out.join("agents/host-cursor/skills/rgctl/references/workflows.md"),
+        )
+        .expect("dest");
+        assert_eq!(src, dest);
+        assert!(!out
+            .join("agents/host-cursor/skills/rgctl/workflows")
+            .exists());
     }
 
     #[test]

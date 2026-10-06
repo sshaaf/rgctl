@@ -18,7 +18,7 @@ use rayon::prelude::*;
 use std::thread;
 use std::collections::{BinaryHeap, HashMap};
 use std::fs::{self, File};
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{BufReader, BufWriter, ErrorKind, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 use uuid::Uuid;
@@ -49,6 +49,9 @@ fn effective_sort_run_bytes() -> usize {
 
 const NODE_KEY_LEN: usize = 16;
 const EDGE_KEY_LEN: usize = 16 + 16 + 8; // from + to + type/pad
+/// Cap for one spilled bincode blob. Larger length prefixes are treated as corrupt
+/// (ASCII hex / uninitialized bytes interpreted as `u64`).
+const MAX_SPILL_BLOB_BYTES: u64 = 32 * 1024 * 1024;
 
 /// Append-only spill writers for nodes and edges during extract.
 pub struct SegmentedSpill {
@@ -209,15 +212,9 @@ pub fn materialize_sorted_graph(spill: &FinishedSpill) -> Result<(Vec<Node>, Vec
     let mut nodes = Vec::with_capacity(spill.node_count);
     {
         let mut reader = BufReader::with_capacity(8 * 1024 * 1024, File::open(&nodes_sorted)?);
-        for _ in 0..spill.node_count {
-            let mut key = [0u8; NODE_KEY_LEN];
-            reader.read_exact(&mut key)?;
-            let mut len_buf = [0u8; 8];
-            reader.read_exact(&mut len_buf)?;
-            let len = u64::from_le_bytes(len_buf) as usize;
-            let mut blob = vec![0u8; len];
-            reader.read_exact(&mut blob)?;
-            let node: Node = bincode::deserialize(&blob)
+        for i in 0..spill.node_count {
+            let rec = read_one_record_at(&mut reader, NODE_KEY_LEN, "node", i, spill.node_count)?;
+            let node: Node = bincode::deserialize(&rec.blob)
                 .map_err(|e| Error::SerdeError(format!("segmented spill node deserialize: {e}")))?;
             nodes.push(node);
         }
@@ -226,15 +223,9 @@ pub fn materialize_sorted_graph(spill: &FinishedSpill) -> Result<(Vec<Node>, Vec
     let mut edges = Vec::with_capacity(spill.edge_count);
     {
         let mut reader = BufReader::with_capacity(8 * 1024 * 1024, File::open(&edges_sorted)?);
-        for _ in 0..spill.edge_count {
-            let mut key = [0u8; EDGE_KEY_LEN];
-            reader.read_exact(&mut key)?;
-            let mut len_buf = [0u8; 8];
-            reader.read_exact(&mut len_buf)?;
-            let len = u64::from_le_bytes(len_buf) as usize;
-            let mut blob = vec![0u8; len];
-            reader.read_exact(&mut blob)?;
-            let edge: Edge = bincode::deserialize(&blob)
+        for i in 0..spill.edge_count {
+            let rec = read_one_record_at(&mut reader, EDGE_KEY_LEN, "edge", i, spill.edge_count)?;
+            let edge: Edge = bincode::deserialize(&rec.blob)
                 .map_err(|e| Error::SerdeError(format!("segmented spill edge deserialize: {e}")))?;
             edges.push(edge);
         }
@@ -290,19 +281,13 @@ pub fn write_columnar_from_spill(spill: FinishedSpill, path: &Path) -> Result<St
 
     {
         let mut reader = BufReader::with_capacity(8 * 1024 * 1024, File::open(&nodes_sorted)?);
-        for _ in 0..node_count {
-            let mut key = [0u8; NODE_KEY_LEN];
-            reader.read_exact(&mut key)?;
-            let mut len_buf = [0u8; 8];
-            reader.read_exact(&mut len_buf)?;
-            let len = u64::from_le_bytes(len_buf) as usize;
-            let mut blob = vec![0u8; len];
-            reader.read_exact(&mut blob)?;
-            let node: Node = bincode::deserialize(&blob)
+        for i in 0..node_count {
+            let rec = read_one_record_at(&mut reader, NODE_KEY_LEN, "node", i, node_count)?;
+            let node: Node = bincode::deserialize(&rec.blob)
                 .map_err(|e| Error::SerdeError(format!("segmented spill node deserialize: {e}")))?;
             append_node_columnar_prehashed(
                 &node,
-                &blob,
+                &rec.blob,
                 &mut hasher,
                 &mut strings,
                 &mut extensions_blob,
@@ -317,18 +302,12 @@ pub fn write_columnar_from_spill(spill: FinishedSpill, path: &Path) -> Result<St
     let mut edge_rows = Vec::with_capacity(edge_count);
     {
         let mut reader = BufReader::with_capacity(8 * 1024 * 1024, File::open(&edges_sorted)?);
-        for _ in 0..edge_count {
-            let mut key = [0u8; EDGE_KEY_LEN];
-            reader.read_exact(&mut key)?;
-            let mut len_buf = [0u8; 8];
-            reader.read_exact(&mut len_buf)?;
-            let len = u64::from_le_bytes(len_buf) as usize;
-            let mut blob = vec![0u8; len];
-            reader.read_exact(&mut blob)?;
-            hasher.update(&blob);
-            let from = Uuid::from_bytes(key[..16].try_into().unwrap());
-            let to = Uuid::from_bytes(key[16..32].try_into().unwrap());
-            let edge_type = key[32];
+        for i in 0..edge_count {
+            let rec = read_one_record_at(&mut reader, EDGE_KEY_LEN, "edge", i, edge_count)?;
+            hasher.update(&rec.blob);
+            let from = Uuid::from_bytes(rec.key[..16].try_into().unwrap());
+            let to = Uuid::from_bytes(rec.key[16..32].try_into().unwrap());
+            let edge_type = rec.key[32];
             edge_rows.push(EdgeRow {
                 from: *from.as_bytes(),
                 to: *to.as_bytes(),
@@ -415,6 +394,7 @@ fn external_sort_records(
 
 const MAX_SPILL_KEY_LEN: usize = EDGE_KEY_LEN;
 
+#[derive(Debug)]
 struct SpillRecord {
     key: [u8; MAX_SPILL_KEY_LEN],
     key_len: usize,
@@ -422,18 +402,85 @@ struct SpillRecord {
 }
 
 fn read_one_record<R: Read>(reader: &mut R, key_len: usize) -> Result<SpillRecord> {
+    read_record_or_eof(reader, key_len)?.ok_or_else(|| {
+        Error::IoError(std::io::Error::new(
+            ErrorKind::UnexpectedEof,
+            "spill: unexpected end of records",
+        ))
+    })
+}
+
+fn read_one_record_at<R: Read>(
+    reader: &mut R,
+    key_len: usize,
+    kind: &str,
+    index: usize,
+    total: usize,
+) -> Result<SpillRecord> {
+    read_record_or_eof(reader, key_len)?.ok_or_else(|| {
+        Error::IoError(std::io::Error::new(
+            ErrorKind::UnexpectedEof,
+            format!("spill {kind} truncated at {index}/{total}"),
+        ))
+    })
+}
+
+/// Read one length-prefixed spill record. `Ok(None)` only at a clean record boundary.
+fn read_record_or_eof<R: Read>(reader: &mut R, key_len: usize) -> Result<Option<SpillRecord>> {
     let mut key = [0u8; MAX_SPILL_KEY_LEN];
-    reader.read_exact(&mut key[..key_len])?;
+    let mut got = 0usize;
+    while got < key_len {
+        let n = reader.read(&mut key[got..key_len])?;
+        if n == 0 {
+            if got == 0 {
+                return Ok(None);
+            }
+            return Err(Error::IoError(std::io::Error::new(
+                ErrorKind::UnexpectedEof,
+                format!("spill record truncated after {got}/{key_len} key bytes"),
+            )));
+        }
+        got += n;
+    }
+
     let mut len_buf = [0u8; 8];
-    reader.read_exact(&mut len_buf)?;
-    let len = u64::from_le_bytes(len_buf) as usize;
-    let mut blob = vec![0u8; len];
-    reader.read_exact(&mut blob)?;
-    Ok(SpillRecord {
+    reader.read_exact(&mut len_buf).map_err(|e| {
+        if e.kind() == ErrorKind::UnexpectedEof {
+            Error::IoError(std::io::Error::new(
+                ErrorKind::UnexpectedEof,
+                "spill record truncated at length prefix",
+            ))
+        } else {
+            Error::IoError(e)
+        }
+    })?;
+    let len_u64 = u64::from_le_bytes(len_buf);
+    if len_u64 > MAX_SPILL_BLOB_BYTES {
+        return Err(Error::SerdeError(format!(
+            "spill record length {len_u64} exceeds {MAX_SPILL_BLOB_BYTES} (corrupt length prefix)"
+        )));
+    }
+    let len = len_u64 as usize;
+    let mut blob = Vec::new();
+    blob.try_reserve_exact(len).map_err(|_| {
+        Error::SerdeError(format!("spill record length {len} too large to allocate"))
+    })?;
+    blob.resize(len, 0);
+    reader.read_exact(&mut blob).map_err(|e| {
+        if e.kind() == ErrorKind::UnexpectedEof {
+            Error::IoError(std::io::Error::new(
+                ErrorKind::UnexpectedEof,
+                format!("spill record truncated: expected {len} blob bytes"),
+            ))
+        } else {
+            Error::IoError(e)
+        }
+    })?;
+    Ok(Some(SpillRecord {
         key,
         key_len,
         blob,
-    })
+    }))
 }
 
 fn read_all_records(path: &Path, key_len: usize, count: usize) -> Result<Vec<SpillRecord>> {
@@ -494,15 +541,14 @@ fn k_way_merge(run_paths: &[PathBuf], output: &Path, key_len: usize) -> Result<(
 
     let mut heap = BinaryHeap::new();
     for (i, reader) in readers.iter_mut().enumerate() {
-        match read_one_record(reader, key_len) {
-            Ok(rec) => heap.push(HeapEntry {
+        match read_record_or_eof(reader, key_len)? {
+            Some(rec) => heap.push(HeapEntry {
                 key: rec.key,
                 key_len: rec.key_len,
                 blob: rec.blob,
                 run_idx: i,
             }),
-            Err(Error::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {}
-            Err(e) => return Err(e),
+            None => {}
         }
     }
 
@@ -512,15 +558,13 @@ fn k_way_merge(run_paths: &[PathBuf], output: &Path, key_len: usize) -> Result<(
         out.write_all(&(entry.blob.len() as u64).to_le_bytes())?;
         out.write_all(&entry.blob)?;
         let i = entry.run_idx;
-        match read_one_record(&mut readers[i], key_len) {
-            Ok(rec) => heap.push(HeapEntry {
+        if let Some(rec) = read_record_or_eof(&mut readers[i], key_len)? {
+            heap.push(HeapEntry {
                 key: rec.key,
                 key_len: rec.key_len,
                 blob: rec.blob,
                 run_idx: i,
-            }),
-            Err(Error::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {}
-            Err(e) => return Err(e),
+            });
         }
     }
     out.flush()?;
@@ -557,5 +601,28 @@ mod tests {
         let d_spill = write_columnar_from_spill(finished, &path_spill).unwrap();
         let d_vecs = write_columnar_from_nodes_edges(vec![a, b], vec![e1, e2], &path_vecs).unwrap();
         assert_eq!(d_spill, d_vecs);
+    }
+
+    #[test]
+    fn garbage_ascii_length_prefix_is_error_not_abort() {
+        // 4051096950100079460 == little-endian ASCII "d3be6c88" (hex digest fragment).
+        let mut bytes = vec![0u8; NODE_KEY_LEN];
+        bytes.extend_from_slice(b"d3be6c88");
+        let err = read_one_record(&mut bytes.as_slice(), NODE_KEY_LEN).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("corrupt length prefix") || msg.contains("exceeds"),
+            "{msg}"
+        );
+    }
+
+    #[test]
+    fn truncated_spill_reports_record_index() {
+        let mut bytes = vec![0u8; NODE_KEY_LEN];
+        bytes.extend_from_slice(&8u64.to_le_bytes());
+        bytes.extend_from_slice(&[1, 2, 3]); // short blob
+        let err = read_one_record_at(&mut bytes.as_slice(), NODE_KEY_LEN, "node", 0, 1).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("truncated"), "{msg}");
     }
 }
