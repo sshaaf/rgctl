@@ -545,9 +545,9 @@ Paths come from **`agent-pack/agents/registry.toml`**.
 
 ### Scenarios inside the skill
 
-Intent → CLI mappings live in the skill’s NL routing table and `references/workflows.md` (discover, impact, flow, search, migrate, kantra, gate). There are **no** separate `rgctl-*` skill directories — one skill covers all of them.
+Intent → CLI mappings live in the skill’s NL routing table and `references/workflows.md` (discover, impact, flow, search, migrate, gate, vuln). There are **no** separate `rgctl-*` skill directories — one skill covers all of them.
 
-**Migrate** (roadmap / `migration_plan.json`) and **Kantra** (Konveyor findings) remain separate *topics* in that reference — do not conflate them.
+**Migrate** uses `--export-migration-hints` → `.rgctl/migration_plan.json` as the agent-facing migration deliverable.
 
 ## How the pack is distributed
 

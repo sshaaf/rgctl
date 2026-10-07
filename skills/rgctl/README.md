@@ -6,7 +6,7 @@ A skill for answering structural questions about codebases using the rgctl CLI g
 
 - **One skill:** `rgctl` (router + structured verb tables + references)
 - **Reference files:** command encyclopedia, workflows, communities & policy
-- **Workflow families (docs only):** discover, impact, flow, search, migrate, kantra, gate
+- **Workflow families (docs only):** discover, impact, flow, search, migrate, gate, vuln
 - **Agent query path:** `find` / `callers` / `callees` / `relations` / `inventory` / `status` (no Cypher)
 
 ## Structure
@@ -31,7 +31,7 @@ skills/rgctl/
 - **CLI subprocess workflow** — spawn `rgctl -f json` for agents
 - **Workflow families:**
   1. Discovery & Indexing
-  1b. Konveyor Kantra rules (`--with-kantra`)
+  1b. Migration roadmap (`--export-migration-hints`)
   2. Query & Search (structured verbs + communities)
   3. Impact & Safety (includes policy checks)
   4. Metrics & Analysis
@@ -49,7 +49,7 @@ skills/rgctl/
 - "What to report" guidelines
 
 #### workflows.md
-- Worked NL scenarios (discover, impact, flow, search, migrate, kantra, gate, vuln)
+- Worked NL scenarios (discover, impact, flow, search, migrate, gate, vuln)
 - Edit this file directly; `rgctl install --skill` copies it as-is
 
 #### communities-and-policy.md

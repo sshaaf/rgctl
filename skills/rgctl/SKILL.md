@@ -3,11 +3,11 @@ name: rgctl
 description: >-
   Answer structural questions about a codebase using the rgctl CLI graph
   (architecture, communities, call relationships, blast radius, data-flow
-  slices, CPG, semantic search, migration, Konveyor Kantra rules,
-  CI gates). Use when the user asks how code is connected, what calls what,
-  impact of changing a symbol, where data flows, migration rule violations,
-  Konveyor/quarkus/spring targets, repo structure/hotspots, or when `.rgctl/`
-  exists — treat natural-language codebase questions as rgctl queries first.
+  slices, CPG, semantic search, migration roadmap, CI gates). Use when the
+  user asks how code is connected, what calls what, impact of changing a
+  symbol, where data flows, migration planning/roadmap, repo
+  structure/hotspots, or when `.rgctl/` exists — treat natural-language
+  codebase questions as rgctl queries first.
 rgctl-managed: true
 ---
 
@@ -21,8 +21,7 @@ Use rgctl when the user asks:
 - **Architecture questions** — "What calls X?", "Where is the checkout flow?", "What communities exist?"
 - **Impact analysis** — "What breaks if I change this function?"
 - **Data flow** — "Where does this variable flow?", "Trace this tainted input"
-- **Migration planning** — "Generate a migration roadmap"
-- **Konveyor / Kantra rules** — "What Quarkus migration rules apply?", "List rules for target X", "What violations did Kantra find?"
+- **Migration planning** — "Generate a migration roadmap" / "What should we extract first?"
 - **Hotspots** — "What are the most central/risky functions?"
 - **Subsystem mapping** — "Which module owns feature X?"
 
@@ -81,25 +80,26 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 **Common flags:**
 - `--with-cfg` — Enable CFG/PDG (for slice, inspect, cpg)
 - `--with-dashboard` — Build dashboard bundle
-- `--export-migration-hints` — Generate migration plan
+- `--export-migration-hints` — Write `.rgctl/migration_plan.json` (primary migration deliverable)
 - `--with-security --with-taint` — Security scanning
-- `--with-kantra` — Konveyor Kantra rule eval + rules graph index (embedded catalog by default)
+- `--with-harmonic` — Harmonic centrality (used with migration ranking)
 
 **See:** [Discovering and Indexing Guide](../../docs/guides/discovering-and-indexing.md)
 
-### 1b. Konveyor Kantra rules (`--with-kantra`)
+### 1b. Migration roadmap (`--export-migration-hints`)
+
+**Primary deliverable for migration questions:** `.rgctl/migration_plan.json` — not ad-hoc rule dumps.
 
 | User Intent | CLI Command |
 |-------------|-------------|
-| Evaluate migration rules | `discover . --with-kantra` or `rules run ./rules/` |
-| Filter by migration target | `discover . --with-kantra --kantra-target quarkus` / `rules run ./rules/ --target quarkus` |
-| CI / custom ruleset | `discover . --with-kantra --kantra-rules PATH` / `rules run PATH` |
-| Index rules only | `discover . --with-kantra --kantra-index-only` |
-| List indexed rules | `find --type kantrarule --limit 50` / `inventory --by type` |
-| Rule → code links | `relations --edge violates --from-type kantrarule` |
-| Read violations artifact | `.rgctl/kantra_findings.json` |
+| Generate migration plan | `discover . --export-migration-hints` (add `--with-harmonic` for ranking) |
+| Preset / order | `--migration-preset hybrid_default\|foundational_first\|dense_cluster\|risk_mitigation` · `--migration-order scheduled\|priority` |
+| Read plan | `.rgctl/migration_plan.json` (discover `-f json` stdout is telemetry only) |
+| Dashboard view | `discover . --with-dashboard --export-migration-hints` then `serve --open` |
 
-**See:** [User guide — Kantra](../../docs/user-guide.md#kantra-migration-rules---with-kantra), [JSON — kantra_findings](../../docs/json-api.md#kantra_findingsjson)
+**Supporting probes** (optional context before/after the plan): `status` → `inventory --by import-prefix --limit 40` → `find --annotation …` / suffix globs → `callers` / `blast-radius` on candidates.
+
+**See:** [Migration Planning Guide](../../docs/guides/migration-planning.md), migrate workflow in [references/workflows.md](references/workflows.md)
 
 ### 2. Query & Search
 
@@ -125,7 +125,7 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 | Refresh community labels | `communities label --write` |
 | Community census | `inventory --by community` |
 
-**Migration probe order:** `status` → `inventory --by import-prefix` → `find --annotation …` / suffix globs → `rules run` / `--with-kantra` → `callers InitialContext`.
+**Migration:** prefer `--export-migration-hints` → `migration_plan.json`. Optional probes: `status` → `inventory --by import-prefix --limit 40` → `find --annotation …` / suffix globs → `callers` / `blast-radius`.
 
 **Complexity honesty:** exact name = hash index; prefix/`*mid*`/`--scope` may scan keys/columns until better indexes land. Module re-index is still a strong speed lever. Annotation **arguments** (e.g. `@Path("/x")`) need `--show-attributes` when `annotation_args.json` is present.
 **See:** [Command Encyclopedia](references/command-encyclopedia.md) (find/callers/relations/inventory/status), [Semantic Search Guide](../../docs/guides/semantic-search.md)
@@ -176,8 +176,7 @@ Needs `discover --with-cfg`. `--function` is method name, not class.
 
 | User Says | Command |
 |-----------|---------|
-| "Generate migration plan" | `discover --export-migration-hints` → `.rgctl/migration_plan.json` |
-| "Konveyor / Kantra violations" | `discover . --with-kantra` → `.rgctl/kantra_findings.json` |
+| "Generate migration plan" / "What should we extract first?" | `discover . --export-migration-hints` → `.rgctl/migration_plan.json` |
 | "Bottlenecks / hotspots" | `metrics --pagerank` |
 | "Where is checkout flow?" | `semantic query "checkout flow" --limit 10` |
 | "Impact if I change X" | `blast-radius X --depth 2` |
@@ -208,8 +207,7 @@ All paths under **`{repo}/.rgctl/`**:
 |------|---------|
 | `graph.snapshot.bin` | Main graph snapshot |
 | `semantic_index.bin` | Semantic index |
-| `migration_plan.json` | Migration roadmap |
-| `kantra_findings.json` | Kantra violations (`--with-kantra`) |
+| `migration_plan.json` | Migration roadmap (`--export-migration-hints`) |
 | `dashboard/` | Dashboard bundle |
 | `analysis/` | CFG/PDG archives |
 

@@ -83,7 +83,6 @@ Upgrading from an old daemon install: copy `~/.rgctl/cache/{name}/.rgctl/` into 
 | Temporal PR gate | `rgctl -f json pr-check --policy-file rgctl-pr-policy.json --base-artifact .rgctl-base --base-ref origin/main --head-ref HEAD --strict` |
 | Check temporal bridge | `rgctl -f json check --temporal --policy-file policy.json --base-ref origin/main --head-ref HEAD` |
 | Incremental file index | `rgctl discover --files src/foo.rs,src/bar.rs` (requires existing `.rgctl/` snapshot) |
-| Kantra migration rules | `rgctl discover . --with-kantra` |
 
 ---
 
