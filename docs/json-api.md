@@ -78,7 +78,8 @@ if (doc.schema_version !== 2) {
 |---------|------------------------:|------------------|
 | `discover` | **2** | v2 introduced structured `metrics` block |
 | `blast-radius` | **2** | v2 added `target.language`, `target.canonical_fqn`, `metrics.caller_depth_limit` |
-| `find` / `callers` / `callees` / `relations` / `inventory` / `status` | **2** (find/neighbors/relations/inventory); **1** (`status`) | — |
+| `find` / `callers` / `callees` / `relations` / `inventory` / `status` | **2** (find/neighbors/relations/inventory); **2** (`status`) | `status` v2 adds `index_current` / dirty counts |
+| `update` | **1** | Incremental structural patch |
 | `metrics` | **1** | — |
 | `check` | **1** | — |
 | `slice` | **1** | — |
@@ -102,7 +103,8 @@ if (doc.schema_version !== 2) {
 |---------|:---------:|--------------|-------------|
 | `discover` | ✅ | `metrics` | CI ingestion gates, timing |
 | `find` / `callers` / `callees` / `relations` / `inventory` | ✅ | `entities`, `edges`, `counts` | Symbol lookup, call graph, inventories |
-| `status` | ✅ | `status`, `nodes`, `edges` | Session snapshot health |
+| `status` | ✅ | `status`, `nodes`, `edges`, `index_current` | Session snapshot + source staleness |
+| `update` | ✅ | `files_affected`, node/edge deltas | Incremental structural graph patch |
 | `blast-radius` | ✅ | `target`, `metrics`, `topology` | Change-impact automation |
 | `metrics` | ✅ | `pagerank`, `betweenness`, `communities` | Hotspot ranking |
 | `check` | ✅ | `passed`, `violations` | CI policy gate |
@@ -110,10 +112,14 @@ if (doc.schema_version !== 2) {
 | `inspect` | ✅ | `layer`, `nodes`, `edges` | CFG/PDG/dominance dumps |
 | `semantic` | ✅ | `hits` / `functions_indexed` | Opt-in NL / keyword search |
 | `communities` | ✅ | `communities`, `modularity` | Named community labels |
-| `cpg` | ✅ | varies by subcommand | Hybrid CPG façade |
+| `cpg` | ✅ | varies by subcommand | Hybrid CPG façade (`slice` / `inspect` are canonical for flow/CFG) |
+| `vuln` / `deps` | ✅ | varies | OSV triage / analyze / deps check (`security …` aliases same handlers) |
+| `security` | ✅ | same as `vuln`/`deps`/`taint` | Soft namespace; no separate JSON schema |
 | `install` | ✅ | `writes` | Install bundled agent pack (skills + optional commands) |
 | `export` | ❌ (file) | — | Full-graph serialization |
 | `serve` | ❌ | — | HTTP dashboard + semantic API (foreground) |
+
+Help groups commands as Lifecycle · Query · Analysis · Security · Policy · Meta (`rgctl --help` command map).
 
 ---
 
@@ -272,7 +278,7 @@ rgctl -f json status
 
 ```typescript
 interface SessionStatus {
-  schema_version: 1;
+  schema_version: 2;
   command: "status";
   status: "ok" | "missing";
   repo: string;
@@ -282,9 +288,64 @@ interface SessionStatus {
   edges?: number;
   kantra_findings: boolean;
   kantra_findings_path?: string;
+  /** Present when status is `ok`: sources match file_hashes.json */
+  index_current?: boolean;
+  dirty_files?: number;
+  files_added?: number;
+  files_changed?: number;
+  files_deleted?: number;
+  dirty_sample?: string[];
+  /** Live `serve --watch` elected via `.rgctl/watch.lock` */
+  watcher_alive?: boolean;
+  watcher_pid?: number;
+  /** Pending lines in `.rgctl/update_queue.jsonl` */
+  update_queue_pending?: number;
   message?: string;
 }
 ```
+
+When `index_current` is `false`, `message` hints at `rgctl update` or `serve --watch`. Status does not rewrite the snapshot.
+
+### `update`
+
+```bash
+rgctl -f json update
+rgctl -f json update --files src/Foo.java
+rgctl -f json update --since HEAD~1
+rgctl -f json update --no-wait          # enqueue only when serve --watch is live
+rgctl -f json update --wait-timeout 30
+```
+
+```typescript
+interface UpdateResultJson {
+  schema_version: 1;
+  command: "update";
+  files_added: number;
+  files_changed: number;
+  files_deleted: number;
+  files_affected: number;
+  nodes_added: number;
+  nodes_removed: number;
+  edges_added: number;
+  edges_removed: number;
+  duration_ms: number;
+  message?: string; // e.g. "already current"
+  /** Present when completed via the watch queue */
+  source?: "watch_queue";
+  warnings?: string[];
+}
+
+/** `--no-wait` while a live watcher holds the lock */
+interface UpdateQueuedJson {
+  schema_version: 1;
+  command: "update";
+  queued: true;
+  request_id: string;
+  message?: string;
+}
+```
+
+When `serve --watch` is live, `update` enqueues to `.rgctl/update_queue.jsonl` and waits for a result (default). See [Watch mode](guides/watch-mode.md).
 
 ### jq examples
 
@@ -467,14 +528,67 @@ rgctl -f json check --policy-file policy.json | jq '{passed, count: (.violations
 
 ---
 
-## 8b. `pr-check`
+## 8b. `review check` / `pr-check`
 
 ```bash
+rgctl -f json review check --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-ref origin/main --head-ref HEAD --strict
+# Compatibility alias (identical JSON + exit codes):
 rgctl -f json pr-check --policy-file rgctl-tests/rgctl-pr-policy.json \
   --base-ref origin/main --head-ref HEAD --strict
 ```
 
-Temporal PR gate: compares base + head graph snapshots, git-scoped entities, classifies violations as `new` | `existing` | `resolved` | `regression`. Default head synthesis builds a delta head from the base artifact; use `--full-snapshots` for pre-built dual artifacts. Flags: `--bisect`, `--synthetic-head worktree`, `--cascade-depth`.
+Temporal PR gate: compares base + head graph snapshots, git-scoped entities, classifies violations as `new` | `existing` | `resolved` | `regression`. Default head synthesis builds a delta head from the base artifact; use `--full-snapshots` for pre-built dual artifacts. Flags: `--bisect`, `--synthetic-head worktree`, `--cascade-depth`. Preferred command name is **`review check`**; `pr-check` remains a synonym.
+
+---
+
+## 8c. `review paths`
+
+```bash
+rgctl -f json review paths --base-ref origin/main --head-ref HEAD --full-snapshots
+# Optional: --upstream-depth 2 --downstream-depth 1 --symbol submitOrder --fanout 10 --max-symbols 50
+```
+
+Structural before/after call-path report (not a policy gate). Shares base/head artifact prep with `review check`. Truncation sets flags in JSON but still exits **0** when the report is produced. Ambiguous `--symbol` returns `ambiguous` candidates and exits **2**.
+
+### TypeScript shape
+
+```typescript
+interface ReviewPathsResponse {
+  schema_version: 1;
+  command: "review paths";
+  change_summary: {
+    changed_symbols: number;
+    call_edges: {
+      added: number;
+      removed: number;
+      retargeted: number;
+      unchanged: number;
+    };
+    files_in_scope: number;
+    unscored_files: number;
+  };
+  truncation: { symbols: boolean; fanout: boolean; depth: boolean };
+  symbols: {
+    stable_key: string;
+    name: string;
+    kind: string;
+    base?: { file?: string; start_line: number; end_line: number };
+    head?: { file?: string; start_line: number; end_line: number };
+    path_before: string[];
+    path_after: string[];
+    path_delta: PathDelta[];
+    truncation: { symbols: boolean; fanout: boolean; depth: boolean };
+  }[];
+  unscored_files: { path: string; reason: string }[];
+  ambiguous: { name: string; file?: string; stable_key: string }[];
+}
+
+type PathDelta =
+  | { kind: "added"; from: string; to: string; call_site_line?: number }
+  | { kind: "removed"; from: string; to: string; call_site_line?: number }
+  | { kind: "retargeted"; from: string; to_before: string; to_after: string };
+```
 
 ### TypeScript shape
 

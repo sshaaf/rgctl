@@ -4,9 +4,36 @@ Detailed reference for all rgctl commands with full JSON samples and field speci
 
 Samples below are truncated where noted. Field names match live CLI / `docs/json-api.md`. Fixture: `rgctl-tests/ecommerce-java` unless noted **illustrative** (schema-faithful shape).
 
+## Canonical command map
+
+Prefer the **Canonical** column in examples and agent workflows. Aliases/façades remain supported.
+
+| Intent | Canonical | Aliases / façades |
+|--------|-----------|-------------------|
+| Index / cold start | `discover` | — |
+| Session freshness | `status` → `update` | `serve --watch` (+ queue) |
+| Symbol lookup | `find` | `query find` |
+| Callers / callees | `callers` / `callees` | `query …`, `cpg calls` |
+| Typed edges | `relations` | `query relations` |
+| Counts | `inventory` | `query inventory` |
+| Line slice / flow | `slice` | `cpg slice`, `cpg flows` |
+| Raw CFG / PDG | `inspect` | `cpg pdg` |
+| Impact | `blast-radius` | — |
+| OSV → OpenVEX | `vuln analyze` | `security vuln analyze` |
+| Dep match | `deps check` | `security deps check` |
+| Sink taint CLI | `taint` | `security taint` |
+| CI policy | `check` | — |
+| PR call-path review | `review paths` | — |
+| PR policy gate | `review check` | `pr-check` (alias) |
+| Kantra rules | `rules run` | — |
+| Experimental GQL | `gql` | prefer Query verbs above |
+
+`rgctl --help` lists commands under visual groups: Lifecycle · Query · Analysis · Security · Policy · Meta (flat verbs unchanged: `rgctl discover`, not nested).
+
 ## Table of Contents
 
 - [discover](#discover)
+- [update](#update)
 - [find / callers / callees / relations / inventory](#find--callers--callees--relations--inventory)
 - [blast-radius](#blast-radius)
 - [slice](#slice)
@@ -16,6 +43,7 @@ Samples below are truncated where noted. Field names match live CLI / `docs/json
 - [communities](#communities)
 - [cpg](#cpg)
 - [check](#check)
+- [review](#review)
 - [export](#export)
 - [serve](#serve)
 
@@ -23,7 +51,7 @@ Samples below are truncated where noted. Field names match live CLI / `docs/json
 
 ## discover
 
-**Command:** `rgctl [-f json] discover [PATH] [-l/--languages CSV] [-e/--exclude GLOB] [-v/--verbose] [--with-cfg] [--with-security] [--with-taint] [--with-dashboard] [--with-harmonic] [--export-migration-hints] [--with-kantra] [--kantra-target NAME] [--kantra-rules DIR] [--kantra-catalog ROOT] [--kantra-index-only] [--with-ast-skeleton] [--with-dfg-loops] [--write-json-graph] …`
+**Command:** `rgctl [-f json] discover [PATH] [-l/--languages CSV] [-e/--exclude GLOB] [-v/--verbose] [--with-cfg] [--with-security] [--with-taint] [--with-dashboard] [--with-harmonic] [--export-migration-hints] [--migration-preset NAME] [--migration-order NAME] [--with-ast-skeleton] [--with-dfg-loops] [--write-json-graph] …`
 
 **Purpose:** Index the repo once (or after large changes). Build the graph agents query.
 
@@ -31,7 +59,7 @@ Samples below are truncated where noted. Field names match live CLI / `docs/json
 
 **Other flags:** `--languages java,go` restricts the language set; `--exclude` filters paths (glob); `--verbose` prints per-file progress (noisy — skip unless debugging a stuck/slow discover); `--write-json-graph` also writes legacy `graph.db`/`graph.json` (rarely needed, snapshot-only is the default and is what agents should rely on).
 
-**Kantra flags (`--with-kantra`):** Embeds Konveyor `stable/java` catalog by default. Writes `.rgctl/kantra_findings.json` and indexes `KantraRule` / `KantraRuleset` nodes into `graph.snapshot.bin`. `--kantra-target` filters by `konveyor.io/target` label. `--kantra-rules` / `--kantra-catalog` override embedded catalog. `--kantra-index-only` skips eval. Does not change discover stdout JSON shape.
+**Migration flags:** `--export-migration-hints` writes `.rgctl/migration_plan.json` (primary migration deliverable for agents). Pair with `--with-harmonic` for ranking. `--migration-preset` / `--migration-order` control strategy and step sort. Discover `-f json` stdout remains telemetry — the plan body is the JSON file.
 
 **Sample** (`-f json`, ecommerce-java):
 
@@ -50,53 +78,50 @@ Samples below are truncated where noted. Field names match live CLI / `docs/json
 }
 ```
 
-**Pitfalls:** Do not re-run on every question if `.rgctl/` exists. `--with-cfg` needed for slice/inspect/cpg PDG. `--with-taint` is discover-time taint (on-demand: `slice --taint`). Semantic search needs a separate `semantic index`. Kantra eval does **not** need `--with-cfg`; read violations from `kantra_findings.json`, not discover stdout.
+**Pitfalls:** Do not re-run full discover on every question if `.rgctl/` exists — use `status` + `update` when sources are dirty. `--with-cfg` needed for slice/inspect/cpg PDG. `--with-taint` is discover-time taint (on-demand: `slice --taint`). Semantic search needs a separate `semantic index`. Migration roadmaps need `--export-migration-hints` (plan is `migration_plan.json`, not discover stdout).
 
-**Agent should report:** files indexed, nodes/edges, duration; note which feature flags were used.
+**Agent should report:** files indexed, nodes/edges, duration; note which feature flags were used; for migration, path to `migration_plan.json` + top steps.
 
 ---
 
-## kantra_findings (on-disk)
+## update
 
-**Path:** `.rgctl/kantra_findings.json` (after `discover --with-kantra`, eval not skipped)
+**Command:** `rgctl [-f json] update [PATH] [--files PATH,...] [--since REF] [--cascade-depth N] [--force] [--no-wait] [--wait-timeout SECS] [-l/--languages CSV] [-e/--exclude GLOB]`
 
-**Purpose:** Konveyor Kantra rule violations and per-rule skip reasons.
+**Purpose:** Incremental **structural** graph patch for changed sources. Not a full discover — does not rebuild communities, Kantra, CFG/PDG, or migration plans. Prefer this (or `serve --watch`) over rediscover when the working tree drifts.
 
-**Prerequisites:** `discover --with-kantra` (omit `--kantra-index-only` if you need violations).
+**Prerequisites:** Existing `.rgctl/` snapshot (`rgctl discover` once).
 
-**Sample** (truncated):
-
-```json
-{
-  "schema_version": 1,
-  "command": "kantra_findings",
-  "catalog_id": "stable-java@022bbd34b34eca53d04b6cb2b97b27e47fef479b",
-  "ruleset": "embedded-stable-java",
-  "target_filter": "quarkus",
-  "evaluated_rules": 2656,
-  "violations": [
-    {
-      "rule_id": "springboot-00001",
-      "category": "mandatory",
-      "file": "src/main/java/com/example/Foo.java",
-      "line": 12,
-      "message": "…",
-      "matched_by": "java.referenced"
-    }
-  ],
-  "skipped_rules": [
-    { "rule_id": "some-xml-rule", "reason": "unsupported: builtin.xml" }
-  ]
-}
+**Examples:**
+```bash
+rgctl update                         # hash-diff vs file_hashes.json
+rgctl update --files src/Foo.java    # explicit paths
+rgctl update --since HEAD~1          # git-changed files
+rgctl -f json update                 # schema_version + UpdateResult fields
+rgctl update --no-wait               # enqueue only when serve --watch is live
 ```
 
-**Structured companion:** After discover, list indexed rules with `find --type kantrarule` / `inventory --by type`. Rule→code links after full eval: `relations --edge violates --from-type kantrarule`. Prefer `kantra_findings.json` for line-level violations.
+**Compatible alias:** `rgctl discover --files path1,path2` (same incremental updater / queue handoff).
 
-**Pitfalls:** Full embedded catalog skips many rules (unsupported providers, Windup regex). Use `kantra_findings.json` for violation details; `VIOLATES` edges exist after full eval (not `--kantra-index-only`).
+**Watch handoff:** While `serve --watch` holds `.rgctl/watch.lock`, `update` **enqueues** for the watcher (sole writer) and waits by default (`source: "watch_queue"` in JSON). Do **not** stop serve to refresh. `--force` is rejected under a live watcher. Second `serve --watch` still exits.
 
-**Agent should report:** `catalog_id`, `target_filter`, violation count, representative hits, skip summary — not full JSON dump.
+**Pitfalls:** After update, analysis sidecars keyed on graph digest may be invalidated — re-run `discover --with-cfg` / `semantic index` only when those features are needed. Empty change set exits 0 with “already current”.
 
-**See:** [docs/json-api.md](../../docs/json-api.md#kantra_findingsjson)
+**Agent should report:** files_affected, nodes/edges deltas; if zero, say index already current; if queued via watch, note `source: watch_queue`.
+
+---
+
+## migration_plan (on-disk)
+
+**Path:** `.rgctl/migration_plan.json` (after `discover --export-migration-hints`)
+
+**Purpose:** Community/centrality-based migration roadmap for agents (packages, steps, ordering).
+
+**Prerequisites:** `discover … --export-migration-hints` (typically with `--with-harmonic` for ranking).
+
+**Agent should report:** preset/order, top packages/steps by priority — summarize, do not paste the full plan JSON into context.
+
+**See:** [Migration Planning Guide](../../docs/guides/migration-planning.md), migrate workflow in [workflows.md](workflows.md)
 
 ---
 
@@ -117,28 +142,27 @@ rgctl -f json relations --edge extends --from-type class   # seedless
 rgctl -f json inventory --by type   # includes zero-count kinds
 rgctl -f json inventory --by edge
 rgctl -f json inventory --by import-prefix   # javax.ejb / javax.jms / org.eclipse …
-rgctl -f json status                # snapshot presence, digest, node/edge counts
+rgctl -f json status                # snapshot + index_current / dirty_files
+rgctl update                        # patch structural graph when status is dirty
 rgctl discover . --find '*coolstore*'   # locate candidate project roots (no index)
-rgctl -f json rules run ./rules/ [--target quarkus]   # post-index Kantra eval
 rgctl -f json find --annotation @Resource --show-attributes  # needs annotation_args.json from discover
 rgctl -f json query find …          # alias namespace
 ```
 
 **Purpose:** Deterministic mmap structured query (no Cypher, no `MemoryBackend` hydrate). **Agents must use these verbs** — do not invent MATCH strings. Relations `total` is distinct `(source,target,edge)`; duplicates collapse with `occurrences` (`schema_version` ≥ 2). `inventory --by edge` uses the same rule: `count` = distinct, `occurrences` = raw stored edges.
 
-**Migration probes (Coolstore-shaped):**
-1. `status` — is `.rgctl/` fresh?
-2. `inventory --by import-prefix` — EE surface census
-3. `find --annotation @MessageDriven|@SessionScoped|…` — blockers without package guess
-4. `find '*MDB*'` / `'*Remote*'` — suffix scan before reading files
-5. `rules run ./rules/` or `discover --with-kantra` — fire `when:` catalog (M2)
-6. `callers InitialContext` — JNDI usage sites
+**Migration (agents):** primary path is `discover --export-migration-hints` → `.rgctl/migration_plan.json`. Optional supporting probes (keep `--limit` small):
+1. `status` — is `.rgctl/` present and `index_current`?
+2. If not current → `rgctl update` (not full discover)
+3. `inventory --by import-prefix --limit 40` — import surface census
+4. `find --annotation …` / suffix globs — blockers without package guess
+5. `callers` / `blast-radius` on plan candidates
 
-**Prerequisites:** `discover` done (columnar `graph.snapshot.bin`). `status` does not rediscover. `rules run` requires a snapshot; Kantra stays opt-in.
+**Prerequisites:** `discover` done (columnar `graph.snapshot.bin`). `status` does not rediscover or update.
 
 **Flags:** `--annotation` inverts `AnnotatedWith` (OR list; `@` optional). `--show-attributes` needs annotation-arg indexing (errors honestly until indexed). `--scope` + `--scope-mode inside|outside|crossing` (or `--exclude-scope`). `--file` / `--class` / `--line` disambiguate. Edge rows use keyed `source`/`target` (never positional). Omit `SYMBOL` on `relations` for set-wide typed-edge scans.
 
-**Pitfalls:** Exact name is O(1) hash; prefix/contains/`--scope` may scan. Ambiguous symbols emit candidates (`error: ambiguous_symbol` JSON under `-f json`). Annotation argument values are not in the graph yet. Warm caches invalidate wall-time claims — label cold vs warm. Do not scrape stderr; parse `schema_version` on stdout. Do not treat Kantra as the only search path — use annotation/import first.
+**Pitfalls:** Exact name is O(1) hash; prefix/contains/`--scope` may scan. Ambiguous symbols emit candidates (`error: ambiguous_symbol` JSON under `-f json`). Annotation argument values are not in the graph yet. Warm caches invalidate wall-time claims — label cold vs warm. Do not scrape stderr; parse `schema_version` on stdout.
 
 **Agent should report:** counts, lean names/files, keyed edge pairs — not full node dumps.
 
@@ -517,6 +541,65 @@ rgctl cpg export --format graphson --output cpg.json [--path-contains src/] \
 **Pitfalls:** Exit code `1` on failure — still parse JSON for violations.
 
 **Agent should report:** passed/failed + violation summaries.
+
+---
+
+## review
+
+**Family:** temporal PR analysis under `rgctl review …`.
+
+### review paths
+
+**Command:** `rgctl -f json review paths [--base-ref REF] [--head-ref REF] [--full-snapshots] [--upstream-depth N] [--downstream-depth N] [--symbol NAME]`
+
+**Purpose:** Before/after call-path report for changed symbols (spines + `path_delta`). Not a policy gate.
+
+**Prerequisites:** Base/head graph snapshots (same prep as `review check` / `pr-check`).
+
+**Sample (shape):**
+
+```json
+{
+  "schema_version": 1,
+  "command": "review paths",
+  "change_summary": {
+    "changed_symbols": 1,
+    "call_edges": { "added": 0, "removed": 0, "retargeted": 1, "unchanged": 0 },
+    "files_in_scope": 1,
+    "unscored_files": 0
+  },
+  "truncation": { "symbols": false, "fanout": false, "depth": false },
+  "symbols": [
+    {
+      "name": "submitOrder",
+      "path_before": ["CheckoutController.handle", "submitOrder", "chargeCard"],
+      "path_after": ["CheckoutController.handle", "submitOrder", "authorizeThenCapture"],
+      "path_delta": [
+        {
+          "kind": "retargeted",
+          "from": "submitOrder",
+          "to_before": "chargeCard",
+          "to_after": "authorizeThenCapture"
+        }
+      ]
+    }
+  ],
+  "unscored_files": [],
+  "ambiguous": []
+}
+```
+
+**Pitfalls:** Truncation flags do not fail the command. Ambiguous `--symbol` lists `ambiguous` and exits non-zero. Do not dump raw JSON to the user; present spines then summary then unscored.
+
+**Agent should report:** representative before/after paths + delta kinds; note truncation / unscored files.
+
+### review check
+
+**Command:** `rgctl -f json review check --policy-file PATH [--base-ref REF] [--head-ref REF] …`
+
+**Purpose:** Temporal PR policy gate (new/existing/resolved/regression). Prefer this name; **`pr-check`** is a compatibility alias with identical JSON and exit codes.
+
+**See:** [CI Policy Checks](../../docs/guides/ci-policy-checks.md), [json-api § pr-check / review check](../../docs/json-api.md#8b-pr-check).
 
 ---
 

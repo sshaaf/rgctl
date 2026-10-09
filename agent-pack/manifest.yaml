@@ -11,8 +11,6 @@ workflows:
     title: Semantic and structural search
   - id: migrate
     title: Migration roadmap
-  - id: kantra
-    title: Konveyor Kantra rules
   - id: gate
     title: CI and policy gates
   - id: vuln

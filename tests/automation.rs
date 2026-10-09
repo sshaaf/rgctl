@@ -202,3 +202,180 @@ fn test_full_workflow_modify_and_update() {
     assert!(result.files_affected() >= 1);
     assert!(graph.node_count() >= before);
 }
+
+#[test]
+fn test_cli_update_paths_and_noop() {
+    use rgctl::cli::update::{UpdateArgs, run_update_at, update_paths};
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let graph = chain_graph_repo(&temp);
+    // CLI update requires columnar snapshot (save_to_repo alone is legacy JSON).
+    graph.save_snapshot(root).unwrap();
+
+    let noop = run_update_at(
+        root,
+        &UpdateArgs {
+            cascade_depth: 1,
+            ..UpdateArgs::default()
+        },
+        false,
+        true,
+    )
+    .unwrap();
+    assert_eq!(noop.files_affected(), 0);
+
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn a() { b(); }\npub fn b() { c(); }\npub fn c() {}\npub fn e() {}\n",
+    )
+    .unwrap();
+    let updated = update_paths(root, &["src/lib.rs".into()], 1).unwrap();
+    assert!(updated.files_affected() >= 1 || updated.nodes_added > 0);
+}
+
+#[test]
+fn test_update_in_process_blocked_when_watch_lock_held() {
+    use rgctl::cli::pipeline_status::try_acquire_watch_lock;
+    use rgctl::cli::update::{UpdateArgs, run_update_at};
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let graph = chain_graph_repo(&temp);
+    graph.save_snapshot(root).unwrap();
+
+    let _watch = try_acquire_watch_lock(root).unwrap();
+    // In-process compact still cannot take the lock while it is held (watch path).
+    let err = run_update_at(
+        root,
+        &UpdateArgs {
+            cascade_depth: 1,
+            ..UpdateArgs::default()
+        },
+        false,
+        true,
+    )
+    .unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("watch") || msg.contains("watcher") || msg.contains("lock"),
+        "unexpected error: {msg}"
+    );
+}
+
+#[test]
+fn test_update_queue_enqueue_drain_and_result() {
+    use rgctl::cli::pipeline_status::{
+        WATCH_LOCK_FILE, detect_live_watcher, process_alive, update_queue, watch_lock_path,
+    };
+    use rgctl::cli::update::apply_queue_batch;
+    use update_queue::{
+        UpdateQueueMode, build_request, drain_queue, enqueue, queue_nonempty, read_result,
+    };
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let graph = chain_graph_repo(&temp);
+    graph.save_snapshot(root).unwrap();
+
+    // Simulate an external live watcher (pid 1 is typically init/launchd).
+    let external_pid = 1u32;
+    if !process_alive(external_pid) || external_pid == std::process::id() {
+        return;
+    }
+    let lock = watch_lock_path(root);
+    fs::create_dir_all(lock.parent().unwrap()).unwrap();
+    fs::write(&lock, format!("{external_pid}\n")).unwrap();
+    assert!(
+        detect_live_watcher(root).is_some(),
+        "expected live watcher for pid {external_pid}"
+    );
+    assert!(lock.file_name().and_then(|n| n.to_str()) == Some(WATCH_LOCK_FILE));
+
+    let req = build_request(
+        UpdateQueueMode::Paths,
+        Some(vec!["src/lib.rs".into()]),
+        None,
+        Some(1),
+        None,
+        None,
+    )
+    .unwrap();
+    let id = req.request_id.clone();
+    enqueue(root, &req).unwrap();
+    assert!(queue_nonempty(root));
+
+    let batch = drain_queue(root).unwrap();
+    assert_eq!(batch.requests.len(), 1);
+    apply_queue_batch(root, &batch, &[]).unwrap();
+    let result = read_result(root, &id).unwrap().expect("result file");
+    assert!(result.ok, "expected ok result, got {:?}", result.error);
+    assert_eq!(result.source, "watch_queue");
+}
+
+#[test]
+fn test_update_queue_no_wait_leaves_pending() {
+    use rgctl::cli::pipeline_status::{process_alive, update_queue, watch_lock_path};
+    use update_queue::{
+        UpdateQueueMode, build_request, enqueue, queue_nonempty, queue_pending_count,
+        wait_for_result,
+    };
+    use std::time::Duration;
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let external_pid = 1u32;
+    if !process_alive(external_pid) || external_pid == std::process::id() {
+        return;
+    }
+    let lock = watch_lock_path(root);
+    fs::create_dir_all(lock.parent().unwrap()).unwrap();
+    fs::write(&lock, format!("{external_pid}\n")).unwrap();
+
+    let req = build_request(UpdateQueueMode::HashDiff, None, None, Some(1), None, None).unwrap();
+    let id = req.request_id.clone();
+    enqueue(root, &req).unwrap();
+    assert!(queue_nonempty(root));
+    assert_eq!(queue_pending_count(root), 1);
+    // No watcher drain → wait times out (same failure mode as CLI --wait-timeout).
+    let err = wait_for_result(root, &id, Duration::from_millis(80)).unwrap_err();
+    assert!(
+        format!("{err:#}").contains("timed out"),
+        "expected timeout, got {err:#}"
+    );
+}
+
+#[test]
+fn test_stale_watch_lock_allows_local_update() {
+    use rgctl::cli::pipeline_status::{process_alive, try_acquire_watch_lock, watch_lock_path};
+    use rgctl::cli::update::{UpdateArgs, run_update_at};
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let graph = chain_graph_repo(&temp);
+    graph.save_snapshot(root).unwrap();
+
+    let dead_pid = 4_294_967_294u32;
+    if process_alive(dead_pid) {
+        return;
+    }
+    let lock = watch_lock_path(root);
+    fs::create_dir_all(lock.parent().unwrap()).unwrap();
+    fs::write(&lock, format!("{dead_pid}\n")).unwrap();
+
+    // Reclaim + in-process update succeeds.
+    let result = run_update_at(
+        root,
+        &UpdateArgs {
+            cascade_depth: 1,
+            ..UpdateArgs::default()
+        },
+        false,
+        true,
+    )
+    .unwrap();
+    assert_eq!(result.files_affected(), 0);
+    // Lock should now be held by us or released after Drop of temporary acquire inside run.
+    drop(result);
+    let _ = try_acquire_watch_lock(root).expect("lock free or reclaimable after update");
+}

@@ -20,6 +20,7 @@ pub mod semantic_json;
 pub mod session;
 pub mod slice_json;
 pub mod status;
+pub mod update_queue;
 
 pub use command::{
     CheckArgs, Command, CommandRegistry, CpgArgs, CpgOp, DEFAULT_LIMIT, ImpactArgs, MetricsArgs,

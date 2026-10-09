@@ -1,50 +1,28 @@
-//! `rgctl pr-check` — temporal PR policy gate.
+//! `rgctl pr-check` / `rgctl review check` — temporal PR policy gate.
 
 use super::args::OutputFormat;
 use super::context::CliContext;
 use super::policy_file::PolicyFile;
 use super::pr_check_output::build_pr_check_response;
-use crate::analysis::{
-    BlastRadiusEngine, PolicyDelta, PolicyRegistry, TemporalClass,
-    ViolationLedger, apply_ledger_regression, build_pr_check_centrality,
-    collect_upstream_call_closure, evaluate_calendar_for_deltas, evaluate_temporal,
-    hydrate_subset, record_deltas_to_ledger, scope_entity_ids, system_today_days,
-    system_unix_secs,
+use super::temporal_prep::{
+    SyntheticHeadMode, TemporalArtifactArgs, prepare_artifacts, resolve_scope_paths,
+    resolve_unified_diff,
 };
-use crate::languages::registry::LanguageRegistry;
+use crate::analysis::{
+    BlastRadiusEngine, PolicyDelta, PolicyRegistry, TemporalClass, ViolationLedger,
+    apply_ledger_regression, build_pr_check_centrality, collect_upstream_call_closure,
+    evaluate_calendar_for_deltas, evaluate_temporal, hydrate_subset, record_deltas_to_ledger,
+    scope_entity_ids, system_today_days, system_unix_secs,
+};
 use anyhow::{Context, Result};
 use rgctl_graph::code_graph::GRAPH_DIR;
-use rgctl_graph::snapshot::MmappedGraphSnapshot;
 use rgctl_graph::snapshot_diff::{SnapshotPair, VecDiffSink, diff_snapshots};
 use rgctl_graph::stable_key::StableNodeKey;
-use rgctl_incremental::{
-    EntityScope, HeadSynthesisOptions, HunkIndex, ScopedPaths, git_diff_worktree_vs_head,
-    git_rev_list_reverse, git_unified_diff, git_unified_diff_worktree, resolve_base_artifact_root,
-    resolve_pr_check_artifacts, synthesize_head_snapshot, synthesize_worktree_head_snapshot,
-};
+use rgctl_incremental::{EntityScope, HunkIndex, git_rev_list_reverse};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 use std::process::Command;
-use std::sync::Arc;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SyntheticHeadMode {
-    None,
-    Worktree,
-}
-
-impl SyntheticHeadMode {
-    fn parse(value: Option<&str>) -> Result<Self> {
-        match value {
-            None => Ok(Self::None),
-            Some("worktree") => Ok(Self::Worktree),
-            Some(other) => anyhow::bail!(
-                "unsupported --synthetic-head value '{other}' (supported: worktree)"
-            ),
-        }
-    }
-}
 
 pub struct PrCheckArgs {
     pub policy_file: String,
@@ -59,6 +37,19 @@ pub struct PrCheckArgs {
     pub bisect: bool,
     pub synthetic_head: Option<String>,
     pub strict_calendar: bool,
+}
+
+impl PrCheckArgs {
+    fn temporal(&self) -> TemporalArtifactArgs {
+        TemporalArtifactArgs {
+            base_artifact: self.base_artifact.clone(),
+            head_artifact: self.head_artifact.clone(),
+            base_ref: self.base_ref.clone(),
+            head_ref: self.head_ref.clone(),
+            cascade_depth: self.cascade_depth,
+            full_snapshots: self.full_snapshots,
+        }
+    }
 }
 
 struct PrCheckEval {
@@ -186,14 +177,15 @@ fn evaluate_pr_check(
     max_scoped_entities: Option<usize>,
     synthetic_head: SyntheticHeadMode,
 ) -> Result<PrCheckEval> {
-    let artifacts = prepare_artifacts(ctx, args, synthetic_head)?;
+    let temporal = args.temporal();
+    let artifacts = prepare_artifacts(ctx, &temporal, synthetic_head)?;
     let pair = SnapshotPair::open(&artifacts.base_snapshot, &artifacts.head_snapshot)
         .with_context(|| "open snapshot pair")?;
 
     let mut sink = VecDiffSink::default();
     let graph_diff = diff_snapshots(&pair.base, &pair.head, &mut sink)?;
 
-    let paths = resolve_scope_paths(ctx, args, synthetic_head)?;
+    let paths = resolve_scope_paths(ctx, &temporal, synthetic_head)?;
     if args.strict && paths.is_empty() {
         anyhow::bail!("strict diff scope: no changed files between refs");
     }
@@ -207,7 +199,7 @@ fn evaluate_pr_check(
         }
     }
 
-    let unified = resolve_unified_diff(ctx, args, synthetic_head)?;
+    let unified = resolve_unified_diff(ctx, &temporal, synthetic_head)?;
     let hunk_index = HunkIndex::from_unified_diff(&unified);
     let scope = EntityScope::new(&pair.head, &paths, Some(&hunk_index));
     let scope_keys = scope.changed_entities()?;
@@ -254,92 +246,6 @@ fn evaluate_pr_check(
         scoped_files: paths.len(),
         scoped_entities: scope_keys.len(),
     })
-}
-
-fn prepare_artifacts(
-    ctx: &CliContext,
-    args: &PrCheckArgs,
-    synthetic_head: SyntheticHeadMode,
-) -> Result<rgctl_incremental::PrCheckArtifactPaths> {
-    if synthetic_head == SyntheticHeadMode::Worktree {
-        let registry: Arc<rgctl_registry::LanguageRegistry> = LanguageRegistry::new().into();
-        synthesize_worktree_head_snapshot(&ctx.repo, args.cascade_depth, registry)
-            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        let base_snapshot = rgctl_incremental::resolve_base_snapshot(
-            &ctx.repo,
-            args.base_artifact.as_deref().map(Path::new),
-        )
-        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        let head_snapshot = MmappedGraphSnapshot::default_path(&ctx.repo);
-        return Ok(rgctl_incremental::PrCheckArtifactPaths {
-            base_snapshot,
-            head_snapshot,
-        });
-    }
-
-    let delta_head = !args.full_snapshots && args.head_artifact.is_none();
-    if delta_head {
-        let base_root = resolve_base_artifact_root(
-            &ctx.repo,
-            args.base_artifact.as_deref().map(Path::new),
-        )
-        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        let registry: Arc<rgctl_registry::LanguageRegistry> = LanguageRegistry::new().into();
-        synthesize_head_snapshot(
-            &base_root,
-            &ctx.repo,
-            &HeadSynthesisOptions {
-                base_ref: args.base_ref.clone(),
-                head_ref: args.head_ref.clone(),
-                cascade_depth: args.cascade_depth,
-            },
-            registry,
-        )
-        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        let base_snapshot = rgctl_incremental::resolve_base_snapshot(
-            &ctx.repo,
-            args.base_artifact.as_deref().map(Path::new),
-        )
-        .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        let head_snapshot = MmappedGraphSnapshot::default_path(&ctx.repo);
-        Ok(rgctl_incremental::PrCheckArtifactPaths {
-            base_snapshot,
-            head_snapshot,
-        })
-    } else {
-        resolve_pr_check_artifacts(
-            &ctx.repo,
-            args.base_artifact.as_deref().map(Path::new),
-            args.head_artifact.as_deref().map(Path::new),
-        )
-        .map_err(|e| anyhow::anyhow!(e.to_string()))
-    }
-}
-
-fn resolve_scope_paths(
-    ctx: &CliContext,
-    args: &PrCheckArgs,
-    synthetic_head: SyntheticHeadMode,
-) -> Result<ScopedPaths> {
-    if synthetic_head == SyntheticHeadMode::Worktree {
-        let change_set = git_diff_worktree_vs_head(&ctx.repo)
-            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
-        return Ok(ScopedPaths::from_change_set(change_set));
-    }
-    ScopedPaths::from_git_refs(&ctx.repo, &args.base_ref, &args.head_ref)
-        .with_context(|| "resolve git diff paths")
-}
-
-fn resolve_unified_diff(
-    ctx: &CliContext,
-    args: &PrCheckArgs,
-    synthetic_head: SyntheticHeadMode,
-) -> Result<String> {
-    if synthetic_head == SyntheticHeadMode::Worktree {
-        return git_unified_diff_worktree(&ctx.repo).map_err(|e| anyhow::anyhow!(e.to_string()));
-    }
-    git_unified_diff(&ctx.repo, &args.base_ref, &args.head_ref)
-        .map_err(|e| anyhow::anyhow!(e.to_string()))
 }
 
 fn bisect_new_violations(

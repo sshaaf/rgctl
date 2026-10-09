@@ -9,7 +9,6 @@ Worked NL scenarios showing the discover → query → reason → act pattern fo
 - [Data flow and slices](#flow-workflow)
 - [Semantic and structural search](#search-workflow)
 - [Migration roadmap](#migrate-workflow)
-- [Konveyor Kantra rules](#kantra-workflow)
 - [CI and policy gates](#gate-workflow)
 - [OSV triage and deps check](#vuln-workflow)
 - [Advanced patterns](#advanced-patterns)
@@ -18,17 +17,19 @@ Worked NL scenarios showing the discover → query → reason → act pattern fo
 
 # Discover workflow
 
-**When:** First use, rebuild after large changes, or incremental `--files` update.
+**When:** First use, rebuild after large changes, or incremental update after edits.
 
 | Intent | Command |
 |--------|---------|
 | Index repo | `cd "$REPO" && rgctl discover .` or `rgctl -r "$REPO" discover` |
 | Full pipeline | `discover . --full` |
-| Incremental | `discover --files path1,path2` (requires existing `.rgctl/`) |
+| Incremental patch | `rgctl update` or `rgctl update --files path1,path2` (requires existing `.rgctl/`) |
+| Live while editing | `rgctl serve --watch` (debounced FS updates; `update` enqueues if watch is live) |
+| Alias | `discover --files path1,path2` (same as `update --files`, including queue handoff) |
 
-**Fast path:** If `.rgctl/` exists and the user did not ask to rebuild, do **not** re-run discover.
+**Fast path:** If `.rgctl/` exists and the user did not ask to rebuild, do **not** re-run full discover. Check `rgctl status` (`index_current`); if false, run `rgctl update` once — do not stop `serve --watch` to refresh.
 
-Common flags: `--with-cfg` (CFG/PDG archive), `--with-ast-skeleton`, `--with-dfg-loops` (loop-carried PDG tags). Migration plan output is the **migrate** workflow; Konveyor rules are the **kantra** workflow — do not conflate them with a plain index.
+Common flags: `--with-cfg` (CFG/PDG archive), `--with-ast-skeleton`, `--with-dfg-loops` (loop-carried PDG tags). Migration roadmap output is the **migrate** workflow (`--export-migration-hints` → `migration_plan.json`) — do not conflate it with a plain index.
 
 Artifacts live at `{repo}/.rgctl/`. Check CFG readiness with `rgctl -f json cpg status` before slice/PDG workflows.
 
@@ -81,15 +82,15 @@ Coarse skeleton (`kind`, lines, `label`) — **not** a typed signature API (`par
 
 **User intent:** *"Confirm the CFG archive is ready, then slice how `quantity` is used in `updateQuantity`"*
 
+Canonical CLI is `rgctl slice` (CPG façade: `cpg slice` / `cpg flows`).
+
 ```bash
 rgctl -f json cpg status
-rgctl -f json cpg slice src/cart/CartService.ts \
+rgctl -f json slice src/cart/CartService.ts \
   --line 50 --variable quantity --function updateQuantity --view pdg
 ```
 
-**`cpg slice` has no `--symbol`.** For whole-function CFG/PDG, use `inspect <Symbol> cfg|pdg` or `cpg pdg <Symbol>`.
-
-CLI alias: `rgctl -f json slice FILE --line N --variable V [--function F] [--direction backward|forward]`.
+For whole-function CFG/PDG, use `inspect <Symbol> cfg|pdg` (façade: `cpg pdg <Symbol>`).
 
 ### Field mutations
 
@@ -164,13 +165,13 @@ Concepts often live in package/directory paths or type names, not bare function 
 
 # Migrate workflow
 
-**Primary output:** `.rgctl/migration_plan.json` (and dashboard migration view via `serve --open`).
+**Primary (and only) migration deliverable for agents:** `.rgctl/migration_plan.json` from `--export-migration-hints` (dashboard Migration tab via `serve --open` when `--with-dashboard` is set).
 
-**This workflow is not Kantra.** Do not treat `--with-kantra` or `kantra_findings.json` as the main deliverable here.
+Use this workflow for roadmap / extraction-order / "what should we migrate first?" questions. Summarize the plan — do not dump the whole JSON into context.
 
 ### Migration plan
 
-**User intent:** *"Generate a complete migration plan for this codebase"*
+**User intent:** *"Generate a complete migration plan for this codebase"* / *"What should we extract first?"*
 
 ```bash
 rgctl discover . --with-cfg --with-security --with-taint \
@@ -179,7 +180,7 @@ rgctl discover . --with-cfg --with-security --with-taint \
 # read .rgctl/migration_plan.json (and/or dashboard Migration tab via serve --open)
 ```
 
-Discover stdout (`-f json`) is **telemetry** — not the plan body. Report path + preset/order used + top `packages[]` by priority/step.
+Discover stdout (`-f json`) is **telemetry** — not the plan body. Report path + preset/order used + top `packages[]` / steps by priority.
 
 **Migration presets:**
 
@@ -239,85 +240,9 @@ rgctl discover . --with-cfg --with-security --with-taint \
 
 Choose `--migration-preset` to match user intent. Use `--migration-order priority` when the user wants highest-impact packages first instead of a dependency-safe sequence.
 
-For extraction ordering after violations, run the **kantra** workflow separately when Konveyor rules apply.
+Optional structural probes to explain plan steps (keep `--limit` small): `inventory --by import-prefix --limit 40`, `find --annotation …`, `blast-radius` on candidate packages.
 
-
----
-
-# Kantra workflow
-
-**Primary output:** `.rgctl/kantra_findings.json` and `KantraRule` / `VIOLATES` in the graph.
-
-**This workflow is not migration roadmap export.** Do not present `migration_plan.json` as the main Kantra deliverable.
-
-Native evaluation of [Konveyor Kantra](https://github.com/konveyor/kantra) rules against the rgctl graph and source cache. Release builds embed Konveyor `stable/java` (~2.6k rules); no external Kantra CLI required.
-
-### Default Kantra discover
-
-**User intent:** *"Run Konveyor migration rules on this Java codebase"*
-
-```bash
-rgctl discover . -l java --with-kantra
-# violations: .rgctl/kantra_findings.json
-
-# Post-index (when snapshot already exists):
-rgctl -f json rules run ./rules/ --target quarkus
-# rules in graph: find --type kantrarule / inventory --by type
-```
-
-Report `catalog_id`, `evaluated_rules`, violation count, sample hits (`rule_id`, `file`, `line`, `matched_by`), and top `skipped_rules` reasons.
-
-### Target-filtered eval
-
-**User intent:** *"What Quarkus migration rules apply?" / "Audit for Spring Boot 3+"*
-
-```bash
-rgctl discover . -l java --with-kantra --kantra-target quarkus
-# or: --kantra-target spring-boot3+
-```
-
-`target_filter` appears in `kantra_findings.json`. Only rules with `konveyor.io/target=<NAME>` labels are evaluated.
-
-### Rules inventory
-
-**User intent:** *"List migration rules indexed in the graph" / "How many Kantra rules?"*
-
-```bash
-rgctl -f json find --type kantrarule --limit 50
-rgctl -f json inventory --by type   # KantraRule / KantraRuleset counts
-# after full eval: rule → code links
-rgctl -f json relations --edge violates --from-type kantrarule --limit 50
-```
-
-Line-level detail and enrichment live in `kantra_findings.json` (preferred over edge dumps for violations).
-
-### Fixture / CI override
-
-**User intent:** *"Run a small custom ruleset in CI"*
-
-```bash
-rgctl discover . --with-kantra --kantra-rules tests/fixtures/kantra-rules
-```
-
-Mutually exclusive with `--kantra-catalog`. Embedded catalog is the default when neither override is set.
-
-### Index only
-
-**User intent:** *"Index rules into the graph without running eval"*
-
-```bash
-rgctl discover . --with-kantra --kantra-index-only
-```
-
-Useful when you only need structured rule inventory (`find --type kantrarule`). Eval stage is skipped; `kantra_findings.json` is not written.
-
-**Pitfalls:**
-
-- Does **not** require `--with-cfg`
-- Many upstream Konveyor rules use unsupported providers (`builtin.xml`, `java.dependency`) or Windup-style regex — expect a large `skipped_rules` list with full catalog
-- Re-run discover after rule/catalog changes; kantra index rewrites `graph.snapshot.bin` at end of pipeline
-
-**See:** [User guide — Kantra](../../docs/user-guide.md#kantra-migration-rules---with-kantra), [JSON API](../../docs/json-api.md#kantra_findingsjson), [KANTRA_ARCHITECTURE_OPTIONS.md](../../KANTRA_ARCHITECTURE_OPTIONS.md)
+**See:** [Migration Planning Guide](../../docs/guides/migration-planning.md)
 
 
 ---
@@ -336,14 +261,27 @@ rgctl -r "$REPO" -f json check --policy-file policy.json
 
 Blast-radius policy schema (`max_impact_nodes`, `forbidden_crossings`, …) — see [docs/policy-format.md](../../docs/policy-format.md). Named rules like `no-controller-direct-db-access` are **not** built-in ids. Report `passed` + `violations`.
 
-### Temporal PR gate
+### PR review — call paths (`review paths`)
+
+**User intent:** *"How did call paths change?"* / *"What was rewired on this PR?"*
 
 ```bash
+rgctl -r "$REPO" -f json review paths --base-ref origin/main --head-ref HEAD --full-snapshots
+# Optional: --upstream-depth 2 --downstream-depth 1 --symbol submitOrder
+```
+
+Reply order: (1) spines + `path_delta` per symbol, (2) short summary, (3) unscored files. Truncation flags ≠ failure. Do **not** run `review check` unless the user asked for policy/violations. Do **not** reconstruct paths with multiple `callers`/`callees` when this report already has them.
+
+### Temporal PR gate (`review check`)
+
+```bash
+rgctl -r "$REPO" -f json review check --policy-file rgctl-pr-policy.json --base-ref origin/main --head-ref HEAD --strict
+# Compatibility alias (same JSON / exit codes):
 rgctl -r "$REPO" -f json pr-check --policy-file rgctl-pr-policy.json --base-ref origin/main --head-ref HEAD --strict
 rgctl -r "$REPO" -f json check --temporal --policy-file policy.json --base-ref origin/main --head-ref HEAD
 ```
 
-Exit code 1 means violations. Parse JSON for violation details.
+Exit code 1 means violations. Parse JSON for violation details. Prefer `review check` in new docs; `pr-check` remains supported.
 
 
 ---

@@ -257,7 +257,7 @@ Agent hosts do **not** guarantee blocking grep or read tools. This rule biases b
 
 When the repository contains `.rgctl/` (after `discover`):
 
-- **MUST** use `rgctl -f json` first for **structural** questions: callers/callees, blast radius, communities, data flow, migration **roadmap** (`migrate` workflow), Konveyor **Kantra** violations (`kantra` workflow), semantic/graph search.
+- **MUST** use `rgctl -f json` first for **structural** questions: callers/callees, blast radius, communities, data flow, migration **roadmap** (`discover --export-migration-hints` → `migration_plan.json`), semantic/graph search.
 - **MAY** use ripgrep/grep for **lexical** search (fixed strings, comments, logs) and to open files **after** rgctl cites paths.
 - **MUST NOT** use bulk grep-as-call-graph (e.g. searching for `foo(` to find callers) when rgctl can answer.
 

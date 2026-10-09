@@ -81,7 +81,7 @@ fn install_skill_cursor_writes_only_rgctl() {
 }
 
 #[test]
-fn workflows_reference_covers_migrate_and_kantra() {
+fn workflows_reference_covers_migrate_not_kantra() {
     let dir = tempfile::tempdir().expect("tempdir");
     let repo = fs::canonicalize(dir.path()).expect("canonicalize");
     assert!(
@@ -102,7 +102,11 @@ fn workflows_reference_covers_migrate_and_kantra() {
     let workflows =
         fs::read_to_string(repo.join(".cursor/skills/rgctl/references/workflows.md")).unwrap();
     assert!(workflows.contains("migration_plan.json") || workflows.contains("Migration"));
-    assert!(workflows.contains("kantra") || workflows.contains("Kantra"));
+    assert!(workflows.contains("export-migration-hints"));
+    assert!(
+        !workflows.to_lowercase().contains("kantra"),
+        "skills must not mention Kantra (experimental; use migration_plan.json)"
+    );
     assert!(workflows.contains("# Discover workflow") || workflows.contains("discover"));
 }
 

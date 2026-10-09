@@ -34,7 +34,11 @@ Launch the HTTP server with the dashboard:
 
 ```bash
 rgctl -r example/coolstore serve --open
+# Keep the structural graph fresh while editing:
+rgctl -r example/coolstore serve --watch --open
 ```
+
+See [Watch mode](watch-mode.md) for `serve --watch` vs `rgctl update`.
 
 **What happens:**
 

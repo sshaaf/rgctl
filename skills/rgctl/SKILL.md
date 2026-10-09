@@ -3,11 +3,11 @@ name: rgctl
 description: >-
   Answer structural questions about a codebase using the rgctl CLI graph
   (architecture, communities, call relationships, blast radius, data-flow
-  slices, CPG, semantic search, migration, Konveyor Kantra rules,
-  CI gates). Use when the user asks how code is connected, what calls what,
-  impact of changing a symbol, where data flows, migration rule violations,
-  Konveyor/quarkus/spring targets, repo structure/hotspots, or when `.rgctl/`
-  exists — treat natural-language codebase questions as rgctl queries first.
+  slices, CPG, semantic search, migration roadmap, CI gates). Use when the
+  user asks how code is connected, what calls what, impact of changing a
+  symbol, where data flows, migration planning/roadmap, repo
+  structure/hotspots, or when `.rgctl/` exists — treat natural-language
+  codebase questions as rgctl queries first.
 rgctl-managed: true
 ---
 
@@ -21,8 +21,7 @@ Use rgctl when the user asks:
 - **Architecture questions** — "What calls X?", "Where is the checkout flow?", "What communities exist?"
 - **Impact analysis** — "What breaks if I change this function?"
 - **Data flow** — "Where does this variable flow?", "Trace this tainted input"
-- **Migration planning** — "Generate a migration roadmap"
-- **Konveyor / Kantra rules** — "What Quarkus migration rules apply?", "List rules for target X", "What violations did Kantra find?"
+- **Migration planning** — "Generate a migration roadmap" / "What should we extract first?"
 - **Hotspots** — "What are the most central/risky functions?"
 - **Subsystem mapping** — "Which module owns feature X?"
 
@@ -57,7 +56,9 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 ## What to Do When Invoked
 
 1. **Help-only** — If user only wants help/command list → print workflow table below and **stop** (no discover, no queries)
-2. **Fast path (existing index)** — If `.rgctl/` exists **and** request is a structural question (not rebuild) → **do not re-run discover**. Route via workflow table; use CLI `-f json`. **Exception — vuln / OSV / OpenVEX:** if reachability, sink-first taint, or `vuln analyze` is in scope and CFG was not built (`cpg status` / missing CFG archive), re-run `discover . --with-cfg` (add `--with-taint` for PDG-backed confidence) before P4–P6
+2. **Fast path (existing index)** — If `.rgctl/` exists **and** request is a structural question (not rebuild) → **do not re-run full discover**. Route via workflow table; use CLI `-f json`.
+   - **Staleness exception:** run `rgctl -f json status`. If `index_current` is `false`, run **`rgctl update`** once — works with or without `serve --watch` (under watch, update enqueues for the sole writer; do not stop serve). Do **not** loop full `discover` for dirty working trees.
+   - **Exception — vuln / OSV / OpenVEX:** if reachability, sink-first taint, or `vuln analyze` is in scope and CFG was not built (`cpg status` / missing CFG archive), re-run `discover . --with-cfg` (add `--with-taint` for PDG-backed confidence) before P4–P6
 3. **No index** — Run `cd "$REPO" && rgctl discover .` or `rgctl -r "$REPO" discover` (do **not** use `-r REPO discover .` — the `.` ignores `-r`). Add flags only when needed; for vuln scans use `--with-cfg` (see vuln workflow)
 4. **Natural-language routing** — Map utterance with workflow table. Do not ask user to rephrase into CLI unless disambiguation required
 5. **Summarize** — Report key facts, not raw JSON dumps
@@ -74,6 +75,9 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 | User Intent | CLI Command |
 |-------------|-------------|
 | Build graph index | `cd repo && discover .` or `rgctl -r PATH discover` |
+| Patch graph after edits | `rgctl update` (or `update --files path1,path2`) — structural only |
+| Keep graph fresh while serving | `serve --watch` (debounced FS updates); still run `update` to enqueue if needed |
+| Prefer canonical verbs | `find`/`callers`/`slice`/`vuln analyze` (see encyclopedia map); `query`/`cpg`/`security` are façades |
 | Build semantic index | `semantic index` |
 | Check CFG readiness | `cpg status` |
 | Full staged pipeline | `discover . --full` |
@@ -81,25 +85,26 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 **Common flags:**
 - `--with-cfg` — Enable CFG/PDG (for slice, inspect, cpg)
 - `--with-dashboard` — Build dashboard bundle
-- `--export-migration-hints` — Generate migration plan
+- `--export-migration-hints` — Write `.rgctl/migration_plan.json` (primary migration deliverable)
 - `--with-security --with-taint` — Security scanning
-- `--with-kantra` — Konveyor Kantra rule eval + rules graph index (embedded catalog by default)
+- `--with-harmonic` — Harmonic centrality (used with migration ranking)
 
 **See:** [Discovering and Indexing Guide](../../docs/guides/discovering-and-indexing.md)
 
-### 1b. Konveyor Kantra rules (`--with-kantra`)
+### 1b. Migration roadmap (`--export-migration-hints`)
+
+**Primary deliverable for migration questions:** `.rgctl/migration_plan.json` — not ad-hoc rule dumps.
 
 | User Intent | CLI Command |
 |-------------|-------------|
-| Evaluate migration rules | `discover . --with-kantra` or `rules run ./rules/` |
-| Filter by migration target | `discover . --with-kantra --kantra-target quarkus` / `rules run ./rules/ --target quarkus` |
-| CI / custom ruleset | `discover . --with-kantra --kantra-rules PATH` / `rules run PATH` |
-| Index rules only | `discover . --with-kantra --kantra-index-only` |
-| List indexed rules | `find --type kantrarule --limit 50` / `inventory --by type` |
-| Rule → code links | `relations --edge violates --from-type kantrarule` |
-| Read violations artifact | `.rgctl/kantra_findings.json` |
+| Generate migration plan | `discover . --export-migration-hints` (add `--with-harmonic` for ranking) |
+| Preset / order | `--migration-preset hybrid_default\|foundational_first\|dense_cluster\|risk_mitigation` · `--migration-order scheduled\|priority` |
+| Read plan | `.rgctl/migration_plan.json` (discover `-f json` stdout is telemetry only) |
+| Dashboard view | `discover . --with-dashboard --export-migration-hints` then `serve --open` |
 
-**See:** [User guide — Kantra](../../docs/user-guide.md#kantra-migration-rules---with-kantra), [JSON — kantra_findings](../../docs/json-api.md#kantra_findingsjson)
+**Supporting probes** (optional context before/after the plan): `status` → `inventory --by import-prefix --limit 40` → `find --annotation …` / suffix globs → `callers` / `blast-radius` on candidates.
+
+**See:** [Migration Planning Guide](../../docs/guides/migration-planning.md), migrate workflow in [references/workflows.md](references/workflows.md)
 
 ### 2. Query & Search
 
@@ -107,7 +112,7 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 
 | User Intent | CLI Command |
 |-------------|-------------|
-| Session / index freshness | `status` |
+| Session / index freshness | `status` (`index_current`, dirty counts) |
 | Schema / counts (incl. zeros) | `inventory --by type` or `inventory --by edge` |
 | Import prefix census | `inventory --by import-prefix` |
 | Count functions | `find --type function --count-only` |
@@ -125,7 +130,7 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 | Refresh community labels | `communities label --write` |
 | Community census | `inventory --by community` |
 
-**Migration probe order:** `status` → `inventory --by import-prefix` → `find --annotation …` / suffix globs → `rules run` / `--with-kantra` → `callers InitialContext`.
+**Migration:** prefer `--export-migration-hints` → `migration_plan.json`. Optional probes: `status` → `inventory --by import-prefix --limit 40` → `find --annotation …` / suffix globs → `callers` / `blast-radius`.
 
 **Complexity honesty:** exact name = hash index; prefix/`*mid*`/`--scope` may scan keys/columns until better indexes land. Module re-index is still a strong speed lever. Annotation **arguments** (e.g. `@Path("/x")`) need `--show-attributes` when `annotation_args.json` is present.
 **See:** [Command Encyclopedia](references/command-encyclopedia.md) (find/callers/relations/inventory/status), [Semantic Search Guide](../../docs/guides/semantic-search.md)
@@ -135,9 +140,15 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 | User Intent | CLI Command |
 |-------------|-------------|
 | Blast radius | `blast-radius <Symbol> --depth N` |
+| Call paths before/after on a PR | `review paths --base-ref ORIGIN --head-ref HEAD` |
+| Temporal PR policy / CI gate | `review check --policy-file policy.json` (alias: `pr-check`) |
 | Policy check (full codebase) | `check --policy-file policy.json` |
 | Policy check (one symbol) | `blast-radius <Symbol> --policy-file policy.json` |
 | OSV / CVE / OpenVEX | `discover . --with-cfg` then `vuln triage` → `deps check` → `vuln analyze` (see vuln workflow) |
+
+**PR review family:** use **`review paths`** when the user asks how call wiring moved (before/after spines + `path_delta`). Use **`review check`** / `pr-check` only for policy/merge gates. Do **not** run `review check` solely to explain paths; do **not** treat paths JSON as pass/fail.
+
+**Presenting `review paths`:** (1) call paths per symbol (before → after + deltas), (2) short prose summary, (3) unscored files. Unchanged path → one line. No raw JSON dump; no follow-up `callers`/`callees` when paths already returned.
 
 **Vuln scans:** index with `--with-cfg` before sink-first taint / blast classify / exploitability VEX; add `--with-taint` when PDG-backed confidence is required. Plain discover is enough only for triage + deps-only early exit.
 
@@ -176,13 +187,14 @@ Needs `discover --with-cfg`. `--function` is method name, not class.
 
 | User Says | Command |
 |-----------|---------|
-| "Generate migration plan" | `discover --export-migration-hints` → `.rgctl/migration_plan.json` |
-| "Konveyor / Kantra violations" | `discover . --with-kantra` → `.rgctl/kantra_findings.json` |
+| "Generate migration plan" / "What should we extract first?" | `discover . --export-migration-hints` → `.rgctl/migration_plan.json` |
 | "Bottlenecks / hotspots" | `metrics --pagerank` |
 | "Where is checkout flow?" | `semantic query "checkout flow" --limit 10` |
 | "Impact if I change X" | `blast-radius X --depth 2` |
 | "Are we affected by this CVE / OSV?" | `discover . --with-cfg` → `vuln triage` / `deps check` / `vuln analyze` (vuln workflow) |
 | "Validate against policy" | `check --policy-file policy.json` |
+| "How did call paths change on this PR?" | `review paths --base-ref origin/main --head-ref HEAD` |
+| "PR policy gate / new violations vs main" | `review check --policy-file …` (alias `pr-check`) |
 | "Who calls X" | `callers X --depth 2` (impact → `blast-radius X`) |
 | "javax imports / annotations" | `find "import javax*" --type import`; `relations --edge annotatedwith --from-type function --to-type annotation` |
 | "Where is X mutated?" | `cpg mutations --type X --exclude-ctors` |
@@ -192,6 +204,8 @@ Needs `discover --with-cfg`. `--function` is method name, not class.
 | Symptom | Fix |
 |---------|-----|
 | No `.rgctl/` in repo | Run `cd repo && rgctl discover .` |
+| `status` shows `index_current=false` | Run `rgctl update` once (works under `serve --watch` via queue); do **not** full rediscover |
+| blast-radius / callers empty for a file that exists on disk | `rgctl update --files <path>` once, retry query; then fall back to reading source |
 | slice/inspect/cpg fails | Re-discover with `--with-cfg` |
 | vuln analyze / sink-first taint weak (`cfg_available=false`) | Re-discover with `--with-cfg` (add `--with-taint` for PDG confidence) |
 | semantic query fails | `semantic index` |
@@ -208,8 +222,7 @@ All paths under **`{repo}/.rgctl/`**:
 |------|---------|
 | `graph.snapshot.bin` | Main graph snapshot |
 | `semantic_index.bin` | Semantic index |
-| `migration_plan.json` | Migration roadmap |
-| `kantra_findings.json` | Kantra violations (`--with-kantra`) |
+| `migration_plan.json` | Migration roadmap (`--export-migration-hints`) |
 | `dashboard/` | Dashboard bundle |
 | `analysis/` | CFG/PDG archives |
 

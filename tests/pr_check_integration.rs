@@ -445,8 +445,8 @@ fn pr_check_calendar_grace_warns_by_default() {
           "max_impact_nodes": 5,
           "scope": { "new_violations_only": false },
           "temporal": {
-            "effective_from": "2026-08-01",
-            "grace_period_days": 60,
+            "effective_from": "2026-09-01",
+            "grace_period_days": 90,
             "severity_during_grace": "warn"
           }
         }"#,

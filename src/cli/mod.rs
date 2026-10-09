@@ -6,6 +6,8 @@ pub mod blast_radius_output;
 mod check;
 mod pr_check;
 mod pr_check_output;
+mod review;
+mod temporal_prep;
 pub mod check_output;
 mod communities;
 mod context;
@@ -40,10 +42,14 @@ pub mod slice_output;
 mod stage_profile;
 mod structured_query;
 mod session_status;
+pub mod update;
+mod file_watch;
+mod help_ia;
 mod rules;
 mod vuln_deps;
 
 pub use args::OutputFormat;
+pub use help_ia::root_command;
 
 use crate::BUILD_INFO;
 use crate::analysis::{DEFAULT_CANDIDATE_POOL, DEFAULT_EMBEDDING_DIMENSIONS};
@@ -96,98 +102,118 @@ pub struct Cli {
 #[derive(Subcommand)]
 pub enum Commands {
     /// Index and analyze a codebase
+    #[command(display_order = 1)]
     Discover {
         /// Repository path (defaults to --repo or cwd)
         #[arg(value_name = "PATH")]
         path: Option<String>,
 
         /// Locate candidate project roots under PATH matching a glob (e.g. `*coolstore*`); no full index
-        #[arg(long = "find", value_name = "GLOB")]
+        #[arg(long = "find", value_name = "GLOB",
+            help_heading = "Paths & filters")]
         find_roots: Option<String>,
 
-        #[arg(short = 'l', long = "languages")]
+        #[arg(short = 'l', long = "languages",
+            help_heading = "Paths & filters")]
         languages: Option<String>,
 
         /// Path exclude glob (repeatable; comma-separated values also accepted)
-        #[arg(short = 'e', long = "exclude", action = ArgAction::Append)]
+        #[arg(short = 'e', long = "exclude", action = ArgAction::Append,
+            help_heading = "Paths & filters")]
         exclude: Vec<String>,
 
-        #[arg(short = 'v', long = "verbose")]
+        #[arg(short = 'v', long = "verbose",
+            help_heading = "Session / limits")]
         verbose: bool,
 
         /// Secret scanning (SecretDetector). Off by default.
-        #[arg(long = "with-security", visible_alias = "security")]
+        #[arg(long = "with-security", visible_alias = "security",
+            help_heading = "Pipeline features")]
         with_security: bool,
 
         /// Per-function CFG, dominators, and PDG → `.rgctl/analysis/` + cfg_pdg archive.
         /// Off by default. Does **not** include discover-time taint (see `--with-taint`).
         /// Large C++ corpora (e.g. llvm `clang/`) run CFG on parallel workers with a 16 MiB
         /// stack; pathological deep ASTs are skipped at depth 2048 (see `docs/internal/profile.md`).
-        #[arg(long = "with-cfg", visible_alias = "cfg")]
+        #[arg(long = "with-cfg", visible_alias = "cfg",
+            help_heading = "Pipeline features")]
         with_cfg: bool,
 
         /// Discover-time taint analysis (requires CFG/PDG; implies CFG pass if needed).
         /// Off by default. On-demand: `slice ... --taint`.
-        #[arg(long = "with-taint")]
+        #[arg(long = "with-taint",
+            help_heading = "Pipeline features")]
         with_taint: bool,
 
         /// Extra taint rule pack (YAML file or directory). Merged after built-ins and
         /// `.rgctl/taint-rules.d/` (see docs). Only used with `--with-taint`.
-        #[arg(long = "taint-rules", value_name = "PATH")]
+        #[arg(long = "taint-rules", value_name = "PATH",
+            help_heading = "Pipeline features")]
         taint_rules: Option<String>,
 
         /// Classify loop-carried data dependencies on the PDG (implies CFG).
-        #[arg(long = "with-dfg-loops")]
+        #[arg(long = "with-dfg-loops",
+            help_heading = "Pipeline features")]
         with_dfg_loops: bool,
 
         /// Write coarse AST skeleton archive under `.rgctl/analysis/` (implies CFG).
-        #[arg(long = "with-ast-skeleton")]
+        #[arg(long = "with-ast-skeleton",
+            help_heading = "Pipeline features")]
         with_ast_skeleton: bool,
 
         /// Write legacy JSON graph files (`graph.db` / `graph.json`); default is snapshot-only.
-        #[arg(long = "write-json-graph")]
+        #[arg(long = "write-json-graph",
+            help_heading = "Session / limits")]
         write_json_graph: bool,
 
         /// Export the static dashboard bundle under `.rgctl/dashboard/`. Off by default.
-        #[arg(long = "with-dashboard")]
+        #[arg(long = "with-dashboard",
+            help_heading = "Session / limits")]
         with_dashboard: bool,
 
         /// Write a migration roadmap JSON after analysis (default: `.rgctl/migration_plan.json`).
         /// Alias: `--export-migration-plan` (deprecated name).
         #[arg(
             long = "export-migration-hints",
-            visible_alias = "export-migration-plan"
-        )]
+            visible_alias = "export-migration-plan",
+            help_heading = "Migration")]
         export_migration_hints: bool,
 
         /// Compute harmonic centrality (exact or HyperBall). Off by default — needed for
         /// migration ranking; adds ~30s and multi‑GB peak RSS on kernel-scale graphs.
-        #[arg(long = "with-harmonic")]
+        #[arg(long = "with-harmonic",
+            help_heading = "Migration")]
         with_harmonic: bool,
 
         /// Evaluate Konveyor Kantra rules natively during discover (embedded catalog by default).
-        #[arg(long = "with-kantra")]
+        #[arg(long = "with-kantra",
+            help_heading = "Pipeline features")]
         with_kantra: bool,
 
         /// Override embedded catalog with a Kantra rules directory (`ruleset.yaml` + `*.yaml`).
-        #[arg(long = "kantra-rules", value_name = "DIR")]
+        #[arg(long = "kantra-rules", value_name = "DIR",
+            help_heading = "Pipeline features")]
         kantra_rules: Option<String>,
 
         /// Override embedded catalog with a ruleset tree (walks for `ruleset.yaml` dirs).
-        #[arg(long = "kantra-catalog", value_name = "ROOT")]
+        #[arg(long = "kantra-catalog", value_name = "ROOT",
+            help_heading = "Pipeline features")]
         kantra_catalog: Option<String>,
 
         /// Evaluate only rules labeled `konveyor.io/target=<NAME>`.
-        #[arg(long = "kantra-target", value_name = "NAME")]
+        #[arg(long = "kantra-target", value_name = "NAME",
+            help_heading = "Pipeline features")]
         kantra_target: Option<String>,
 
         /// Index Kantra rules into the graph without running violation eval.
-        #[arg(long = "kantra-index-only")]
+        #[arg(long = "kantra-index-only",
+            help_heading = "Pipeline features")]
         kantra_index_only: bool,
 
         /// Staged full pipeline: basic discover (queryable snapshot), then CFG + dashboard +
         /// harmonic, then semantic index. Prints a plan first; does not imply taint/security.
-        #[arg(long = "full")]
+        #[arg(long = "full",
+            help_heading = "Session / limits")]
         full: bool,
 
         /// Constrain resource use for containers / small machines.
@@ -197,32 +223,35 @@ pub enum Commands {
             long = "with-limits",
             value_name = "SPEC",
             num_args = 0..=1,
-            default_missing_value = ""
-        )]
+            default_missing_value = "",
+            help_heading = "Session / limits")]
         with_limits: Option<String>,
 
         /// Strategy preset for migration plan export.
         #[arg(
             long = "migration-preset",
             default_value = "hybrid_default",
-            value_parser = ["hybrid_default", "foundational_first", "dense_cluster", "risk_mitigation"]
-        )]
+            value_parser = ["hybrid_default", "foundational_first", "dense_cluster", "risk_mitigation"],
+            help_heading = "Migration")]
         migration_preset: String,
 
         /// Roadmap sort order for migration plan export: scheduled (dependency-aware) or priority (score rank).
         #[arg(
             long = "migration-order",
             default_value = "scheduled",
-            value_parser = ["scheduled", "priority"]
-        )]
+            value_parser = ["scheduled", "priority"],
+            help_heading = "Migration")]
         migration_order: String,
 
         /// Incremental update for repo-relative paths only (requires existing `.rgctl/` snapshot).
-        #[arg(long = "files", value_name = "PATH", value_delimiter = ',')]
+        /// Prefer `rgctl update --files` for the same behavior with clearer semantics.
+        #[arg(long = "files", value_name = "PATH", value_delimiter = ',',
+            help_heading = "Paths & filters")]
         files: Option<Vec<String>>,
 
         /// Reverse call-dependency hops when re-indexing `--files` (default 1; 0 = disabled).
-        #[arg(long = "cascade-depth", default_value = "1")]
+        #[arg(long = "cascade-depth", default_value = "1",
+            help_heading = "Paths & filters")]
         cascade_depth: usize,
 
         /// Flags after `--` (e.g. `discover . -- --full`)
@@ -230,7 +259,8 @@ pub enum Commands {
         extra: Vec<String>,
     },
 
-    /// Execute graph query language (experimental; prefer find/callers/relations/inventory)
+    /// Experimental graph query language — prefer `find` / `callers` / `relations` / `inventory` for common queries
+    #[command(display_order = 16)]
     Gql {
         query: String,
 
@@ -242,6 +272,7 @@ pub enum Commands {
     },
 
     /// Find symbols by name/type over the mmap graph index (no GQL)
+    #[command(display_order = 10)]
     Find {
         /// Name or glob (`Foo`, `User*`, `*Service*`). Omit with `--type` to list by type.
         #[arg(value_name = "PATTERN")]
@@ -297,6 +328,7 @@ pub enum Commands {
     },
 
     /// Incoming CALLS neighbors for a symbol
+    #[command(display_order = 11)]
     Callers {
         #[arg(value_name = "SYMBOL")]
         symbol: String,
@@ -336,6 +368,7 @@ pub enum Commands {
     },
 
     /// Outgoing CALLS neighbors for a symbol
+    #[command(display_order = 12)]
     Callees {
         #[arg(value_name = "SYMBOL")]
         symbol: String,
@@ -367,6 +400,7 @@ pub enum Commands {
     },
 
     /// Typed edge traversal; omit SYMBOL for seedless set-wide scan
+    #[command(display_order = 13)]
     Relations {
         /// Optional seed symbol (omit for seedless typed-edge scan)
         #[arg(value_name = "SYMBOL")]
@@ -415,6 +449,7 @@ pub enum Commands {
     },
 
     /// Aggregate symbol/edge counts (includes zero-count schema kinds for type/edge)
+    #[command(display_order = 14)]
     Inventory {
         /// Aggregation dimension: type | edge | lang | file | community | import-prefix
         #[arg(long = "by", default_value = "type")]
@@ -433,22 +468,79 @@ pub enum Commands {
         exclude_scope: bool,
     },
 
-    /// Session graph status (snapshot presence, digest, node/edge counts; no rediscover)
+    /// Session graph status (snapshot presence, digest, node/edge counts, source staleness; no rediscover)
+    #[command(display_order = 2)]
     Status,
 
+    /// Incremental structural graph update for changed files (not a full discover / analysis rebuild).
+    ///
+    /// Patches `graph.snapshot.bin` via `IncrementalUpdater`. Prefer this (or `serve --watch`)
+    /// over re-running `discover` when sources change. Analysis sidecars (CFG, semantic, …)
+    /// may be invalidated — re-run `discover` with the needed flags for those.
+    ///
+    /// When `serve --watch` is already running, this command enqueues work for the watcher
+    /// (sole writer) and waits for the result by default (`--no-wait` to return after enqueue).
+    #[command(display_order = 3)]
+    Update {
+        /// Repository path (defaults to `--repo` or cwd)
+        #[arg(value_name = "PATH")]
+        path: Option<String>,
+
+        /// Update only these repo-relative paths (comma-separated)
+        #[arg(long = "files", value_name = "PATH", value_delimiter = ',')]
+        files: Option<Vec<String>>,
+
+        /// Update files changed since this git ref (`git diff --name-only`)
+        #[arg(long = "since", value_name = "REF")]
+        since: Option<String>,
+
+        /// Force a full structural rebuild through the updater (prefer `discover` for analysis).
+        /// Rejected while `serve --watch` is live (stop the watcher or run full discover).
+        #[arg(long)]
+        force: bool,
+
+        /// Reverse call-dependency hops when re-indexing changed files (default 1; 0 = disabled)
+        #[arg(long = "cascade-depth", default_value = "1")]
+        cascade_depth: usize,
+
+        /// Restrict languages (comma-separated)
+        #[arg(short = 'l', long = "languages")]
+        languages: Option<String>,
+
+        /// Exclude path globs (comma-separated)
+        #[arg(short = 'e', long = "exclude", value_delimiter = ',')]
+        exclude: Vec<String>,
+
+        /// When a live watcher holds the lock, enqueue and exit without waiting for the result
+        #[arg(long = "no-wait")]
+        no_wait: bool,
+
+        /// Seconds to wait for a queued update result when `serve --watch` is live (default 60)
+        #[arg(
+            long = "wait-timeout",
+            value_name = "SECS",
+            default_value = "60",
+            env = "RGCTL_UPDATE_WAIT_TIMEOUT_SECS"
+        )]
+        wait_timeout: u64,
+    },
+
     /// Evaluate Konveyor-shaped rules against the session (Kantra engine)
+    #[command(display_order = 53)]
     Rules {
         #[command(subcommand)]
         action: RulesCommands,
     },
 
     /// Alias namespace for structured query verbs (`query find`, `query callers`, …)
+    #[command(display_order = 15)]
     Query {
         #[command(subcommand)]
         action: QueryCommands,
     },
 
     /// Line-level program slice or taint trace
+    #[command(display_order = 21)]
     Slice {
         file: String,
 
@@ -475,6 +567,7 @@ pub enum Commands {
     },
 
     /// Macro impact / blast radius for a symbol
+    #[command(display_order = 20)]
     BlastRadius {
         /// Function symbol name, UUID, or FQN (e.g. `Class::method`)
         #[arg(value_name = "SYMBOL")]
@@ -512,6 +605,7 @@ pub enum Commands {
     },
 
     /// Sink-first taint (`--sink` + `--source external`); requires `discover --with-cfg`
+    #[command(display_order = 22)]
     Taint {
         /// Sink symbol / method (e.g. `ObjectMapper.readValue`)
         #[arg(long = "sink", value_name = "SYMBOL")]
@@ -527,6 +621,7 @@ pub enum Commands {
     },
 
     /// Inspect raw CFG / PDG / dominance for a function symbol
+    #[command(display_order = 23)]
     Inspect {
         symbol: String,
         #[command(subcommand)]
@@ -534,6 +629,7 @@ pub enum Commands {
     },
 
     /// Network analytics (PageRank, betweenness, communities)
+    #[command(display_order = 24)]
     Metrics {
         #[arg(long)]
         pagerank: bool,
@@ -549,24 +645,28 @@ pub enum Commands {
     },
 
     /// Opt-in semantic search over function symbols (separate index artifact)
+    #[command(display_order = 25)]
     Semantic {
         #[command(subcommand)]
         action: SemanticCommands,
     },
 
     /// List or refresh named communities (analysis overlay)
+    #[command(display_order = 26)]
     Communities {
         #[command(subcommand)]
         action: CommunitiesCommands,
     },
 
     /// Hybrid CPG façade (topology + CFG/PDG archive)
+    #[command(display_order = 27)]
     Cpg {
         #[command(subcommand)]
         action: CpgCommands,
     },
 
     /// CI policy gateway
+    #[command(display_order = 50)]
     Check {
         #[arg(long)]
         policy_file: String,
@@ -589,7 +689,15 @@ pub enum Commands {
         strict_calendar: bool,
     },
 
-    /// Temporal PR policy gate (base/head snapshots + git scope)
+    /// Temporal PR analysis (`review paths` / `review check`)
+    #[command(display_order = 51)]
+    Review {
+        #[command(subcommand)]
+        action: ReviewCommands,
+    },
+
+    /// Compatibility alias for `rgctl review check` (prefer `review check`)
+    #[command(display_order = 52)]
     PrCheck {
         #[arg(long)]
         policy_file: String,
@@ -633,6 +741,7 @@ pub enum Commands {
     },
 
     /// Export graph or projections
+    #[command(display_order = 60)]
     Export {
         #[arg(long = "export-format", value_enum)]
         export_format: ExportFormat,
@@ -648,6 +757,7 @@ pub enum Commands {
     ///
     /// Default: dashboard at `/` and query API at `/api/query` (alias `/graphql`).
     /// Starts the full discover pipeline unless `--no-pipeline`.
+    #[command(display_order = 4)]
     Serve {
         /// Repository path to index (defaults to `--repo` or cwd)
         #[arg(value_name = "PATH")]
@@ -680,9 +790,14 @@ pub enum Commands {
         /// Serve the dashboard only (no query API)
         #[arg(long)]
         dashboard_only: bool,
+
+        /// Watch source files and apply incremental graph updates (debounce via `rgctl.toml` `[watch]`)
+        #[arg(long)]
+        watch: bool,
     },
 
     /// Diff two columnar graph snapshots (cold diff profiling / compare path)
+    #[command(display_order = 5)]
     Diff {
         /// Base snapshot file or directory containing `graph.snapshot.bin`
         #[arg(long, value_name = "PATH")]
@@ -694,6 +809,7 @@ pub enum Commands {
     },
 
     /// Install bundled agent pack (skills, optional policy)
+    #[command(display_order = 61)]
     Install {
         /// Install the `rgctl` skill (references include workflow playbooks)
         #[arg(long = "skill")]
@@ -725,16 +841,26 @@ pub enum Commands {
     },
 
     /// OSV vulnerability triage / analyze
+    #[command(display_order = 40)]
     Vuln {
         #[command(subcommand)]
         action: VulnCommands,
     },
 
     /// Dependency inventory match against OSV
+    #[command(display_order = 41)]
     Deps {
         #[command(subcommand)]
         action: DepsCommands,
     },
+
+    /// Security / OSV entrypoints (aliases of top-level `vuln`, `deps`, `taint`)
+    #[command(display_order = 42)]
+    Security {
+        #[command(subcommand)]
+        action: SecurityCommands,
+    },
+
 }
 
 #[derive(Subcommand)]
@@ -775,6 +901,36 @@ pub enum DepsCommands {
     },
 }
 
+
+#[derive(Subcommand)]
+pub enum SecurityCommands {
+    /// OSV vulnerability triage / analyze (same as `rgctl vuln`)
+    Vuln {
+        #[command(subcommand)]
+        action: VulnCommands,
+    },
+    /// Dependency inventory match against OSV (same as `rgctl deps`)
+    Deps {
+        #[command(subcommand)]
+        action: DepsCommands,
+    },
+    /// Sink-first taint (same as `rgctl taint`); requires `discover --with-cfg`
+    Taint {
+        /// Sink symbol / method (e.g. `ObjectMapper.readValue`)
+        #[arg(long = "sink", value_name = "SYMBOL")]
+        sink: String,
+
+        /// Source mode (v1: `external` only)
+        #[arg(long = "source", default_value = "external")]
+        source: String,
+
+        /// Max call/dataflow depth
+        #[arg(long = "depth", default_value_t = 8)]
+        depth: usize,
+    },
+}
+
+
 #[derive(Subcommand)]
 pub enum RulesCommands {
     /// Evaluate a ruleset directory (or catalog) against the current session graph
@@ -790,6 +946,101 @@ pub enum RulesCommands {
         /// Override with a rulesets tree (mutually exclusive with DIR as single ruleset when set)
         #[arg(long = "catalog", value_name = "ROOT")]
         catalog: Option<std::path::PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ReviewCommands {
+    /// Before/after call-path report for a PR (base/head snapshots)
+    Paths {
+        /// Base graph artifact root, snapshot file, `$RGCTL_BASE_ARTIFACT`, or `{repo}/.rgctl-base`
+        #[arg(long)]
+        base_artifact: Option<String>,
+
+        /// Head graph artifact root or snapshot file [default: `-r` / cwd repo]
+        #[arg(long)]
+        head_artifact: Option<String>,
+
+        #[arg(long, default_value = "origin/main")]
+        base_ref: String,
+
+        #[arg(long, default_value = "HEAD")]
+        head_ref: String,
+
+        /// Reverse call-dependency hops when synthesizing a delta head (0 = disabled)
+        #[arg(long, default_value = "1")]
+        cascade_depth: usize,
+
+        /// Require pre-built head snapshot; skip delta head synthesis from base artifact.
+        #[arg(long = "full-snapshots")]
+        full_snapshots: bool,
+
+        /// Synthetic head source (`worktree` = uncommitted changes over HEAD snapshot)
+        #[arg(long = "synthetic-head", value_name = "MODE")]
+        synthetic_head: Option<String>,
+
+        /// Reverse-Calls hops in representative spines [default: 2]
+        #[arg(long = "upstream-depth", default_value_t = 2)]
+        upstream_depth: usize,
+
+        /// Forward-Calls hops in representative spines [default: 1]
+        #[arg(long = "downstream-depth", default_value_t = 1)]
+        downstream_depth: usize,
+
+        /// Restrict report to one symbol (name or stable-key hex); ambiguity lists candidates
+        #[arg(long = "symbol", value_name = "NAME")]
+        symbol: Option<String>,
+
+        /// Max symbols in the report [default: 50]
+        #[arg(long = "max-symbols", default_value_t = 50)]
+        max_symbols: usize,
+
+        /// Fan-out cap per hop when selecting spine neighbors [default: 10]
+        #[arg(long = "fanout", default_value_t = 10)]
+        fanout: usize,
+    },
+
+    /// Temporal PR policy gate (same as `rgctl pr-check`)
+    Check {
+        #[arg(long)]
+        policy_file: String,
+
+        /// Base graph artifact root, snapshot file, `$RGCTL_BASE_ARTIFACT`, or `{repo}/.rgctl-base`
+        #[arg(long)]
+        base_artifact: Option<String>,
+
+        /// Head graph artifact root or snapshot file [default: `-r` / cwd repo]
+        #[arg(long)]
+        head_artifact: Option<String>,
+
+        #[arg(long, default_value = "origin/main")]
+        base_ref: String,
+
+        #[arg(long, default_value = "HEAD")]
+        head_ref: String,
+
+        #[arg(long)]
+        strict: bool,
+
+        /// Reverse call-dependency hops when synthesizing a delta head (0 = disabled)
+        #[arg(long, default_value = "1")]
+        cascade_depth: usize,
+
+        /// Require pre-built head snapshot; skip delta head synthesis from base artifact.
+        #[arg(long = "full-snapshots")]
+        full_snapshots: bool,
+
+        /// Binary-search introducing commit for each new/regression violation
+        #[arg(long)]
+        bisect: bool,
+
+        /// Synthetic head source (`worktree` = uncommitted changes over HEAD snapshot)
+        #[arg(long = "synthetic-head", value_name = "MODE")]
+        synthetic_head: Option<String>,
+
+        /// Treat calendar `warn` violations as failures (grace / sunset warn windows)
+        #[arg(long = "strict-calendar")]
+        strict_calendar: bool,
     },
 }
 
@@ -1461,6 +1712,30 @@ impl Cli {
                 },
             ),
             Commands::Status => session_status::run_status(&ctx),
+            Commands::Update {
+                path,
+                files,
+                since,
+                force,
+                cascade_depth,
+                languages,
+                exclude,
+                no_wait,
+                wait_timeout,
+            } => update::run(
+                &ctx,
+                update::UpdateArgs {
+                    path,
+                    files,
+                    since,
+                    force,
+                    cascade_depth,
+                    languages,
+                    exclude: join_exclude_patterns(&exclude),
+                    no_wait,
+                    wait_timeout_secs: wait_timeout,
+                },
+            ),
             Commands::Rules { action } => match action {
                 RulesCommands::Run {
                     rules_dir,
@@ -1813,6 +2088,66 @@ impl Cli {
                     strict_calendar,
                 },
             ),
+            Commands::Review { action } => match action {
+                ReviewCommands::Paths {
+                    base_artifact,
+                    head_artifact,
+                    base_ref,
+                    head_ref,
+                    cascade_depth,
+                    full_snapshots,
+                    synthetic_head,
+                    upstream_depth,
+                    downstream_depth,
+                    symbol,
+                    max_symbols,
+                    fanout,
+                } => review::run_paths(
+                    &ctx,
+                    review::ReviewPathsArgs {
+                        base_artifact,
+                        head_artifact,
+                        base_ref,
+                        head_ref,
+                        cascade_depth,
+                        full_snapshots,
+                        synthetic_head,
+                        upstream_depth,
+                        downstream_depth,
+                        symbol,
+                        max_symbols,
+                        fanout,
+                    },
+                ),
+                ReviewCommands::Check {
+                    policy_file,
+                    base_artifact,
+                    head_artifact,
+                    base_ref,
+                    head_ref,
+                    strict,
+                    cascade_depth,
+                    full_snapshots,
+                    bisect,
+                    synthetic_head,
+                    strict_calendar,
+                } => review::run_check(
+                    &ctx,
+                    pr_check::PrCheckArgs {
+                        policy_file,
+                        base_artifact,
+                        head_artifact,
+                        base_ref,
+                        head_ref,
+                        strict,
+                        cascade_depth,
+                        full_snapshots,
+                        bisect,
+                        synthetic_head,
+                        strict_calendar,
+                    },
+                ),
+            },
             Commands::PrCheck {
                 policy_file,
                 base_artifact,
@@ -1825,7 +2160,7 @@ impl Cli {
                 bisect,
                 synthetic_head,
                 strict_calendar,
-            } => pr_check::run(
+            } => review::run_check(
                 &ctx,
                 pr_check::PrCheckArgs {
                     policy_file,
@@ -1888,6 +2223,28 @@ impl Cli {
                     include_node_modules,
                 } => vuln_deps::run_deps_check(&ctx, osv, include_jars, include_node_modules),
             },
+            Commands::Security { action } => match action {
+                SecurityCommands::Vuln { action } => match action {
+                    VulnCommands::Triage { osv } => vuln_deps::run_vuln_triage(&ctx, osv),
+                    VulnCommands::Analyze {
+                        osv,
+                        include_jars,
+                        include_node_modules,
+                    } => vuln_deps::run_vuln_analyze(&ctx, osv, include_jars, include_node_modules),
+                },
+                SecurityCommands::Deps { action } => match action {
+                    DepsCommands::Check {
+                        osv,
+                        include_jars,
+                        include_node_modules,
+                    } => vuln_deps::run_deps_check(&ctx, osv, include_jars, include_node_modules),
+                },
+                SecurityCommands::Taint {
+                    sink,
+                    source,
+                    depth,
+                } => vuln_deps::run_sink_taint(&ctx, sink, source, depth),
+            },
             Commands::Diff { base, head } => diff::run(
                 &ctx,
                 diff::DiffArgs { base, head },
@@ -1901,6 +2258,7 @@ impl Cli {
                 open,
                 query_only,
                 dashboard_only,
+                watch,
             } => http_serve::serve(
                 &ctx,
                 http_serve::HttpServeArgs {
@@ -1912,6 +2270,7 @@ impl Cli {
                     dashboard_only,
                     no_pipeline,
                     path,
+                    watch,
                 },
             ),
         };
@@ -1934,6 +2293,7 @@ fn command_label_for(command: &Commands) -> &'static str {
         Commands::Relations { .. } => "relations",
         Commands::Inventory { .. } => "inventory",
         Commands::Status => "status",
+        Commands::Update { .. } => "update",
         Commands::Rules { .. } => "rules",
         Commands::Query { action } => match action {
             QueryCommands::Find { .. } => "query find",
@@ -1968,6 +2328,10 @@ fn command_label_for(command: &Commands) -> &'static str {
             CpgCommands::Slice { .. } => "cpg slice",
         },
         Commands::Check { .. } => "check",
+        Commands::Review { action } => match action {
+            ReviewCommands::Paths { .. } => "review paths",
+            ReviewCommands::Check { .. } => "review check",
+        },
         Commands::PrCheck { .. } => "pr-check",
         Commands::Export { .. } => "export",
         Commands::Install { .. } => "install",
@@ -1977,6 +2341,16 @@ fn command_label_for(command: &Commands) -> &'static str {
         },
         Commands::Deps { action } => match action {
             DepsCommands::Check { .. } => "deps check",
+        },
+        Commands::Security { action } => match action {
+            SecurityCommands::Vuln { action } => match action {
+                VulnCommands::Triage { .. } => "security vuln triage",
+                VulnCommands::Analyze { .. } => "security vuln analyze",
+            },
+            SecurityCommands::Deps { action } => match action {
+                DepsCommands::Check { .. } => "security deps check",
+            },
+            SecurityCommands::Taint { .. } => "security taint",
         },
         Commands::Diff { .. } => "diff",
         Commands::Serve { .. } => "serve",
