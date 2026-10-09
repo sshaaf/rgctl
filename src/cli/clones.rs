@@ -1,14 +1,14 @@
-//! `rgctl clones` — exact (Type-1) clone groups via `code_hash`.
+//! `rgctl clones` — exact Type-1 (`code_hash`) and bloom candidates (`token_bloom`).
 //!
 //! Distinct from `rgctl semantic query` (NL / embedding nearest neighbors).
-//! Pairwise/group duplicate detection over identical function bodies.
 
 use super::args::OutputFormat;
 use super::context::CliContext;
 use anyhow::{Context, Result, bail};
 use rgctl_analysis::{
-    CLONE_REPORT_SCHEMA_VERSION, CloneFilters, DEFAULT_MIN_LOC, ExactCloneOptions, MODE_EXACT,
-    build_exact_report, exact_clones_with_cache, parse_mode, save_sidecar,
+    BloomCloneOptions, CLONE_REPORT_SCHEMA_VERSION, CloneFilters, DEFAULT_BLOOM_THRESHOLD,
+    DEFAULT_MIN_LOC, ExactCloneOptions, MODE_BLOOM, MODE_EXACT, bloom_clones_with_cache,
+    build_bloom_report, build_exact_report, exact_clones_with_cache, parse_mode, save_sidecar,
 };
 use rgctl_error::Error as GraphError;
 use rgctl_graph::{
@@ -20,7 +20,7 @@ use rgctl_graph::{
 pub struct ClonesArgs {
     /// Optional symbol seed (clones of this function).
     pub symbol: Option<String>,
-    /// Detection mode (MVP: `exact` only).
+    /// Detection mode (`exact` | `bloom`).
     pub mode: String,
     /// Minimum LOC (default [`DEFAULT_MIN_LOC`]).
     pub min_loc: Option<usize>,
@@ -28,13 +28,15 @@ pub struct ClonesArgs {
     pub exclude: Vec<String>,
     /// Optional language filter.
     pub language: Option<String>,
+    /// Bloom min Jaccard (default [`DEFAULT_BLOOM_THRESHOLD`]).
+    pub threshold: Option<f64>,
     /// Disambiguation: file glob.
     pub file: Option<String>,
     /// Disambiguation: class name.
     pub class: Option<String>,
     /// Disambiguation: definition line.
     pub line: Option<usize>,
-    /// Persist `.rgctl/clones.json` for full-repo exact reports (default true).
+    /// Persist sidecar for full-repo reports (default true).
     pub write: bool,
     /// Skip sidecar cache / write.
     pub no_cache: bool,
@@ -48,6 +50,7 @@ impl Default for ClonesArgs {
             min_loc: Some(DEFAULT_MIN_LOC),
             exclude: Vec::new(),
             language: None,
+            threshold: None,
             file: None,
             class: None,
             line: None,
@@ -95,15 +98,12 @@ fn map_sq_err(ctx: &CliContext, err: GraphError) -> anyhow::Error {
 /// Run `rgctl clones`.
 pub fn run(ctx: &CliContext, args: ClonesArgs) -> Result<()> {
     let mode = parse_mode(&args.mode).map_err(|e| anyhow::anyhow!("{e}"))?;
-    if mode != MODE_EXACT {
-        bail!("unsupported clone mode");
-    }
 
     let store = ctx
         .open_snapshot_store()?
         .context("Graph snapshot not found (run `rgctl discover` first)")?;
 
-    let mut filters = CloneFilters {
+    let filters = CloneFilters {
         min_loc: args.min_loc.or(Some(DEFAULT_MIN_LOC)),
         exclude: args.exclude,
         language: args.language,
@@ -122,51 +122,89 @@ pub fn run(ctx: &CliContext, args: ClonesArgs) -> Result<()> {
         let node = q
             .resolve_symbol(symbol, &qf)
             .map_err(|e| map_sq_err(ctx, e))?;
-        // Symbol-scoped: do not apply min_loc to the seed's group discovery of the seed itself —
-        // still filter other members via min_loc. Keep filters as configured.
-        let _ = &mut filters;
         Some(node.id)
     } else {
         None
     };
 
-    let opts = ExactCloneOptions {
-        filters: filters.clone(),
-        seed_id,
-    };
-
-    let report = if args.no_cache || seed_id.is_some() {
-        let report = build_exact_report(store.as_ref(), opts)?;
-        if args.write && seed_id.is_none() && !args.no_cache {
-            save_sidecar(&ctx.repo, &report)?;
+    let report = match mode {
+        MODE_EXACT => {
+            let opts = ExactCloneOptions {
+                filters: filters.clone(),
+                seed_id,
+            };
+            if args.no_cache || seed_id.is_some() {
+                let report = build_exact_report(store.as_ref(), opts)?;
+                if args.write && seed_id.is_none() && !args.no_cache {
+                    save_sidecar(&ctx.repo, &report)?;
+                }
+                report
+            } else {
+                exact_clones_with_cache(store.as_ref(), &ctx.repo, opts, args.write)?
+            }
         }
-        report
-    } else {
-        exact_clones_with_cache(store.as_ref(), &ctx.repo, opts, args.write)?
+        MODE_BLOOM => {
+            let threshold = args.threshold.unwrap_or(DEFAULT_BLOOM_THRESHOLD);
+            if !(0.0..=1.0).contains(&threshold) {
+                bail!("--threshold must be between 0 and 1");
+            }
+            let opts = BloomCloneOptions {
+                filters: filters.clone(),
+                seed_id,
+                threshold,
+                ..BloomCloneOptions::default()
+            };
+            if args.no_cache || seed_id.is_some() {
+                let report = build_bloom_report(store.as_ref(), opts)?;
+                if args.write && seed_id.is_none() && !args.no_cache {
+                    save_sidecar(&ctx.repo, &report)?;
+                }
+                report
+            } else {
+                bloom_clones_with_cache(store.as_ref(), &ctx.repo, opts, args.write)?
+            }
+        }
+        other => bail!("unsupported clone mode '{other}'"),
     };
 
     if ctx.format == OutputFormat::Json {
         return ctx.emit_json_value(&serde_json::to_value(&report)?);
     }
 
+    let cand = if report.candidates { " candidates" } else { "" };
     ctx.stdout_line(&format!(
-        "clone mode={} schema_version={} groups={} digest={}",
+        "clone mode={}{} schema_version={} groups={} digest={}",
         report.mode,
+        cand,
         report.schema_version.max(CLONE_REPORT_SCHEMA_VERSION),
         report.group_count,
         &report.graph_digest[..report.graph_digest.len().min(12)]
     ))?;
+    if let Some(t) = report.threshold {
+        ctx.stdout_line(&format!("threshold={t:.3}"))?;
+    }
     if let Some(ref seed) = report.seed {
         let file = seed.file.as_deref().unwrap_or("?");
-        ctx.stdout_line(&format!("seed: {} @ {}:{}", seed.name, file, seed.start_line.unwrap_or(0)))?;
+        ctx.stdout_line(&format!(
+            "seed: {} @ {}:{}",
+            seed.name,
+            file,
+            seed.start_line.unwrap_or(0)
+        ))?;
     }
     for g in &report.groups {
-        let hash = g.hash.as_deref().unwrap_or("?");
+        let score = g
+            .score
+            .map(|s| format!(" score={s:.3}"))
+            .unwrap_or_default();
+        let hash = g
+            .hash
+            .as_deref()
+            .map(|h| format!(" hash={}…", &h[..h.len().min(12)]))
+            .unwrap_or_default();
         ctx.stdout_line(&format!(
-            "\n[{}] size={} hash={}…",
-            g.mode,
-            g.size,
-            &hash[..hash.len().min(12)]
+            "\n[{}] size={}{score}{hash}",
+            g.mode, g.size
         ))?;
         for m in &g.members {
             let file = m.file.as_deref().unwrap_or("?");
@@ -175,7 +213,10 @@ pub fn run(ctx: &CliContext, args: ClonesArgs) -> Result<()> {
         }
     }
     if report.groups.is_empty() {
-        ctx.stdout_line("(no exact clone groups matched filters)")?;
+        ctx.stdout_line(&format!(
+            "(no {} clone groups matched filters)",
+            report.mode
+        ))?;
     }
     Ok(())
 }

@@ -113,11 +113,13 @@ pub use cfg_builder::{
 };
 pub use cfg_pdg_archive::{CFG_PDG_ARCHIVE_FILE, CfgPdgArchive, CfgPdgRecord};
 pub use clones::{
-    CLONE_REPORT_SCHEMA_VERSION, CLONES_SIDECAR_FILE, DEFAULT_MIN_LOC, MODE_BLOOM, MODE_EXACT,
-    MODE_SEMANTIC, MODE_STRUCTURAL, CloneError, CloneFilters, CloneGroup, CloneMember, CloneReport,
-    ExactCloneOptions, build_exact_report, clones_sidecar_path, exact_clones_with_cache,
-    group_exact_from_nodes, iter_hashed_functions, load_sidecar_if_fresh, parse_mode, path_excluded,
-    save_sidecar,
+    BloomCloneOptions, CLONE_REPORT_SCHEMA_VERSION, CLONES_SIDECAR_FILE, DEFAULT_BLOOM_MAX_BUCKET,
+    DEFAULT_BLOOM_THRESHOLD, DEFAULT_MIN_LOC, MODE_BLOOM, MODE_EXACT, MODE_SEMANTIC,
+    MODE_STRUCTURAL, CloneError, CloneFilters, CloneGroup, CloneMember, CloneReport,
+    ExactCloneOptions, bloom_clones_with_cache, build_bloom_report, build_exact_report,
+    clones_sidecar_path, clones_sidecar_path_for_mode, exact_clones_with_cache,
+    group_bloom_from_nodes, group_exact_from_nodes, iter_bloom_functions, iter_hashed_functions,
+    load_sidecar_if_fresh, parse_mode, path_excluded, save_sidecar,
 };
 pub use cold_metadata::ColdMetadataDb;
 pub use community::{

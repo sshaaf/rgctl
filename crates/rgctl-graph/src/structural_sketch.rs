@@ -77,6 +77,27 @@ pub fn keyword_overlap_score(keywords: &[String], bloom: &TokenBloom) -> f64 {
     matched as f64 / keywords.len() as f64
 }
 
+/// Number of set bits in a token bloom.
+pub fn bloom_popcount(bloom: &TokenBloom) -> u32 {
+    bloom.iter().map(|w| w.count_ones()).sum()
+}
+
+/// Jaccard similarity of two 256-bit token blooms: `|A∩B| / |A∪B|`.
+///
+/// Returns `0.0` when both blooms are empty.
+pub fn bloom_jaccard(a: &TokenBloom, b: &TokenBloom) -> f64 {
+    let mut inter = 0u32;
+    let mut union = 0u32;
+    for i in 0..TOKEN_BLOOM_WORDS {
+        inter += (a[i] & b[i]).count_ones();
+        union += (a[i] | b[i]).count_ones();
+    }
+    if union == 0 {
+        return 0.0;
+    }
+    f64::from(inter) / f64::from(union)
+}
+
 /// Split on camelCase, snake_case, and non-alphanumeric boundaries into a set.
 pub fn tokenize_string_into(text: &str, set: &mut HashSet<String>) {
     let mut current_token = String::with_capacity(16);
@@ -192,5 +213,18 @@ mod tests {
             &["invoice".into(), "payment".into()],
             &bloom
         ));
+    }
+
+    #[test]
+    fn bloom_jaccard_identical_is_one() {
+        let a = build_token_bloom("f", None, None, Some("alpha beta gamma delta"));
+        assert!((bloom_jaccard(&a, &a) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn bloom_jaccard_disjoint_near_zero() {
+        let a = build_token_bloom("f", None, None, Some("alpha beta gamma"));
+        let b = build_token_bloom("g", None, None, Some("zzzz yyyy xxxx"));
+        assert!(bloom_jaccard(&a, &b) < 0.5);
     }
 }

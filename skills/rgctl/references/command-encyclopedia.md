@@ -440,12 +440,13 @@ rgctl -f json semantic query "…" [--limit N] [--scope function|community] \
 
 ```bash
 rgctl -f json clones --mode exact [--min-loc N] [--exclude GLOB] [--lang ID] [--no-write] [--no-cache]
+rgctl -f json clones --mode bloom [--threshold 0.85] [--min-loc N] [--exclude GLOB]
 rgctl -f json clones SYMBOL --file PATH [--class C] [--line N]
 ```
 
-**Purpose:** Exact (Type-1) **clone groups** — functions that share the same `code_hash` (identical hashed bodies). Answers “where else is this implementation?” as pairs/groups. **Not** an alias of `semantic query` (NL/embedding nearest neighbors).
+**Purpose:** **Clone groups** — `exact` = same `code_hash` (Type-1); `bloom` = high `token_bloom` Jaccard **candidates** (`candidates: true`, not Type-1). Answers “where else is this implementation?” as pairs/groups. **Not** an alias of `semantic query` (NL/embedding nearest neighbors).
 
-**Prerequisites:** `discover` (snapshot with Function `code_hash`). Query-time; optional sidecar `.rgctl/clones.json` (invalidated by `graph_digest`). Does **not** write clone edges into `graph.snapshot.bin`.
+**Prerequisites:** `discover` (Function `code_hash` / `token_bloom`). Query-time; sidecars `.rgctl/clones.json` / `.rgctl/clones.bloom.json` (invalidated by `graph_digest`). Does **not** write clone edges into `graph.snapshot.bin`.
 
 **Sample** (fixture `rgctl-tests/clone-exact`):
 
@@ -471,9 +472,9 @@ rgctl -f json clones SYMBOL --file PATH [--class C] [--line N]
 }
 ```
 
-**Pitfalls:** Bare `--exclude test` matches a path **component** named `test` (not substring of `rgctl-tests`). Ambiguous symbols need `--file` / `--class` / `--line`. Modes `bloom` / `semantic` / `structural` are reserved (not implemented). Default `min_loc` is 5.
+**Pitfalls:** Bare `--exclude test` matches a path **component** named `test` (not substring of `rgctl-tests`). Ambiguous symbols need `--file` / `--class` / `--line`. Bloom is noisy — treat as candidates; prefer `exact` for Type-1. Modes `semantic` / `structural` are reserved. Default `min_loc` is 5; bloom default `--threshold` is 0.85.
 
-**Agent should report:** group sizes, member names/files, hash prefix; for a seed symbol, the other members of its group. Do not conflate with `semantic query` hits.
+**Agent should report:** group sizes, member names/files, hash/score; for bloom, mention `candidates: true` and threshold. Do not conflate with `semantic query` hits.
 
 **See:** [clone-detection-design.md](../../docs/design/clone-detection-design.md), json-api §16b
 

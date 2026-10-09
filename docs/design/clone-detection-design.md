@@ -13,7 +13,7 @@
 | Mode | Signal | Status |
 |------|--------|--------|
 | `exact` | Equal non-empty `code_hash` on Function nodes | **Shipped (M1)** |
-| `bloom` | Token bloom Jaccard / Hamming | Reserved (`mode` string only) |
+| `bloom` | Token bloom Jaccard (LSH band candidates) | **Shipped (M2)** — labeled `candidates: true` |
 | `semantic` | Embedding NN above threshold | Reserved (needs semantic index) |
 | `structural` | PDG/CFG confirmation on candidates | Reserved (opt-in; never O(n²) on linux) |
 
@@ -43,13 +43,15 @@ flowchart LR
 ```typescript
 type CloneReport = {
   schema_version: 1;
-  mode: "exact";
+  mode: "exact" | "bloom";
   graph_digest: string;
   filters: { min_loc?: number; exclude: string[]; language?: string };
+  threshold?: number;       // bloom min Jaccard (default 0.85)
+  candidates?: boolean;     // true for bloom (not Type-1)
   group_count: number;
   groups: Array<{
-    mode: "exact";
-    hash: string;
+    mode: "exact" | "bloom";
+    hash?: string;          // exact only
     size: number;           // ≥ 2
     members: Array<{
       id: string;
@@ -59,14 +61,16 @@ type CloneReport = {
       end_line?: number;
       loc?: number;
     }>;
-    confidence?: number;    // 1.0 for exact
-    score?: number;         // reserved for M2/M3
+    confidence?: number;    // 1.0 exact; Jaccard for bloom
+    score?: number;         // bloom: min pairwise Jaccard in group
   }>;
   seed?: { /* same as member */ };  // symbol-scoped only
 };
 ```
 
-Defaults: `min_loc = 5`. Bare `--exclude test` matches a **path component** named `test` (not substring of `rgctl-tests`).
+Defaults: `min_loc = 5`, bloom `threshold = 0.85`. Bare `--exclude test` matches a **path component** named `test` (not substring of `rgctl-tests`).
+
+**Bloom algorithm:** LSH bands = each non-zero `u64` word of the 256-bit `token_bloom`; pairwise Jaccard inside band buckets (skip buckets &gt; 512). Connected components → groups. Sidecar: `.rgctl/clones.bloom.json`.
 
 ---
 
@@ -74,6 +78,7 @@ Defaults: `min_loc = 5`. Bare `--exclude test` matches a **path component** name
 
 ```bash
 rgctl -f json clones --mode exact [--min-loc N] [--exclude GLOB] [--lang ID]
+rgctl -f json clones --mode bloom [--threshold 0.85] [--min-loc N] [--exclude GLOB]
 rgctl -f json clones SYMBOL --file PATH [--class C] [--line N]
 ```
 

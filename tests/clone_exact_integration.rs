@@ -112,4 +112,56 @@ fn exact_clones_finds_duplicate_normalize_payload() {
             .unwrap_or("")
             .contains("CloneA.java")
     );
+
+    // Bloom candidates (exact dups share near-identical token blooms)
+    let bloom = run_json(&[
+        "-f",
+        "json",
+        "clones",
+        "--mode",
+        "bloom",
+        "--threshold",
+        "0.85",
+        "--min-loc",
+        "5",
+        "--exclude",
+        "test",
+        "--no-cache",
+    ]);
+    assert_eq!(bloom["mode"], "bloom");
+    assert_eq!(bloom["candidates"], true);
+    assert_eq!(bloom["threshold"], 0.85);
+    assert!(bloom["group_count"].as_u64().unwrap() >= 1);
+    let bg = bloom["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| {
+            g["members"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .any(|m| m["name"] == "normalizePayload")
+        })
+        .expect("bloom normalizePayload group");
+    assert_eq!(bg["mode"], "bloom");
+    assert!(bg["score"].as_f64().unwrap() >= 0.85);
+    assert!(bg["size"].as_u64().unwrap() >= 2);
+
+    // With write enabled, bloom sidecar is mode-specific
+    let _ = run_json(&[
+        "-f",
+        "json",
+        "clones",
+        "--mode",
+        "bloom",
+        "--threshold",
+        "0.85",
+        "--exclude",
+        "test",
+    ]);
+    assert!(
+        root.join(".rgctl/clones.bloom.json").is_file(),
+        "expected clones.bloom.json sidecar"
+    );
 }

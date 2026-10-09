@@ -659,11 +659,12 @@ pub enum Commands {
         action: CommunitiesCommands,
     },
 
-    /// Exact (Type-1) clone groups via code_hash — not semantic search
+    /// Clone groups: exact Type-1 (`code_hash`) or bloom candidates — not semantic search
     #[command(
         display_order = 26,
         long_about = "Find duplicate function implementations (clone groups).\n\
-                      Default mode is exact Type-1 grouping by code_hash.\n\
+                      Modes: exact (Type-1 code_hash groups) | bloom (token_bloom Jaccard candidates).\n\
+                      Bloom results are candidates (high false-positive risk), not Type-1 clones.\n\
                       Distinct from `semantic query` (NL/embedding nearest neighbors)."
     )]
     Clones {
@@ -671,7 +672,7 @@ pub enum Commands {
         #[arg(value_name = "SYMBOL")]
         symbol: Option<String>,
 
-        /// Clone mode (MVP: exact only; bloom/semantic/structural reserved)
+        /// Clone mode: exact | bloom (semantic/structural reserved)
         #[arg(long, default_value = "exact")]
         mode: String,
 
@@ -687,6 +688,10 @@ pub enum Commands {
         #[arg(long = "lang", value_name = "ID")]
         language: Option<String>,
 
+        /// Bloom min Jaccard threshold in [0,1] (default: 0.85; bloom mode only)
+        #[arg(long = "threshold", value_name = "F")]
+        threshold: Option<f64>,
+
         /// Disambiguate symbol by file path/glob
         #[arg(long = "file", value_name = "PATH")]
         file: Option<String>,
@@ -699,7 +704,7 @@ pub enum Commands {
         #[arg(long = "line", value_name = "N")]
         line: Option<usize>,
 
-        /// Do not write `.rgctl/clones.json` (full-repo reports write by default)
+        /// Do not write `.rgctl/clones.json` / `clones.bloom.json` (full-repo writes by default)
         #[arg(long = "no-write", default_value_t = false)]
         no_write: bool,
 
@@ -2048,6 +2053,7 @@ impl Cli {
                 min_loc,
                 exclude,
                 language,
+                threshold,
                 file,
                 class,
                 line,
@@ -2061,6 +2067,7 @@ impl Cli {
                     min_loc,
                     exclude,
                     language,
+                    threshold,
                     file,
                     class,
                     line,

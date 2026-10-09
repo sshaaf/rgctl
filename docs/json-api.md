@@ -1179,27 +1179,30 @@ See also `inventory --by community` (User Guide §6).
 
 ## 16b. `clones`
 
-Exact (Type-1) clone groups via Function `code_hash`. Query-time / `.rgctl/clones.json` sidecar — **not** topology edges. Distinct from `semantic query`. Types: `crates/rgctl-analysis/src/clones.rs`, CLI `src/cli/clones.rs`. Design: [clone-detection-design.md](design/clone-detection-design.md).
+Clone groups via Function `code_hash` (**exact** Type-1) or `token_bloom` Jaccard (**bloom** candidates). Query-time / sidecars `.rgctl/clones.json` / `.rgctl/clones.bloom.json` — **not** topology edges. Distinct from `semantic query`. Types: `crates/rgctl-analysis/src/clones.rs`, CLI `src/cli/clones.rs`. Design: [clone-detection-design.md](design/clone-detection-design.md).
 
 ```bash
 rgctl -r "$REPO" -f json clones --mode exact [--min-loc N] [--exclude GLOB] [--lang ID]
+rgctl -r "$REPO" -f json clones --mode bloom [--threshold 0.85] [--min-loc N] [--exclude GLOB]
 rgctl -r "$REPO" -f json clones SYMBOL --file PATH [--class C] [--line N]
 ```
 
 ```typescript
 type CloneReport = {
   schema_version: 1;
-  mode: "exact";
+  mode: "exact" | "bloom";
   graph_digest: string;
   filters: {
     min_loc?: number;       // default 5
     exclude: string[];      // path-component or path-substring needles
     language?: string;
   };
+  threshold?: number;       // bloom min Jaccard (default 0.85)
+  candidates?: boolean;     // true for bloom — not Type-1
   group_count: number;
   groups: Array<{
-    mode: "exact";
-    hash: string;
+    mode: "exact" | "bloom";
+    hash?: string;          // exact only
     size: number;
     members: Array<{
       id: string;
@@ -1209,8 +1212,8 @@ type CloneReport = {
       end_line?: number;
       loc?: number;
     }>;
-    confidence?: number;    // 1.0 for exact
-    score?: number;         // reserved (bloom/semantic/structural)
+    confidence?: number;    // 1.0 exact; Jaccard for bloom
+    score?: number;         // bloom: min pairwise Jaccard
   }>;
   seed?: {                  // present for symbol-scoped clones
     id: string;
@@ -1228,6 +1231,8 @@ Ambiguous symbols emit the structured-query envelope (`error: "ambiguous_symbol"
 ```bash
 rgctl -r "$REPO" -f json clones --exclude test \
   | jq '{group_count, top: [.groups[:3][] | {size, hash: .hash[0:12], names: [.members[].name]}]}'
+rgctl -r "$REPO" -f json clones --mode bloom --threshold 0.9 --exclude test \
+  | jq '{candidates, threshold, top: [.groups[:3][] | {size, score, names: [.members[].name]}]}'
 ```
 
 ---

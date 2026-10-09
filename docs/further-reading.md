@@ -185,7 +185,7 @@ Research papers on code graphs, migration, LLM agents, and program analysis — 
 
 17. **Enhancing program dependency graph based clone detection using approximate subgraph matching**
     - [PDF](https://www.academia.edu/63870307/Enhancing_program_dependency_graph_based_clone_detection_using_approximate_subgraph_matching)
-    - **rgctl:** MVP — `rgctl clones --mode exact` (Type-1 via `code_hash`); PDG/CFG confirmation is roadmap (M3). Design: [clone-detection-design.md](design/clone-detection-design.md)
+    - **rgctl:** `rgctl clones --mode exact` (Type-1) and `--mode bloom` (token-bloom Jaccard candidates); PDG/CFG confirmation is roadmap (M3). Design: [clone-detection-design.md](design/clone-detection-design.md)
 
 ## Survey & Review Papers
 

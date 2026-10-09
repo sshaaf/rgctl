@@ -81,8 +81,9 @@ pub use stable_key::{
     stable_key_from_row, stable_key_to_uuid,
 };
 pub use structural_sketch::{
-    MIN_TOKEN_LEN, TOKEN_BLOOM_BITS, TOKEN_BLOOM_WORDS, TokenBloom, build_token_bloom, empty_bloom,
-    keyword_in_bloom, keyword_overlap_score, satisfies_keyword_and, tokenize_string_into,
+    MIN_TOKEN_LEN, TOKEN_BLOOM_BITS, TOKEN_BLOOM_WORDS, TokenBloom, bloom_jaccard, bloom_popcount,
+    build_token_bloom, empty_bloom, keyword_in_bloom, keyword_overlap_score, satisfies_keyword_and,
+    tokenize_string_into,
 };
 
 /// Normalize path separators for consistent comparison.
