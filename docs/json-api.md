@@ -88,6 +88,7 @@ if (doc.schema_version !== 2) {
 | `semantic query` | **3** | hits + optional expansion / fusion fields |
 | `semantic distill` | **1** | RBVK matrix write (hash/code-daemon teacher) |
 | `communities` | **1** | list / label |
+| `clones` | **1** | exact Type-1 groups + optional seed |
 | `cpg` (status / mutations / flows / …) | **1** | per-subcommand shapes |
 | `install` | **2** | agent pack write report (`list-agents` JSON is separate; see §18) |
 
@@ -112,6 +113,7 @@ if (doc.schema_version !== 2) {
 | `inspect` | ✅ | `layer`, `nodes`, `edges` | CFG/PDG/dominance dumps |
 | `semantic` | ✅ | `hits` / `functions_indexed` | Opt-in NL / keyword search |
 | `communities` | ✅ | `communities`, `modularity` | Named community labels |
+| `clones` | ✅ | `groups`, `graph_digest` | Exact Type-1 clone groups (`code_hash`); not semantic search |
 | `cpg` | ✅ | varies by subcommand | Hybrid CPG façade (`slice` / `inspect` are canonical for flow/CFG) |
 | `vuln` / `deps` | ✅ | varies | OSV triage / analyze / deps check (`security …` aliases same handlers) |
 | `security` | ✅ | same as `vuln`/`deps`/`taint` | Soft namespace; no separate JSON schema |
@@ -1172,6 +1174,61 @@ rgctl -r "$REPO" -f json communities list | jq '{modularity, n: (.communities|le
 ```
 
 See also `inventory --by community` (User Guide §6).
+
+---
+
+## 16b. `clones`
+
+Exact (Type-1) clone groups via Function `code_hash`. Query-time / `.rgctl/clones.json` sidecar — **not** topology edges. Distinct from `semantic query`. Types: `crates/rgctl-analysis/src/clones.rs`, CLI `src/cli/clones.rs`. Design: [clone-detection-design.md](design/clone-detection-design.md).
+
+```bash
+rgctl -r "$REPO" -f json clones --mode exact [--min-loc N] [--exclude GLOB] [--lang ID]
+rgctl -r "$REPO" -f json clones SYMBOL --file PATH [--class C] [--line N]
+```
+
+```typescript
+type CloneReport = {
+  schema_version: 1;
+  mode: "exact";
+  graph_digest: string;
+  filters: {
+    min_loc?: number;       // default 5
+    exclude: string[];      // path-component or path-substring needles
+    language?: string;
+  };
+  group_count: number;
+  groups: Array<{
+    mode: "exact";
+    hash: string;
+    size: number;
+    members: Array<{
+      id: string;
+      name: string;
+      file?: string;
+      start_line?: number;
+      end_line?: number;
+      loc?: number;
+    }>;
+    confidence?: number;    // 1.0 for exact
+    score?: number;         // reserved (bloom/semantic/structural)
+  }>;
+  seed?: {                  // present for symbol-scoped clones
+    id: string;
+    name: string;
+    file?: string;
+    start_line?: number;
+    end_line?: number;
+    loc?: number;
+  };
+};
+```
+
+Ambiguous symbols emit the structured-query envelope (`error: "ambiguous_symbol"`, `schema_version` 2) — disambiguate with `--file` / `--class` / `--line`.
+
+```bash
+rgctl -r "$REPO" -f json clones --exclude test \
+  | jq '{group_count, top: [.groups[:3][] | {size, hash: .hash[0:12], names: [.members[].name]}]}'
+```
 
 ---
 

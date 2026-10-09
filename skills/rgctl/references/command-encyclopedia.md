@@ -19,6 +19,7 @@ Prefer the **Canonical** column in examples and agent workflows. Aliases/façade
 | Line slice / flow | `slice` | `cpg slice`, `cpg flows` |
 | Raw CFG / PDG | `inspect` | `cpg pdg` |
 | Impact | `blast-radius` | — |
+| Exact code clones | `clones` | — (not `semantic query`) |
 | OSV → OpenVEX | `vuln analyze` | `security vuln analyze` |
 | Dep match | `deps check` | `security deps check` |
 | Sink taint CLI | `taint` | `security taint` |
@@ -41,6 +42,7 @@ Prefer the **Canonical** column in examples and agent workflows. Aliases/façade
 - [metrics](#metrics)
 - [semantic](#semantic)
 - [communities](#communities)
+- [clones](#clones)
 - [cpg](#cpg)
 - [check](#check)
 - [review](#review)
@@ -429,6 +431,51 @@ rgctl -f json semantic query "…" [--limit N] [--scope function|community] \
 ```
 
 **Agent should report:** top labels + sizes; use `inventory --by community` for census; explore ownership via `semantic query --scope community` / `blast-radius` (responses may include `community_id`).
+
+---
+
+## clones
+
+**Command:**
+
+```bash
+rgctl -f json clones --mode exact [--min-loc N] [--exclude GLOB] [--lang ID] [--no-write] [--no-cache]
+rgctl -f json clones SYMBOL --file PATH [--class C] [--line N]
+```
+
+**Purpose:** Exact (Type-1) **clone groups** — functions that share the same `code_hash` (identical hashed bodies). Answers “where else is this implementation?” as pairs/groups. **Not** an alias of `semantic query` (NL/embedding nearest neighbors).
+
+**Prerequisites:** `discover` (snapshot with Function `code_hash`). Query-time; optional sidecar `.rgctl/clones.json` (invalidated by `graph_digest`). Does **not** write clone edges into `graph.snapshot.bin`.
+
+**Sample** (fixture `rgctl-tests/clone-exact`):
+
+```json
+{
+  "schema_version": 1,
+  "mode": "exact",
+  "graph_digest": "<blake3>",
+  "filters": { "min_loc": 5, "exclude": ["test"] },
+  "group_count": 1,
+  "groups": [
+    {
+      "mode": "exact",
+      "hash": "9eec51b8…",
+      "size": 2,
+      "confidence": 1.0,
+      "members": [
+        { "id": "…", "name": "normalizePayload", "file": "…/CloneA.java", "start_line": 5, "loc": 17 },
+        { "id": "…", "name": "normalizePayload", "file": "…/CloneB.java", "start_line": 5, "loc": 17 }
+      ]
+    }
+  ]
+}
+```
+
+**Pitfalls:** Bare `--exclude test` matches a path **component** named `test` (not substring of `rgctl-tests`). Ambiguous symbols need `--file` / `--class` / `--line`. Modes `bloom` / `semantic` / `structural` are reserved (not implemented). Default `min_loc` is 5.
+
+**Agent should report:** group sizes, member names/files, hash prefix; for a seed symbol, the other members of its group. Do not conflate with `semantic query` hits.
+
+**See:** [clone-detection-design.md](../../docs/design/clone-detection-design.md), json-api §16b
 
 ---
 

@@ -17,6 +17,7 @@ pub mod centrality_approx;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod cfg_pdg_archive;
+pub mod clones;
 pub mod cold_metadata;
 pub mod community;
 pub mod community_label;
@@ -111,6 +112,13 @@ pub use cfg_builder::{
     index_function_locations,
 };
 pub use cfg_pdg_archive::{CFG_PDG_ARCHIVE_FILE, CfgPdgArchive, CfgPdgRecord};
+pub use clones::{
+    CLONE_REPORT_SCHEMA_VERSION, CLONES_SIDECAR_FILE, DEFAULT_MIN_LOC, MODE_BLOOM, MODE_EXACT,
+    MODE_SEMANTIC, MODE_STRUCTURAL, CloneError, CloneFilters, CloneGroup, CloneMember, CloneReport,
+    ExactCloneOptions, build_exact_report, clones_sidecar_path, exact_clones_with_cache,
+    group_exact_from_nodes, iter_hashed_functions, load_sidecar_if_fresh, parse_mode, path_excluded,
+    save_sidecar,
+};
 pub use cold_metadata::ColdMetadataDb;
 pub use community::{
     Community, CommunityDetector, CommunityResult, DEFAULT_HUB_SIGMA_K,

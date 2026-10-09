@@ -9,6 +9,7 @@ mod pr_check_output;
 mod review;
 mod temporal_prep;
 pub mod check_output;
+mod clones;
 mod communities;
 mod context;
 mod cpg;
@@ -656,6 +657,55 @@ pub enum Commands {
     Communities {
         #[command(subcommand)]
         action: CommunitiesCommands,
+    },
+
+    /// Exact (Type-1) clone groups via code_hash — not semantic search
+    #[command(
+        display_order = 26,
+        long_about = "Find duplicate function implementations (clone groups).\n\
+                      Default mode is exact Type-1 grouping by code_hash.\n\
+                      Distinct from `semantic query` (NL/embedding nearest neighbors)."
+    )]
+    Clones {
+        /// Optional symbol: report only the clone group containing this function
+        #[arg(value_name = "SYMBOL")]
+        symbol: Option<String>,
+
+        /// Clone mode (MVP: exact only; bloom/semantic/structural reserved)
+        #[arg(long, default_value = "exact")]
+        mode: String,
+
+        /// Minimum function LOC to include (default: 5)
+        #[arg(long = "min-loc", value_name = "N")]
+        min_loc: Option<usize>,
+
+        /// Exclude path needles/globs (repeatable), e.g. test, generated
+        #[arg(long = "exclude", value_name = "GLOB")]
+        exclude: Vec<String>,
+
+        /// Language filter (e.g. java, c)
+        #[arg(long = "lang", value_name = "ID")]
+        language: Option<String>,
+
+        /// Disambiguate symbol by file path/glob
+        #[arg(long = "file", value_name = "PATH")]
+        file: Option<String>,
+
+        /// Disambiguate symbol by enclosing class
+        #[arg(long = "class", value_name = "NAME")]
+        class: Option<String>,
+
+        /// Disambiguate symbol by definition line
+        #[arg(long = "line", value_name = "N")]
+        line: Option<usize>,
+
+        /// Do not write `.rgctl/clones.json` (full-repo reports write by default)
+        #[arg(long = "no-write", default_value_t = false)]
+        no_write: bool,
+
+        /// Do not read/write the clones sidecar cache
+        #[arg(long = "no-cache", default_value_t = false)]
+        no_cache: bool,
     },
 
     /// Hybrid CPG façade (topology + CFG/PDG archive)
@@ -1992,6 +2042,32 @@ impl Cli {
                     communities::run_label(&ctx, communities::CommunitiesLabelArgs { write })
                 }
             },
+            Commands::Clones {
+                symbol,
+                mode,
+                min_loc,
+                exclude,
+                language,
+                file,
+                class,
+                line,
+                no_write,
+                no_cache,
+            } => clones::run(
+                &ctx,
+                clones::ClonesArgs {
+                    symbol,
+                    mode,
+                    min_loc,
+                    exclude,
+                    language,
+                    file,
+                    class,
+                    line,
+                    write: !no_write,
+                    no_cache,
+                },
+            ),
             Commands::Cpg { action } => {
                 let mapped = match action {
                     CpgCommands::Status => cpg::CpgAction::Status,
@@ -2316,6 +2392,7 @@ fn command_label_for(command: &Commands) -> &'static str {
             CommunitiesCommands::List => "communities list",
             CommunitiesCommands::Label { .. } => "communities label",
         },
+        Commands::Clones { .. } => "clones",
         Commands::Cpg { action } => match action {
             CpgCommands::Status => "cpg status",
             CpgCommands::Function { .. } => "cpg function",

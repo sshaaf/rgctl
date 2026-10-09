@@ -42,6 +42,7 @@ const GROUPS: &[(&str, &[&str])] = &[
             "metrics",
             "semantic",
             "communities",
+            "clones",
             "cpg",
         ],
     ),
