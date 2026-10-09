@@ -140,9 +140,15 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 | User Intent | CLI Command |
 |-------------|-------------|
 | Blast radius | `blast-radius <Symbol> --depth N` |
+| Call paths before/after on a PR | `review paths --base-ref ORIGIN --head-ref HEAD` |
+| Temporal PR policy / CI gate | `review check --policy-file policy.json` (alias: `pr-check`) |
 | Policy check (full codebase) | `check --policy-file policy.json` |
 | Policy check (one symbol) | `blast-radius <Symbol> --policy-file policy.json` |
 | OSV / CVE / OpenVEX | `discover . --with-cfg` then `vuln triage` → `deps check` → `vuln analyze` (see vuln workflow) |
+
+**PR review family:** use **`review paths`** when the user asks how call wiring moved (before/after spines + `path_delta`). Use **`review check`** / `pr-check` only for policy/merge gates. Do **not** run `review check` solely to explain paths; do **not** treat paths JSON as pass/fail.
+
+**Presenting `review paths`:** (1) call paths per symbol (before → after + deltas), (2) short prose summary, (3) unscored files. Unchanged path → one line. No raw JSON dump; no follow-up `callers`/`callees` when paths already returned.
 
 **Vuln scans:** index with `--with-cfg` before sink-first taint / blast classify / exploitability VEX; add `--with-taint` when PDG-backed confidence is required. Plain discover is enough only for triage + deps-only early exit.
 
@@ -187,6 +193,8 @@ Needs `discover --with-cfg`. `--function` is method name, not class.
 | "Impact if I change X" | `blast-radius X --depth 2` |
 | "Are we affected by this CVE / OSV?" | `discover . --with-cfg` → `vuln triage` / `deps check` / `vuln analyze` (vuln workflow) |
 | "Validate against policy" | `check --policy-file policy.json` |
+| "How did call paths change on this PR?" | `review paths --base-ref origin/main --head-ref HEAD` |
+| "PR policy gate / new violations vs main" | `review check --policy-file …` (alias `pr-check`) |
 | "Who calls X" | `callers X --depth 2` (impact → `blast-radius X`) |
 | "javax imports / annotations" | `find "import javax*" --type import`; `relations --edge annotatedwith --from-type function --to-type annotation` |
 | "Where is X mutated?" | `cpg mutations --type X --exclude-ctors` |

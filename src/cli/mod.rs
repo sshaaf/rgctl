@@ -6,6 +6,8 @@ pub mod blast_radius_output;
 mod check;
 mod pr_check;
 mod pr_check_output;
+mod review;
+mod temporal_prep;
 pub mod check_output;
 mod communities;
 mod context;
@@ -524,7 +526,7 @@ pub enum Commands {
     },
 
     /// Evaluate Konveyor-shaped rules against the session (Kantra engine)
-    #[command(display_order = 52)]
+    #[command(display_order = 53)]
     Rules {
         #[command(subcommand)]
         action: RulesCommands,
@@ -687,8 +689,15 @@ pub enum Commands {
         strict_calendar: bool,
     },
 
-    /// Temporal PR policy gate (base/head snapshots + git scope)
+    /// Temporal PR analysis (`review paths` / `review check`)
     #[command(display_order = 51)]
+    Review {
+        #[command(subcommand)]
+        action: ReviewCommands,
+    },
+
+    /// Compatibility alias for `rgctl review check` (prefer `review check`)
+    #[command(display_order = 52)]
     PrCheck {
         #[arg(long)]
         policy_file: String,
@@ -937,6 +946,101 @@ pub enum RulesCommands {
         /// Override with a rulesets tree (mutually exclusive with DIR as single ruleset when set)
         #[arg(long = "catalog", value_name = "ROOT")]
         catalog: Option<std::path::PathBuf>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum ReviewCommands {
+    /// Before/after call-path report for a PR (base/head snapshots)
+    Paths {
+        /// Base graph artifact root, snapshot file, `$RGCTL_BASE_ARTIFACT`, or `{repo}/.rgctl-base`
+        #[arg(long)]
+        base_artifact: Option<String>,
+
+        /// Head graph artifact root or snapshot file [default: `-r` / cwd repo]
+        #[arg(long)]
+        head_artifact: Option<String>,
+
+        #[arg(long, default_value = "origin/main")]
+        base_ref: String,
+
+        #[arg(long, default_value = "HEAD")]
+        head_ref: String,
+
+        /// Reverse call-dependency hops when synthesizing a delta head (0 = disabled)
+        #[arg(long, default_value = "1")]
+        cascade_depth: usize,
+
+        /// Require pre-built head snapshot; skip delta head synthesis from base artifact.
+        #[arg(long = "full-snapshots")]
+        full_snapshots: bool,
+
+        /// Synthetic head source (`worktree` = uncommitted changes over HEAD snapshot)
+        #[arg(long = "synthetic-head", value_name = "MODE")]
+        synthetic_head: Option<String>,
+
+        /// Reverse-Calls hops in representative spines [default: 2]
+        #[arg(long = "upstream-depth", default_value_t = 2)]
+        upstream_depth: usize,
+
+        /// Forward-Calls hops in representative spines [default: 1]
+        #[arg(long = "downstream-depth", default_value_t = 1)]
+        downstream_depth: usize,
+
+        /// Restrict report to one symbol (name or stable-key hex); ambiguity lists candidates
+        #[arg(long = "symbol", value_name = "NAME")]
+        symbol: Option<String>,
+
+        /// Max symbols in the report [default: 50]
+        #[arg(long = "max-symbols", default_value_t = 50)]
+        max_symbols: usize,
+
+        /// Fan-out cap per hop when selecting spine neighbors [default: 10]
+        #[arg(long = "fanout", default_value_t = 10)]
+        fanout: usize,
+    },
+
+    /// Temporal PR policy gate (same as `rgctl pr-check`)
+    Check {
+        #[arg(long)]
+        policy_file: String,
+
+        /// Base graph artifact root, snapshot file, `$RGCTL_BASE_ARTIFACT`, or `{repo}/.rgctl-base`
+        #[arg(long)]
+        base_artifact: Option<String>,
+
+        /// Head graph artifact root or snapshot file [default: `-r` / cwd repo]
+        #[arg(long)]
+        head_artifact: Option<String>,
+
+        #[arg(long, default_value = "origin/main")]
+        base_ref: String,
+
+        #[arg(long, default_value = "HEAD")]
+        head_ref: String,
+
+        #[arg(long)]
+        strict: bool,
+
+        /// Reverse call-dependency hops when synthesizing a delta head (0 = disabled)
+        #[arg(long, default_value = "1")]
+        cascade_depth: usize,
+
+        /// Require pre-built head snapshot; skip delta head synthesis from base artifact.
+        #[arg(long = "full-snapshots")]
+        full_snapshots: bool,
+
+        /// Binary-search introducing commit for each new/regression violation
+        #[arg(long)]
+        bisect: bool,
+
+        /// Synthetic head source (`worktree` = uncommitted changes over HEAD snapshot)
+        #[arg(long = "synthetic-head", value_name = "MODE")]
+        synthetic_head: Option<String>,
+
+        /// Treat calendar `warn` violations as failures (grace / sunset warn windows)
+        #[arg(long = "strict-calendar")]
+        strict_calendar: bool,
     },
 }
 
@@ -1984,6 +2088,66 @@ impl Cli {
                     strict_calendar,
                 },
             ),
+            Commands::Review { action } => match action {
+                ReviewCommands::Paths {
+                    base_artifact,
+                    head_artifact,
+                    base_ref,
+                    head_ref,
+                    cascade_depth,
+                    full_snapshots,
+                    synthetic_head,
+                    upstream_depth,
+                    downstream_depth,
+                    symbol,
+                    max_symbols,
+                    fanout,
+                } => review::run_paths(
+                    &ctx,
+                    review::ReviewPathsArgs {
+                        base_artifact,
+                        head_artifact,
+                        base_ref,
+                        head_ref,
+                        cascade_depth,
+                        full_snapshots,
+                        synthetic_head,
+                        upstream_depth,
+                        downstream_depth,
+                        symbol,
+                        max_symbols,
+                        fanout,
+                    },
+                ),
+                ReviewCommands::Check {
+                    policy_file,
+                    base_artifact,
+                    head_artifact,
+                    base_ref,
+                    head_ref,
+                    strict,
+                    cascade_depth,
+                    full_snapshots,
+                    bisect,
+                    synthetic_head,
+                    strict_calendar,
+                } => review::run_check(
+                    &ctx,
+                    pr_check::PrCheckArgs {
+                        policy_file,
+                        base_artifact,
+                        head_artifact,
+                        base_ref,
+                        head_ref,
+                        strict,
+                        cascade_depth,
+                        full_snapshots,
+                        bisect,
+                        synthetic_head,
+                        strict_calendar,
+                    },
+                ),
+            },
             Commands::PrCheck {
                 policy_file,
                 base_artifact,
@@ -1996,7 +2160,7 @@ impl Cli {
                 bisect,
                 synthetic_head,
                 strict_calendar,
-            } => pr_check::run(
+            } => review::run_check(
                 &ctx,
                 pr_check::PrCheckArgs {
                     policy_file,
@@ -2164,6 +2328,10 @@ fn command_label_for(command: &Commands) -> &'static str {
             CpgCommands::Slice { .. } => "cpg slice",
         },
         Commands::Check { .. } => "check",
+        Commands::Review { action } => match action {
+            ReviewCommands::Paths { .. } => "review paths",
+            ReviewCommands::Check { .. } => "review check",
+        },
         Commands::PrCheck { .. } => "pr-check",
         Commands::Export { .. } => "export",
         Commands::Install { .. } => "install",

@@ -528,14 +528,67 @@ rgctl -f json check --policy-file policy.json | jq '{passed, count: (.violations
 
 ---
 
-## 8b. `pr-check`
+## 8b. `review check` / `pr-check`
 
 ```bash
+rgctl -f json review check --policy-file rgctl-tests/rgctl-pr-policy.json \
+  --base-ref origin/main --head-ref HEAD --strict
+# Compatibility alias (identical JSON + exit codes):
 rgctl -f json pr-check --policy-file rgctl-tests/rgctl-pr-policy.json \
   --base-ref origin/main --head-ref HEAD --strict
 ```
 
-Temporal PR gate: compares base + head graph snapshots, git-scoped entities, classifies violations as `new` | `existing` | `resolved` | `regression`. Default head synthesis builds a delta head from the base artifact; use `--full-snapshots` for pre-built dual artifacts. Flags: `--bisect`, `--synthetic-head worktree`, `--cascade-depth`.
+Temporal PR gate: compares base + head graph snapshots, git-scoped entities, classifies violations as `new` | `existing` | `resolved` | `regression`. Default head synthesis builds a delta head from the base artifact; use `--full-snapshots` for pre-built dual artifacts. Flags: `--bisect`, `--synthetic-head worktree`, `--cascade-depth`. Preferred command name is **`review check`**; `pr-check` remains a synonym.
+
+---
+
+## 8c. `review paths`
+
+```bash
+rgctl -f json review paths --base-ref origin/main --head-ref HEAD --full-snapshots
+# Optional: --upstream-depth 2 --downstream-depth 1 --symbol submitOrder --fanout 10 --max-symbols 50
+```
+
+Structural before/after call-path report (not a policy gate). Shares base/head artifact prep with `review check`. Truncation sets flags in JSON but still exits **0** when the report is produced. Ambiguous `--symbol` returns `ambiguous` candidates and exits **2**.
+
+### TypeScript shape
+
+```typescript
+interface ReviewPathsResponse {
+  schema_version: 1;
+  command: "review paths";
+  change_summary: {
+    changed_symbols: number;
+    call_edges: {
+      added: number;
+      removed: number;
+      retargeted: number;
+      unchanged: number;
+    };
+    files_in_scope: number;
+    unscored_files: number;
+  };
+  truncation: { symbols: boolean; fanout: boolean; depth: boolean };
+  symbols: {
+    stable_key: string;
+    name: string;
+    kind: string;
+    base?: { file?: string; start_line: number; end_line: number };
+    head?: { file?: string; start_line: number; end_line: number };
+    path_before: string[];
+    path_after: string[];
+    path_delta: PathDelta[];
+    truncation: { symbols: boolean; fanout: boolean; depth: boolean };
+  }[];
+  unscored_files: { path: string; reason: string }[];
+  ambiguous: { name: string; file?: string; stable_key: string }[];
+}
+
+type PathDelta =
+  | { kind: "added"; from: string; to: string; call_site_line?: number }
+  | { kind: "removed"; from: string; to: string; call_site_line?: number }
+  | { kind: "retargeted"; from: string; to_before: string; to_after: string };
+```
 
 ### TypeScript shape
 

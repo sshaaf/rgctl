@@ -261,14 +261,27 @@ rgctl -r "$REPO" -f json check --policy-file policy.json
 
 Blast-radius policy schema (`max_impact_nodes`, `forbidden_crossings`, …) — see [docs/policy-format.md](../../docs/policy-format.md). Named rules like `no-controller-direct-db-access` are **not** built-in ids. Report `passed` + `violations`.
 
-### Temporal PR gate
+### PR review — call paths (`review paths`)
+
+**User intent:** *"How did call paths change?"* / *"What was rewired on this PR?"*
 
 ```bash
+rgctl -r "$REPO" -f json review paths --base-ref origin/main --head-ref HEAD --full-snapshots
+# Optional: --upstream-depth 2 --downstream-depth 1 --symbol submitOrder
+```
+
+Reply order: (1) spines + `path_delta` per symbol, (2) short summary, (3) unscored files. Truncation flags ≠ failure. Do **not** run `review check` unless the user asked for policy/violations. Do **not** reconstruct paths with multiple `callers`/`callees` when this report already has them.
+
+### Temporal PR gate (`review check`)
+
+```bash
+rgctl -r "$REPO" -f json review check --policy-file rgctl-pr-policy.json --base-ref origin/main --head-ref HEAD --strict
+# Compatibility alias (same JSON / exit codes):
 rgctl -r "$REPO" -f json pr-check --policy-file rgctl-pr-policy.json --base-ref origin/main --head-ref HEAD --strict
 rgctl -r "$REPO" -f json check --temporal --policy-file policy.json --base-ref origin/main --head-ref HEAD
 ```
 
-Exit code 1 means violations. Parse JSON for violation details.
+Exit code 1 means violations. Parse JSON for violation details. Prefer `review check` in new docs; `pr-check` remains supported.
 
 
 ---

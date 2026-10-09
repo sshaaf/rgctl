@@ -23,7 +23,8 @@ Prefer the **Canonical** column in examples and agent workflows. Aliases/façade
 | Dep match | `deps check` | `security deps check` |
 | Sink taint CLI | `taint` | `security taint` |
 | CI policy | `check` | — |
-| PR gate | `pr-check` | — |
+| PR call-path review | `review paths` | — |
+| PR policy gate | `review check` | `pr-check` (alias) |
 | Kantra rules | `rules run` | — |
 | Experimental GQL | `gql` | prefer Query verbs above |
 
@@ -42,6 +43,7 @@ Prefer the **Canonical** column in examples and agent workflows. Aliases/façade
 - [communities](#communities)
 - [cpg](#cpg)
 - [check](#check)
+- [review](#review)
 - [export](#export)
 - [serve](#serve)
 
@@ -539,6 +541,65 @@ rgctl cpg export --format graphson --output cpg.json [--path-contains src/] \
 **Pitfalls:** Exit code `1` on failure — still parse JSON for violations.
 
 **Agent should report:** passed/failed + violation summaries.
+
+---
+
+## review
+
+**Family:** temporal PR analysis under `rgctl review …`.
+
+### review paths
+
+**Command:** `rgctl -f json review paths [--base-ref REF] [--head-ref REF] [--full-snapshots] [--upstream-depth N] [--downstream-depth N] [--symbol NAME]`
+
+**Purpose:** Before/after call-path report for changed symbols (spines + `path_delta`). Not a policy gate.
+
+**Prerequisites:** Base/head graph snapshots (same prep as `review check` / `pr-check`).
+
+**Sample (shape):**
+
+```json
+{
+  "schema_version": 1,
+  "command": "review paths",
+  "change_summary": {
+    "changed_symbols": 1,
+    "call_edges": { "added": 0, "removed": 0, "retargeted": 1, "unchanged": 0 },
+    "files_in_scope": 1,
+    "unscored_files": 0
+  },
+  "truncation": { "symbols": false, "fanout": false, "depth": false },
+  "symbols": [
+    {
+      "name": "submitOrder",
+      "path_before": ["CheckoutController.handle", "submitOrder", "chargeCard"],
+      "path_after": ["CheckoutController.handle", "submitOrder", "authorizeThenCapture"],
+      "path_delta": [
+        {
+          "kind": "retargeted",
+          "from": "submitOrder",
+          "to_before": "chargeCard",
+          "to_after": "authorizeThenCapture"
+        }
+      ]
+    }
+  ],
+  "unscored_files": [],
+  "ambiguous": []
+}
+```
+
+**Pitfalls:** Truncation flags do not fail the command. Ambiguous `--symbol` lists `ambiguous` and exits non-zero. Do not dump raw JSON to the user; present spines then summary then unscored.
+
+**Agent should report:** representative before/after paths + delta kinds; note truncation / unscored files.
+
+### review check
+
+**Command:** `rgctl -f json review check --policy-file PATH [--base-ref REF] [--head-ref REF] …`
+
+**Purpose:** Temporal PR policy gate (new/existing/resolved/regression). Prefer this name; **`pr-check`** is a compatibility alias with identical JSON and exit codes.
+
+**See:** [CI Policy Checks](../../docs/guides/ci-policy-checks.md), [json-api § pr-check / review check](../../docs/json-api.md#8b-pr-check).
 
 ---
 

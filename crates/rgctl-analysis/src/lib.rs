@@ -45,6 +45,7 @@ pub mod policy;
 pub mod policy_diff;
 pub mod violation_ledger;
 pub mod results;
+pub mod review_paths;
 pub mod scoped_policy;
 pub mod semantic_code_daemon;
 pub mod semantic_diffuse;
@@ -182,6 +183,12 @@ pub use policy_diff::{
 };
 pub use violation_ledger::{
     VIOLATION_LEDGER_FILE, ViolationLedger, ViolationLedgerEntry, ledger_entry_from_delta,
+};
+pub use review_paths::{
+    AmbiguousCandidate, CallEdgeCounts, ChangeSummary, DEFAULT_DOWNSTREAM_DEPTH,
+    DEFAULT_FANOUT_CAP, DEFAULT_MAX_NEIGHBOR_NODES, DEFAULT_MAX_SYMBOLS, DEFAULT_UPSTREAM_DEPTH,
+    PathDelta, ReviewPathsOptions, ReviewPathsReport, SideLocation, SymbolPathReport,
+    TruncationFlags, UnscoredFile, build_review_paths_report,
 };
 pub use scoped_policy::{
     build_pr_check_centrality, collect_upstream_call_closure, hydrate_subset, load_centrality_cache,
