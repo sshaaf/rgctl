@@ -208,6 +208,7 @@ sysinfo = "0.30"
 pulldown-cmark = "0.9"
 bincode = "1.3"
 ignore = "0.4"
+notify = "7"
 include_dir = "0.7"
 axum = "0.8"
 tower-http = { version = "0.6", features = ["fs"] }

@@ -78,7 +78,8 @@ if (doc.schema_version !== 2) {
 |---------|------------------------:|------------------|
 | `discover` | **2** | v2 introduced structured `metrics` block |
 | `blast-radius` | **2** | v2 added `target.language`, `target.canonical_fqn`, `metrics.caller_depth_limit` |
-| `find` / `callers` / `callees` / `relations` / `inventory` / `status` | **2** (find/neighbors/relations/inventory); **1** (`status`) | — |
+| `find` / `callers` / `callees` / `relations` / `inventory` / `status` | **2** (find/neighbors/relations/inventory); **2** (`status`) | `status` v2 adds `index_current` / dirty counts |
+| `update` | **1** | Incremental structural patch |
 | `metrics` | **1** | — |
 | `check` | **1** | — |
 | `slice` | **1** | — |
@@ -102,7 +103,8 @@ if (doc.schema_version !== 2) {
 |---------|:---------:|--------------|-------------|
 | `discover` | ✅ | `metrics` | CI ingestion gates, timing |
 | `find` / `callers` / `callees` / `relations` / `inventory` | ✅ | `entities`, `edges`, `counts` | Symbol lookup, call graph, inventories |
-| `status` | ✅ | `status`, `nodes`, `edges` | Session snapshot health |
+| `status` | ✅ | `status`, `nodes`, `edges`, `index_current` | Session snapshot + source staleness |
+| `update` | ✅ | `files_affected`, node/edge deltas | Incremental structural graph patch |
 | `blast-radius` | ✅ | `target`, `metrics`, `topology` | Change-impact automation |
 | `metrics` | ✅ | `pagerank`, `betweenness`, `communities` | Hotspot ranking |
 | `check` | ✅ | `passed`, `violations` | CI policy gate |
@@ -272,7 +274,7 @@ rgctl -f json status
 
 ```typescript
 interface SessionStatus {
-  schema_version: 1;
+  schema_version: 2;
   command: "status";
   status: "ok" | "missing";
   repo: string;
@@ -282,9 +284,45 @@ interface SessionStatus {
   edges?: number;
   kantra_findings: boolean;
   kantra_findings_path?: string;
+  /** Present when status is `ok`: sources match file_hashes.json */
+  index_current?: boolean;
+  dirty_files?: number;
+  files_added?: number;
+  files_changed?: number;
+  files_deleted?: number;
+  dirty_sample?: string[];
   message?: string;
 }
 ```
+
+When `index_current` is `false`, `message` hints at `rgctl update` or `serve --watch`. Status does not rewrite the snapshot.
+
+### `update`
+
+```bash
+rgctl -f json update
+rgctl -f json update --files src/Foo.java
+rgctl -f json update --since HEAD~1
+```
+
+```typescript
+interface UpdateResultJson {
+  schema_version: 1;
+  command: "update";
+  files_added: number;
+  files_changed: number;
+  files_deleted: number;
+  files_affected: number;
+  nodes_added: number;
+  nodes_removed: number;
+  edges_added: number;
+  edges_removed: number;
+  duration_ms: number;
+  message?: string; // e.g. "already current"
+}
+```
+
+See [Watch mode](guides/watch-mode.md).
 
 ### jq examples
 

@@ -50,9 +50,33 @@ Samples below are truncated where noted. Field names match live CLI / `docs/json
 }
 ```
 
-**Pitfalls:** Do not re-run on every question if `.rgctl/` exists. `--with-cfg` needed for slice/inspect/cpg PDG. `--with-taint` is discover-time taint (on-demand: `slice --taint`). Semantic search needs a separate `semantic index`. Migration roadmaps need `--export-migration-hints` (plan is `migration_plan.json`, not discover stdout).
+**Pitfalls:** Do not re-run full discover on every question if `.rgctl/` exists — use `status` + `update` when sources are dirty. `--with-cfg` needed for slice/inspect/cpg PDG. `--with-taint` is discover-time taint (on-demand: `slice --taint`). Semantic search needs a separate `semantic index`. Migration roadmaps need `--export-migration-hints` (plan is `migration_plan.json`, not discover stdout).
 
 **Agent should report:** files indexed, nodes/edges, duration; note which feature flags were used; for migration, path to `migration_plan.json` + top steps.
+
+---
+
+## update
+
+**Command:** `rgctl [-f json] update [PATH] [--files PATH,...] [--since REF] [--cascade-depth N] [--force] [-l/--languages CSV] [-e/--exclude GLOB]`
+
+**Purpose:** Incremental **structural** graph patch for changed sources. Not a full discover — does not rebuild communities, Kantra, CFG/PDG, or migration plans. Prefer this (or `serve --watch`) over rediscover when the working tree drifts.
+
+**Prerequisites:** Existing `.rgctl/` snapshot (`rgctl discover` once).
+
+**Examples:**
+```bash
+rgctl update                         # hash-diff vs file_hashes.json
+rgctl update --files src/Foo.java    # explicit paths
+rgctl update --since HEAD~1          # git-changed files
+rgctl -f json update                 # schema_version + UpdateResult fields
+```
+
+**Compatible alias:** `rgctl discover --files path1,path2` (same incremental updater).
+
+**Pitfalls:** After update, analysis sidecars keyed on graph digest may be invalidated — re-run `discover --with-cfg` / `semantic index` only when those features are needed. Empty change set exits 0 with “already current”. Shares exclusive `.rgctl/watch.lock` with `serve --watch` — only one watcher/update writer per repo.
+
+**Agent should report:** files_affected, nodes/edges deltas; if zero, say index already current.
 
 ---
 
@@ -87,7 +111,8 @@ rgctl -f json relations --edge extends --from-type class   # seedless
 rgctl -f json inventory --by type   # includes zero-count kinds
 rgctl -f json inventory --by edge
 rgctl -f json inventory --by import-prefix   # javax.ejb / javax.jms / org.eclipse …
-rgctl -f json status                # snapshot presence, digest, node/edge counts
+rgctl -f json status                # snapshot + index_current / dirty_files
+rgctl update                        # patch structural graph when status is dirty
 rgctl discover . --find '*coolstore*'   # locate candidate project roots (no index)
 rgctl -f json find --annotation @Resource --show-attributes  # needs annotation_args.json from discover
 rgctl -f json query find …          # alias namespace
@@ -96,12 +121,13 @@ rgctl -f json query find …          # alias namespace
 **Purpose:** Deterministic mmap structured query (no Cypher, no `MemoryBackend` hydrate). **Agents must use these verbs** — do not invent MATCH strings. Relations `total` is distinct `(source,target,edge)`; duplicates collapse with `occurrences` (`schema_version` ≥ 2). `inventory --by edge` uses the same rule: `count` = distinct, `occurrences` = raw stored edges.
 
 **Migration (agents):** primary path is `discover --export-migration-hints` → `.rgctl/migration_plan.json`. Optional supporting probes (keep `--limit` small):
-1. `status` — is `.rgctl/` fresh?
-2. `inventory --by import-prefix --limit 40` — import surface census
-3. `find --annotation …` / suffix globs — blockers without package guess
-4. `callers` / `blast-radius` on plan candidates
+1. `status` — is `.rgctl/` present and `index_current`?
+2. If not current → `rgctl update` (not full discover)
+3. `inventory --by import-prefix --limit 40` — import surface census
+4. `find --annotation …` / suffix globs — blockers without package guess
+5. `callers` / `blast-radius` on plan candidates
 
-**Prerequisites:** `discover` done (columnar `graph.snapshot.bin`). `status` does not rediscover.
+**Prerequisites:** `discover` done (columnar `graph.snapshot.bin`). `status` does not rediscover or update.
 
 **Flags:** `--annotation` inverts `AnnotatedWith` (OR list; `@` optional). `--show-attributes` needs annotation-arg indexing (errors honestly until indexed). `--scope` + `--scope-mode inside|outside|crossing` (or `--exclude-scope`). `--file` / `--class` / `--line` disambiguate. Edge rows use keyed `source`/`target` (never positional). Omit `SYMBOL` on `relations` for set-wide typed-edge scans.
 

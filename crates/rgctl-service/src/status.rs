@@ -16,6 +16,9 @@ pub const PIPELINE_STATUS_FILE: &str = "pipeline_status.json";
 /// Exclusive lock filename under `.rgctl/`.
 pub const PIPELINE_LOCK_FILE: &str = "pipeline.lock";
 
+/// Exclusive lock for `serve --watch` / `rgctl update` (one writer per repo).
+pub const WATCH_LOCK_FILE: &str = "watch.lock";
+
 /// Marker: snapshot was indexed with field materialization.
 pub const MATERIALIZED_FIELDS_DIGEST_FILE: &str = "materialized_fields.digest";
 
@@ -80,6 +83,18 @@ impl Drop for PipelineLock {
     }
 }
 
+/// Exclusive watch/update writer lock (pid file under `.rgctl/watch.lock`).
+#[derive(Debug)]
+pub struct WatchLock {
+    path: PathBuf,
+}
+
+impl Drop for WatchLock {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
 /// Path of the status JSON for `repo`.
 #[must_use]
 pub fn status_path(repo: &Path) -> PathBuf {
@@ -109,6 +124,48 @@ pub fn try_acquire_lock(repo: &Path) -> Result<PipelineLock> {
             path.display()
         ),
         Err(err) => Err(err).with_context(|| format!("create pipeline lock {}", path.display())),
+    }
+}
+
+/// Path of the watch/update lock file for `repo`.
+#[must_use]
+pub fn watch_lock_path(repo: &Path) -> PathBuf {
+    rgctl_graph::paths::artifact_path(repo, WATCH_LOCK_FILE)
+}
+
+/// Try to acquire the exclusive watch/update lock. Only one `serve --watch` or
+/// concurrent `rgctl update` may hold it per repository.
+pub fn try_acquire_watch_lock(repo: &Path) -> Result<WatchLock> {
+    let dir = rgctl_graph::paths::artifact_dir(repo);
+    std::fs::create_dir_all(&dir)
+        .with_context(|| format!("create artifact dir {}", dir.display()))?;
+    let path = dir.join(WATCH_LOCK_FILE);
+    match OpenOptions::new().write(true).create_new(true).open(&path) {
+        Ok(mut file) => {
+            let _ = writeln!(file, "{}", std::process::id());
+            Ok(WatchLock { path })
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {
+            let holder = std::fs::read_to_string(&path)
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            let holder_note = if holder.is_empty() {
+                String::new()
+            } else {
+                format!(" (held by pid {holder})")
+            };
+            bail!(
+                "another rgctl watch/update already active for {}{holder_note}\n\
+                 lock: {}\n\
+                 Only one watcher (or update writer) is allowed per repo. \
+                 Stop the other `rgctl serve --watch`, wait for `rgctl update` to finish, \
+                 or omit --watch.",
+                repo.display(),
+                path.display()
+            )
+        }
+        Err(err) => Err(err).with_context(|| format!("create watch lock {}", path.display())),
     }
 }
 
@@ -281,5 +338,19 @@ mod tests {
         let _first = try_acquire_lock(repo).expect("first lock");
         let second = try_acquire_lock(repo);
         assert!(second.is_err(), "second lock should fail");
+    }
+
+    #[test]
+    fn exclusive_watch_lock_rejects_second() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let repo = dir.path();
+        let _first = try_acquire_watch_lock(repo).expect("first watch lock");
+        let second = try_acquire_watch_lock(repo);
+        assert!(second.is_err(), "second watch lock should fail");
+        let msg = format!("{:#}", second.unwrap_err());
+        assert!(
+            msg.contains("only one watcher") || msg.contains("Only one watcher"),
+            "expected friendly message, got: {msg}"
+        );
     }
 }

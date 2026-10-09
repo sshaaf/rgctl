@@ -43,6 +43,8 @@ pub struct HttpServeArgs {
     pub dashboard_only: bool,
     pub no_pipeline: bool,
     pub path: Option<String>,
+    /// Watch sources and run incremental `update` on change.
+    pub watch: bool,
 }
 
 pub(crate) struct AppState {
@@ -158,15 +160,35 @@ pub fn serve(ctx: &CliContext, args: HttpServeArgs) -> Result<()> {
     });
 
     if start_pipeline {
-        let _pipeline = spawn_full_pipeline(session_root, ctx.verbose);
+        let _pipeline = spawn_full_pipeline(session_root.clone(), ctx.verbose);
     }
+
+    // Hold for the lifetime of serve so Drop releases `.rgctl/watch.lock` on exit.
+    let _watch_lock = if args.watch {
+        let lock = super::pipeline_status::try_acquire_watch_lock(&session_root).with_context(
+            || {
+                format!(
+                    "cannot start serve --watch for {}",
+                    session_root.display()
+                )
+            },
+        )?;
+        super::file_watch::spawn_repo_watcher(session_root.clone())
+            .context("start source file watcher")?;
+        eprintln!("[>] Source watch enabled (incremental update on save; exclusive lock held)");
+        Some(lock)
+    } else {
+        None
+    };
 
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .context("create tokio runtime")?;
 
-    rt.block_on(run_server(ctx, args, state))
+    let result = rt.block_on(run_server(ctx, args, state));
+    drop(_watch_lock);
+    result
 }
 
 fn load_semantic_index(repo: &Path) -> Option<SemanticIndex> {

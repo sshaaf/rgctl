@@ -202,3 +202,72 @@ fn test_full_workflow_modify_and_update() {
     assert!(result.files_affected() >= 1);
     assert!(graph.node_count() >= before);
 }
+
+#[test]
+fn test_cli_update_paths_and_noop() {
+    use rgctl::cli::update::{UpdateArgs, run_update_at, update_paths};
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let graph = chain_graph_repo(&temp);
+    // CLI update requires columnar snapshot (save_to_repo alone is legacy JSON).
+    graph.save_snapshot(root).unwrap();
+
+    let noop = run_update_at(
+        root,
+        &UpdateArgs {
+            path: None,
+            files: None,
+            since: None,
+            force: false,
+            cascade_depth: 1,
+            languages: None,
+            exclude: None,
+        },
+        false,
+        true,
+    )
+    .unwrap();
+    assert_eq!(noop.files_affected(), 0);
+
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn a() { b(); }\npub fn b() { c(); }\npub fn c() {}\npub fn e() {}\n",
+    )
+    .unwrap();
+    let updated = update_paths(root, &["src/lib.rs".into()], 1).unwrap();
+    assert!(updated.files_affected() >= 1 || updated.nodes_added > 0);
+}
+
+#[test]
+fn test_update_blocked_when_watch_lock_held() {
+    use rgctl::cli::pipeline_status::try_acquire_watch_lock;
+    use rgctl::cli::update::{UpdateArgs, run_update_at};
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let graph = chain_graph_repo(&temp);
+    graph.save_snapshot(root).unwrap();
+
+    let _watch = try_acquire_watch_lock(root).unwrap();
+    let err = run_update_at(
+        root,
+        &UpdateArgs {
+            path: None,
+            files: None,
+            since: None,
+            force: false,
+            cascade_depth: 1,
+            languages: None,
+            exclude: None,
+        },
+        false,
+        true,
+    )
+    .unwrap_err();
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("watch") || msg.contains("watcher") || msg.contains("lock"),
+        "unexpected error: {msg}"
+    );
+}

@@ -40,6 +40,8 @@ pub mod slice_output;
 mod stage_profile;
 mod structured_query;
 mod session_status;
+pub mod update;
+mod file_watch;
 mod rules;
 mod vuln_deps;
 
@@ -218,6 +220,7 @@ pub enum Commands {
         migration_order: String,
 
         /// Incremental update for repo-relative paths only (requires existing `.rgctl/` snapshot).
+        /// Prefer `rgctl update --files` for the same behavior with clearer semantics.
         #[arg(long = "files", value_name = "PATH", value_delimiter = ',')]
         files: Option<Vec<String>>,
 
@@ -433,8 +436,43 @@ pub enum Commands {
         exclude_scope: bool,
     },
 
-    /// Session graph status (snapshot presence, digest, node/edge counts; no rediscover)
+    /// Session graph status (snapshot presence, digest, node/edge counts, source staleness; no rediscover)
     Status,
+
+    /// Incremental structural graph update for changed files (not a full discover / analysis rebuild).
+    ///
+    /// Patches `graph.snapshot.bin` via `IncrementalUpdater`. Prefer this (or `serve --watch`)
+    /// over re-running `discover` when sources change. Analysis sidecars (CFG, semantic, …)
+    /// may be invalidated — re-run `discover` with the needed flags for those.
+    Update {
+        /// Repository path (defaults to `--repo` or cwd)
+        #[arg(value_name = "PATH")]
+        path: Option<String>,
+
+        /// Update only these repo-relative paths (comma-separated)
+        #[arg(long = "files", value_name = "PATH", value_delimiter = ',')]
+        files: Option<Vec<String>>,
+
+        /// Update files changed since this git ref (`git diff --name-only`)
+        #[arg(long = "since", value_name = "REF")]
+        since: Option<String>,
+
+        /// Force a full structural rebuild through the updater (prefer `discover` for analysis)
+        #[arg(long)]
+        force: bool,
+
+        /// Reverse call-dependency hops when re-indexing changed files (default 1; 0 = disabled)
+        #[arg(long = "cascade-depth", default_value = "1")]
+        cascade_depth: usize,
+
+        /// Restrict languages (comma-separated)
+        #[arg(short = 'l', long = "languages")]
+        languages: Option<String>,
+
+        /// Exclude path globs (comma-separated)
+        #[arg(short = 'e', long = "exclude", value_delimiter = ',')]
+        exclude: Vec<String>,
+    },
 
     /// Evaluate Konveyor-shaped rules against the session (Kantra engine)
     Rules {
@@ -680,6 +718,10 @@ pub enum Commands {
         /// Serve the dashboard only (no query API)
         #[arg(long)]
         dashboard_only: bool,
+
+        /// Watch source files and apply incremental graph updates (debounce via `rgctl.toml` `[watch]`)
+        #[arg(long)]
+        watch: bool,
     },
 
     /// Diff two columnar graph snapshots (cold diff profiling / compare path)
@@ -1461,6 +1503,26 @@ impl Cli {
                 },
             ),
             Commands::Status => session_status::run_status(&ctx),
+            Commands::Update {
+                path,
+                files,
+                since,
+                force,
+                cascade_depth,
+                languages,
+                exclude,
+            } => update::run(
+                &ctx,
+                update::UpdateArgs {
+                    path,
+                    files,
+                    since,
+                    force,
+                    cascade_depth,
+                    languages,
+                    exclude: join_exclude_patterns(&exclude),
+                },
+            ),
             Commands::Rules { action } => match action {
                 RulesCommands::Run {
                     rules_dir,
@@ -1901,6 +1963,7 @@ impl Cli {
                 open,
                 query_only,
                 dashboard_only,
+                watch,
             } => http_serve::serve(
                 &ctx,
                 http_serve::HttpServeArgs {
@@ -1912,6 +1975,7 @@ impl Cli {
                     dashboard_only,
                     no_pipeline,
                     path,
+                    watch,
                 },
             ),
         };
@@ -1934,6 +1998,7 @@ fn command_label_for(command: &Commands) -> &'static str {
         Commands::Relations { .. } => "relations",
         Commands::Inventory { .. } => "inventory",
         Commands::Status => "status",
+        Commands::Update { .. } => "update",
         Commands::Rules { .. } => "rules",
         Commands::Query { action } => match action {
             QueryCommands::Find { .. } => "query find",
