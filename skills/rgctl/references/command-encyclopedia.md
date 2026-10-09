@@ -4,9 +4,35 @@ Detailed reference for all rgctl commands with full JSON samples and field speci
 
 Samples below are truncated where noted. Field names match live CLI / `docs/json-api.md`. Fixture: `rgctl-tests/ecommerce-java` unless noted **illustrative** (schema-faithful shape).
 
+## Canonical command map
+
+Prefer the **Canonical** column in examples and agent workflows. Aliases/façades remain supported.
+
+| Intent | Canonical | Aliases / façades |
+|--------|-----------|-------------------|
+| Index / cold start | `discover` | — |
+| Session freshness | `status` → `update` | `serve --watch` (+ queue) |
+| Symbol lookup | `find` | `query find` |
+| Callers / callees | `callers` / `callees` | `query …`, `cpg calls` |
+| Typed edges | `relations` | `query relations` |
+| Counts | `inventory` | `query inventory` |
+| Line slice / flow | `slice` | `cpg slice`, `cpg flows` |
+| Raw CFG / PDG | `inspect` | `cpg pdg` |
+| Impact | `blast-radius` | — |
+| OSV → OpenVEX | `vuln analyze` | `security vuln analyze` |
+| Dep match | `deps check` | `security deps check` |
+| Sink taint CLI | `taint` | `security taint` |
+| CI policy | `check` | — |
+| PR gate | `pr-check` | — |
+| Kantra rules | `rules run` | — |
+| Experimental GQL | `gql` | prefer Query verbs above |
+
+`rgctl --help` lists commands under visual groups: Lifecycle · Query · Analysis · Security · Policy · Meta (flat verbs unchanged: `rgctl discover`, not nested).
+
 ## Table of Contents
 
 - [discover](#discover)
+- [update](#update)
 - [find / callers / callees / relations / inventory](#find--callers--callees--relations--inventory)
 - [blast-radius](#blast-radius)
 - [slice](#slice)

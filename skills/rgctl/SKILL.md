@@ -77,6 +77,7 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 | Build graph index | `cd repo && discover .` or `rgctl -r PATH discover` |
 | Patch graph after edits | `rgctl update` (or `update --files path1,path2`) — structural only |
 | Keep graph fresh while serving | `serve --watch` (debounced FS updates); still run `update` to enqueue if needed |
+| Prefer canonical verbs | `find`/`callers`/`slice`/`vuln analyze` (see encyclopedia map); `query`/`cpg`/`security` are façades |
 | Build semantic index | `semantic index` |
 | Check CFG readiness | `cpg status` |
 | Full staged pipeline | `discover . --full` |

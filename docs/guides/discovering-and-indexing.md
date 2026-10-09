@@ -48,6 +48,19 @@ Or from anywhere, without a `PATH` argument:
 rgctl -r example/coolstore discover -l java
 ```
 
+### Discover profiles (recommended flag sets)
+
+| Goal | Suggested flags |
+|------|-----------------|
+| **Structural** (query find/callers/…) | `discover .` (default) |
+| **CFG / slice ready** | `--with-cfg` (+ `--with-ast-skeleton` if needed) |
+| **Full staged pipeline** | `--full` (CFG + dashboard + harmonic + semantic; not taint/security) |
+| **Migration roadmap** | `--export-migration-hints --with-harmonic` (+ preset/order) |
+| **Kantra** | `--with-kantra` (+ `--kantra-target` …) |
+| **Dirty tree refresh** | prefer `rgctl update` / `serve --watch` — not full rediscover |
+
+`rgctl discover --help` groups flags under Paths & filters · Pipeline features · Migration · Session / limits.
+
 ### Full pipeline
 
 ```bash

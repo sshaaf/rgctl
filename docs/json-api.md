@@ -112,10 +112,14 @@ if (doc.schema_version !== 2) {
 | `inspect` | ✅ | `layer`, `nodes`, `edges` | CFG/PDG/dominance dumps |
 | `semantic` | ✅ | `hits` / `functions_indexed` | Opt-in NL / keyword search |
 | `communities` | ✅ | `communities`, `modularity` | Named community labels |
-| `cpg` | ✅ | varies by subcommand | Hybrid CPG façade |
+| `cpg` | ✅ | varies by subcommand | Hybrid CPG façade (`slice` / `inspect` are canonical for flow/CFG) |
+| `vuln` / `deps` | ✅ | varies | OSV triage / analyze / deps check (`security …` aliases same handlers) |
+| `security` | ✅ | same as `vuln`/`deps`/`taint` | Soft namespace; no separate JSON schema |
 | `install` | ✅ | `writes` | Install bundled agent pack (skills + optional commands) |
 | `export` | ❌ (file) | — | Full-graph serialization |
 | `serve` | ❌ | — | HTTP dashboard + semantic API (foreground) |
+
+Help groups commands as Lifecycle · Query · Analysis · Security · Policy · Meta (`rgctl --help` command map).
 
 ---
 

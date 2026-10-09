@@ -82,15 +82,15 @@ Coarse skeleton (`kind`, lines, `label`) — **not** a typed signature API (`par
 
 **User intent:** *"Confirm the CFG archive is ready, then slice how `quantity` is used in `updateQuantity`"*
 
+Canonical CLI is `rgctl slice` (CPG façade: `cpg slice` / `cpg flows`).
+
 ```bash
 rgctl -f json cpg status
-rgctl -f json cpg slice src/cart/CartService.ts \
+rgctl -f json slice src/cart/CartService.ts \
   --line 50 --variable quantity --function updateQuantity --view pdg
 ```
 
-**`cpg slice` has no `--symbol`.** For whole-function CFG/PDG, use `inspect <Symbol> cfg|pdg` or `cpg pdg <Symbol>`.
-
-CLI alias: `rgctl -f json slice FILE --line N --variable V [--function F] [--direction backward|forward]`.
+For whole-function CFG/PDG, use `inspect <Symbol> cfg|pdg` (façade: `cpg pdg <Symbol>`).
 
 ### Field mutations
 
