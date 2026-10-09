@@ -57,7 +57,7 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 
 1. **Help-only** — If user only wants help/command list → print workflow table below and **stop** (no discover, no queries)
 2. **Fast path (existing index)** — If `.rgctl/` exists **and** request is a structural question (not rebuild) → **do not re-run full discover**. Route via workflow table; use CLI `-f json`.
-   - **Staleness exception:** run `rgctl -f json status`. If `index_current` is `false`, run **`rgctl update`** once (or rely on an already-running `rgctl serve --watch`). Do **not** loop full `discover` for dirty working trees.
+   - **Staleness exception:** run `rgctl -f json status`. If `index_current` is `false`, run **`rgctl update`** once — works with or without `serve --watch` (under watch, update enqueues for the sole writer; do not stop serve). Do **not** loop full `discover` for dirty working trees.
    - **Exception — vuln / OSV / OpenVEX:** if reachability, sink-first taint, or `vuln analyze` is in scope and CFG was not built (`cpg status` / missing CFG archive), re-run `discover . --with-cfg` (add `--with-taint` for PDG-backed confidence) before P4–P6
 3. **No index** — Run `cd "$REPO" && rgctl discover .` or `rgctl -r "$REPO" discover` (do **not** use `-r REPO discover .` — the `.` ignores `-r`). Add flags only when needed; for vuln scans use `--with-cfg` (see vuln workflow)
 4. **Natural-language routing** — Map utterance with workflow table. Do not ask user to rephrase into CLI unless disambiguation required
@@ -76,7 +76,7 @@ Legacy daemon cache under `~/.rgctl/cache/` is obsolete; run `rgctl discover .` 
 |-------------|-------------|
 | Build graph index | `cd repo && discover .` or `rgctl -r PATH discover` |
 | Patch graph after edits | `rgctl update` (or `update --files path1,path2`) — structural only |
-| Keep graph fresh while serving | `serve --watch` (debounced incremental update on save) |
+| Keep graph fresh while serving | `serve --watch` (debounced FS updates); still run `update` to enqueue if needed |
 | Build semantic index | `semantic index` |
 | Check CFG readiness | `cpg status` |
 | Full staged pipeline | `discover . --full` |
@@ -195,7 +195,7 @@ Needs `discover --with-cfg`. `--function` is method name, not class.
 | Symptom | Fix |
 |---------|-----|
 | No `.rgctl/` in repo | Run `cd repo && rgctl discover .` |
-| `status` shows `index_current=false` | Run `rgctl update` once (or use `serve --watch`); do **not** full rediscover |
+| `status` shows `index_current=false` | Run `rgctl update` once (works under `serve --watch` via queue); do **not** full rediscover |
 | blast-radius / callers empty for a file that exists on disk | `rgctl update --files <path>` once, retry query; then fall back to reading source |
 | slice/inspect/cpg fails | Re-discover with `--with-cfg` |
 | vuln analyze / sink-first taint weak (`cfg_available=false`) | Re-discover with `--with-cfg` (add `--with-taint` for PDG confidence) |

@@ -4,6 +4,7 @@ use crate::languages::registry::LanguageRegistry;
 use anyhow::{Context, Result};
 use notify::{Event, EventKind, RecursiveMode, Watcher};
 use rgctl_project_config::RgctlConfig;
+use rgctl_service::update_queue::{self, drain_queue, prune_old_results, queue_nonempty};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, RecvTimeoutError};
@@ -12,7 +13,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
 
-const DEFAULT_CASCADE_DEPTH: usize = 1;
+/// Minimum idle poll interval so queued CLI updates are noticed without FS events (D9).
+const MIN_QUEUE_POLL: Duration = Duration::from_millis(100);
 
 /// Directory name segments that must never trigger an update.
 const SKIP_DIR_NAMES: &[&str] = &[".git", "target", "node_modules", ".rgctl"];
@@ -29,6 +31,12 @@ pub fn spawn_repo_watcher(repo: PathBuf) -> Result<thread::JoinHandle<()>> {
         .into_iter()
         .map(|e| e.trim_start_matches('.').to_ascii_lowercase())
         .collect();
+
+    match prune_old_results(&repo) {
+        Ok(n) if n > 0 => info!("watch: pruned {n} stale update result file(s)"),
+        Err(err) => warn!("watch: prune update results failed: {err:#}"),
+        _ => {}
+    }
 
     let (tx, rx) = mpsc::channel::<PathBuf>();
     let mut watcher = notify::recommended_watcher(move |res: notify::Result<Event>| {
@@ -72,6 +80,14 @@ fn is_interesting_event(kind: &EventKind) -> bool {
     )
 }
 
+fn poll_interval(debounce: Duration) -> Duration {
+    if debounce < MIN_QUEUE_POLL {
+        MIN_QUEUE_POLL
+    } else {
+        debounce
+    }
+}
+
 fn watch_loop(
     repo: PathBuf,
     rx: mpsc::Receiver<PathBuf>,
@@ -80,14 +96,23 @@ fn watch_loop(
 ) {
     let mut pending: HashSet<String> = HashSet::new();
     let mut deadline: Option<Instant> = None;
+    let queue_poll = poll_interval(debounce);
 
     loop {
-        let timeout = deadline.map(|d| d.saturating_duration_since(Instant::now()));
-        let recv = match timeout {
-            Some(t) if !t.is_zero() => rx.recv_timeout(t),
-            Some(_) => Err(RecvTimeoutError::Timeout),
-            None => rx.recv().map_err(|_| RecvTimeoutError::Disconnected),
+        let timeout = match deadline {
+            Some(d) => {
+                let until_debounce = d.saturating_duration_since(Instant::now());
+                if until_debounce.is_zero() {
+                    Duration::ZERO
+                } else {
+                    until_debounce.min(queue_poll)
+                }
+            }
+            // Idle: wake periodically to drain the CLI update queue (D9 poll).
+            None => queue_poll,
         };
+
+        let recv = rx.recv_timeout(timeout);
 
         match recv {
             Ok(path) => {
@@ -97,25 +122,24 @@ fn watch_loop(
                 }
             }
             Err(RecvTimeoutError::Timeout) => {
-                if pending.is_empty() {
-                    deadline = None;
+                let debounce_fired = deadline
+                    .map(|d| Instant::now() >= d)
+                    .unwrap_or(false);
+                let has_queue = queue_nonempty(&repo);
+
+                if !debounce_fired && !has_queue {
                     continue;
                 }
-                let batch: Vec<String> = pending.drain().collect();
-                deadline = None;
-                info!("watch: updating {} file(s)", batch.len());
-                // Extract/compact on this dedicated watch thread (not the tokio serve runtime).
-                match super::update::update_paths(&repo, &batch, DEFAULT_CASCADE_DEPTH) {
-                    Ok(result) => {
-                        info!(
-                            "watch: incremental update done (affected={}, +{}/-{} nodes)",
-                            result.files_affected(),
-                            result.nodes_added,
-                            result.nodes_removed
-                        );
-                    }
-                    Err(err) => warn!("watch: incremental update failed: {err:#}"),
+                // Wait for debounce idle before applying FS pending, unless only queue work.
+                if !pending.is_empty() && !debounce_fired && has_queue {
+                    // Keep accumulating FS paths until debounce; still allow queue-only apply
+                    // when pending empty. With pending + queue, wait for debounce.
+                    continue;
                 }
+
+                apply_cycle(&repo, &mut pending);
+                deadline = None;
+
                 // Drain any events buffered during the update into the next debounce window.
                 while let Ok(path) = rx.try_recv() {
                     if let Some(rel) = filter_watch_path(&repo, &path, &extensions) {
@@ -131,6 +155,34 @@ fn watch_loop(
                 break;
             }
         }
+    }
+}
+
+fn apply_cycle(repo: &Path, pending: &mut HashSet<String>) {
+    let batch = match drain_queue(repo) {
+        Ok(b) => b,
+        Err(err) => {
+            warn!("watch: queue drain failed: {err:#}");
+            update_queue::CoalescedBatch::default()
+        }
+    };
+
+    let fs_batch: Vec<String> = pending.drain().collect();
+    if batch.requests.is_empty() && fs_batch.is_empty() {
+        return;
+    }
+
+    info!(
+        "watch: applying update (fs_paths={}, queue_requests={}, hash_diff={})",
+        fs_batch.len(),
+        batch.requests.len(),
+        batch.run_hash_diff
+    );
+
+    // Extract/compact on this dedicated watch thread (not the tokio serve runtime).
+    match super::update::apply_queue_batch(repo, &batch, &fs_batch) {
+        Ok(()) => info!("watch: incremental update cycle done"),
+        Err(err) => warn!("watch: incremental update failed: {err:#}"),
     }
 }
 

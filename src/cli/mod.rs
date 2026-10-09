@@ -444,6 +444,9 @@ pub enum Commands {
     /// Patches `graph.snapshot.bin` via `IncrementalUpdater`. Prefer this (or `serve --watch`)
     /// over re-running `discover` when sources change. Analysis sidecars (CFG, semantic, …)
     /// may be invalidated — re-run `discover` with the needed flags for those.
+    ///
+    /// When `serve --watch` is already running, this command enqueues work for the watcher
+    /// (sole writer) and waits for the result by default (`--no-wait` to return after enqueue).
     Update {
         /// Repository path (defaults to `--repo` or cwd)
         #[arg(value_name = "PATH")]
@@ -457,7 +460,8 @@ pub enum Commands {
         #[arg(long = "since", value_name = "REF")]
         since: Option<String>,
 
-        /// Force a full structural rebuild through the updater (prefer `discover` for analysis)
+        /// Force a full structural rebuild through the updater (prefer `discover` for analysis).
+        /// Rejected while `serve --watch` is live (stop the watcher or run full discover).
         #[arg(long)]
         force: bool,
 
@@ -472,6 +476,19 @@ pub enum Commands {
         /// Exclude path globs (comma-separated)
         #[arg(short = 'e', long = "exclude", value_delimiter = ',')]
         exclude: Vec<String>,
+
+        /// When a live watcher holds the lock, enqueue and exit without waiting for the result
+        #[arg(long = "no-wait")]
+        no_wait: bool,
+
+        /// Seconds to wait for a queued update result when `serve --watch` is live (default 60)
+        #[arg(
+            long = "wait-timeout",
+            value_name = "SECS",
+            default_value = "60",
+            env = "RGCTL_UPDATE_WAIT_TIMEOUT_SECS"
+        )]
+        wait_timeout: u64,
     },
 
     /// Evaluate Konveyor-shaped rules against the session (Kantra engine)
@@ -1511,6 +1528,8 @@ impl Cli {
                 cascade_depth,
                 languages,
                 exclude,
+                no_wait,
+                wait_timeout,
             } => update::run(
                 &ctx,
                 update::UpdateArgs {
@@ -1521,6 +1540,8 @@ impl Cli {
                     cascade_depth,
                     languages,
                     exclude: join_exclude_patterns(&exclude),
+                    no_wait,
+                    wait_timeout_secs: wait_timeout,
                 },
             ),
             Commands::Rules { action } => match action {

@@ -145,11 +145,10 @@ fn run_files_update(ctx: &CliContext, path: &str, files: Vec<String>, args: &Dis
         super::update::UpdateArgs {
             path: Some(path.to_string()),
             files: Some(files),
-            since: None,
-            force: false,
             cascade_depth: args.cascade_depth,
             languages: args.languages.clone(),
             exclude: args.exclude.clone(),
+            ..super::update::UpdateArgs::default()
         },
     )
 }

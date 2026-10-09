@@ -291,6 +291,11 @@ interface SessionStatus {
   files_changed?: number;
   files_deleted?: number;
   dirty_sample?: string[];
+  /** Live `serve --watch` elected via `.rgctl/watch.lock` */
+  watcher_alive?: boolean;
+  watcher_pid?: number;
+  /** Pending lines in `.rgctl/update_queue.jsonl` */
+  update_queue_pending?: number;
   message?: string;
 }
 ```
@@ -303,6 +308,8 @@ When `index_current` is `false`, `message` hints at `rgctl update` or `serve --w
 rgctl -f json update
 rgctl -f json update --files src/Foo.java
 rgctl -f json update --since HEAD~1
+rgctl -f json update --no-wait          # enqueue only when serve --watch is live
+rgctl -f json update --wait-timeout 30
 ```
 
 ```typescript
@@ -319,10 +326,22 @@ interface UpdateResultJson {
   edges_removed: number;
   duration_ms: number;
   message?: string; // e.g. "already current"
+  /** Present when completed via the watch queue */
+  source?: "watch_queue";
+  warnings?: string[];
+}
+
+/** `--no-wait` while a live watcher holds the lock */
+interface UpdateQueuedJson {
+  schema_version: 1;
+  command: "update";
+  queued: true;
+  request_id: string;
+  message?: string;
 }
 ```
 
-See [Watch mode](guides/watch-mode.md).
+When `serve --watch` is live, `update` enqueues to `.rgctl/update_queue.jsonl` and waits for a result (default). See [Watch mode](guides/watch-mode.md).
 
 ### jq examples
 

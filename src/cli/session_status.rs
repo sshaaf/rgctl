@@ -44,6 +44,15 @@ struct SessionStatus {
     files_deleted: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     dirty_sample: Option<Vec<String>>,
+    /// Whether a live external `serve --watch` holds `.rgctl/watch.lock`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    watcher_alive: Option<bool>,
+    /// Pid of the live watcher when `watcher_alive` is true.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    watcher_pid: Option<u32>,
+    /// Pending lines in `.rgctl/update_queue.jsonl` (0 if absent).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    update_queue_pending: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
 }
@@ -114,6 +123,13 @@ pub fn run_status(ctx: &CliContext) -> Result<()> {
     let kantra_present = findings.is_file();
     let kantra_path = kantra_present.then(|| findings.display().to_string());
 
+    let watcher = super::pipeline_status::detect_live_watcher(&ctx.repo);
+    let watcher_alive = Some(watcher.is_some());
+    let watcher_pid = watcher.map(|w| w.pid);
+    let update_queue_pending = Some(super::pipeline_status::update_queue::queue_pending_count(
+        &ctx.repo,
+    ));
+
     let session = ctx.snapshot_session()?;
     let payload = match session {
         Some(s) => {
@@ -154,6 +170,9 @@ pub fn run_status(ctx: &CliContext) -> Result<()> {
                 } else {
                     Some(stale.dirty_sample)
                 },
+                watcher_alive,
+                watcher_pid,
+                update_queue_pending,
                 message,
             }
         }
@@ -174,6 +193,9 @@ pub fn run_status(ctx: &CliContext) -> Result<()> {
             files_changed: None,
             files_deleted: None,
             dirty_sample: None,
+            watcher_alive,
+            watcher_pid,
+            update_queue_pending,
             message: Some("Graph snapshot not found; run `rgctl discover` first".into()),
         },
     };

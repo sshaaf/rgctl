@@ -24,10 +24,10 @@ Worked NL scenarios showing the discover → query → reason → act pattern fo
 | Index repo | `cd "$REPO" && rgctl discover .` or `rgctl -r "$REPO" discover` |
 | Full pipeline | `discover . --full` |
 | Incremental patch | `rgctl update` or `rgctl update --files path1,path2` (requires existing `.rgctl/`) |
-| Live while editing | `rgctl serve --watch` (debounced incremental updates) |
-| Alias | `discover --files path1,path2` (same as `update --files`) |
+| Live while editing | `rgctl serve --watch` (debounced FS updates; `update` enqueues if watch is live) |
+| Alias | `discover --files path1,path2` (same as `update --files`, including queue handoff) |
 
-**Fast path:** If `.rgctl/` exists and the user did not ask to rebuild, do **not** re-run full discover. Check `rgctl status` (`index_current`); if false, run `rgctl update` once.
+**Fast path:** If `.rgctl/` exists and the user did not ask to rebuild, do **not** re-run full discover. Check `rgctl status` (`index_current`); if false, run `rgctl update` once — do not stop `serve --watch` to refresh.
 
 Common flags: `--with-cfg` (CFG/PDG archive), `--with-ast-skeleton`, `--with-dfg-loops` (loop-carried PDG tags). Migration roadmap output is the **migrate** workflow (`--export-migration-hints` → `migration_plan.json`) — do not conflate it with a plain index.
 

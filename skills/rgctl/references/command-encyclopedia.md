@@ -58,7 +58,7 @@ Samples below are truncated where noted. Field names match live CLI / `docs/json
 
 ## update
 
-**Command:** `rgctl [-f json] update [PATH] [--files PATH,...] [--since REF] [--cascade-depth N] [--force] [-l/--languages CSV] [-e/--exclude GLOB]`
+**Command:** `rgctl [-f json] update [PATH] [--files PATH,...] [--since REF] [--cascade-depth N] [--force] [--no-wait] [--wait-timeout SECS] [-l/--languages CSV] [-e/--exclude GLOB]`
 
 **Purpose:** Incremental **structural** graph patch for changed sources. Not a full discover — does not rebuild communities, Kantra, CFG/PDG, or migration plans. Prefer this (or `serve --watch`) over rediscover when the working tree drifts.
 
@@ -70,13 +70,16 @@ rgctl update                         # hash-diff vs file_hashes.json
 rgctl update --files src/Foo.java    # explicit paths
 rgctl update --since HEAD~1          # git-changed files
 rgctl -f json update                 # schema_version + UpdateResult fields
+rgctl update --no-wait               # enqueue only when serve --watch is live
 ```
 
-**Compatible alias:** `rgctl discover --files path1,path2` (same incremental updater).
+**Compatible alias:** `rgctl discover --files path1,path2` (same incremental updater / queue handoff).
 
-**Pitfalls:** After update, analysis sidecars keyed on graph digest may be invalidated — re-run `discover --with-cfg` / `semantic index` only when those features are needed. Empty change set exits 0 with “already current”. Shares exclusive `.rgctl/watch.lock` with `serve --watch` — only one watcher/update writer per repo.
+**Watch handoff:** While `serve --watch` holds `.rgctl/watch.lock`, `update` **enqueues** for the watcher (sole writer) and waits by default (`source: "watch_queue"` in JSON). Do **not** stop serve to refresh. `--force` is rejected under a live watcher. Second `serve --watch` still exits.
 
-**Agent should report:** files_affected, nodes/edges deltas; if zero, say index already current.
+**Pitfalls:** After update, analysis sidecars keyed on graph digest may be invalidated — re-run `discover --with-cfg` / `semantic index` only when those features are needed. Empty change set exits 0 with “already current”.
+
+**Agent should report:** files_affected, nodes/edges deltas; if zero, say index already current; if queued via watch, note `source: watch_queue`.
 
 ---
 

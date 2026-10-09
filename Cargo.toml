@@ -192,7 +192,7 @@ aho-corasick = "1"
 fancy-regex = "0.11"
 unicode-normalization = "0.1"
 strsim = "0.11"
-clap = { version = "4", features = ["derive"] }
+clap = { version = "4", features = ["derive", "env"] }
 comfy-table = "7"
 indicatif = "0.17"
 console = "0.15"
