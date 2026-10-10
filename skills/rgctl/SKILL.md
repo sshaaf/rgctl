@@ -198,6 +198,7 @@ Needs `discover --with-cfg`. `--function` is method name, not class.
 | "Who calls X" | `callers X --depth 2` (impact → `blast-radius X`) |
 | "javax imports / annotations" | `find "import javax*" --type import`; `relations --edge annotatedwith --from-type function --to-type annotation` |
 | "Where is X mutated?" | `cpg mutations --type X --exclude-ctors` |
+| "Duplicate code / copy-pasted loop or snippet" | `clones --mode fragment --seed <fn> --lines <start-end>` (or `--mode exact` / `--mode bloom`) |
 
 ## Failure Playbook
 
@@ -225,6 +226,7 @@ All paths under **`{repo}/.rgctl/`**:
 | `migration_plan.json` | Migration roadmap (`--export-migration-hints`) |
 | `dashboard/` | Dashboard bundle |
 | `analysis/` | CFG/PDG archives |
+| `clones*.json` | Clone group sidecar caches (`clones.json`, `clones.bloom.json`, `clones.fragment.json`) |
 
 ## Usage Globals
 

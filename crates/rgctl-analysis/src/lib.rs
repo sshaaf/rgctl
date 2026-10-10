@@ -17,6 +17,7 @@ pub mod centrality_approx;
 pub mod cfg;
 pub mod cfg_builder;
 pub mod cfg_pdg_archive;
+pub mod clones;
 pub mod cold_metadata;
 pub mod community;
 pub mod community_label;
@@ -31,6 +32,7 @@ pub mod dominance;
 pub mod field_write;
 pub mod field_write_locals;
 pub mod flow_cache;
+pub mod fragment_clones;
 pub mod graph_utils;
 pub mod hash_maps;
 pub mod interprocedural_cfg;
@@ -60,12 +62,14 @@ pub mod semantic_onnx;
 pub mod semantic_onnx_tokenizer;
 pub mod semantic_search;
 pub mod semantic_vocab;
+pub mod sese;
 pub mod slicing;
 pub mod storage;
 pub mod structural_topology;
 pub mod taint;
 pub mod taint_rules;
 pub mod type_inference;
+pub mod wl_hash;
 
 pub use alias::may_alias_names;
 pub use ast_skeleton::{
@@ -111,6 +115,18 @@ pub use cfg_builder::{
     index_function_locations,
 };
 pub use cfg_pdg_archive::{CFG_PDG_ARCHIVE_FILE, CfgPdgArchive, CfgPdgRecord};
+pub use clones::{
+    BloomCloneOptions, CLONE_REPORT_SCHEMA_VERSION, CLONE_REPORT_SCHEMA_VERSION_V2,
+    CLONES_FRAGMENT_SIDECAR_FILE, CLONES_SIDECAR_FILE, DEFAULT_BLOOM_MAX_BUCKET,
+    DEFAULT_BLOOM_THRESHOLD, DEFAULT_MIN_LOC, FragmentCloneFilters, FragmentCloneGroup,
+    FragmentCloneReport, FragmentMember, FragmentSeedInfo, MODE_BLOOM, MODE_EXACT, MODE_FRAGMENT,
+    MODE_SEMANTIC, MODE_STRUCTURAL, CloneError, CloneFilters, CloneGroup, CloneMember, CloneReport,
+    ExactCloneOptions, bloom_clones_with_cache, build_bloom_report, build_exact_report,
+    clones_sidecar_path, clones_sidecar_path_for_mode, exact_clones_with_cache,
+    fragment_clones_sidecar_path, group_bloom_from_nodes, group_exact_from_nodes,
+    iter_bloom_functions, iter_hashed_functions, load_fragment_sidecar_if_fresh,
+    load_sidecar_if_fresh, parse_mode, path_excluded, save_fragment_sidecar, save_sidecar,
+};
 pub use cold_metadata::ColdMetadataDb;
 pub use community::{
     Community, CommunityDetector, CommunityResult, DEFAULT_HUB_SIGMA_K,
@@ -142,6 +158,10 @@ pub use field_write::{
     build_and_save_field_write_index,
 };
 pub use flow_cache::{CachedAnalysis, CfgPdgCache, FlowCache, NodePdgCache};
+pub use fragment_clones::{
+    discover_fragment_clones, query_fragment_clones, resolve_cfg_for_function,
+    stage1_filter_functions, FragmentSeedQuery,
+};
 pub use graph_utils::{
     DEFAULT_TRAVERSAL_DEPTH, PetGraphView, TraversalConfig, edge_type_set,
     filter_impact_by_caller_depth,
@@ -242,8 +262,10 @@ pub use slicing::{
     BackwardSlicer, CodeSlice, ForwardSlicer, SliceCriterion, SliceDirection, SliceOptions,
     compute_slice, compute_slice_with_options,
 };
+pub use sese::{DEFAULT_MAX_STATEMENTS, DEFAULT_MIN_STATEMENTS, SeseRegion, extract_sese_regions};
 pub use storage::{AnalysisIndexEntry, AnalysisStorage, FunctionAnalysis, FunctionIdSyncEntry};
 pub use structural_topology::StructuralTopology;
 pub use taint::{Sanitizer, TaintAnalyzer, TaintFlow, TaintSink, TaintSource};
 pub use taint_rules::{TaintRuleSet, bundled_cwe_catalog, CweCatalogEntry};
 pub use type_inference::{InferredType, TypeInferenceEngine, VariableType, confidence_for};
+pub use wl_hash::{CanonicalEdgeTag, CanonicalStatementKind, WeisfeilerLehmanHasher};

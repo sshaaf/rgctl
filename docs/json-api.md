@@ -88,6 +88,7 @@ if (doc.schema_version !== 2) {
 | `semantic query` | **3** | hits + optional expansion / fusion fields |
 | `semantic distill` | **1** | RBVK matrix write (hash/code-daemon teacher) |
 | `communities` | **1** | list / label |
+| `clones` | **1 / 2** | exact Type-1 / bloom (v1); fragment hammocks (v2) + optional seed |
 | `cpg` (status / mutations / flows / …) | **1** | per-subcommand shapes |
 | `install` | **2** | agent pack write report (`list-agents` JSON is separate; see §18) |
 
@@ -112,6 +113,7 @@ if (doc.schema_version !== 2) {
 | `inspect` | ✅ | `layer`, `nodes`, `edges` | CFG/PDG/dominance dumps |
 | `semantic` | ✅ | `hits` / `functions_indexed` | Opt-in NL / keyword search |
 | `communities` | ✅ | `communities`, `modularity` | Named community labels |
+| `clones` | ✅ | `groups`, `graph_digest` | Exact Type-1 clone groups (`code_hash`); not semantic search |
 | `cpg` | ✅ | varies by subcommand | Hybrid CPG façade (`slice` / `inspect` are canonical for flow/CFG) |
 | `vuln` / `deps` | ✅ | varies | OSV triage / analyze / deps check (`security …` aliases same handlers) |
 | `security` | ✅ | same as `vuln`/`deps`/`taint` | Soft namespace; no separate JSON schema |
@@ -538,7 +540,7 @@ rgctl -f json pr-check --policy-file rgctl-tests/rgctl-pr-policy.json \
   --base-ref origin/main --head-ref HEAD --strict
 ```
 
-Temporal PR gate: compares base + head graph snapshots, git-scoped entities, classifies violations as `new` | `existing` | `resolved` | `regression`. Default head synthesis builds a delta head from the base artifact; use `--full-snapshots` for pre-built dual artifacts. Flags: `--bisect`, `--synthetic-head worktree`, `--cascade-depth`. Preferred command name is **`review check`**; `pr-check` remains a synonym.
+Temporal PR gate: compares base + head graph snapshots, git-scoped entities, classifies violations as `new` | `existing` | `resolved` | `regression`. Default head synthesis builds a delta head from the base artifact; use `--full-snapshots` for pre-built dual artifacts. Flags: `--bisect`, `--synthetic-head worktree`, `--cascade-depth`. Preferred command name is **`review check`**; `pr-check` remains a synonym. Guide: [pr-review.md](guides/pr-review.md).
 
 ---
 
@@ -549,7 +551,7 @@ rgctl -f json review paths --base-ref origin/main --head-ref HEAD --full-snapsho
 # Optional: --upstream-depth 2 --downstream-depth 1 --symbol submitOrder --fanout 10 --max-symbols 50
 ```
 
-Structural before/after call-path report (not a policy gate). Shares base/head artifact prep with `review check`. Truncation sets flags in JSON but still exits **0** when the report is produced. Ambiguous `--symbol` returns `ambiguous` candidates and exits **2**.
+Structural before/after call-path report (not a policy gate). Shares base/head artifact prep with `review check`. Truncation sets flags in JSON but still exits **0** when the report is produced. Ambiguous `--symbol` returns `ambiguous` candidates and exits **2**. Guide: [pr-review.md](guides/pr-review.md).
 
 ### TypeScript shape
 
@@ -1172,6 +1174,114 @@ rgctl -r "$REPO" -f json communities list | jq '{modularity, n: (.communities|le
 ```
 
 See also `inventory --by community` (User Guide §6).
+
+---
+
+## 16b. `clones`
+
+Clone groups via Function `code_hash` (**exact** Type-1), `token_bloom` Jaccard (**bloom** candidates), or CFG SESE hammock Weisfeiler-Lehman canonical hashing (**fragment** sub-function clones). Query-time / sidecars `.rgctl/clones.json` / `.rgctl/clones.bloom.json` / `.rgctl/clones.fragment.json` — **not** topology edges. Distinct from `semantic query`. Types: `crates/rgctl-analysis/src/clones.rs`, `crates/rgctl-analysis/src/fragment_clones.rs`, CLI `src/cli/clones.rs`. Design: [clone-detection-design.md](design/clone-detection-design.md). Guide: [clone-detection.md](guides/clone-detection.md).
+
+```bash
+rgctl -r "$REPO" -f json clones --mode exact [--min-loc N] [--exclude GLOB] [--lang ID]
+rgctl -r "$REPO" -f json clones --mode bloom [--threshold 0.85] [--min-loc N] [--exclude GLOB]
+rgctl -r "$REPO" -f json clones --mode fragment [--seed SYMBOL|FILE:LINES] [--lines START-END] [--min-statements N] [--max-statements N] [--threshold F]
+rgctl -r "$REPO" -f json clones SYMBOL --file PATH [--class C] [--line N]
+```
+
+### Schema v1: Whole-function clones (`exact` | `bloom`)
+
+```typescript
+type CloneReport = {
+  schema_version: 1;
+  mode: "exact" | "bloom";
+  graph_digest: string;
+  filters: {
+    min_loc?: number;       // default 5
+    exclude: string[];      // path-component or path-substring needles
+    language?: string;
+  };
+  threshold?: number;       // bloom min Jaccard (default 0.85)
+  candidates?: boolean;     // true for bloom — not Type-1
+  group_count: number;
+  groups: Array<{
+    mode: "exact" | "bloom";
+    hash?: string;          // exact only
+    size: number;
+    members: Array<{
+      id: string;
+      name: string;
+      file?: string;
+      start_line?: number;
+      end_line?: number;
+      loc?: number;
+    }>;
+    confidence?: number;    // 1.0 exact; Jaccard for bloom
+    score?: number;         // bloom: min pairwise Jaccard
+  }>;
+  seed?: {                  // present for symbol-scoped clones
+    id: string;
+    name: string;
+    file?: string;
+    start_line?: number;
+    end_line?: number;
+    loc?: number;
+  };
+};
+```
+
+### Schema v2: Sub-function fragment clones (`fragment`)
+
+```typescript
+type FragmentCloneReport = {
+  schema_version: 2;
+  mode: "fragment";
+  graph_digest: string;
+  filters: {
+    min_statements: number; // default 3
+    max_statements: number; // default 15
+    threshold: number;      // default 1.0 (exact structural)
+    exclude: string[];
+  };
+  seed?: {
+    file: string;
+    start_line: number;
+    end_line: number;
+    enclosing_function?: string;
+    structural_hash: string;
+  };
+  group_count: number;
+  groups: Array<{
+    structural_hash: string;
+    size: number;
+    score: number;
+    members: Array<{
+      id: string;
+      name: string;
+      file: string;
+      start_line: number;
+      end_line: number;
+      enclosing_function: string;
+      statement_count: number;
+    }>;
+  }>;
+};
+```
+
+Ambiguous symbols emit the structured-query envelope (`error: "ambiguous_symbol"`, `schema_version` 2) — disambiguate with `--file` / `--class` / `--line`.
+
+```bash
+# Exact Type-1 clones
+rgctl -r "$REPO" -f json clones --exclude test \
+  | jq '{group_count, top: [.groups[:3][] | {size, hash: .hash[0:12], names: [.members[].name]}]}'
+
+# Bloom candidates
+rgctl -r "$REPO" -f json clones --mode bloom --threshold 0.9 --exclude test \
+  | jq '{candidates, threshold, top: [.groups[:3][] | {size, score, names: [.members[].name]}]}'
+
+# Fragment clone query scoped to a seed loop/region
+rgctl -r "$REPO" -f json clones --mode fragment --seed process_orders --lines 3-8 \
+  | jq '{group_count, seed, groups: [.groups[] | {hash: .structural_hash, members: [.members[] | {fn: .enclosing_function, lines: "\(.start_line)-\(.end_line)"}]}]}'
+```
 
 ---
 

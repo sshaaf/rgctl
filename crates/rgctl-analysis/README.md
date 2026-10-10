@@ -1,6 +1,6 @@
 # rgctl-analysis
 
-Graph analysis algorithms for [rgctl](https://github.com/sshaaf/rgctl): centrality, community detection, blast radius, CFG/PDG construction, slicing, and taint analysis.
+Graph analysis algorithms for [rgctl](https://github.com/sshaaf/rgctl): centrality, community detection, blast radius, CFG/PDG construction, slicing, taint analysis, and exact/fragment clone detection (SESE hammocks + 1-WL canonical hashing).
 
 See [docs/analysis-architecture.md](../../docs/analysis-architecture.md) for the three-tier graph model.
 
@@ -18,7 +18,11 @@ See [docs/analysis-architecture.md](../../docs/analysis-architecture.md) for the
 | `dependency` | `PetGraphView` | Kosaraju SCC, reverse BFS | O(V+E) |
 | `complexity` | Backend properties | Aggregation | O(F) |
 | `cfg_builder` | tree-sitter AST | CFG construction | O(stmts) |
-| `dominance` | CFG | Cooper-Harvey-Kennedy idom | O(n²) worst |
+| `dominance` | CFG | Cooper-Harvey-Kennedy idom + Lengauer-Tarjan post-dominators | O(n²) idom / O(V+E) pdom |
+| `sese` | CFG | Single-Entry Single-Exit (SESE) hammock decomposition ($3 \le |S| \le 15$) | O(V+E) |
+| `wl_hash` | CFG SESE hammocks | 2-iteration Weisfeiler-Lehman (1-WL) canonical color refinement | O(V+E) |
+| `clones` | Function nodes | Exact Type-1 (`code_hash`) grouping & Type-2 bloom LSH bands | O(N) exact; O(bands·B²) bloom |
+| `fragment_clones` | Snapshot + CFGs | Two-stage candidate filter: bitwise bloom pre-filter + 1-WL hammock match | O(N) bitwise Stage 1 + O(cand·(V+E)) Stage 2 |
 | `dataflow` | CFG + PDG | Reaching definitions | O(n·d) |
 | `pdg` | CFG | Data + control dependencies | O(n·d) |
 | `slicing` | PDG | Backward BFS slice | O(V+E) |

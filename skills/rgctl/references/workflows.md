@@ -247,6 +247,48 @@ Optional structural probes to explain plan steps (keep `--limit` small): `invent
 
 ---
 
+# Clone detection workflow
+
+**When:** Finding duplicated code, whole-function duplicates, or copy-pasted sub-function loops and hammocks.
+
+### 1. Seed-first fragment clone query
+
+**User intent:** *"Where else in the codebase is this 8-line loop or error handling logic duplicated?"*
+
+```bash
+# Query by function symbol and line range
+rgctl -r "$REPO" -f json clones --mode fragment --seed processOrders --lines 45-53
+
+# Disambiguate when symbol name exists in multiple files
+rgctl -r "$REPO" -f json clones --mode fragment --seed processOrders --file src/payment.rs --lines 45-53
+```
+
+Extracts CFG SESE hammocks within statement bounds ($3 \le |S| \le 15$), performs Stage 1 bitwise bloom filtering, and matches 1-WL canonical hashes. Emits `schema_version: 2` with precise line ranges, statement counts, and enclosing functions.
+
+### 2. Repo-wide unseeded fragment clone mining
+
+**User intent:** *"Find all duplicated sub-function fragments across the whole repository"*
+
+```bash
+rgctl -r "$REPO" -f json clones --mode fragment --min-statements 3 --max-statements 15
+```
+
+Writes `.rgctl/clones.fragment.json` sidecar cache keyed by `graph_digest`.
+
+### 3. Whole-function exact & bloom clones
+
+**User intent:** *"Find functions with identical implementation bodies"*
+
+```bash
+# Type-1 exact body equality
+rgctl -r "$REPO" -f json clones --mode exact --min-loc 5 --exclude test
+
+# Type-2 bloom candidate similarity
+rgctl -r "$REPO" -f json clones --mode bloom --threshold 0.85 --exclude test
+```
+
+---
+
 # Gate workflow
 
 **When:** Policy checks and temporal PR gates.

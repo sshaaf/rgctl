@@ -185,7 +185,7 @@ Research papers on code graphs, migration, LLM agents, and program analysis — 
 
 17. **Enhancing program dependency graph based clone detection using approximate subgraph matching**
     - [PDF](https://www.academia.edu/63870307/Enhancing_program_dependency_graph_based_clone_detection_using_approximate_subgraph_matching)
-    - **rgctl:** Reading — clone detection not a CLI feature today; PDG substrate exists
+    - **rgctl:** `rgctl clones --mode exact` (Type-1) and `--mode bloom` (token-bloom Jaccard candidates); PDG/CFG confirmation is roadmap (M3). Design: [clone-detection-design.md](design/clone-detection-design.md)
 
 ## Survey & Review Papers
 
@@ -253,7 +253,7 @@ Active publication venues for this research area:
 ## Related Topics
 
 - **Program Slicing**: Using PDGs to extract relevant program subsets
-- **Clone Detection**: Graph-based similarity for identifying code duplicates
+- **Clone Detection**: Graph-based similarity for identifying code duplicates — MVP CLI `rgctl clones` (exact); see [clone-detection-design.md](design/clone-detection-design.md)
 - **API Migration**: Automated adaptation to new library versions
 - **Monolith to Microservices**: Decomposition using dependency analysis
 - **Software Supply Chain Security**: Dependency graph analysis for vulnerabilities

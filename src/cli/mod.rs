@@ -9,6 +9,7 @@ mod pr_check_output;
 mod review;
 mod temporal_prep;
 pub mod check_output;
+mod clones;
 mod communities;
 mod context;
 mod cpg;
@@ -656,6 +657,76 @@ pub enum Commands {
     Communities {
         #[command(subcommand)]
         action: CommunitiesCommands,
+    },
+
+    /// Clone groups: exact Type-1 (`code_hash`) or bloom candidates — not semantic search
+    #[command(
+        display_order = 26,
+        long_about = "Find duplicate function implementations (clone groups).\n\
+                      Modes: exact (Type-1 code_hash groups) | bloom (token_bloom Jaccard candidates).\n\
+                      Bloom results are candidates (high false-positive risk), not Type-1 clones.\n\
+                      Distinct from `semantic query` (NL/embedding nearest neighbors)."
+    )]
+    Clones {
+        /// Optional symbol: report only the clone group containing this function
+        #[arg(value_name = "SYMBOL")]
+        symbol: Option<String>,
+
+        /// Clone mode: exact | bloom | fragment (semantic/structural reserved)
+        #[arg(long, default_value = "exact")]
+        mode: String,
+
+        /// Seed for fragment clones: symbol or file:lines (e.g. PaymentService::processRefund or src/lib.rs:10-25)
+        #[arg(long = "seed", value_name = "SEED")]
+        seed: Option<String>,
+
+        /// Line range for seed fragment (e.g. 45-55)
+        #[arg(long = "lines", value_name = "START-END")]
+        lines: Option<String>,
+
+        /// Minimum statement count for fragment clones (default: 3)
+        #[arg(long = "min-statements", value_name = "N")]
+        min_statements: Option<usize>,
+
+        /// Maximum statement count for fragment clones (default: 15)
+        #[arg(long = "max-statements", value_name = "N")]
+        max_statements: Option<usize>,
+
+        /// Minimum function LOC to include (default: 5)
+        #[arg(long = "min-loc", value_name = "N")]
+        min_loc: Option<usize>,
+
+        /// Exclude path needles/globs (repeatable), e.g. test, generated
+        #[arg(long = "exclude", value_name = "GLOB")]
+        exclude: Vec<String>,
+
+        /// Language filter (e.g. java, c)
+        #[arg(long = "lang", value_name = "ID")]
+        language: Option<String>,
+
+        /// Bloom min Jaccard threshold in [0,1] (default: 0.85; bloom mode only)
+        #[arg(long = "threshold", value_name = "F")]
+        threshold: Option<f64>,
+
+        /// Disambiguate symbol by file path/glob
+        #[arg(long = "file", value_name = "PATH")]
+        file: Option<String>,
+
+        /// Disambiguate symbol by enclosing class
+        #[arg(long = "class", value_name = "NAME")]
+        class: Option<String>,
+
+        /// Disambiguate symbol by definition line
+        #[arg(long = "line", value_name = "N")]
+        line: Option<usize>,
+
+        /// Do not write `.rgctl/clones.json` / `clones.bloom.json` (full-repo writes by default)
+        #[arg(long = "no-write", default_value_t = false)]
+        no_write: bool,
+
+        /// Do not read/write the clones sidecar cache
+        #[arg(long = "no-cache", default_value_t = false)]
+        no_cache: bool,
     },
 
     /// Hybrid CPG façade (topology + CFG/PDG archive)
@@ -1992,6 +2063,42 @@ impl Cli {
                     communities::run_label(&ctx, communities::CommunitiesLabelArgs { write })
                 }
             },
+            Commands::Clones {
+                symbol,
+                mode,
+                seed,
+                lines,
+                min_statements,
+                max_statements,
+                min_loc,
+                exclude,
+                language,
+                threshold,
+                file,
+                class,
+                line,
+                no_write,
+                no_cache,
+            } => clones::run(
+                &ctx,
+                clones::ClonesArgs {
+                    symbol,
+                    mode,
+                    seed,
+                    lines,
+                    min_statements,
+                    max_statements,
+                    min_loc,
+                    exclude,
+                    language,
+                    threshold,
+                    file,
+                    class,
+                    line,
+                    write: !no_write,
+                    no_cache,
+                },
+            ),
             Commands::Cpg { action } => {
                 let mapped = match action {
                     CpgCommands::Status => cpg::CpgAction::Status,
@@ -2316,6 +2423,7 @@ fn command_label_for(command: &Commands) -> &'static str {
             CommunitiesCommands::List => "communities list",
             CommunitiesCommands::Label { .. } => "communities label",
         },
+        Commands::Clones { .. } => "clones",
         Commands::Cpg { action } => match action {
             CpgCommands::Status => "cpg status",
             CpgCommands::Function { .. } => "cpg function",

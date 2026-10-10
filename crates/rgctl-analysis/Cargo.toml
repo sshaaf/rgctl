@@ -43,6 +43,7 @@ memmap2 = "0.9"
 rayon = { workspace = true }
 smallvec = { version = "1", features = ["serde"] }
 rustc-hash = "2"
+blake3 = "1"
 
 [features]
 default = []
