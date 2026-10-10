@@ -80,16 +80,34 @@ const guides = [
     href: "/docs/guides/ci-policy-checks/",
   },
   {
+    title: "Pull request review",
+    feature: "review paths, review check",
+    blurb: "Structural before/after call-path inspection and PR gates.",
+    href: "/docs/guides/pr-review/",
+  },
+  {
     title: "HTTP server and dashboard",
     feature: "serve",
     blurb: "Run an HTTP API and browser-based dashboard.",
     href: "/docs/guides/http-server-and-dashboard/",
   },
   {
+    title: "Watch mode and incremental update",
+    feature: "update, serve --watch",
+    blurb: "Keep the graph fresh without full rediscover.",
+    href: "/docs/guides/watch-mode/",
+  },
+  {
     title: "Migration planning",
     feature: "discover --export-migration-hints",
     blurb: "Generate a dependency-aware migration roadmap.",
     href: "/docs/guides/migration-planning/",
+  },
+  {
+    title: "Clone detection",
+    feature: "clones",
+    blurb: "Exact (Type-1), bloom, and sub-function fragment clones.",
+    href: "/docs/guides/clone-detection/",
   },
   {
     title: "Agent pack",
