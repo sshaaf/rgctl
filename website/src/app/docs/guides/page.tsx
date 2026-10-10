@@ -6,21 +6,29 @@ export const metadata: Metadata = {
   title: "Guides",
 };
 
-/** `added` is YYYY-MM-DD (guide first landed). Index sorts newest first, then title. */
+/** `added` is ISO date (optional time). Index sorts newest first, then title. */
 const guides = [
+  {
+    title: "Vulnerability and OSV supply-chain analysis",
+    feature: "vuln, deps, taint, security",
+    blurb:
+      "OSV advisory triage, manifest scanning, call-path reachability, and OpenVEX.",
+    href: "/docs/guides/vulnerability-and-osv-analysis/",
+    added: "2026-10-10T04:08",
+  },
   {
     title: "Clone detection",
     feature: "clones",
     blurb: "Exact (Type-1), bloom, and sub-function fragment clones.",
     href: "/docs/guides/clone-detection/",
-    added: "2026-10-10",
+    added: "2026-10-10T03:34",
   },
   {
     title: "Pull request review",
     feature: "review paths, review check",
     blurb: "Structural before/after call-path inspection and PR gates.",
     href: "/docs/guides/pr-review/",
-    added: "2026-10-10",
+    added: "2026-10-10T03:34",
   },
   {
     title: "Watch mode and incremental update",
