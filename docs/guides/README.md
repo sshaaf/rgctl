@@ -23,6 +23,7 @@ Practical, step-by-step guides for every major rgctl feature. Each guide uses th
 | [Watch mode and incremental update](watch-mode.md) | `update`, `serve --watch` | Keep the graph fresh without full rediscover |
 | [Migration Planning](migration-planning.md) | `discover --export-migration-hints` | Generate a dependency-aware migration roadmap |
 | [Clone Detection](clone-detection.md) | `clones` | Detect exact (Type-1), bloom, and sub-function fragment clones |
+| [Vulnerability and OSV Supply-Chain Analysis](vulnerability-and-osv-analysis.md) | `vuln`, `deps`, `taint`, `security` | End-to-end OSV advisory triage, manifest scanning, call-path reachability, and OpenVEX generation |
 | [Agent pack](agent-skill.md) | CoolStore install walkthrough | Use cases; NL → `rgctl` skill → CLI |
 
 ## Prerequisites

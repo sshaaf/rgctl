@@ -1370,7 +1370,7 @@ rgctl -r "$REPO" -f json vuln analyze --osv ./advisory.json --include-jars lib
 
 `deps check` verdict: `not_affected` | `affected_candidate`. Analyze `exploitability`: `not_affected` | `not_exploitable` | `exploitable` | `under_investigation`. Bundled JAR / `node_modules` scans are **opt-in**. Sink-first requires CFG artifacts.
 
-Human guide: [Agent pack](guides/agent-skill.md) · skill workflow `vuln`.
+Human guide: [Vulnerability and OSV Supply-Chain Analysis](guides/vulnerability-and-osv-analysis.md) · [Agent pack](guides/agent-skill.md) · skill workflow `vuln`.
 
 ---
 
