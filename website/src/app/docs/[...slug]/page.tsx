@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { DocMarkdown } from "@/components/doc-markdown";
 import { listDocSlugs, readDoc, rewriteDocLinks } from "@/lib/docs";
 import { GITHUB_REPO } from "@/lib/utils";
 
@@ -58,7 +57,7 @@ export default async function DocPage({ params }: Props) {
         </a>
       </p>
       <article className="prose-docs space-y-4 text-[var(--body)] [&_a]:text-[var(--primary)] [&_a]:underline [&_code]:rounded [&_code]:border [&_code]:border-[var(--hairline)] [&_code]:bg-[var(--canvas-soft)] [&_code]:px-1 [&_h1]:font-[family-name:var(--font-serif)] [&_h1]:text-3xl [&_h1]:font-semibold [&_h1]:tracking-tight [&_h1]:text-[var(--ink)] [&_h2]:mt-8 [&_h2]:font-[family-name:var(--font-serif)] [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-[var(--ink)] [&_h3]:mt-6 [&_h3]:text-lg [&_h3]:text-[var(--ink)] [&_li]:my-1 [&_p]:leading-relaxed [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-[var(--hairline)] [&_pre]:bg-[var(--canvas-soft)] [&_pre]:p-3 [&_pre]:text-sm [&_table]:w-full [&_table]:text-sm [&_td]:border [&_td]:border-[var(--hairline)] [&_td]:p-2 [&_th]:border [&_th]:border-[var(--hairline)] [&_th]:p-2 [&_th]:text-left">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{md}</ReactMarkdown>
+        <DocMarkdown>{md}</DocMarkdown>
       </article>
     </div>
   );
