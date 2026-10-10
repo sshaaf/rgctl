@@ -2,11 +2,10 @@
 
 use crate::cfg::{BlockId, ControlFlowGraph, Statement};
 use crate::dataflow::{ReachingDefs, compute_reaching_definitions};
-use crate::dominance::DominatorTree;
+use crate::dominance::{DominatorTree, compute_post_dominators};
 use rgctl_error::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 use uuid::Uuid;
 
 /// Identifier for a PDG node.
@@ -563,98 +562,6 @@ fn cfg_block_can_reach(cfg: &ControlFlowGraph, from: BlockId, to: BlockId) -> bo
         }
     }
     false
-}
-
-/// Post-dominator tree for control dependence.
-#[derive(Debug, Clone)]
-struct PostDominatorTree {
-    ipdom: HashMap<BlockId, HashSet<BlockId>>,
-}
-
-impl PostDominatorTree {
-    fn immediately_post_dominates(&self, candidate: BlockId, node: BlockId) -> bool {
-        self.ipdom
-            .get(&node)
-            .map(|set| set.contains(&candidate))
-            .unwrap_or(false)
-    }
-}
-
-fn compute_post_dominators(cfg: &ControlFlowGraph) -> PostDominatorTree {
-    let all_blocks: HashSet<BlockId> = cfg.blocks.keys().copied().collect();
-    let top: Arc<HashSet<BlockId>> = Arc::new(all_blocks.clone());
-    let mut post_dom: HashMap<BlockId, Arc<HashSet<BlockId>>> = HashMap::new();
-
-    for &block in &all_blocks {
-        if cfg.exits.contains(&block) {
-            post_dom.insert(block, Arc::new(HashSet::from([block])));
-        } else {
-            post_dom.insert(block, Arc::clone(&top));
-        }
-    }
-
-    let mut changed = true;
-    while changed {
-        changed = false;
-        for &block in &all_blocks {
-            if cfg.exits.contains(&block) {
-                continue;
-            }
-            let succs = cfg.successors(block);
-            if succs.is_empty() {
-                continue;
-            }
-            let mut intersection = intersect_post_dom_sets(&post_dom, succs);
-            intersection.insert(block);
-            let next = Arc::new(intersection);
-            if !post_dom_sets_equal(post_dom.get(&block), &next) {
-                post_dom.insert(block, next);
-                changed = true;
-            }
-        }
-    }
-
-    PostDominatorTree {
-        ipdom: post_dom
-            .into_iter()
-            .map(|(block, set)| {
-                (
-                    block,
-                    Arc::try_unwrap(set).unwrap_or_else(|arc| (*arc).clone()),
-                )
-            })
-            .collect(),
-    }
-}
-
-fn intersect_post_dom_sets(
-    post_dom: &HashMap<BlockId, Arc<HashSet<BlockId>>>,
-    succs: &[BlockId],
-) -> HashSet<BlockId> {
-    let &smallest_succ = succs
-        .iter()
-        .min_by_key(|&&s| post_dom[&s].len())
-        .expect("non-empty successors");
-    let smallest = &post_dom[&smallest_succ];
-    if succs.len() == 1 {
-        return smallest.as_ref().clone();
-    }
-    smallest
-        .iter()
-        .filter(|b| succs.iter().all(|&s| post_dom[&s].contains(*b)))
-        .copied()
-        .collect()
-}
-
-fn post_dom_sets_equal(
-    current: Option<&Arc<HashSet<BlockId>>>,
-    next: &Arc<HashSet<BlockId>>,
-) -> bool {
-    match current {
-        None => false,
-        Some(cur) if Arc::ptr_eq(cur, next) => true,
-        Some(cur) => **cur == **next,
-    }
 }
 
 #[cfg(test)]

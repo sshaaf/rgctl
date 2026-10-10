@@ -6,8 +6,10 @@ use super::args::OutputFormat;
 use super::context::CliContext;
 use anyhow::{Context, Result, bail};
 use rgctl_analysis::{
-    BloomCloneOptions, CLONE_REPORT_SCHEMA_VERSION, CloneFilters, DEFAULT_BLOOM_THRESHOLD,
-    DEFAULT_MIN_LOC, ExactCloneOptions, MODE_BLOOM, MODE_EXACT, bloom_clones_with_cache,
+    discover_fragment_clones, load_fragment_sidecar_if_fresh, query_fragment_clones,
+    save_fragment_sidecar, BloomCloneOptions, CLONE_REPORT_SCHEMA_VERSION, CloneFilters,
+    DEFAULT_BLOOM_THRESHOLD, DEFAULT_MIN_LOC, ExactCloneOptions, FragmentCloneFilters,
+    FragmentSeedQuery, MODE_BLOOM, MODE_EXACT, MODE_FRAGMENT, bloom_clones_with_cache,
     build_bloom_report, build_exact_report, exact_clones_with_cache, parse_mode, save_sidecar,
 };
 use rgctl_error::Error as GraphError;
@@ -20,8 +22,16 @@ use rgctl_graph::{
 pub struct ClonesArgs {
     /// Optional symbol seed (clones of this function).
     pub symbol: Option<String>,
-    /// Detection mode (`exact` | `bloom`).
+    /// Detection mode (`exact` | `bloom` | `fragment`).
     pub mode: String,
+    /// Optional fragment seed (<SYMBOL|FILE:LINES>).
+    pub seed: Option<String>,
+    /// Optional line range for seed fragment (<START-END>).
+    pub lines: Option<String>,
+    /// Minimum statements for fragment clones (default: 3).
+    pub min_statements: Option<usize>,
+    /// Maximum statements for fragment clones (default: 15).
+    pub max_statements: Option<usize>,
     /// Minimum LOC (default [`DEFAULT_MIN_LOC`]).
     pub min_loc: Option<usize>,
     /// Path exclude needles / globs.
@@ -47,6 +57,10 @@ impl Default for ClonesArgs {
         Self {
             symbol: None,
             mode: MODE_EXACT.to_string(),
+            seed: None,
+            lines: None,
+            min_statements: Some(3),
+            max_statements: Some(15),
             min_loc: Some(DEFAULT_MIN_LOC),
             exclude: Vec::new(),
             language: None,
@@ -102,6 +116,126 @@ pub fn run(ctx: &CliContext, args: ClonesArgs) -> Result<()> {
     let store = ctx
         .open_snapshot_store()?
         .context("Graph snapshot not found (run `rgctl discover` first)")?;
+
+    if mode == MODE_FRAGMENT {
+        let threshold = args.threshold.unwrap_or(1.0);
+        if !(0.0..=1.0).contains(&threshold) {
+            bail!("--threshold must be between 0 and 1");
+        }
+        let fragment_filters = FragmentCloneFilters {
+            min_statements: args.min_statements.unwrap_or(3),
+            max_statements: args.max_statements.unwrap_or(15),
+            threshold,
+            exclude: args.exclude,
+        };
+
+        let mut parsed_lines = None;
+        if let Some(ref l) = args.lines {
+            if let Some((s_str, e_str)) = l.split_once('-') {
+                if let (Ok(s), Ok(e)) = (s_str.trim().parse::<usize>(), e_str.trim().parse::<usize>()) {
+                    parsed_lines = Some((s, e));
+                }
+            }
+        }
+
+        let seed_input = args.seed.as_ref().or(args.symbol.as_ref());
+        let report = if let Some(seed_str) = seed_input {
+            let mut seed_file = args.file.clone();
+            let mut seed_symbol = None;
+
+            if let Some((prefix, suffix)) = seed_str.rsplit_once(':') {
+                if let Some((s_str, e_str)) = suffix.split_once('-') {
+                    if let (Ok(s), Ok(e)) = (s_str.trim().parse::<usize>(), e_str.trim().parse::<usize>()) {
+                        seed_file = Some(prefix.to_string());
+                        if parsed_lines.is_none() {
+                            parsed_lines = Some((s, e));
+                        }
+                    } else {
+                        seed_symbol = Some(seed_str.clone());
+                    }
+                } else {
+                    seed_symbol = Some(seed_str.clone());
+                }
+            } else {
+                seed_symbol = Some(seed_str.clone());
+            }
+
+            let seed_query = FragmentSeedQuery {
+                symbol: seed_symbol,
+                file: seed_file,
+                lines: parsed_lines,
+            };
+
+            query_fragment_clones(store.as_ref(), &ctx.repo, seed_query, fragment_filters)?
+        } else {
+            let digest = store.content_digest()?.to_string();
+            let cached = if !args.no_cache {
+                load_fragment_sidecar_if_fresh(&ctx.repo, &digest)?
+            } else {
+                None
+            };
+
+            if let Some(c) = cached {
+                if c.filters == fragment_filters {
+                    c
+                } else {
+                    let r = discover_fragment_clones(store.as_ref(), &ctx.repo, fragment_filters)?;
+                    if args.write && !args.no_cache {
+                        save_fragment_sidecar(&ctx.repo, &r)?;
+                    }
+                    r
+                }
+            } else {
+                let r = discover_fragment_clones(store.as_ref(), &ctx.repo, fragment_filters)?;
+                if args.write && !args.no_cache {
+                    save_fragment_sidecar(&ctx.repo, &r)?;
+                }
+                r
+            }
+        };
+
+        if ctx.format == OutputFormat::Json {
+            return ctx.emit_json_value(&serde_json::to_value(&report)?);
+        }
+
+        ctx.stdout_line(&format!(
+            "clone mode={} schema_version={} groups={} digest={}",
+            report.mode,
+            report.schema_version,
+            report.group_count,
+            &report.graph_digest[..report.graph_digest.len().min(12)]
+        ))?;
+        if let Some(ref seed) = report.seed {
+            let fn_name = seed.enclosing_function.as_deref().unwrap_or("?");
+            ctx.stdout_line(&format!(
+                "seed: {} @ {}:{}-{} (hash: {})",
+                fn_name,
+                seed.file,
+                seed.start_line,
+                seed.end_line,
+                &seed.structural_hash[..seed.structural_hash.len().min(12)]
+            ))?;
+        }
+        for g in &report.groups {
+            ctx.stdout_line(&format!(
+                "\n[{}] size={} score={:.3} hash={}…",
+                report.mode,
+                g.size,
+                g.score,
+                &g.structural_hash[..g.structural_hash.len().min(12)]
+            ))?;
+            for m in &g.members {
+                ctx.stdout_line(&format!(
+                    "  - {}  {}:{}-{} ({} stmts)",
+                    m.enclosing_function, m.file, m.start_line, m.end_line, m.statement_count
+                ))?;
+            }
+        }
+        if report.groups.is_empty() {
+            ctx.stdout_line("(no fragment clone groups matched filters)")?;
+        }
+        return Ok(());
+    }
 
     let filters = CloneFilters {
         min_loc: args.min_loc.or(Some(DEFAULT_MIN_LOC)),

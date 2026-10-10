@@ -4,6 +4,7 @@ use crate::cfg::{BlockId, ControlFlowGraph};
 use rgctl_error::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 /// Dominator tree with immediate dominators and dominance frontiers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,6 +226,122 @@ fn compute_dominance_frontiers(
         }
     }
     frontiers
+}
+
+/// Post-dominator tree containing post-dominance sets for each block.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostDominatorTree {
+    /// Post-dominators for each block (set of all blocks that post-dominate the block).
+    pub post_dominators: HashMap<BlockId, HashSet<BlockId>>,
+}
+
+impl PostDominatorTree {
+    /// Build post-dominator tree from CFG.
+    pub fn build(cfg: &ControlFlowGraph) -> Self {
+        compute_post_dominators(cfg)
+    }
+
+    /// Returns true if `candidate` post-dominates `node`.
+    pub fn post_dominates(&self, candidate: BlockId, node: BlockId) -> bool {
+        self.post_dominators
+            .get(&node)
+            .map(|set| set.contains(&candidate))
+            .unwrap_or(false)
+    }
+
+    /// Backwards compatibility / PDG helper.
+    pub fn immediately_post_dominates(&self, candidate: BlockId, node: BlockId) -> bool {
+        self.post_dominates(candidate, node)
+    }
+}
+
+/// Compute post-dominators for a CFG via iterative dataflow.
+pub fn compute_post_dominators(cfg: &ControlFlowGraph) -> PostDominatorTree {
+    let all_blocks: HashSet<BlockId> = cfg.blocks.keys().copied().collect();
+    let top: Arc<HashSet<BlockId>> = Arc::new(all_blocks.clone());
+    let mut post_dom: HashMap<BlockId, Arc<HashSet<BlockId>>> = HashMap::new();
+
+    let mut exit_blocks: HashSet<BlockId> = cfg.exits.iter().copied().collect();
+    if exit_blocks.is_empty() {
+        for &block in &all_blocks {
+            if cfg.successors(block).is_empty() {
+                exit_blocks.insert(block);
+            }
+        }
+    }
+    if exit_blocks.is_empty() && !all_blocks.is_empty() {
+        exit_blocks.insert(cfg.entry);
+    }
+
+    for &block in &all_blocks {
+        if exit_blocks.contains(&block) {
+            post_dom.insert(block, Arc::new(HashSet::from([block])));
+        } else {
+            post_dom.insert(block, Arc::clone(&top));
+        }
+    }
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for &block in &all_blocks {
+            if exit_blocks.contains(&block) {
+                continue;
+            }
+            let succs = cfg.successors(block);
+            if succs.is_empty() {
+                continue;
+            }
+            let mut intersection = intersect_post_dom_sets(&post_dom, succs);
+            intersection.insert(block);
+            let next = Arc::new(intersection);
+            if !post_dom_sets_equal(post_dom.get(&block), &next) {
+                post_dom.insert(block, next);
+                changed = true;
+            }
+        }
+    }
+
+    PostDominatorTree {
+        post_dominators: post_dom
+            .into_iter()
+            .map(|(block, set)| {
+                (
+                    block,
+                    Arc::try_unwrap(set).unwrap_or_else(|arc| (*arc).clone()),
+                )
+            })
+            .collect(),
+    }
+}
+
+fn intersect_post_dom_sets(
+    post_dom: &HashMap<BlockId, Arc<HashSet<BlockId>>>,
+    succs: &[BlockId],
+) -> HashSet<BlockId> {
+    let &smallest_succ = succs
+        .iter()
+        .filter(|s| post_dom.contains_key(s))
+        .min_by_key(|&&s| post_dom[&s].len())
+        .unwrap_or(&succs[0]);
+    let Some(smallest) = post_dom.get(&smallest_succ) else {
+        return HashSet::new();
+    };
+    if succs.len() == 1 {
+        return smallest.as_ref().clone();
+    }
+    smallest
+        .iter()
+        .filter(|b| succs.iter().all(|s| post_dom.get(s).map_or(false, |set| set.contains(*b))))
+        .copied()
+        .collect()
+}
+
+fn post_dom_sets_equal(
+    current: Option<&Arc<HashSet<BlockId>>>,
+    next: &Arc<HashSet<BlockId>>,
+) -> bool {
+    current.map(|c| c.as_ref() == next.as_ref()).unwrap_or(false)
 }
 
 #[cfg(test)]

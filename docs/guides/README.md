@@ -18,9 +18,11 @@ Practical, step-by-step guides for every major rgctl feature. Each guide uses th
 | [Exporting Graphs](exporting-graphs.md) | `export` | Serialize graph data to JSON, GraphML, Graphviz, Mermaid, or Obsidian |
 | [Markdown Context Graph](markdown-context-graph.md) | `discover -l markdown` · `export` | Index docs, Obsidian/OKF export, fixture feature tour (k8s-website scale example) |
 | [CI Policy Checks](ci-policy-checks.md) | `check`, `pr-check` | PR temporal gates and local policy checks |
+| [Pull Request Review](pr-review.md) | `review paths`, `review check` | Structural before/after call-path inspection and PR gates |
 | [HTTP Server and Dashboard](http-server-and-dashboard.md) | `serve` | Run an HTTP API and browser-based dashboard |
 | [Watch mode and incremental update](watch-mode.md) | `update`, `serve --watch` | Keep the graph fresh without full rediscover |
 | [Migration Planning](migration-planning.md) | `discover --export-migration-hints` | Generate a dependency-aware migration roadmap |
+| [Clone Detection](clone-detection.md) | `clones` | Detect exact (Type-1), bloom, and sub-function fragment clones |
 | [Agent pack](agent-skill.md) | CoolStore install walkthrough | Use cases; NL → `rgctl` skill → CLI |
 
 ## Prerequisites

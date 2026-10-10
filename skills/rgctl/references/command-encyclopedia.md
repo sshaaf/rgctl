@@ -441,12 +441,13 @@ rgctl -f json semantic query "…" [--limit N] [--scope function|community] \
 ```bash
 rgctl -f json clones --mode exact [--min-loc N] [--exclude GLOB] [--lang ID] [--no-write] [--no-cache]
 rgctl -f json clones --mode bloom [--threshold 0.85] [--min-loc N] [--exclude GLOB]
+rgctl -f json clones --mode fragment [--seed SYMBOL|FILE:LINES] [--lines START-END] [--min-statements N] [--max-statements N] [--threshold F]
 rgctl -f json clones SYMBOL --file PATH [--class C] [--line N]
 ```
 
-**Purpose:** **Clone groups** — `exact` = same `code_hash` (Type-1); `bloom` = high `token_bloom` Jaccard **candidates** (`candidates: true`, not Type-1). Answers “where else is this implementation?” as pairs/groups. **Not** an alias of `semantic query` (NL/embedding nearest neighbors).
+**Purpose:** **Clone groups** — `exact` = same `code_hash` (Type-1); `bloom` = high `token_bloom` Jaccard **candidates** (`candidates: true`, not Type-1); `fragment` = sub-function CFG SESE hammocks canonicalized via 2 iterations of Weisfeiler-Lehman (1-WL) graph hashing (Type-2 invariant). Answers “where else is this implementation or code snippet?” as pairs/groups. **Not** an alias of `semantic query` (NL/embedding nearest neighbors).
 
-**Prerequisites:** `discover` (Function `code_hash` / `token_bloom`). Query-time; sidecars `.rgctl/clones.json` / `.rgctl/clones.bloom.json` (invalidated by `graph_digest`). Does **not** write clone edges into `graph.snapshot.bin`.
+**Prerequisites:** `discover` (Function `code_hash` / `token_bloom`). CFGs for `fragment` mode load from `.rgctl/analysis/cfg_pdg.archive.bin` if available, or fall back to on-demand tree-sitter parse of candidate files passing Stage 1 bitwise bloom pre-filter. Sidecars `.rgctl/clones.json` / `.rgctl/clones.bloom.json` / `.rgctl/clones.fragment.json` (invalidated by `graph_digest`). Does **not** write clone edges into `graph.snapshot.bin`.
 
 **Sample** (fixture `rgctl-tests/clone-exact`):
 
@@ -472,11 +473,41 @@ rgctl -f json clones SYMBOL --file PATH [--class C] [--line N]
 }
 ```
 
-**Pitfalls:** Bare `--exclude test` matches a path **component** named `test` (not substring of `rgctl-tests`). Ambiguous symbols need `--file` / `--class` / `--line`. Bloom is noisy — treat as candidates; prefer `exact` for Type-1. Modes `semantic` / `structural` are reserved. Default `min_loc` is 5; bloom default `--threshold` is 0.85.
+**Fragment Sample** (`--mode fragment` emits `schema_version: 2`):
 
-**Agent should report:** group sizes, member names/files, hash/score; for bloom, mention `candidates: true` and threshold. Do not conflate with `semantic query` hits.
+```json
+{
+  "schema_version": 2,
+  "mode": "fragment",
+  "graph_digest": "<blake3>",
+  "filters": { "min_statements": 3, "max_statements": 15, "threshold": 1.0, "exclude": [] },
+  "seed": {
+    "file": "src/orders.rs",
+    "start_line": 24,
+    "end_line": 32,
+    "enclosing_function": "process_orders",
+    "structural_hash": "f9cbad17…"
+  },
+  "group_count": 1,
+  "groups": [
+    {
+      "structural_hash": "f9cbad17…",
+      "size": 2,
+      "score": 1.0,
+      "members": [
+        { "id": "…", "name": "process_orders", "file": "src/orders.rs", "start_line": 24, "end_line": 32, "enclosing_function": "process_orders", "statement_count": 5 },
+        { "id": "…", "name": "audit_orders", "file": "src/audit.rs", "start_line": 40, "end_line": 48, "enclosing_function": "audit_orders", "statement_count": 5 }
+      ]
+    }
+  ]
+}
+```
 
-**See:** [clone-detection-design.md](../../docs/design/clone-detection-design.md), json-api §16b
+**Pitfalls:** Bare `--exclude test` matches a path **component** named `test` (not substring of `rgctl-tests`). Ambiguous symbols need `--file` / `--class` / `--line`. Bloom is noisy — treat as candidates; prefer `exact` for Type-1 or `fragment` for sub-function logic. Default `min_loc` is 5; bloom default `--threshold` is 0.85; fragment defaults are `min_statements = 3`, `max_statements = 15`.
+
+**Agent should report:** group sizes, member names/files, start/end lines, enclosing functions; for fragment mode, highlight duplicated snippet coordinates and structural hash. Do not conflate with `semantic query` hits.
+
+**See:** [clone-detection-design.md](../../docs/design/clone-detection-design.md), [Clone Detection Guide](../../docs/guides/clone-detection.md), json-api §16b
 
 ---
 

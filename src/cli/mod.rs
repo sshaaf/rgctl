@@ -672,9 +672,25 @@ pub enum Commands {
         #[arg(value_name = "SYMBOL")]
         symbol: Option<String>,
 
-        /// Clone mode: exact | bloom (semantic/structural reserved)
+        /// Clone mode: exact | bloom | fragment (semantic/structural reserved)
         #[arg(long, default_value = "exact")]
         mode: String,
+
+        /// Seed for fragment clones: symbol or file:lines (e.g. PaymentService::processRefund or src/lib.rs:10-25)
+        #[arg(long = "seed", value_name = "SEED")]
+        seed: Option<String>,
+
+        /// Line range for seed fragment (e.g. 45-55)
+        #[arg(long = "lines", value_name = "START-END")]
+        lines: Option<String>,
+
+        /// Minimum statement count for fragment clones (default: 3)
+        #[arg(long = "min-statements", value_name = "N")]
+        min_statements: Option<usize>,
+
+        /// Maximum statement count for fragment clones (default: 15)
+        #[arg(long = "max-statements", value_name = "N")]
+        max_statements: Option<usize>,
 
         /// Minimum function LOC to include (default: 5)
         #[arg(long = "min-loc", value_name = "N")]
@@ -2050,6 +2066,10 @@ impl Cli {
             Commands::Clones {
                 symbol,
                 mode,
+                seed,
+                lines,
+                min_statements,
+                max_statements,
                 min_loc,
                 exclude,
                 language,
@@ -2064,6 +2084,10 @@ impl Cli {
                 clones::ClonesArgs {
                     symbol,
                     mode,
+                    seed,
+                    lines,
+                    min_statements,
+                    max_statements,
                     min_loc,
                     exclude,
                     language,

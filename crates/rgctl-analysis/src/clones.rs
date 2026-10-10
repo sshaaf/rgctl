@@ -17,8 +17,14 @@ use uuid::Uuid;
 /// JSON schema version for `rgctl clones` / `.rgctl/clones*.json`.
 pub const CLONE_REPORT_SCHEMA_VERSION: u32 = 1;
 
+/// JSON schema version 2 for fragment clone reports (`rgctl clones --mode fragment`).
+pub const CLONE_REPORT_SCHEMA_VERSION_V2: u32 = 2;
+
 /// Sidecar filename under `.rgctl/` for exact mode.
 pub const CLONES_SIDECAR_FILE: &str = "clones.json";
+
+/// Sidecar filename under `.rgctl/` for fragment mode.
+pub const CLONES_FRAGMENT_SIDECAR_FILE: &str = "clones.fragment.json";
 
 /// Default minimum LOC for a function to participate in clone groups.
 pub const DEFAULT_MIN_LOC: usize = 5;
@@ -34,6 +40,8 @@ pub const MODE_EXACT: &str = "exact";
 
 /// Mode string for token-bloom Jaccard candidates (weak near-duplicates).
 pub const MODE_BLOOM: &str = "bloom";
+/// Mode string for fragment-level clone detection.
+pub const MODE_FRAGMENT: &str = "fragment";
 /// Reserved mode string for embedding neighbor candidates (not implemented).
 pub const MODE_SEMANTIC: &str = "semantic";
 /// Reserved mode string for PDG/CFG confirmation (not implemented).
@@ -53,7 +61,7 @@ pub enum CloneError {
     Io(#[from] std::io::Error),
     /// Unsupported mode for this build.
     #[error(
-        "unsupported clone mode '{0}' (supported: '{MODE_EXACT}', '{MODE_BLOOM}'; reserved: '{MODE_SEMANTIC}', '{MODE_STRUCTURAL}')"
+        "unsupported clone mode '{0}' (supported: '{MODE_EXACT}', '{MODE_BLOOM}', '{MODE_FRAGMENT}'; reserved: '{MODE_SEMANTIC}', '{MODE_STRUCTURAL}')"
     )]
     UnsupportedMode(String),
 }
@@ -253,6 +261,135 @@ pub fn load_sidecar_if_fresh(
 /// Write clone report sidecar (creates `.rgctl/` as needed).
 pub fn save_sidecar(repo_root: &Path, report: &CloneReport) -> Result<PathBuf> {
     let path = clones_sidecar_path_for_mode(repo_root, &report.mode);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let json = serde_json::to_vec_pretty(report)?;
+    std::fs::write(&path, json)?;
+    Ok(path)
+}
+
+/// Filters applied during fragment clone detection.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FragmentCloneFilters {
+    /// Minimum statement count in candidate hammocks (default: 3).
+    pub min_statements: usize,
+    /// Maximum statement count in candidate hammocks (default: 15).
+    pub max_statements: usize,
+    /// Structural confidence threshold in [0, 1] (default: 1.0).
+    pub threshold: f64,
+    /// Path substring / glob excludes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exclude: Vec<String>,
+}
+
+impl Default for FragmentCloneFilters {
+    fn default() -> Self {
+        Self {
+            min_statements: 3,
+            max_statements: 15,
+            threshold: 1.0,
+            exclude: Vec::new(),
+        }
+    }
+}
+
+/// A fragment clone member representing a matched code snippet.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FragmentMember {
+    /// Node UUID of the enclosing function.
+    pub id: String,
+    /// Symbol name of the enclosing function.
+    pub name: String,
+    /// Source file path.
+    pub file: String,
+    /// 1-based start line of the fragment.
+    pub start_line: usize,
+    /// 1-based end line of the fragment.
+    pub end_line: usize,
+    /// Name of enclosing function.
+    pub enclosing_function: String,
+    /// Statement count in this fragment.
+    pub statement_count: usize,
+}
+
+/// A group of duplicate code fragments sharing a structural hash.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FragmentCloneGroup {
+    /// 64-bit 1-WL canonical structural hash.
+    pub structural_hash: String,
+    /// Member count in this group.
+    pub size: usize,
+    /// Structural similarity score (1.0 for exact 1-WL match).
+    pub score: f64,
+    /// Group members.
+    pub members: Vec<FragmentMember>,
+}
+
+/// Metadata describing the query seed fragment.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FragmentSeedInfo {
+    /// Source file path.
+    pub file: String,
+    /// 1-based start line.
+    pub start_line: usize,
+    /// 1-based end line.
+    pub end_line: usize,
+    /// Enclosing function name if known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enclosing_function: Option<String>,
+    /// 64-bit 1-WL canonical structural hash.
+    pub structural_hash: String,
+}
+
+/// Versioned fragment clone report (stdout JSON and `.rgctl/clones.fragment.json`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FragmentCloneReport {
+    /// Schema version (2).
+    pub schema_version: u32,
+    /// Clone mode (`fragment`).
+    pub mode: String,
+    /// Graph content digest used for sidecar invalidation.
+    pub graph_digest: String,
+    /// Filters that were applied.
+    pub filters: FragmentCloneFilters,
+    /// Seed query info if seed-scoped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed: Option<FragmentSeedInfo>,
+    /// Number of clone groups.
+    pub group_count: usize,
+    /// Matched clone groups.
+    pub groups: Vec<FragmentCloneGroup>,
+}
+
+/// Path to `.rgctl/clones.fragment.json`.
+pub fn fragment_clones_sidecar_path(repo_root: &Path) -> PathBuf {
+    clones_sidecar_path_for_mode(repo_root, MODE_FRAGMENT)
+}
+
+/// Load fragment sidecar if present and `graph_digest` matches; otherwise `Ok(None)`.
+pub fn load_fragment_sidecar_if_fresh(
+    repo_root: &Path,
+    graph_digest: &str,
+) -> Result<Option<FragmentCloneReport>> {
+    let path = fragment_clones_sidecar_path(repo_root);
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let bytes = std::fs::read(&path)?;
+    let report: FragmentCloneReport = serde_json::from_slice(&bytes)?;
+    if report.graph_digest != graph_digest || report.mode != MODE_FRAGMENT {
+        return Ok(None);
+    }
+    Ok(Some(report))
+}
+
+/// Write fragment clone report sidecar.
+pub fn save_fragment_sidecar(
+    repo_root: &Path,
+    report: &FragmentCloneReport,
+) -> Result<PathBuf> {
+    let path = fragment_clones_sidecar_path(repo_root);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -745,11 +882,12 @@ pub fn bloom_clones_with_cache(
     Ok(report)
 }
 
-/// Parse mode string (`exact` | `bloom`).
+/// Parse mode string (`exact` | `bloom` | `fragment`).
 pub fn parse_mode(mode: &str) -> Result<&'static str> {
     match mode.trim().to_ascii_lowercase().as_str() {
         "exact" => Ok(MODE_EXACT),
         "bloom" | "sketch" => Ok(MODE_BLOOM),
+        "fragment" => Ok(MODE_FRAGMENT),
         other => Err(CloneError::UnsupportedMode(other.to_string())),
     }
 }
